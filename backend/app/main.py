@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import files
+from app.api.routes import files, agent, auth
 
 app = FastAPI(
     title=settings.app_name,
@@ -23,6 +23,8 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(files.router, prefix=settings.api_prefix)
+app.include_router(agent.router, prefix=settings.api_prefix)
+app.include_router(auth.router, prefix=settings.api_prefix)
 
 
 @app.get("/")
