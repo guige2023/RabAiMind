@@ -3,7 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.logging import setup_logging
+from app.core.exceptions import setup_exception_handlers, RequestLoggingMiddleware
+from app.core.jwt_middleware import JWTMiddleware
 from app.api.routes import files, agent, auth
+
+# 初始化日志
+setup_logging()
 
 app = FastAPI(
     title=settings.app_name,
@@ -20,6 +26,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 请求日志中间件
+app.add_middleware(RequestLoggingMiddleware)
+
+# JWT鉴权中间件（API网关级别）
+# 注意：需要在CORS之后添加
+app.add_middleware(JWTMiddleware)
+
+# 注册异常处理器
+setup_exception_handlers(app)
 
 # 注册路由
 app.include_router(files.router, prefix=settings.api_prefix)

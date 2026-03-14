@@ -31,6 +31,20 @@ class Settings(BaseSettings):
     
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
+
+    # MiniMax
+    minimax_api_key: str = ""
+    minimax_api_base: str = "https://api.minimaxi.com"
+    minimax_model: str = "MiniMax-M2.5"
+
+    # Volcano Engine (火山引擎)
+    volcengine_endpoint: str = "https://ark.cn-beijing.volces.com"
+    volcengine_region: str = "cn-beijing"
+    volcengine_access_key_id: str = ""
+    volcengine_secret_access_key: str = ""
+
+    # MCP
+    mcp_server_url: str = "https://mcp.minimax.com/search"
     
     class Config:
         env_file = ".env"
