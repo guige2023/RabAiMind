@@ -392,7 +392,20 @@ curl -X POST "http://127.0.0.1:3100/api/agents/{agent_id}/wakeup" \
 2. 任务描述中包含工作目录信息
 3. 使用完整路径描述任务
 
-### 问题 3: Agent 等待依赖任务，但依赖已完成
+### 问题 3: 路径显示为 /Users/[]/ 格式
+
+**原因**: 这是 Paperclip 的用户名脱敏机制
+
+**说明**:
+- Paperclip 会将用户名（如 `guige876`）替换为 `[]`
+- 这是安全特性，用于保护用户隐私
+- `/Users/guige876/` 在日志和评论中会显示为 `/Users/[]/`
+
+**解决方案**:
+- Agent 应该使用完整的绝对路径 `/Users/guige876/.openclaw/workspace/RabAiMind`
+- 不要依赖日志中的路径格式
+
+### 问题 4: Agent 等待依赖任务，但依赖已完成
 
 **原因**: Agent 没有主动检查依赖任务状态
 
