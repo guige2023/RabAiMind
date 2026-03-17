@@ -116,49 +116,67 @@ class PPTGenerator:
         logger.info(f"开始 AI 内容生成, request={user_request[:50]}...")
 
         try:
-            # 1. 使用 AI 分析器分析需求
-            analyzer = create_analyzer()
-            options = {
-                "scene": scene,
-                "style": style,
-                "slide_count": slide_count
-            }
-            
-            analysis = analyzer.analyze(user_request, options)
-            logger.info(f"需求分析完成: title={analysis.title}")
-            
-            # 2. 使用内容生成器生成幻灯片结构
-            generator = create_content_generator()
-            slide_tasks = generator.generate_all_slides(analysis, slide_count)
-            logger.info(f"生成了 {len(slide_tasks)} 个幻灯片任务")
-            
-            # 3. 为每个幻灯片生成详细内容
-            for slide_task in slide_tasks:
-                generator.generate_slide_content(slide_task, scene, style)
-            
-            # 4. 转换为内部格式
-            slides = []
-            for i, task in enumerate(slide_tasks):
-                slide_data = {
-                    "type": task.slide_type,
-                    "title": task.title,
-                    "content": task.content,
-                    "subtitle": None,
-                    "notes": task.notes
-                }
-                slides.append(slide_data)
-                logger.info(f"Slide {i+1}: {task.title} ({task.slide_type})")
-            
+            # 使用 asyncio.wait_for 添加超时，避免长时间阻塞
+            # 超时后自动降级到默认内容
+            slides = await asyncio.wait_for(
+                self._generate_content_with_ai(user_request, slide_count, scene, style),
+                timeout=30.0  # 30秒超时
+            )
             return slides
-            
+
+        except asyncio.TimeoutError:
+            logger.warning("AI 内容生成超时，降级到默认内容")
+            return await self._generate_default_content(user_request, slide_count)
         except Exception as e:
             logger.error(f"AI 内容生成失败: {str(e)}")
             import traceback
             traceback.print_exc()
-            
             # 降级到默认内容
-            logger.info("降级到默认内容生成...")
             return await self._generate_default_content(user_request, slide_count)
+
+    async def _generate_content_with_ai(
+        self,
+        user_request: str,
+        slide_count: int,
+        scene: str,
+        style: str
+    ) -> list:
+        """实际的 AI 内容生成逻辑"""
+        # 1. 使用 AI 分析器分析需求 (在线程池中运行避免阻塞)
+        analyzer = create_analyzer()
+        options = {
+            "scene": scene,
+            "style": style,
+            "slide_count": slide_count
+        }
+
+        # 使用 asyncio.to_thread 避免阻塞事件循环
+        analysis = await asyncio.to_thread(analyzer.analyze, user_request, options)
+        logger.info(f"需求分析完成: title={analysis.title}")
+
+        # 2. 使用内容生成器生成幻灯片结构 (在线程池中运行)
+        generator = create_content_generator()
+        slide_tasks = await asyncio.to_thread(generator.generate_all_slides, analysis, slide_count)
+        logger.info(f"生成了 {len(slide_tasks)} 个幻灯片任务")
+
+        # 3. 为每个幻灯片生成详细内容 (在线程池中运行)
+        for slide_task in slide_tasks:
+            await asyncio.to_thread(generator.generate_slide_content, slide_task, scene, style)
+
+        # 4. 转换为内部格式
+        slides = []
+        for i, task in enumerate(slide_tasks):
+            slide_data = {
+                "type": task.slide_type,
+                "title": task.title,
+                "content": task.content,
+                "subtitle": None,
+                "notes": task.notes
+            }
+            slides.append(slide_data)
+            logger.info(f"Slide {i+1}: {task.title} ({task.slide_type})")
+
+        return slides
 
     async def _generate_default_content(
         self,
