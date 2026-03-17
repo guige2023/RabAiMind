@@ -8,7 +8,7 @@ RabAi Mind API 主入口
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import router as api_router
+from src.api import api_router
 from src.config import settings
 from src.utils import setup_logger
 
