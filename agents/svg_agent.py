@@ -462,6 +462,236 @@ class SVGBuilder:
 </svg>'''
         return svg
 
+    def build_content_slide_with_image(
+        self,
+        title: str,
+        content: List[str],
+        image_url: str = None,
+        style: Optional[SVGStyle] = None
+    ) -> str:
+        """构建带图片的内容页 SVG"""
+        if style:
+            self.set_style(style)
+
+        colors = self.get_colors()
+        width, height = self.config.width, self.config.height
+
+        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{self.config.viewbox}" width="{width}" height="{height}">
+  <defs>
+    <linearGradient id="headerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:{colors['primary']};stop-opacity:1" />
+      <stop offset="100%" style="stop-color:{colors['secondary']};stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:{colors['background']};stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F8F9FA;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.15"/>
+    </filter>
+    <clipPath id="imageClip">
+      <rect x="850" y="160" width="700" height="450" rx="10" />
+    </clipPath>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="{width}" height="{height}" fill="url(#bgGradient)" />
+
+  <!-- 装饰性背景元素 -->
+  <circle cx="1500" cy="150" r="200" fill="{colors['secondary']}" opacity="0.05" />
+  <circle cx="100" cy="800" r="150" fill="{colors['accent']}" opacity="0.05" />
+
+  <!-- 顶部标题栏 -->
+  <rect x="0" y="0" width="{width}" height="100" fill="url(#headerGradient)" />
+  <rect x="0" y="95" width="{width}" height="5" fill="{colors['accent']}" />
+
+  <!-- 标题 -->
+  <text x="50" y="65"
+        font-family="{self.config.font_family}"
+        font-size="42"
+        font-weight="bold"
+        fill="#FFFFFF">{self._escape_xml(title)}</text>
+
+  <!-- 左侧装饰线 -->
+  <rect x="0" y="0" width="8" height="100" fill="{colors['accent']}" />
+
+  <!-- 左侧内容区域 -->
+  <g transform="translate(50, 140)">'''
+
+        # 生成内容项
+        item_height = 110
+        accent_colors = [colors["primary"], colors["secondary"], colors["accent"], "#27AE60", "#8E44AD", "#E67E22"]
+
+        content_items = content[:4] if len(content) >= 4 else content
+        for i, item in enumerate(content_items):
+            y_pos = i * item_height
+            accent = accent_colors[i % len(accent_colors)]
+
+            svg += f'''
+    <rect x="0" y="{y_pos}" width="750" height="90" rx="10" fill="#FFFFFF" filter="url(#shadow)" />
+    <rect x="0" y="{y_pos}" width="8" height="90" rx="0" fill="{accent}" />
+    <circle cx="50" cy="{y_pos + 45}" r="25" fill="{accent}" opacity="0.1" />
+    <text x="50" y="{y_pos + 55}"
+          font-family="{self.config.font_family}"
+          font-size="24"
+          font-weight="bold"
+          fill="{accent}"
+          text-anchor="middle">{i+1}</text>
+    <text x="100" y="{y_pos + 45}"
+          font-family="{self.config.font_family}"
+          font-size="22"
+          font-weight="500"
+          fill="{colors['text']}">{self._escape_xml(item[:40] if len(item) > 40 else item)}</text>'''
+
+        # 如果有图片URL，添加图片区域
+        if image_url:
+            svg += f'''
+  </g>
+
+  <!-- 图片区域 -->
+  <g transform="translate(0, 0)">
+    <rect x="840" y="150" width="720" height="470" rx="10" fill="#FFFFFF" filter="url(#shadow)" />
+    <image href="{image_url}" x="850" y="160" width="700" height="450" preserveAspectRatio="xMidYMid slice" clip-path="url(#imageClip)" />
+  </g>'''
+        else:
+            svg += '''
+  </g>'''
+
+        svg += f'''
+  <!-- 页脚 -->
+  <text x="50" y="870"
+        font-family="{self.config.font_family}"
+        font-size="14"
+        fill="{colors['subtext']}">RabAi Mind · AI PPT 生成平台</text>
+</svg>'''
+        return svg
+
+    def build_title_slide_with_image(
+        self,
+        title: str,
+        subtitle: str = None,
+        image_url: str = None,
+        style: Optional[SVGStyle] = None
+    ) -> str:
+        """构建带图片的标题页 SVG"""
+        if style:
+            self.set_style(style)
+
+        colors = self.get_colors()
+        width, height = self.config.width, self.config.height
+        now_str = datetime.now().strftime("%Y-%m-%d")
+
+        svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{self.config.viewbox}" width="{width}" height="{height}">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:{colors['primary']};stop-opacity:1" />
+      <stop offset="100%" style="stop-color:{colors['secondary']};stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E8F4FD;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="{width}" height="{height}" fill="url(#bgGradient)" />
+
+  <!-- 装饰性几何图形 -->
+  <circle cx="1400" cy="200" r="300" fill="#FFFFFF" opacity="0.05" />
+  <circle cx="200" cy="700" r="200" fill="#FFFFFF" opacity="0.05" />
+  <polygon points="0,0 300,0 0,300" fill="#FFFFFF" opacity="0.03" />
+  <polygon points="{width},{height} {width-300},{height} {width},{height-300}" fill="#FFFFFF" opacity="0.03" />
+
+  <!-- 网格装饰 -->
+  <g stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="1">
+    <line x1="0" y1="200" x2="{width}" y2="200" />
+    <line x1="0" y1="400" x2="{width}" y2="400" />
+    <line x1="0" y1="600" x2="{width}" y2="600" />
+    <line x1="400" y1="0" x2="400" y2="{height}" />
+    <line x1="800" y1="0" x2="800" y2="{height}" />
+    <line x1="1200" y1="0" x2="1200" y2="{height}" />
+  </g>
+
+  <!-- 左侧装饰条 -->
+  <rect x="0" y="0" width="12" height="{height}" fill="#FFFFFF" opacity="0.3" />'''
+
+        if image_url:
+            # 带图片的布局 - 图片在右侧
+            svg += f'''
+  <!-- 主标题 -->
+  <text x="500" y="{height//2 - 30}"
+        font-family="{self.config.font_family}"
+        font-size="68"
+        font-weight="bold"
+        fill="url(#textGradient)"
+        text-anchor="middle"
+        filter="url(#glow)">{self._escape_xml(title)}</text>'''
+
+            if subtitle:
+                svg += f'''
+  <!-- 副标题 -->
+  <text x="500" y="{height//2 + 50}"
+        font-family="{self.config.font_family}"
+        font-size="28"
+        fill="#FFFFFF"
+        opacity="0.9"
+        text-anchor="middle">{self._escape_xml(subtitle)}</text>'''
+
+            # 右侧图片
+            svg += f'''
+  <!-- 右侧图片 -->
+  <rect x="1000" y="150" width="550" height="400" rx="20" fill="#FFFFFF" opacity="0.15" />
+  <image href="{image_url}" x="1020" y="170" width="510" height="360" preserveAspectRatio="xMidYMid slice" />'''
+        else:
+            # 无图片布局 - 居中
+            svg += f'''
+  <!-- 主标题 -->
+  <text x="{width//2}" y="{height//2 - 30}"
+        font-family="{self.config.font_family}"
+        font-size="68"
+        font-weight="bold"
+        fill="url(#textGradient)"
+        text-anchor="middle"
+        filter="url(#glow)">{self._escape_xml(title)}</text>'''
+
+            if subtitle:
+                svg += f'''
+  <!-- 副标题 -->
+  <text x="{width//2}" y="{height//2 + 50}"
+        font-family="{self.config.font_family}"
+        font-size="28"
+        fill="#FFFFFF"
+        opacity="0.9"
+        text-anchor="middle">{self._escape_xml(subtitle)}</text>'''
+
+        # 底部信息
+        svg += f'''
+  <!-- 底部信息 -->
+  <rect x="0" y="{height-80}" width="{width}" height="80" fill="#000000" opacity="0.1" />
+  <text x="{width//2}" y="{height-45}"
+        font-family="{self.config.font_family}"
+        font-size="20"
+        fill="#FFFFFF"
+        opacity="0.7"
+        text-anchor="middle">RabAi Mind · AI PPT 生成平台</text>
+  <text x="{width//2}" y="{height-20}"
+        font-family="{self.config.font_family}"
+        font-size="14"
+        fill="#FFFFFF"
+        opacity="0.5"
+        text-anchor="middle">{now_str}</text>
+</svg>'''
+        return svg
+
     def _escape_xml(self, text: str) -> str:
         """转义 XML 特殊字符"""
         return (text
