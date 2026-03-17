@@ -96,12 +96,18 @@ const pollStatus = async () => {
   if (!taskId.value) return
 
   try {
-    const response = await axios.get(`/api/v1/ppt/status/${taskId.value}`)
+    const response = await axios.get(`/api/v1/ppt/task/${taskId.value}`)
     const data = response.data
 
     status.value = data.status
     progress.value = data.progress
-    currentStepKey.value = getStepKey(data.progress)
+
+    // 优先使用后端返回的步骤名称
+    if (data.current_step) {
+      currentStepKey.value = getStepKeyFromName(data.current_step)
+    } else {
+      currentStepKey.value = getStepKey(data.progress)
+    }
 
     if (data.status === 'completed') {
       // 跳转到结果页
@@ -121,6 +127,17 @@ const getStepKey = (progress: number): string => {
   if (progress < 80) return 'svg'
   if (progress < 100) return 'pptx'
   return 'done'
+}
+
+// 根据后端步骤名称获取前端步骤key
+const getStepKeyFromName = (stepName: string): string => {
+  const name = stepName.toLowerCase()
+  if (name.includes('初始化') || name.includes('解析') || name.includes('pending')) return 'init'
+  if (name.includes('内容') || name.includes('生成') || name.includes('processing')) return 'content'
+  if (name.includes('SVG') || name.includes('渲染') || name.includes('design')) return 'svg'
+  if (name.includes('转换') || name.includes('PPTX') || name.includes('file')) return 'pptx'
+  if (name.includes('完成') || name.includes('优化') || name.includes('completed')) return 'done'
+  return 'content'
 }
 
 // 取消生成
