@@ -1,0 +1,238 @@
+# -*- coding: utf-8 -*-
+"""
+API 路由定义
+
+作者: Claude
+日期: 2026-03-17
+"""
+
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi.responses import FileResponse, JSONResponse
+from typing import Dict, Any
+import asyncio
+import time
+
+from src.models import (
+    GenerateRequest,
+    GenerateResponse,
+    TaskStatusResponse,
+    TaskStatus,
+    TaskResult,
+    TaskError,
+    HealthResponse,
+    APIInfo,
+    SceneType,
+    StyleType
+)
+from src.services.task_manager import TaskManager
+from src.services.ppt_generator import PPTGenerator
+
+# 创建路由
+router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
+
+# 全局服务实例
+task_manager = TaskManager()
+ppt_generator = PPTGenerator()
+
+
+# ==================== 健康检查 ====================
+
+@router.get("/health", response_model=HealthResponse)
+async def health_check():
+    """健康检查"""
+    return HealthResponse(
+        status="healthy",
+        service="rabai-mind-api"
+    )
+
+
+@router.get("/info", response_model=APIInfo)
+async def get_api_info():
+    """获取API信息"""
+    return APIInfo(
+        name="RabAi Mind",
+        version="1.0.0",
+        features=[
+            "AI PPT 生成",
+            "多场景支持",
+            "SVG 渲染",
+            "PPTX 转换优化",
+            "MCP 协议支持"
+        ]
+    )
+
+
+# ==================== PPT 生成 ====================
+
+@router.post("/generate", response_model=GenerateResponse)
+async def generate_ppt(request: GenerateRequest, background_tasks: BackgroundTasks):
+    """提交 PPT 生成任务"""
+    try:
+        # 创建任务
+        task_id = task_manager.create_task(
+            user_request=request.user_request,
+            slide_count=request.slide_count,
+            scene=request.scene.value,
+            style=request.style.value,
+            template=request.template.value,
+            theme_color=request.theme_color
+        )
+
+        # 异步执行生成任务
+        background_tasks.add_task(
+            ppt_generator.generate,
+            task_id=task_id,
+            user_request=request.user_request,
+            slide_count=request.slide_count,
+            scene=request.scene.value,
+            style=request.style.value,
+            template=request.template.value,
+            theme_color=request.theme_color
+        )
+
+        return GenerateResponse(
+            success=True,
+            task_id=task_id,
+            status=TaskStatus.PENDING,
+            message="PPT 生成任务已创建",
+            estimated_time=120
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+# ==================== 任务状态 ====================
+
+@router.get("/task/{task_id}", response_model=TaskStatusResponse)
+async def get_task_status(task_id: str):
+    """获取任务状态"""
+    task = task_manager.get_task(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    return TaskStatusResponse(
+        success=True,
+        task_id=task_id,
+        status=TaskStatus(task["status"]),
+        progress=task.get("progress", 0),
+        current_step=task.get("current_step", ""),
+        created_at=task["created_at"],
+        updated_at=task.get("updated_at", task["created_at"]),
+        result=TaskResult(**task["result"]) if task.get("result") else None,
+        error=TaskError(**task["error"]) if task.get("error") else None
+    )
+
+
+@router.delete("/task/{task_id}")
+async def cancel_task(task_id: str):
+    """取消任务"""
+    success = task_manager.cancel_task(task_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在或无法取消"
+        )
+
+    return {"success": True, "task_id": task_id, "status": "cancelled"}
+
+
+# ==================== 文件下载 ====================
+
+@router.get("/download/{task_id}")
+async def download_ppt(task_id: str):
+    """下载 PPT 文件"""
+    task = task_manager.get_task(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    if task["status"] != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"任务尚未完成，当前状态: {task['status']}"
+        )
+
+    result = task.get("result", {})
+    file_path = result.get("pptx_path")
+
+    if not file_path or not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="文件不存在"
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        filename=f"presentation_{task_id}.pptx",
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    )
+
+
+# ==================== 模板列表 ====================
+
+@router.get("/templates")
+async def get_templates():
+    """获取模板列表"""
+    templates = [
+        {
+            "id": "default",
+            "name": "默认模板",
+            "description": "通用商务模板",
+            "thumbnail": "/templates/default.png"
+        },
+        {
+            "id": "modern",
+            "name": "现代模板",
+            "description": "简约现代设计",
+            "thumbnail": "/templates/modern.png"
+        },
+        {
+            "id": "tech",
+            "name": "科技模板",
+            "description": "科技感风格",
+            "thumbnail": "/templates/tech.png"
+        },
+        {
+            "id": "classic",
+            "name": "经典模板",
+            "description": "传统商务风格",
+            "thumbnail": "/templates/classic.png"
+        }
+    ]
+    return templates
+
+
+# ==================== 场景和风格 ====================
+
+@router.get("/scenes")
+async def get_scenes():
+    """获取场景类型"""
+    return [
+        {"id": "business", "name": "商务", "description": "商业演示"},
+        {"id": "education", "name": "教育", "description": "教学课件"},
+        {"id": "tech", "name": "科技", "description": "技术分享"},
+        {"id": "creative", "name": "创意", "description": "创意展示"}
+    ]
+
+
+@router.get("/styles")
+async def get_styles():
+    """获取风格类型"""
+    return [
+        {"id": "professional", "name": "专业", "description": "商务专业风格"},
+        {"id": "simple", "name": "简约", "description": "简洁大方风格"},
+        {"id": "energetic", "name": "活力", "description": "充满活力风格"},
+        {"id": "premium", "name": "高端", "description": "高端大气风格"}
+    ]

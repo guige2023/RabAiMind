@@ -1,0 +1,263 @@
+<template>
+  <div class="result">
+    <div class="container">
+      <div class="result-card">
+        <!-- 成功状态 -->
+        <div v-if="status === 'completed'" class="result-success">
+          <div class="success-icon">🎉</div>
+          <h2 class="result-title">PPT 生成成功!</h2>
+          <p class="result-desc">你的演示文稿已准备就绪</p>
+
+          <!-- 文件信息 -->
+          <div class="file-info">
+            <div class="info-item">
+              <span class="info-label">幻灯片</span>
+              <span class="info-value">{{ slideCount }} 页</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">文件大小</span>
+              <span class="info-value">{{ fileSize }}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">格式</span>
+              <span class="info-value">PPTX</span>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="result-actions">
+            <button class="btn btn-primary btn-lg" @click="handleDownload">
+              <span>⬇️</span> 下载 PPT
+            </button>
+            <button class="btn btn-secondary btn-lg" @click="handleNew">
+              <span>✨</span> 创建新的
+            </button>
+          </div>
+        </div>
+
+        <!-- 失败状态 -->
+        <div v-else-if="status === 'failed'" class="result-failed">
+          <div class="failed-icon">😔</div>
+          <h2 class="result-title">生成失败</h2>
+          <p class="result-error">{{ errorMessage }}</p>
+
+          <div class="result-actions">
+            <button class="btn btn-primary btn-lg" @click="handleRetry">
+              <span>🔄</span> 重试
+            </button>
+            <button class="btn btn-secondary btn-lg" @click="handleNew">
+              <span>✨</span> 重新输入
+            </button>
+          </div>
+        </div>
+
+        <!-- 加载状态 -->
+        <div v-else class="result-loading">
+          <div class="loading-spinner"></div>
+          <p>加载中...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
+
+const router = useRouter()
+const route = useRoute()
+
+const taskId = ref((route.query.taskId as string) || '')
+const status = ref('loading')
+const slideCount = ref(0)
+const fileSize = ref('0 KB')
+const errorMessage = ref('')
+
+// 加载任务状态
+const loadStatus = async () => {
+  if (!taskId.value) {
+    status.value = 'failed'
+    errorMessage.value = '任务ID不存在'
+    return
+  }
+
+  try {
+    const response = await axios.get(`/api/v1/ppt/status/${taskId.value}`)
+    const data = response.data
+
+    status.value = data.status
+
+    if (data.status === 'completed' && data.result) {
+      slideCount.value = data.result.slide_count || 0
+      // 使用 slide_count 作为参考信息
+      fileSize.value = data.result.slide_count ? `${data.result.slide_count} 页` : '已生成'
+    } else if (data.status === 'failed') {
+      errorMessage.value = data.error?.message || '未知错误'
+    }
+  } catch (error) {
+    status.value = 'failed'
+    errorMessage.value = '加载失败，请重试'
+  }
+}
+
+// 格式化文件大小
+const formatSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// 下载
+const handleDownload = async () => {
+  if (!taskId.value) return
+
+  try {
+    const response = await axios.get(`/api/v1/ppt/download/${taskId.value}`, {
+      responseType: 'blob'
+    })
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `presentation_${taskId.value}.pptx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('下载失败，请重试')
+  }
+}
+
+// 重试
+const handleRetry = () => {
+  router.push('/create')
+}
+
+// 新建
+const handleNew = () => {
+  router.push('/create')
+}
+
+onMounted(() => {
+  loadStatus()
+})
+</script>
+
+<style scoped>
+.result {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.result-card {
+  max-width: 500px;
+  width: 100%;
+  padding: 60px 40px;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+/* 成功状态 */
+.success-icon {
+  font-size: 72px;
+  margin-bottom: 24px;
+  animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+.result-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-bottom: 8px;
+}
+
+.result-desc {
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 32px;
+}
+
+.file-info {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding: 20px;
+  background: #F5F5F5;
+  border-radius: 12px;
+  margin-bottom: 32px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  font-size: 12px;
+  color: #999;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+/* 失败状态 */
+.failed-icon {
+  font-size: 72px;
+  margin-bottom: 24px;
+}
+
+.result-error {
+  font-size: 14px;
+  color: #FF3B30;
+  margin-bottom: 32px;
+  padding: 12px;
+  background: #FFEBEE;
+  border-radius: 8px;
+}
+
+/* 加载状态 */
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E5E5;
+  border-top-color: #165DFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 24px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 操作按钮 */
+.result-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.btn-lg {
+  padding: 14px 32px;
+  font-size: 16px;
+}
+</style>

@@ -1,0 +1,37 @@
+# RabAi Mind AI PPT 生成平台依赖
+
+# 核心框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# HTTP 请求
+requests>=2.31.0
+httpx>=0.25.0
+
+# 配置管理
+pyyaml>=6.0.1
+
+# 异步任务
+python-multipart>=0.0.6
+
+# PPTX 处理
+python-pptx>=0.6.23
+
+# 图片处理
+Pillow>=10.1.0
+
+# WebSocket
+websockets>=12.0
+
+# 工具
+python-dotenv>=1.0.0
+
+# 火山引擎 SDK
+volcengine-python-sdk[ark]>=1.0.0
+
+# 可选: Redis 支持
+redis>=5.0.0
+
+# 可选: OSS 支持
+oss2>=2.18.0

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "rabai-mind": {
+      "command": "python",
+      "args": [
+        "mcp_server_optimized.py"
+      ],
+      "env": {
+        "VOLCANO_API_KEY": "${VOLCANO_API_KEY}"
+      }
+    },
+    "okppt": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-okppt"
+      ]
+    }
+  }
+}
