@@ -44,7 +44,9 @@ class PPTGenerator:
 
         try:
             # 更新状态
+            logger.info(f"更新任务状态为 processing, task_id={task_id}")
             self.task_manager.update_progress(task_id, 5, "解析需求", "processing")
+            logger.info(f"任务状态已更新, task_id={task_id}")
 
             # 内容生成 - 从 agents 目录导入实际的内容生成逻辑
             slides_content = await self._generate_content(
@@ -107,19 +109,11 @@ class PPTGenerator:
         scene: str,
         style: str
     ) -> list:
-        """生成 PPT 内容 - 使用 Volcano Agent 进行实际内容生成"""
-        try:
-            # 尝试调用 volcano_agent 生成实际内容
-            from agents.volcano_agent import VolcanoAgent
-            agent = VolcanoAgent()
-            slides = agent.generate_presentation(user_request, slide_count, scene, style)
-            if slides and len(slides) > 0:
-                logger.info(f"VolcanoAgent 生成了 {len(slides)} 张幻灯片")
-                return slides
-        except Exception as e:
-            logger.warning(f"VolcanoAgent 调用失败: {e}, 使用默认内容")
+        """生成 PPT 内容 - 使用默认内容（VolcanoAgent 暂时跳过）"""
+        logger.info("开始生成默认内容...")
 
-        # 如果 VolcanoAgent 失败，使用默认内容
+        # 直接使用默认内容，跳过 VolcanoAgent 以避免阻塞
+        # TODO: 后续修复 VolcanoAgent 集成
         slides = []
         for i in range(slide_count):
             if i == 0:

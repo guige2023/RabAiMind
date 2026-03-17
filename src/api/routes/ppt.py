@@ -6,7 +6,7 @@ API 路由定义
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any
 import asyncio
@@ -24,15 +24,11 @@ from src.models import (
     SceneType,
     StyleType
 )
-from src.services.task_manager import TaskManager
-from src.services.ppt_generator import PPTGenerator
+from src.services.task_manager import get_task_manager
+from src.services.ppt_generator import get_ppt_generator
 
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
-
-# 全局服务实例
-task_manager = TaskManager()
-ppt_generator = PPTGenerator()
 
 
 # ==================== 健康检查 ====================
@@ -65,11 +61,11 @@ async def get_api_info():
 # ==================== PPT 生成 ====================
 
 @router.post("/generate", response_model=GenerateResponse)
-async def generate_ppt(request: GenerateRequest, background_tasks: BackgroundTasks):
+async def generate_ppt(request: GenerateRequest):
     """提交 PPT 生成任务"""
     try:
         # 创建任务
-        task_id = task_manager.create_task(
+        task_id = get_task_manager().create_task(
             user_request=request.user_request,
             slide_count=request.slide_count,
             scene=request.scene.value,
@@ -78,16 +74,17 @@ async def generate_ppt(request: GenerateRequest, background_tasks: BackgroundTas
             theme_color=request.theme_color
         )
 
-        # 异步执行生成任务
-        background_tasks.add_task(
-            ppt_generator.generate,
-            task_id=task_id,
-            user_request=request.user_request,
-            slide_count=request.slide_count,
-            scene=request.scene.value,
-            style=request.style.value,
-            template=request.template.value,
-            theme_color=request.theme_color
+        # 异步执行生成任务 - 使用 asyncio.create_task 在后台运行
+        asyncio.create_task(
+            get_ppt_generator().generate(
+                task_id=task_id,
+                user_request=request.user_request,
+                slide_count=request.slide_count,
+                scene=request.scene.value,
+                style=request.style.value,
+                template=request.template.value,
+                theme_color=request.theme_color
+            )
         )
 
         return GenerateResponse(
@@ -110,7 +107,7 @@ async def generate_ppt(request: GenerateRequest, background_tasks: BackgroundTas
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
     """获取任务状态"""
-    task = task_manager.get_task(task_id)
+    task = get_task_manager().get_task(task_id)
 
     if not task:
         raise HTTPException(
@@ -134,7 +131,7 @@ async def get_task_status(task_id: str):
 @router.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """取消任务"""
-    success = task_manager.cancel_task(task_id)
+    success = get_task_manager().cancel_task(task_id)
 
     if not success:
         raise HTTPException(
@@ -150,7 +147,7 @@ async def cancel_task(task_id: str):
 @router.get("/download/{task_id}")
 async def download_ppt(task_id: str):
     """下载 PPT 文件"""
-    task = task_manager.get_task(task_id)
+    task = get_task_manager().get_task(task_id)
 
     if not task:
         raise HTTPException(
