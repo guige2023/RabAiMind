@@ -181,19 +181,52 @@ class PPTGenerator:
             elif style_name == "minimal":
                 style_enum = SVGStyle.MINIMAL
 
+            # 为每一页生成图片
+            slide_images = {}
+            for i, slide in enumerate(slides_content):
+                slide_type = slide.get("type", "content")
+                title = slide.get("title", f"Slide {i+1}")
+
+                # 生成图片提示词
+                if slide_type == "title":
+                    image_prompt = f"Professional business presentation background, {title}, modern minimalist style, gradient blue and white, abstract geometric shapes, 16:9 ratio"
+                else:
+                    content_text = " ".join(slide.get("content", [])[:2]) if slide.get("content") else title
+                    image_prompt = f"Business illustration for {content_text[:50]}, professional flat design, modern corporate style, clean background"
+
+                # 尝试生成图片
+                try:
+                    from volc_okppt_tools import generate_image
+                    # 使用正确的尺寸以满足 API 要求 (至少 3686400 像素 = 2560x1440)
+                    result = generate_image(image_prompt, size="2560x1440")
+                    if result and result.get("url"):
+                        slide_images[i] = result["url"]
+                        logger.info(f"生成了图片 for slide {i+1}: {result['url'][:50]}...")
+                except Exception as e:
+                    logger.warning(f"图片生成失败: {e}")
+                    slide_images[i] = None
+
+            # 生成 SVG
             for i, slide in enumerate(slides_content):
                 slide_type = slide.get("type", "content")
                 title = slide.get("title", f"Slide {i+1}")
                 content = slide.get("content", [])
                 subtitle = slide.get("subtitle")
+                image_url = slide_images.get(i)
 
-                # 生成 SVG
+                # 根据是否有图片选择不同的 SVG 构建方法
                 if slide_type == "title":
-                    svg_code = svg_builder.build_title_slide(title, subtitle, style_enum)
+                    if image_url:
+                        svg_code = svg_builder.build_title_slide_with_image(title, subtitle, image_url, style_enum)
+                    else:
+                        svg_code = svg_builder.build_title_slide(title, subtitle, style_enum)
                 else:
                     # 内容页
                     content_list = content if isinstance(content, list) else [str(content)]
-                    svg_code = svg_builder.build_content_slide(title, content_list, style_enum)
+                    if image_url:
+                        svg_code = svg_builder.build_content_slide_with_image(title, content_list, image_url, style_enum)
+                    else:
+                        svg_code = svg_builder.build_content_slide(title, content_list, style_enum)
 
                 # 保存 SVG 文件
                 svg_path = Path(settings.OUTPUT_DIR) / f"slide_{i+1}_{slide_type}.svg"

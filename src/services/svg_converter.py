@@ -8,7 +8,10 @@ SVG to PPTX 转换模块 (简化版)
 import os
 import uuid
 import logging
+import re
+import requests
 from typing import Optional, Union, Tuple, List
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,17 @@ except ImportError:
     logger.warning("python-pptx not available, PPTX creation will not work")
 
 
+def _download_image(url: str) -> Optional[BytesIO]:
+    """下载图片并返回 BytesIO"""
+    try:
+        response = requests.get(url, timeout=30)
+        if response.status_code == 200:
+            return BytesIO(response.content)
+    except Exception as e:
+        logger.warning(f"Failed to download image: {e}")
+    return None
+
+
 def create_pptx_from_svgs(
     svg_files: List[str],
     output_path: str,
@@ -28,8 +42,7 @@ def create_pptx_from_svgs(
     slide_height: float = 9.0
 ) -> Tuple[bool, str]:
     """
-    从多个 SVG 文件创建 PPTX
-    注意: 由于没有 cairo 库，这里会创建包含文本的简化 PPTX
+    从多个 SVG 文件创建 PPTX，支持图片
 
     Args:
         svg_files: SVG 文件路径列表
@@ -55,18 +68,39 @@ def create_pptx_from_svgs(
                 logger.warning(f"SVG not found: {svg_path}")
                 continue
 
-            # 尝试从 SVG 提取文本内容
-            title, content_lines = _extract_text_from_svg(svg_path)
+            # 尝试从 SVG 提取文本内容和图片
+            title, content_lines, image_url = _extract_text_from_svg(svg_path)
 
             # 创建空白幻灯片
             blank_layout = prs.slide_layouts[6]
             slide = prs.slides.add_slide(blank_layout)
 
+            # 添加图片 (如果存在)
+            if image_url:
+                try:
+                    img_io = _download_image(image_url)
+                    if img_io:
+                        # 保存为临时文件
+                        temp_img = os.path.join("/tmp", f"temp_{uuid.uuid4().hex}.png")
+                        with open(temp_img, 'wb') as f:
+                            f.write(img_io.getvalue())
+
+                        # 添加图片到右侧
+                        slide.shapes.add_picture(
+                            temp_img,
+                            Inches(8.5), Inches(1.5),
+                            width=Inches(7)
+                        )
+                        os.remove(temp_img)
+                        logger.info(f"Added image to slide: {image_url[:50]}...")
+                except Exception as e:
+                    logger.warning(f"Failed to add image: {e}")
+
             # 添加标题
             if title:
                 title_box = slide.shapes.add_textbox(
                     Inches(0.5), Inches(0.3),
-                    Inches(15), Inches(1)
+                    Inches(7.5), Inches(1)
                 )
                 text_frame = title_box.text_frame
                 text_frame.text = title
@@ -74,11 +108,11 @@ def create_pptx_from_svgs(
                     paragraph.font.size = Pt(36)
                     paragraph.font.bold = True
 
-            # 添加内容
+            # 添加内容 (在图片左侧)
             if content_lines:
                 content_box = slide.shapes.add_textbox(
                     Inches(0.5), Inches(1.5),
-                    Inches(15), Inches(7)
+                    Inches(7.5), Inches(7)
                 )
                 text_frame = content_box.text_frame
                 text_frame.word_wrap = True
@@ -103,12 +137,12 @@ def create_pptx_from_svgs(
         return False, str(e)
 
 
-def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str]]:
+def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str], Optional[str]]:
     """
-    从 SVG 文件提取文本内容
+    从 SVG 文件提取文本内容和图片URL
 
     Returns:
-        (标题, 内容行列表)
+        (标题, 内容行列表, 图片URL)
     """
     try:
         with open(svg_path, 'r', encoding='utf-8') as f:
@@ -116,9 +150,9 @@ def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str]]:
 
         title = None
         content_lines = []
+        image_url = None
 
         # 提取标题 (第一个 text 元素)
-        import re
         title_match = re.search(r'<text[^>]*>([^<]+)</text>', content)
         if title_match:
             title = title_match.group(1).strip()
@@ -132,11 +166,16 @@ def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str]]:
                 if 'RabAi' not in text and 'PPT' not in text:
                     content_lines.append(text)
 
-        return title, content_lines[:10]
+        # 提取图片 URL
+        image_match = re.search(r'<image[^>]*href="([^"]+)"', content)
+        if image_match:
+            image_url = image_match.group(1)
+
+        return title, content_lines[:10], image_url
 
     except Exception as e:
         logger.error(f"Error extracting text from SVG: {e}")
-        return None, []
+        return None, [], None
 
 
 def get_pptx_slide_count(pptx_path: str) -> Tuple[int, str]:
