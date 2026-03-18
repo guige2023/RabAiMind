@@ -83,7 +83,10 @@ async def generate_ppt(request: GenerateRequest):
                 scene=request.scene.value,
                 style=request.style.value,
                 template=request.template.value,
-                theme_color=request.theme_color
+                theme_color=request.theme_color,
+                text_style=request.text_style.value,
+                shadow_color=request.shadow_color,
+                overlay_transparency=request.overlay_transparency
             )
         )
 

@@ -95,6 +95,59 @@
           </div>
         </div>
 
+        <!-- 文字样式方案 -->
+        <div class="form-section">
+          <label class="form-label">文字样式方案</label>
+          <div class="text-style-options">
+            <div
+              v-for="option in textStyleOptions"
+              :key="option.value"
+              class="text-style-option"
+              :class="{ active: formData.textStyle === option.value }"
+              @click="formData.textStyle = option.value"
+            >
+              <div class="option-icon">{{ option.icon }}</div>
+              <div class="option-info">
+                <div class="option-name">{{ option.name }}</div>
+                <div class="option-desc">{{ option.desc }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 遮罩透明度选择（仅半透明遮罩样式时显示） -->
+        <div class="form-section" v-if="formData.textStyle === 'transparent_overlay'">
+          <label class="form-label">遮罩透明度: {{ formData.overlayTransparency }}%</label>
+          <div class="slider-group">
+            <input
+              type="range"
+              v-model.number="formData.overlayTransparency"
+              min="10"
+              max="80"
+              step="5"
+              class="slider"
+            />
+            <span class="slider-value">{{ formData.overlayTransparency }}%</span>
+          </div>
+        </div>
+
+        <!-- 阴影颜色选择（仅文字阴影样式时显示） -->
+        <div class="form-section" v-if="formData.textStyle === 'shadow'">
+          <label class="form-label">阴影颜色</label>
+          <div class="theme-colors">
+            <div
+              v-for="color in shadowColors"
+              :key="color.value"
+              class="theme-color"
+              :class="{ active: formData.shadowColor === color.value }"
+              :style="{ background: color.value }"
+              @click="formData.shadowColor = color.value"
+            >
+              <span v-if="formData.shadowColor === color.value" class="check">✓</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 提交按钮 -->
         <div class="form-actions">
           <button
@@ -126,7 +179,10 @@ const formData = ref({
   scene: 'business',
   style: 'professional',
   template: 'default',
-  themeColor: '#165DFF'
+  themeColor: '#165DFF',
+  textStyle: 'transparent_overlay',
+  shadowColor: '#000000',
+  overlayTransparency: 30
 })
 
 // 验证错误
@@ -145,6 +201,33 @@ const themeColors = [
   { value: '#FF3B30', name: '热情红' },
   { value: '#AF52DE', name: '神秘紫' },
   { value: '#1A1A1A', name: '经典黑' }
+]
+
+// 文字样式选项
+const textStyleOptions = [
+  {
+    value: 'transparent_overlay',
+    name: '半透明遮罩',
+    desc: '在图片上添加半透明黑色层，文字更清晰',
+    icon: '🎨'
+  },
+  {
+    value: 'shadow',
+    name: '文字阴影',
+    desc: '白色文字带阴影效果，图片上清晰可见',
+    icon: '✨'
+  }
+]
+
+// 阴影颜色选项
+const shadowColors = [
+  { value: '#000000', name: '黑色' },
+  { value: '#333333', name: '深灰' },
+  { value: '#FFFF00', name: '黄色' },
+  { value: '#FF0000', name: '红色' },
+  { value: '#165DFF', name: '蓝色' },
+  { value: '#34C759', name: '绿色' },
+  { value: '#FF9500', name: '橙色' }
 ]
 
 // 验证输入
@@ -177,7 +260,10 @@ const handleSubmit = async () => {
       scene: formData.value.scene,
       style: formData.value.style,
       template: formData.value.template,
-      theme_color: formData.value.themeColor
+      theme_color: formData.value.themeColor,
+      text_style: formData.value.textStyle,
+      shadow_color: formData.value.shadowColor,
+      overlay_transparency: formData.value.overlayTransparency
     })
 
     const { task_id, status } = response.data
@@ -326,6 +412,60 @@ onMounted(() => {
 .check {
   color: #fff;
   font-weight: bold;
+}
+
+/* 文字样式选项 */
+.text-style-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .text-style-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.text-style-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid #E5E5E5;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.text-style-option:hover {
+  border-color: #165DFF;
+  background: #F0F7FF;
+}
+
+.text-style-option.active {
+  border-color: #165DFF;
+  background: #E6F0FF;
+}
+
+.option-icon {
+  font-size: 24px;
+}
+
+.option-info {
+  flex: 1;
+}
+
+.option-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.option-desc {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
 }
 
 .form-actions {

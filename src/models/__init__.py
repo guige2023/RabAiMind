@@ -47,6 +47,12 @@ class TemplateType(str, Enum):
     TECH = "tech"
 
 
+class TextStyleType(str, Enum):
+    """文字样式类型"""
+    TRANSPARENT_OVERLAY = "transparent_overlay"  # 半透明遮罩
+    SHADOW = "shadow"  # 文字阴影/描边
+
+
 # ==================== 请求模型 ====================
 
 class GenerateRequest(BaseModel):
@@ -57,6 +63,9 @@ class GenerateRequest(BaseModel):
     style: StyleType = Field(default=StyleType.PROFESSIONAL, description="风格类型")
     template: TemplateType = Field(default=TemplateType.DEFAULT, description="模板类型")
     theme_color: str = Field(default="#165DFF", description="主题色")
+    text_style: TextStyleType = Field(default=TextStyleType.TRANSPARENT_OVERLAY, description="文字样式方案")
+    shadow_color: str = Field(default="#000000", description="阴影颜色")
+    overlay_transparency: int = Field(default=30, ge=0, le=100, description="遮罩透明度百分比")
 
 
 # ==================== 响应模型 ====================

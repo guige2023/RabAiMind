@@ -40,7 +40,10 @@ class PPTGenerator:
         scene: str = "business",
         style: str = "professional",
         template: str = "default",
-        theme_color: str = "#165DFF"
+        theme_color: str = "#165DFF",
+        text_style: str = "transparent_overlay",
+        shadow_color: str = "#000000",
+        overlay_transparency: int = 30
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式"""
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}")
@@ -95,7 +98,7 @@ class PPTGenerator:
             
             logger.info(f"SVG转PPT: {output_path}")
             # 同步调用
-            self._svg_to_ppt(svg_files, output_path)
+            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency)
             
             logger.info(f"PPT生成完成: {output_path}")
             task_manager.update_progress(task_id, 100, "完成", "completed")
@@ -478,14 +481,15 @@ class PPTGenerator:
   <text x="800" y="450" text-anchor="middle" fill="white" font-size="48">PPT Slide</text>
 </svg>'''
 
-    def _svg_to_ppt(self, svg_files: List[str], output_path: str) -> bool:
-        """SVG转PPT - 图片铺满页面，文字覆盖在图片上"""
+    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30) -> bool:
+        """SVG转PPT - 支持三种文字样式方案"""
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt
             from pptx.enum.shapes import MSO_SHAPE
             import requests
             import uuid
+            from PIL import Image
 
             # 创建演示文稿
             prs = Presentation()
@@ -508,15 +512,29 @@ class PPTGenerator:
                 slide = prs.slides.add_slide(blank_layout)
 
                 # ===== 步骤1: 添加背景图片（铺满整个页面）=====
+                image_brightness = 128  # 默认中等亮度
                 if img_url:
                     try:
-                        # 使用更长的超时时间
                         response = requests.get(img_url, timeout=60)
                         if response.status_code == 200:
                             # 保存临时文件
                             temp_img = f"/tmp/temp_{uuid.uuid4().hex}.jpg"
                             with open(temp_img, 'wb') as f:
                                 f.write(response.content)
+
+                            # 分析图片亮度
+                            try:
+                                img = Image.open(temp_img)
+                                img = img.resize((100, 100))  # 缩小以提高速度
+                                import numpy as np
+                                img_array = np.array(img)
+                                # 计算平均亮度
+                                if len(img_array.shape) == 3:
+                                    image_brightness = np.mean(img_array[:, :, :3])
+                                else:
+                                    image_brightness = np.mean(img_array)
+                            except Exception as e:
+                                logger.warning(f"图片亮度分析失败: {e}")
 
                             # 添加图片铺满页面 (16:9)
                             slide.shapes.add_picture(
@@ -525,7 +543,7 @@ class PPTGenerator:
                                 width=Inches(16), height=Inches(9)
                             )
                             os.remove(temp_img)
-                            logger.info(f"已添加背景图片: {img_url[:50]}...")
+                            logger.info(f"已添加背景图片: {img_url[:50]}..., 亮度: {image_brightness}")
                         else:
                             logger.warning(f"图片下载失败: {response.status_code}")
                     except Exception as e:
@@ -533,17 +551,85 @@ class PPTGenerator:
                 else:
                     logger.warning("SVG中未找到图片URL")
 
-                # ===== 步骤2: 不添加遮罩，直接让图片作为背景 =====
-
-                # ===== 步骤3: 添加标题 =====
-
+                # ===== 步骤2: 根据文字样式方案处理 =====
                 # 提取文字内容
                 title, contents = self._extract_text_from_svg(svg_content)
 
+                # ===== 方案1: 半透明遮罩 =====
+                if text_style == "transparent_overlay":
+                    from pptx.oxml.ns import qn
+                    from pptx.oxml.xmlchemy import OxmlElement
+
+                    # 标题区域遮罩 - 使用30%透明度通过OXML
+                    title_bg = slide.shapes.add_shape(
+                        MSO_SHAPE.RECTANGLE,
+                        Inches(0), Inches(0),
+                        Inches(16), Inches(2.0)
+                    )
+                    # 使用OXML设置30%透明度的黑色填充
+                    spPr = title_bg._element.spPr
+                    solidFill = OxmlElement('a:solidFill')
+                    srgbClr = OxmlElement('a:srgbClr')
+                    srgbClr.set('val', '000000')
+                    alpha = OxmlElement('a:alpha')
+                    alpha.set('val', str(overlay_transparency * 1000))  # 透明度百分比转换为PPTX alpha值
+                    srgbClr.append(alpha)
+                    solidFill.append(srgbClr)
+                    spPr.append(solidFill)
+                    title_bg.line.fill.background()
+                    logger.info(f"已设置标题遮罩透明度{overlay_transparency}%")
+
+                    # 内容区域遮罩
+                    if contents:
+                        content_height = min(len(contents) * 0.9 + 1.5, 5.5)
+                        content_bg = slide.shapes.add_shape(
+                            MSO_SHAPE.RECTANGLE,
+                            Inches(0), Inches(2.0),
+                            Inches(16), Inches(content_height)
+                        )
+                        # 使用OXML设置30%透明度的黑色填充
+                        spPr = content_bg._element.spPr
+                        solidFill = OxmlElement('a:solidFill')
+                        srgbClr = OxmlElement('a:srgbClr')
+                        srgbClr.set('val', '000000')
+                        alpha = OxmlElement('a:alpha')
+                        alpha.set('val', str(overlay_transparency * 1000))  # 透明度百分比转换为PPTX alpha值
+                        srgbClr.append(alpha)
+                        solidFill.append(srgbClr)
+                        spPr.append(solidFill)
+                        content_bg.line.fill.background()
+                        logger.info(f"已设置内容遮罩透明度{overlay_transparency}%")
+
+                # ===== 确定文字颜色 =====
+                # 默认白色文字
+                text_color = RGBColor(255, 255, 255)
+
+                # 转换阴影颜色
+                shadow_rgb = self._hex_to_rgb(shadow_color)
+
+                # ===== 添加标题 =====
                 if title:
-                    # 直接添加标题文字，不添加背景，让图片透出来
+                    # ===== 方案3: 文字阴影 =====
+                    if text_style == "shadow":
+                        # 添加阴影效果 - 先添加偏移的文字
+                        shadow_offset = 3
+                        # 阴影（自定义颜色）
+                        title_shadow = slide.shapes.add_textbox(
+                            Inches(0.5 + shadow_offset*0.01), Inches(0.3 + shadow_offset*0.01),
+                            Inches(15), Inches(1.2)
+                        )
+                        tf_shadow = title_shadow.text_frame
+                        tf_shadow.word_wrap = True
+                        p_shadow = tf_shadow.paragraphs[0]
+                        p_shadow.text = title
+                        p_shadow.font.size = Pt(48)
+                        p_shadow.font.bold = True
+                        p_shadow.font.color.rgb = shadow_rgb  # 自定义阴影颜色
+                        p_shadow.alignment = 1
+
+                    # 标题（主文字）
                     title_box = slide.shapes.add_textbox(
-                        Inches(0.5), Inches(0.2),
+                        Inches(0.5), Inches(0.3),
                         Inches(15), Inches(1.2)
                     )
                     tf = title_box.text_frame
@@ -552,31 +638,50 @@ class PPTGenerator:
                     p.text = title
                     p.font.size = Pt(48)
                     p.font.bold = True
-                    # 白色文字，让图片透出来
-                    p.font.color.rgb = RGBColor(255, 255, 255)
+                    p.font.color.rgb = text_color
                     p.alignment = 1  # 居中
 
-                # ===== 步骤4: 添加内容 =====
-
+                # ===== 添加内容 =====
                 if contents:
-                    # 直接添加内容文字，不添加背景，让图片透出来
+                    # 内容区域位置根据样式调整
+                    content_top = 2.5 if text_style != "transparent_overlay" else 2.2
 
-                    # 内容区域 - 根据内容多少调整位置
+                    # ===== 方案3: 文字阴影 =====
+                    if text_style == "shadow":
+                        # 阴影层
+                        shadow_offset = 2
+                        content_shadow = slide.shapes.add_textbox(
+                            Inches(1.0 + shadow_offset*0.01), Inches(content_top + shadow_offset*0.01),
+                            Inches(14), Inches(5)
+                        )
+                        tf_shadow = content_shadow.text_frame
+                        tf_shadow.word_wrap = True
+                        for i, content in enumerate(contents[:6]):
+                            if i == 0:
+                                p_shadow = tf_shadow.paragraphs[0]
+                            else:
+                                p_shadow = tf_shadow.add_paragraph()
+                            p_shadow.text = f"  {content}"
+                            p_shadow.font.size = Pt(26)
+                            p_shadow.font.color.rgb = shadow_rgb  # 自定义阴影颜色
+                            p_shadow.space_before = Pt(18)
+
+                    # 内容层（主文字）
                     content_box = slide.shapes.add_textbox(
-                        Inches(1.0), Inches(2.5),
+                        Inches(1.0), Inches(content_top),
                         Inches(14), Inches(5)
                     )
                     tf = content_box.text_frame
                     tf.word_wrap = True
 
-                    for i, content in enumerate(contents[:6]):  # 最多显示6条
+                    for i, content in enumerate(contents[:6]):
                         if i == 0:
                             p = tf.paragraphs[0]
                         else:
                             p = tf.add_paragraph()
                         p.text = f"  {content}"
                         p.font.size = Pt(26)
-                        p.font.color.rgb = RGBColor(255, 255, 255)
+                        p.font.color.rgb = text_color
                         p.space_before = Pt(18)
 
             # 保存
@@ -589,6 +694,16 @@ class PPTGenerator:
             import traceback
             traceback.print_exc()
             return False
+
+    def _hex_to_rgb(self, hex_color: str) -> RGBColor:
+        """将十六进制颜色转换为RGBColor"""
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) == 6:
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+            return RGBColor(r, g, b)
+        return RGBColor(0, 0, 0)
 
     def _extract_image_url(self, svg_content: str) -> Optional[str]:
         """从SVG中提取图片URL"""
