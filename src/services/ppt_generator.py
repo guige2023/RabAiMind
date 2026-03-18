@@ -250,9 +250,12 @@ class PPTGenerator:
                 slide_type = slide.get("type", "content")
                 title = slide.get("title", f"Slide {i+1}")
 
-                # 生成图片提示词
-                if slide_type == "title":
+                # 生成图片提示词 - 使用slide特定的image_hint或生成相关内容提示
+                image_hint = slide.get("image_hint", "")
+                if slide_type == "title_slide":
                     image_prompt = f"Professional business presentation background, {title}, modern minimalist style, gradient blue and white, abstract geometric shapes, 16:9 ratio"
+                elif image_hint:
+                    image_prompt = f"{image_hint}, professional flat design, modern corporate style, clean background, high quality"
                 else:
                     content_text = " ".join(slide.get("content", [])[:2]) if slide.get("content") else title
                     image_prompt = f"Business illustration for {content_text[:50]}, professional flat design, modern corporate style, clean background"

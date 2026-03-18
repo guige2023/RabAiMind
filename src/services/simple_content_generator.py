@@ -27,26 +27,35 @@ def generate_ppt_content(user_request: str, slide_count: int = 5) -> List[Dict]:
     import requests
     
     # 构建prompt
-    prompt = f"""你是一个专业的PPT内容策划专家。请根据用户需求生成PPT大纲。
+    prompt = f"""你是一个专业的商业PPT策划专家。请根据用户需求生成专业的PPT内容。
 
 用户需求：{user_request}
 
-请生成{slide_count}页PPT的内容，每页包含：
-1. title: 标题
-2. content: 正文内容（2-4个要点）
-3. slide_type: 类型（title_slide/content/thank_you）
+这是一个关于{user_request}的演示文稿。请生成{slide_count}页PPT的详细内容。
 
-请按以下JSON格式返回：
+要求：
+1. 封面页：震撼的标题 + 副标题
+2. 目录页：清晰的章节划分
+3. 内容页：每个要点都要有实质内容（不能是"详细说明"这样的空话）
+4. 尾页：感谢语 + 联系方式
+
+每页格式：
+- title: 页面标题（简短有力）
+- content: 2-4个要点（每个要点15-30字的实质内容）
+- image_hint: 图片提示词（用于AI生成配图）
+
+返回JSON格式：
 {{
     "slides": [
-        {{"slide_type": "title_slide", "title": "封面标题", "content": ["副标题"]}},
-        {{"slide_type": "content", "title": "章节标题", "content": ["要点1", "要点2", "要点3"]}},
+        {{"slide_type": "title_slide", "title": "主标题", "content": ["副标题"], "image_hint": "科技感发布会现场"}},
+        {{"slide_type": "toc", "title": "目录", "content": ["第一章", "第二章", "第三章"]}},
+        {{"slide_type": "content", "title": "核心内容1", "content": ["具体要点1", "具体要点2", "具体要点3"], "image_hint": "相关图片描述"}},
         ...,
-        {{"slide_type": "thank_you", "title": "谢谢观看", "content": ["联系方式"]}}
+        {{"slide_type": "thank_you", "title": "谢谢观看", "content": ["公司名称", "联系方式"]}}
     ]
 }}
 
-只返回JSON，不要其他内容。"""
+只返回JSON！"""
     
     headers = {
         "Content-Type": "application/json",
