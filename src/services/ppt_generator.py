@@ -318,15 +318,20 @@ class PPTGenerator:
                     # 居中布局
                     content_list = content if isinstance(content, list) else [str(content)]
                     svg_code = _build_center_slide(svg_builder, title, content_list, style_enum)
+                elif layout == "toc" and image_url:
+                    # 目录页 - 也用全屏图片
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_full_image_slide(svg_builder, title, content_list, image_url, style_enum)
                 elif layout == "toc":
-                    # 目录页
+                    # 目录页没有图片时用居中
                     content_list = content if isinstance(content, list) else [str(content)]
-                    svg_code = _build_toc_slide(svg_builder, title, content_list, style_enum)
+                    svg_code = _build_center_slide(svg_builder, title, content_list, style_enum)
                 elif image_url:
-                    # 默认左文右图
+                    # 默认使用全屏图片布局 - 图片铺满，文字覆盖
                     content_list = content if isinstance(content, list) else [str(content)]
-                    svg_code = svg_builder.build_content_slide_with_image(title, content_list, image_url, style_enum)
+                    svg_code = _build_full_image_slide(svg_builder, title, content_list, image_url, style_enum)
                 else:
+                    # 没有图片才用普通布局
                     content_list = content if isinstance(content, list) else [str(content)]
                     svg_code = svg_builder.build_content_slide(title, content_list, style_enum)
 
