@@ -382,4 +382,30 @@ onUnmounted(() => {
   gap: 12px;
   justify-content: center;
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .generating-card {
+    margin: 20px;
+    padding: 32px 20px;
+  }
+
+  .success-icon {
+    font-size: 64px;
+  }
+
+  .generating-title {
+    font-size: 24px;
+  }
+
+  .steps {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+}
 </style>

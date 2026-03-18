@@ -572,6 +572,20 @@ const handleSubmit = async () => {
 
     const { task_id } = response.data
 
+    // 保存到历史记录
+    const history = JSON.parse(localStorage.getItem('ppt_history') || '[]')
+    history.unshift({
+      taskId: task_id,
+      title: formData.value.userRequest.substring(0, 20),
+      request: formData.value.userRequest,
+      slideCount: formData.value.slideCount,
+      style: formData.value.style,
+      createdAt: new Date().toISOString()
+    })
+    // 只保留最近20条
+    if (history.length > 20) history.pop()
+    localStorage.setItem('ppt_history', JSON.stringify(history))
+
     // 跳转到生成页面
     router.push({
       path: '/generating',

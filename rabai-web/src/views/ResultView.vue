@@ -24,6 +24,30 @@
             </div>
           </div>
 
+          <!-- PPT预览 -->
+          <div class="ppt-preview-section">
+            <h3 class="preview-title">PPT 预览</h3>
+            <div class="preview-loading" v-if="!previewLoaded">
+              <div class="loading-spinner"></div>
+              <p>加载预览中...</p>
+            </div>
+            <div class="preview-grid" v-else>
+              <div
+                v-for="i in Math.min(slideCount, 6)"
+                :key="i"
+                class="preview-slide"
+              >
+                <div class="preview-placeholder">
+                  <span>第 {{ i }} 页</span>
+                </div>
+              </div>
+              <div v-if="slideCount > 6" class="preview-more">
+                +{{ slideCount - 6 }} 页
+              </div>
+            </div>
+            <p class="preview-tip">点击"下载PPT"查看完整内容</p>
+          </div>
+
           <!-- 操作按钮 -->
           <div class="result-actions">
             <button class="btn btn-primary btn-lg" @click="handleDownload">
@@ -97,6 +121,14 @@ const slideCount = ref(0)
 const fileSize = ref('0 KB')
 const errorMessage = ref('')
 const showExportMenu = ref(false)
+const previewLoaded = ref(false)
+
+// 模拟加载预览（实际应该调用API获取预览图）
+const loadPreview = () => {
+  setTimeout(() => {
+    previewLoaded.value = true
+  }, 500)
+}
 
 // 加载任务状态
 const loadStatus = async () => {
@@ -212,6 +244,7 @@ const handleShare = async () => {
 
 onMounted(() => {
   loadStatus()
+  loadPreview()
 })
 </script>
 
@@ -284,6 +317,77 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
   color: #1A1A1A;
+}
+
+/* PPT预览 */
+.ppt-preview-section {
+  margin-bottom: 32px;
+}
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.preview-loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.preview-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #165DFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.preview-slide {
+  aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-placeholder {
+  color: rgba(255,255,255,0.8);
+  font-size: 14px;
+}
+
+.preview-more {
+  aspect-ratio: 16/9;
+  background: #f0f0f0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.preview-tip {
+  text-align: center;
+  font-size: 13px;
+  color: #999;
+  margin-top: 12px;
 }
 
 /* 失败状态 */
@@ -377,5 +481,43 @@ onMounted(() => {
 
 .export-icon {
   font-size: 24px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .result-card {
+    margin: 20px;
+    padding: 24px 16px;
+  }
+
+  .success-icon {
+    font-size: 56px;
+  }
+
+  .result-title {
+    font-size: 24px;
+  }
+
+  .file-info {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .result-actions {
+    flex-direction: column;
+  }
+
+  .btn-lg {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .export-menu {
+    flex-direction: column;
+  }
+
+  .preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>
