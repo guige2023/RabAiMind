@@ -120,7 +120,7 @@ class PPTGenerator:
             # 超时后自动降级到默认内容
             slides = await asyncio.wait_for(
                 self._generate_content_with_ai(user_request, slide_count, scene, style),
-                timeout=30.0  # 30秒超时
+                timeout=120.0  # 120秒超时，给火山引擎API足够时间
             )
             return slides
 
