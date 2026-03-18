@@ -299,9 +299,13 @@ class PPTGenerator:
                     content_list = content if isinstance(content, list) else [str(content)]
                     svg_code = _build_reversed_layout_slide(svg_builder, title, content_list, image_url, style_enum)
                 elif layout == "full_image" and image_url:
-                    # 全屏图片布局
+                    # 全屏图片布局 - 图片铺满，文字叠加
                     content_list = content if isinstance(content, list) else [str(content)]
                     svg_code = _build_full_image_slide(svg_builder, title, content_list, image_url, style_enum)
+                elif layout == "image_cover" and image_url:
+                    # 图片封面布局 - 图片为主，文字在图片上
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_image_cover_layout(svg_builder, title, content_list, image_url, style_enum)
                 elif layout == "three_column":
                     # 三栏布局
                     content_list = content if isinstance(content, list) else [str(content)]
@@ -403,6 +407,100 @@ def _build_reversed_layout_slide(svg_builder, title: str, content: list, image_u
     """左图右文布局"""
     # 使用现有的构建方法，但传入参数让它反向
     return svg_builder.build_content_slide_with_image(title, content, image_url, style)
+
+
+def _build_full_image_slide(svg_builder, title: str, content: list, image_url: str, style):
+    """全屏图片布局 - 图片为主，文字叠加在上面（图文一体）"""
+    from agents.svg_agent import SVGStyle
+    
+    # 颜色配置
+    colors = {
+        "primary": "#165DFF",
+        "secondary": "#0E42D2",
+        "accent": "#00C853",
+        "text": "#FFFFFF",
+        "background": "#1A1A2E"
+    }
+    
+    # 处理内容，限制显示数量
+    display_content = content[:4] if len(content) >= 4 else content
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="overlayGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0.7" />
+    </linearGradient>
+    <linearGradient id="contentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#165DFF;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#0E42D2;stop-opacity:0.95" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 全屏背景图 -->
+  <image href="{image_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" />
+  
+  <!-- 暗色遮罩，让文字更清晰 -->
+  <rect width="1600" height="900" fill="url(#overlayGrad)" />
+  
+  <!-- 顶部标题区域 -->
+  <rect x="0" y="0" width="1600" height="120" fill="url(#contentGrad)" />
+  <text x="50" y="80" font-family="Microsoft YaHei" font-size="42" font-weight="bold" fill="#FFFFFF">{title}</text>
+  
+  <!-- 底部内容卡片 -->
+  <rect x="0" y="750" width="1600" height="150" fill="#000000" opacity="0.6" />
+  
+  <!-- 内容要点 - 横向排列 -->
+'''
+    
+    # 横向排列内容要点
+    item_width = 350
+    for i, item in enumerate(display_content):
+        x = 50 + i * item_width
+        svg += f'''  <text x="{x}" y="790" font-family="Microsoft YaHei" font-size="18" fill="#FFFFFF">▸ {item}</text>
+'''
+    
+    svg += '</svg>'
+    return svg
+
+
+def _build_image_cover_layout(svg_builder, title: str, content: list, image_url: str, style):
+    """图片封面布局 - 图片铺满，文字在图片上"""
+    from agents.svg_agent import SVGStyle
+    
+    display_content = content[:3] if len(content) >= 3 else content
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0.8" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 全屏背景图片 -->
+  <image href="{image_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" />
+  
+  <!-- 半透明遮罩 -->
+  <rect width="1600" height="900" fill="#000000" opacity="0.4" />
+  
+  <!-- 中心标题区域 -->
+  <rect x="200" y="300" width="1200" height="300" rx="20" fill="#000000" opacity="0.5" />
+  
+  <!-- 主标题 -->
+  <text x="800" y="400" font-family="Microsoft YaHei" font-size="52" font-weight="bold" fill="url(#textGrad)" text-anchor="middle">{title}</text>
+  
+'''
+    
+    # 副标题/要点
+    for i, item in enumerate(display_content):
+        y = 480 + i * 40
+        svg += f'  <text x="800" y="{y}" font-family="Microsoft YaHei" font-size="24" fill="#FFFFFF" text-anchor="middle">• {item}</text>\n'
+    
+    svg += '</svg>'
+    return svg
 
 
 def _build_full_image_slide(svg_builder, title: str, content: list, image_url: str, style):

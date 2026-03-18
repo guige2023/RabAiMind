@@ -42,24 +42,21 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
 
 请设计{slide_count}页PPT的完整方案。
 
-**重要：每页都要选择最合适的布局，并且文字和图片必须是互补关系，不是重复！**
+**重要：每一页都要让图片成为主体，文字叠加在图片上，形成图文一体的效果！**
 
 布局类型说明：
-- title: 全屏标题页（封面）
+- title: 全屏标题页（封面）- 图片铺满，文字叠加
+- image_cover: 图片封面 - 图片为主，文字在图片上
+- full_image: 全屏图片 - 图片铺满，底部文字叠加
 - toc: 目录页
-- left_text_right_image: 左文右图（文字说明+图片展示）
-- left_image_right_text: 左图右文（图片+文字解读）
-- full_image: 全屏图片+少量文字
-- top_text_bottom_image: 上文下图
-- three_column: 三栏内容
-- card: 卡片式布局
-- center: 居中布局
-- thank_you: 尾页
+- left_text_right_image: 不要用这个！
+- left_image_right_text: 不要用这个！
 
 **关键要求：**
-1. 文字和图片是互补关系！图片展示文字无法表达的内容
-2. 每页布局要多样化，不要每页都一样
-3. 内容要专业、有深度
+1. 每页都用图片作为背景/主体
+2. 文字叠加在图片上，不是旁边
+3. 图片和文字要形成一体感
+4. 布局要多样化
 
 返回JSON格式：
 {{
@@ -68,17 +65,17 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
             "slide_type": "title",
             "title": "震撼的标题",
             "content": ["副标题/亮点"],
-            "layout": "title",
+            "layout": "image_cover",
             "image_hint": "大气发布会现场，背景",
-            "design_notes": "设计说明：如何展示"
+            "design_notes": "全屏图片，文字叠加在图片中央"
         }},
         {{
             "slide_type": "content",
             "title": "核心内容",
             "content": ["要点1", "要点2", "要点3"],
-            "layout": "left_text_right_image",
+            "layout": "full_image",
             "image_hint": "展示产品功能的图片",
-            "design_notes": "文字说明概念，图片展示实际效果"
+            "design_notes": "全屏图片，文字叠加在底部"
         }},
         ...
     ]
