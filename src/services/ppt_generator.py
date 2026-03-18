@@ -516,16 +516,83 @@ class PPTGenerator:
         return None
 
     def _extract_text_from_svg(self, svg_content: str):
-        """从SVG中提取文字"""
-        # 提取标题
-        title_match = re.search(r'<text[^>]*>([^<]+)</text>', svg_content)
-        title = title_match.group(1) if title_match else ""
+        """从SVG中提取文字（包括tspan内的文字）"""
+        import re
         
-        # 提取所有文本
-        text_matches = re.findall(r'<text[^>]*>([^<]+)</text>', svg_content)
-        contents = [t.strip() for t in text_matches if t.strip() and len(t.strip()) > 2]
+        # 方法1: 使用正则提取所有text和tspan元素的内容
+        # 先提取所有tspan内容
+        tspan_contents = re.findall(r'<tspan[^>]*>([^<]*)</tspan>', svg_content)
+        tspan_contents = [t.strip() for t in tspan_contents if t.strip()]
         
-        return title, contents[1:] if len(contents) > 1 else contents
+        # 提取所有text元素的直接内容（不含tspan）
+        text_contents = re.findall(r'<text[^>]*>([^<]*)</text>', svg_content)
+        text_contents = [t.strip() for t in text_contents if t.strip()]
+        
+        # 合并所有文本内容
+        all_texts = tspan_contents + text_contents
+        
+        # 过滤掉页码数字、装饰文字等
+        filtered_texts = []
+        exclude_patterns = [
+            r'^\d+$',  # 纯数字（页码）
+            r'^RabAi',  # 底部商标
+            r'^AI',  # 可能的简短文字
+        ]
+        
+        for text in all_texts:
+            is_excluded = False
+            for pattern in exclude_patterns:
+                if re.match(pattern, text):
+                    is_excluded = True
+                    break
+            # 过滤太短的文字
+            if len(text) > 2 and not is_excluded:
+                filtered_texts.append(text)
+        
+        # 识别标题：通常是大字体、在页面顶部(y < 200)
+        title = ""
+        contents = []
+        
+        # 通过y坐标识别标题（y在80-200之间的是标题）
+        title_matches = re.findall(r'<text[^>]*y="(\d+)"[^>]*>.*?</text>', svg_content)
+        text_with_y = []
+        for match in re.finditer(r'<text[^>]*y="(\d+)"[^>]*>(.*?)</text>', svg_content, re.DOTALL):
+            y = int(match.group(1))
+            text = match.group(2)
+            # 提取tspan内容
+            tspan_in_text = re.findall(r'<tspan[^>]*>([^<]*)</tspan>', text)
+            if tspan_in_text:
+                text = ' '.join([t.strip() for t in tspan_in_text if t.strip()])
+            else:
+                text = text.strip()
+            if text and len(text) > 2:
+                text_with_y.append((y, text))
+        
+        # 按y坐标排序
+        text_with_y.sort(key=lambda x: x[0])
+        
+        # 找到标题（y < 200的第一个主要内容）
+        for y, text in text_with_y:
+            if y < 200 and len(text) > 4:
+                title = text
+                break
+        
+        # 其余的是内容
+        for y, text in text_with_y:
+            if y >= 200 and len(text) > 2:
+                # 跳过页码和底部装饰
+                if y > 800:
+                    continue
+                contents.append(text)
+        
+        # 如果上述方法失败，使用备用逻辑
+        if not title and filtered_texts:
+            # 取第一个最长的作为标题
+            title = max(filtered_texts, key=len) if filtered_texts else ""
+            # 其余作为内容
+            contents = [t for t in filtered_texts if t != title]
+        
+        return title, contents
 
 
 # 全局实例
