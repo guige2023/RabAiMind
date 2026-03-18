@@ -147,6 +147,36 @@ class PPTGenerator:
         
         volc = get_volc_api()
         
+        # 检查火山引擎API是否可用
+        api_available = self._check_volc_api_available(volc)
+        
+        if api_available:
+            # 使用AI生成SVG
+            logger.info("火山引擎API可用，使用AI生成SVG")
+            return self._generate_svg_with_ai(slide, slide_num, volc)
+        else:
+            # 使用智能文字模式（备用方案）
+            logger.info("火山引擎API不可用，使用智能文字模式")
+            return self._generate_svg_smart_text(slide, slide_num)
+    
+    def _check_volc_api_available(self, volc) -> bool:
+        """检查火山引擎API是否可用"""
+        import os
+        api_key = os.getenv("VOLCENGINE_API_KEY", "")
+        project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
+        
+        if not api_key or not project_id:
+            return False
+        
+        # 尝试调用API检查连通性
+        try:
+            response = volc.text_generation("test")
+            return response.get("success", False)
+        except:
+            return False
+    
+    def _generate_svg_with_ai(self, slide: Dict, slide_num: int, volc) -> str:
+        """使用AI生成SVG代码"""
         # 构建SVG提示词
         prompt = self._build_svg_prompt(slide, slide_num)
         
@@ -162,6 +192,120 @@ class PPTGenerator:
         svg_code = self._extract_svg_code(content)
         
         return svg_code
+
+    def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
+        """智能文字模式 - 不依赖AI生成SVG，使用纯代码生成美观SVG"""
+        title = slide.get("title", "")
+        subtitle = slide.get("subtitle", "")
+        content = slide.get("content", [])
+        image_url = slide.get("image_url", "")
+        
+        # 16:9 比例
+        width = 1600
+        height = 900
+        
+        # 构建内容列表HTML
+        content_html = ""
+        if content and len(content) > 0:
+            items_html = ""
+            for i, item in enumerate(content[:6]):  # 最多显示6个要点
+                # 文字换行处理
+                escaped_item = self._escape_html(str(item))
+                items_html += f'''<text x="150" y="{380 + i * 70}" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+              <tspan x="150">{i+1}. </tspan><tspan>{escaped_item}</tspan>
+            </text>'''
+            
+            content_html = f'''
+<g id="content">
+{items_html}
+</g>'''
+        
+        # 副标题处理
+        subtitle_html = ""
+        if subtitle:
+            escaped_subtitle = self._escape_html(subtitle)
+            subtitle_html = f'''
+<text x="800" y="180" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="32" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  {escaped_subtitle}
+</text>'''
+        
+        # 标题处理
+        escaped_title = self._escape_html(title)
+        
+        # 背景图片处理（如果有）
+        bg_image = ""
+        if image_url:
+            bg_image = f'''
+<image href="{image_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" opacity="0.4"/>'''
+        
+        svg_code = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
+  <defs>
+    <!-- 渐变背景 -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="50%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <!-- 标题渐变 -->
+    <linearGradient id="titleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#bfdbfe"/>
+    </linearGradient>
+    <!-- 背景遮罩 -->
+    <linearGradient id="overlayGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(15,23,42,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(15,23,42,0.8)"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="{width}" height="{height}" fill="url(#bgGradient)"/>
+  
+  <!-- 背景图片（如果有） -->
+  {bg_image}
+  
+  <!-- 遮罩层 -->
+  <rect width="{width}" height="{height}" fill="url(#overlayGradient)"/>
+  
+  <!-- 装饰线条 -->
+  <line x1="0" y1="200" x2="1600" y2="200" stroke="rgba(59,130,246,0.3)" stroke-width="2"/>
+  <circle cx="100" cy="100" r="150" fill="rgba(59,130,246,0.1)"/>
+  <circle cx="1500" cy="800" r="200" fill="rgba(59,130,246,0.08)"/>
+  
+  <!-- 页码 -->
+  <text x="1550" y="870" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="18" font-family="Arial, sans-serif">
+    {slide_num}
+  </text>
+  
+  <!-- 标题 -->
+  <text x="800" y="120" text-anchor="middle" fill="url(#titleGradient)" font-size="52" font-weight="bold" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+    {escaped_title}
+  </text>
+  
+  <!-- 副标题 -->
+  {subtitle_html}
+  
+  <!-- 内容要点 -->
+  {content_html}
+  
+  <!-- 底部装饰 -->
+  <rect x="0" y="850" width="1600" height="50" fill="rgba(59,130,246,0.2)"/>
+  <text x="50" y="880" fill="rgba(255,255,255,0.5)" font-size="14" font-family="Arial, sans-serif">
+    RabAi Mind - AI Generated
+  </text>
+</svg>'''
+        
+        return svg_code
+    
+    def _escape_html(self, text: str) -> str:
+        """转义HTML特殊字符"""
+        return (text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#39;"))
 
     def _build_svg_prompt(self, slide: Dict, slide_num: int) -> str:
         """构建SVG生成提示词"""
