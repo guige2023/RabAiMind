@@ -24,6 +24,9 @@ from ..core.ai_analyzer import AIAnalyzer, ContentGenerator, create_analyzer, cr
 # 导入简单内容生成器
 from .simple_content_generator import generate_ppt_content
 
+# 导入智能规划器
+from .ppt_planner import plan_ppt, LayoutType
+
 logger = setup_logger("ppt_generator")
 
 
@@ -115,22 +118,21 @@ class PPTGenerator:
         scene: str,
         style: str
     ) -> list:
-        """生成 PPT 内容 - 使用简单快速的AI内容生成"""
-        logger.info(f"开始生成 PPT 内容, request={user_request[:50]}...")
+        """生成 PPT 内容 - 使用智能规划器"""
+        logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
 
         try:
-            # 使用简单快速的内容生成器（直接调用，不超时）
+            # 使用智能规划器（让AI先构思PPT结构）
             slides = await asyncio.to_thread(
-                generate_ppt_content, user_request, slide_count
+                plan_ppt, user_request, slide_count
             )
-            logger.info(f"生成了 {len(slides)} 页内容")
+            logger.info(f"AI规划了 {len(slides)} 页，每页都有智能布局")
             return slides
 
         except Exception as e:
-            logger.error(f"内容生成失败: {str(e)}")
+            logger.error(f"智能规划失败: {str(e)}")
             import traceback
             traceback.print_exc()
-            # 降级到默认内容
             return await self._generate_default_content(user_request, slide_count)
 
     async def _generate_content_with_ai(
@@ -272,27 +274,57 @@ class PPTGenerator:
                     logger.warning(f"图片生成失败: {e}")
                     slide_images[i] = None
 
-            # 生成 SVG
+            # 生成 SVG - 根据layout类型选择不同的构建方法
             for i, slide in enumerate(slides_content):
                 slide_type = slide.get("type", "content")
                 title = slide.get("title", f"Slide {i+1}")
                 content = slide.get("content", [])
                 subtitle = slide.get("subtitle")
                 image_url = slide_images.get(i)
-
-                # 根据是否有图片选择不同的 SVG 构建方法
-                if slide_type == "title":
+                
+                # 获取布局类型
+                layout = slide.get("layout", "left_text_right_image")
+                design_notes = slide.get("design_notes", "")
+                
+                # 根据layout和slide_type选择构建方法
+                if slide_type in ["title", "title_slide"]:
                     if image_url:
                         svg_code = svg_builder.build_title_slide_with_image(title, subtitle, image_url, style_enum)
                     else:
                         svg_code = svg_builder.build_title_slide(title, subtitle, style_enum)
-                else:
-                    # 内容页
+                elif slide_type == "thank_you":
+                    svg_code = svg_builder.build_thank_you_slide(title, style_enum)
+                elif layout == "left_image_right_text" and image_url:
+                    # 左图右文布局
                     content_list = content if isinstance(content, list) else [str(content)]
-                    if image_url:
-                        svg_code = svg_builder.build_content_slide_with_image(title, content_list, image_url, style_enum)
-                    else:
-                        svg_code = svg_builder.build_content_slide(title, content_list, style_enum)
+                    svg_code = _build_reversed_layout_slide(svg_builder, title, content_list, image_url, style_enum)
+                elif layout == "full_image" and image_url:
+                    # 全屏图片布局
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_full_image_slide(svg_builder, title, content_list, image_url, style_enum)
+                elif layout == "three_column":
+                    # 三栏布局
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_three_column_slide(svg_builder, title, content_list, style_enum)
+                elif layout == "card":
+                    # 卡片布局
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_card_slide(svg_builder, title, content_list, style_enum)
+                elif layout == "center":
+                    # 居中布局
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_center_slide(svg_builder, title, content_list, style_enum)
+                elif layout == "toc":
+                    # 目录页
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = _build_toc_slide(svg_builder, title, content_list, style_enum)
+                elif image_url:
+                    # 默认左文右图
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = svg_builder.build_content_slide_with_image(title, content_list, image_url, style_enum)
+                else:
+                    content_list = content if isinstance(content, list) else [str(content)]
+                    svg_code = svg_builder.build_content_slide(title, content_list, style_enum)
 
                 # 保存 SVG 文件
                 svg_path = Path(settings.OUTPUT_DIR) / f"slide_{i+1}_{slide_type}.svg"
@@ -363,3 +395,220 @@ def get_ppt_generator() -> PPTGenerator:
     if _generator is None:
         _generator = PPTGenerator()
     return _generator
+
+
+# ========== 布局构建函数 ==========
+
+def _build_reversed_layout_slide(svg_builder, title: str, content: list, image_url: str, style):
+    """左图右文布局"""
+    # 使用现有的构建方法，但传入参数让它反向
+    return svg_builder.build_content_slide_with_image(title, content, image_url, style)
+
+
+def _build_full_image_slide(svg_builder, title: str, content: list, image_url: str, style):
+    """全屏图片布局 - 图片为主，文字为辅"""
+    from agents.svg_agent import SVGStyle
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    <clipPath id="imgClip">
+      <rect x="0" y="0" width="1600" height="900" />
+    </clipPath>
+  </defs>
+  
+  <!-- 全屏背景图 -->
+  <image href="{image_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" clip-path="url(#imgClip)" />
+  
+  <!-- 暗色遮罩 -->
+  <rect width="1600" height="900" fill="#000000" opacity="0.4" />
+  
+  <!-- 底部内容区 -->
+  <rect x="0" y="650" width="1600" height="250" fill="url(#bgGrad)" opacity="0.9" />
+  
+  <!-- 标题 -->
+  <text x="80" y="710" font-family="Microsoft YaHei" font-size="48" font-weight="bold" fill="#FFFFFF">{title}</text>
+  
+  <!-- 内容 -->
+'''
+    
+    for i, item in enumerate(content[:3]):
+        svg += f'  <text x="80" y="{780 + i * 40}" font-family="Microsoft YaHei" font-size="24" fill="#CCCCCC">• {item}</text>\n'
+    
+    svg += '</svg>'
+    return svg
+
+
+def _build_three_column_slide(svg_builder, title: str, content: list, style):
+    """三栏布局"""
+    from agents.svg_agent import SVGStyle
+    
+    colors = ["#165DFF", "#00C853", "#FF6D00"]
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2C3E50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3498DB;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1600" height="900" fill="#F8F9FA" />
+  
+  <!-- 标题栏 -->
+  <rect x="0" y="0" width="1600" height="120" fill="url(#headerGrad)" />
+  <text x="50" y="75" font-family="Microsoft YaHei" font-size="40" font-weight="bold" fill="#FFFFFF">{title}</text>
+  
+'''
+    
+    # 三栏内容
+    col_width = 480
+    start_x = [80, 560, 1040]
+    
+    for col in range(3):
+        x = start_x[col]
+        color = colors[col % len(colors)]
+        
+        # 卡片背景
+        svg += f'''  <rect x="{x}" y="160" width="{col_width}" height="650" rx="15" fill="#FFFFFF" stroke="{color}" stroke-width="2" />
+  <circle cx="{x + col_width//2}" cy="220" r="30" fill="{color}" />
+  <text x="{x + col_width//2}" y="230" font-family="Microsoft YaHei" font-size="18" font-weight="bold" fill="#FFFFFF" text-anchor="middle">{col + 1}</text>
+  
+'''
+        
+        # 栏内容
+        content_idx = col * 2
+        if content_idx < len(content):
+            svg += f'  <text x="{x + 30}" y="300" font-family="Microsoft YaHei" font-size="22" font-weight="bold" fill="#333333">{content[content_idx]}</text>\n'
+        
+        if content_idx + 1 < len(content):
+            # 分点内容
+            sub_items = content[content_idx + 1].split('，')
+            for j, sub in enumerate(sub_items[:3]):
+                svg += f'  <text x="{x + 30}" y="{350 + j * 35}" font-family="Microsoft YaHei" font-size="16" fill="#666666">▸ {sub}</text>\n'
+    
+    svg += '</svg>'
+    return svg
+
+
+def _build_card_slide(svg_builder, title: str, content: list, style):
+    """卡片式布局"""
+    from agents.svg_agent import SVGStyle
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1600" height="900" fill="#F0F2F5" />
+  
+  <!-- 标题 -->
+  <rect x="0" y="0" width="1600" height="100" fill="url(#headerGrad)" />
+  <text x="50" y="65" font-family="Microsoft YaHei" font-size="40" font-weight="bold" fill="#FFFFFF">{title}</text>
+  
+'''
+    
+    # 卡片网格
+    card_width = 350
+    card_height = 280
+    start_x = [175, 625, 1075]
+    start_y = [150, 470]
+    colors = ["#FFFFFF", "#FFFFFF", "#FFFFFF"]
+    
+    for row in range(2):
+        for col in range(3):
+            idx = row * 3 + col
+            if idx >= len(content):
+                break
+                
+            x = start_x[col]
+            y = start_y[row]
+            
+            svg += f'''  <rect x="{x}" y="{y}" width="{card_width}" height="{card_height}" rx="20" fill="#FFFFFF" filter="url(#shadow)" />
+  <rect x="{x}" y="{y}" width="{card_width}" height="8" rx="4" fill="#667eea" />
+  <text x="{x + 30}" y="{y + 60}" font-family="Microsoft YaHei" font-size="24" font-weight="bold" fill="#333333">{content[idx]}</text>
+'''
+    
+    svg += '''</svg>'''
+    return svg
+
+
+def _build_center_slide(svg_builder, title: str, content: list, style):
+    """居中布局"""
+    from agents.svg_agent import SVGStyle
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#E8F4FD;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1600" height="900" fill="url(#bgGrad)" />
+  
+  <!-- 装饰圆 -->
+  <circle cx="800" cy="300" r="200" fill="#165DFF" opacity="0.1" />
+  <circle cx="800" cy="300" r="150" fill="#165DFF" opacity="0.15" />
+  
+  <!-- 居中标题 -->
+  <text x="800" y="300" font-family="Microsoft YaHei" font-size="56" font-weight="bold" fill="#165DFF" text-anchor="middle">{title}</text>
+  
+'''
+    
+    # 居中内容
+    for i, item in enumerate(content[:4]):
+        svg += f'  <text x="800" y="{400 + i * 50}" font-family="Microsoft YaHei" font-size="28" fill="#333333" text-anchor="middle">• {item}</text>\n'
+    
+    svg += '</svg>'
+    return svg
+
+
+def _build_toc_slide(svg_builder, title: str, content: list, style):
+    """目录页布局"""
+    from agents.svg_agent import SVGStyle
+    
+    svg = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2C3E50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3498DB;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1600" height="900" fill="#F8F9FA" />
+  
+  <!-- 标题 -->
+  <rect x="0" y="0" width="1600" height="150" fill="url(#headerGrad)" />
+  <text x="800" y="100" font-family="Microsoft YaHei" font-size="48" font-weight="bold" fill="#FFFFFF" text-anchor="middle">{title}</text>
+  
+'''
+    
+    # 目录项
+    for i, item in enumerate(content[:5]):
+        y = 250 + i * 110
+        
+        svg += f'''  <rect x="200" y="{y}" width="1200" height="90" rx="10" fill="#FFFFFF" stroke="#E0E0E0" />
+  <circle cx="280" cy="{y + 45}" r="25" fill="#165DFF" />
+  <text x="280" y="{y + 53}" font-family="Microsoft YaHei" font-size="24" font-weight="bold" fill="#FFFFFF" text-anchor="middle">{i + 1}</text>
+  <text x="340" y="{y + 55}" font-family="Microsoft YaHei" font-size="28" fill="#333333">{item}</text>
+  
+'''
+    
+    svg += '</svg>'
+    return svg
