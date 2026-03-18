@@ -1,1 +1,143 @@
-# Updated at Tue Mar 17 23:21:02 CST 2026
+# RabAiMind - AI PPT 生成平台
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/python-3.12+-green" alt="Python">
+  <img src="https://img.shields.io/badge/fastapi-0.100+-green" alt="FastAPI">
+  <img src="https://img.shields.io/badge/license-MIT-orange" alt="License">
+</p>
+
+AI 驱动的 PPT 智能生成平台，用户输入需求和素材，AI 自动生成专业演示文稿。
+
+## ✨ 特性
+
+- ⚡ **快速生成**: 3分钟完成 PPT 生成
+- 🎨 **智能设计**: AI 驱动视觉设计
+- 📱 **多端支持**: Web / 小程序 / 桌面端
+- 🎯 **实时进度**: 进度可视化展示
+- 🔄 **模板系统**: 多种风格模板可选
+
+## 🏗️ 技术架构
+
+| 层级 | 技术栈 |
+|------|--------|
+| 前端 | React + TypeScript + Tailwind |
+| 移动端 | React Native / Tauri |
+| 后端 | FastAPI + Python |
+| 数据库 | PostgreSQL + Redis |
+| AI | MiniAgent + 火山引擎 |
+| PPT | OKPPT MCP |
+
+## 🚀 快速开始
+
+### 后端启动
+
+```bash
+cd RabAiMind
+pip install -r requirements.txt
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+### 前端启动
+
+```bash
+cd rabai-web
+npm install
+npm run dev
+```
+
+### API 文档
+
+启动后访问: http://localhost:8000/docs
+
+## 📡 API 接口
+
+### PPT 生成
+
+```bash
+POST /api/v1/ppt/generate
+{
+  "user_request": "创建一个关于AI技术发展的PPT",
+  "slide_count": 10,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF"
+}
+```
+
+### 任务状态
+
+```bash
+GET /api/v1/ppt/task/{task_id}
+```
+
+### 模板列表
+
+```bash
+GET /api/v1/templates/list
+```
+
+### 场景类型
+
+```bash
+GET /api/v1/ppt/scenes
+```
+
+## 📁 项目结构
+
+```
+RabAiMind/
+├── src/
+│   ├── api/              # API 路由
+│   ├── agents/           # AI Agent
+│   ├── core/            # 核心模块
+│   ├── models/          # 数据模型
+│   ├── services/        # 业务服务
+│   │   ├── volc_api.py           # 火山引擎API
+│   │   ├── ai_analyzer.py        # AI分析服务
+│   │   ├── content_generator.py  # 内容生成
+│   │   ├── material_manager.py   # 素材管理
+│   │   ├── template_manager.py   # 模板管理
+│   │   ├── ppt_generator.py      # PPT生成
+│   │   └── task_manager.py      # 任务管理
+│   └── utils/            # 工具函数
+├── rabai-web/           # Vue3 前端
+├── templates/           # PPT 模板
+├── output/             # 生成文件
+└── docs/               # 文档
+```
+
+## 🔧 开发阶段
+
+- [x] Phase 1: 架构设计与基础设施
+- [x] Phase 2.3: PPT 组装（OKPPT MCP）
+- [x] Phase 3: 前端框架
+- [ ] Phase 2.1: AI 分析层
+- [ ] Phase 2.2: 内容生成
+- [ ] Phase 4: 多端适配
+- [ ] Phase 5: 测试与优化
+
+## 📝 配置
+
+环境变量：
+
+```bash
+# 火山引擎
+VOLCENGINE_API_KEY=your_api_key
+VOLCENGINE_ENDPOINT=https://ark.cn-beijing.volces.com
+VOLCENGINE_PROJECT_ID=your_project_id
+
+# API 配置
+API_HOST=0.0.0.0
+API_PORT=8000
+LOG_LEVEL=INFO
+```
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 许可证
+
+MIT License
