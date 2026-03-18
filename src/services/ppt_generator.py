@@ -21,6 +21,9 @@ from agents.svg_agent import SVGBuilder, SVGStyle
 # 导入 AI 分析层
 from ..core.ai_analyzer import AIAnalyzer, ContentGenerator, create_analyzer, create_content_generator
 
+# 导入简单内容生成器
+from .simple_content_generator import generate_ppt_content
+
 logger = setup_logger("ppt_generator")
 
 
@@ -112,23 +115,19 @@ class PPTGenerator:
         scene: str,
         style: str
     ) -> list:
-        """生成 PPT 内容 - 使用 AI 分析层"""
-        logger.info(f"开始 AI 内容生成, request={user_request[:50]}...")
+        """生成 PPT 内容 - 使用简单快速的AI内容生成"""
+        logger.info(f"开始生成 PPT 内容, request={user_request[:50]}...")
 
         try:
-            # 使用 asyncio.wait_for 添加超时，避免长时间阻塞
-            # 超时后自动降级到默认内容
-            slides = await asyncio.wait_for(
-                self._generate_content_with_ai(user_request, slide_count, scene, style),
-                timeout=120.0  # 120秒超时，给火山引擎API足够时间
+            # 使用简单快速的内容生成器（直接调用，不超时）
+            slides = await asyncio.to_thread(
+                generate_ppt_content, user_request, slide_count
             )
+            logger.info(f"生成了 {len(slides)} 页内容")
             return slides
 
-        except asyncio.TimeoutError:
-            logger.warning("AI 内容生成超时，降级到默认内容")
-            return await self._generate_default_content(user_request, slide_count)
         except Exception as e:
-            logger.error(f"AI 内容生成失败: {str(e)}")
+            logger.error(f"内容生成失败: {str(e)}")
             import traceback
             traceback.print_exc()
             # 降级到默认内容
