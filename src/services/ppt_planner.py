@@ -6,10 +6,12 @@ import json
 import requests
 from typing import Dict, Any, List
 
-# 火山引擎API配置
-VOLC_API_KEY = "1d91e7e0-5761-4edb-a348-bc0b8b86affb"
-VOLC_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3"
-VOLC_MODEL = "ep-20260303221115-dk4rt"
+# 火山引擎API配置 - 从settings读取
+from ..config import settings
+
+VOLC_API_KEY = settings.VOLCANO_API_KEY
+VOLC_ENDPOINT = settings.VOLCANO_ENDPOINT
+VOLC_MODEL = settings.VOLCANO_TEXT_MODEL
 
 
 # 布局类型
@@ -119,16 +121,19 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
 
 
 def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
-    """默认规划方案"""
+    """默认规划方案 - 优化版，内容更丰富"""
     slides = []
+    
+    # 提取主题关键词
+    topic = user_request[:30] if len(user_request) > 30 else user_request
     
     # 封面
     slides.append({
         "slide_type": "title",
-        "title": user_request[:50],
-        "content": ["专业演示"],
+        "title": topic,
+        "content": ["专业演示 · 精彩呈现", "AI赋能PPT制作"],
         "layout": LayoutType.TITLE,
-        "image_hint": "大气发布会现场",
+        "image_hint": "大气发布会现场，科技创新",
         "design_notes": "全屏标题，大气背景"
     })
     
@@ -136,14 +141,19 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
     if slide_count > 2:
         slides.append({
             "slide_type": "toc",
-            "title": "目录",
-            "content": ["第一章", "第二章", "第三章"],
+            "title": "目录概览",
+            "content": [
+                f"第一部分：{topic}概述",
+                f"第二部分：{topic}深度分析",
+                f"第三部分：{topic}发展趋势",
+                "第四部分：总结与展望"
+            ],
             "layout": LayoutType.CENTER,
             "image_hint": "",
             "design_notes": "居中展示"
         })
     
-    # 内容页 - 使用不同布局
+    # 内容页 - 使用不同布局，内容更丰富
     layouts = [
         LayoutType.LEFT_TEXT_RIGHT_IMAGE,
         LayoutType.LEFT_IMAGE_RIGHT_TEXT,
@@ -151,24 +161,57 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
         LayoutType.CARD
     ]
     
-    topics = [
-        "市场分析", "产品介绍", "核心竞争力", "发展规划"
+    # 每页的具体内容规划
+    content_pages = [
+        {
+            "title": "概述与背景",
+            "content": [
+                f"{topic}的定义与内涵",
+                "行业发展的历史沿革",
+                "当前市场总体规模",
+                "政策环境与支持力度"
+            ]
+        },
+        {
+            "title": "市场分析",
+            "content": [
+                "市场规模及增长趋势",
+                "主要竞争格局分析",
+                "消费者需求特征",
+                "区域市场差异"
+            ]
+        },
+        {
+            "title": "发展趋势",
+            "content": [
+                "技术创新方向",
+                "商业模式创新",
+                "产业链重构趋势",
+                "未来发展前景"
+            ]
+        },
+        {
+            "title": "案例研究",
+            "content": [
+                "典型企业案例分析",
+                "成功经验总结",
+                "失败教训与启示",
+                "最佳实践推荐"
+            ]
+        }
     ]
     
     for i in range(1, slide_count - 1):
-        topic = topics[i - 1] if i - 1 < len(topics) else f"第{i}部分"
+        content_idx = (i - 1) % len(content_pages)
+        page_content = content_pages[content_idx]
         layout = layouts[(i - 1) % len(layouts)]
         
         slides.append({
             "slide_type": "content",
-            "title": topic,
-            "content": [
-                f"{topic}的核心要点",
-                "关键数据支持",
-                "实际案例展示"
-            ],
+            "title": page_content["title"],
+            "content": page_content["content"],
             "layout": layout,
-            "image_hint": f"与{topic}相关的专业图片",
+            "image_hint": f"与{page_content['title']}相关的专业图片",
             "design_notes": f"使用{layout}布局，文字和图片互补"
         })
     
@@ -176,7 +219,7 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
     slides.append({
         "slide_type": "thank_you",
         "title": "谢谢观看",
-        "content": ["联系我们"],
+        "content": ["感谢您的聆听", "欢迎交流探讨", "联系我们进一步沟通"],
         "layout": LayoutType.THANK_YOU,
         "image_hint": "简洁大气的结束页",
         "design_notes": "居中简洁布局"
