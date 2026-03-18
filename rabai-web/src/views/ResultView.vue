@@ -84,15 +84,16 @@ const loadStatus = async () => {
   }
 
   try {
-    const response = await axios.get(`/api/v1/ppt/status/${taskId.value}`)
+    const response = await axios.get(`/api/v1/ppt/task/${taskId.value}`)
     const data = response.data
 
     status.value = data.status
 
     if (data.status === 'completed' && data.result) {
       slideCount.value = data.result.slide_count || 0
-      // 使用 slide_count 作为参考信息
-      fileSize.value = data.result.slide_count ? `${data.result.slide_count} 页` : '已生成'
+      // 显示实际文件大小
+      const bytes = data.result.file_size || 0
+      fileSize.value = formatSize(bytes)
     } else if (data.status === 'failed') {
       errorMessage.value = data.error?.message || '未知错误'
     }

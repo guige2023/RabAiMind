@@ -164,7 +164,9 @@ async def download_ppt(task_id: str):
     result = task.get("result", {})
     file_path = result.get("pptx_path")
 
-    if not file_path or not file_path.exists():
+    # 检查文件是否存在
+    import os
+    if not file_path or not os.path.exists(file_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="文件不存在"

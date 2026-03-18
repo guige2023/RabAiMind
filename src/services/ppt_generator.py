@@ -65,9 +65,10 @@ class PPTGenerator:
             logger.info("开始生成AI图片...")
             
             for i, slide in enumerate(slides_content):
-                image_url = self._generate_image(slide)
+                slide_num = i + 1
+                image_url = self._generate_image(slide, slide_num)
                 slide["image_url"] = image_url
-                logger.info(f"slide {i+1} 图片生成完成")
+                logger.info(f"slide {slide_num} 图片生成完成")
             
             task_manager.update_progress(task_id, 60, "图片生成完成", "processing")
 
@@ -127,19 +128,87 @@ class PPTGenerator:
         from .ppt_planner import plan_ppt
         return plan_ppt(user_request, slide_count)
 
-    def _generate_image(self, slide: Dict) -> Optional[str]:
-        """生成AI图片"""
+    def _generate_image(self, slide: Dict, slide_num: int = 1) -> Optional[str]:
+        """生成AI图片，如果失败则返回备用图片URL"""
         from .content_generator import get_content_generator
-        
+
         content_gen = get_content_generator()
-        
+
         prompt = slide.get("image_prompt", "")
         if not prompt:
             prompt = slide.get("title", "")
-        
-        # generate_image返回图片URL字符串
-        image_url = content_gen.generate_image(prompt)
-        return image_url
+
+        # 尝试生成图片
+        try:
+            image_url = content_gen.generate_image(prompt)
+            if image_url:
+                logger.info(f"AI生成图片成功: {image_url[:50]}...")
+                return image_url
+        except Exception as e:
+            logger.warning(f"AI图片生成失败: {e}")
+
+        # 返回备用图片URL
+        logger.info("使用备用图片")
+        return self._get_fallback_image_url(slide, slide_num)
+
+    def _get_fallback_image_url(self, slide: Dict, slide_num: int = 1) -> str:
+        """获取备用图片URL - 根据内容类型选择合适的背景图"""
+        import random
+
+        title = slide.get("title", "").lower()
+        slide_type = slide.get("slide_type", "content")
+
+        # 默认图片列表
+        fallback_images = [
+            "https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&q=80",
+            "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&q=80",
+            "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80",
+        ]
+
+        # 根据标题关键词选择合适的图片类别
+        if any(kw in title for kw in ["培训", "销售", "企业", "公司", "管理"]):
+            # 商务类
+            fallback_images = [
+                "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80",
+                "https://images.unsplash.com/photo-1497215842964-222b430dc094?w=1600&q=80",
+                "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1600&q=80",
+            ]
+        elif any(kw in title for kw in ["科技", "技术", "AI", "创新", "发展"]):
+            # 科技类
+            fallback_images = [
+                "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&q=80",
+                "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600&q=80",
+                "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&q=80",
+            ]
+        elif any(kw in title for kw in ["教育", "学习", "学校", "课程", "培训"]):
+            # 教育类
+            fallback_images = [
+                "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&q=80",
+                "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1600&q=80",
+                "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80",
+            ]
+        elif slide_type == "title" or slide_num == 1:
+            # 封面页
+            fallback_images = [
+                "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1600&q=80",
+                "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=1600&q=80",
+                "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=1600&q=80",
+            ]
+        elif slide_type == "thank_you":
+            # 尾页
+            fallback_images = [
+                "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600&q=80",
+                "https://images.unsplash.com/photo-1552664730-d307ca884978?w=1600&q=80",
+            ]
+        else:
+            # 默认商务图片
+            fallback_images = [
+                "https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&q=80",
+                "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&q=80",
+                "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80",
+            ]
+
+        return random.choice(fallback_images)
 
     def _generate_svg(self, slide: Dict, slide_num: int) -> str:
         """AI生成SVG代码"""
@@ -410,94 +479,111 @@ class PPTGenerator:
 </svg>'''
 
     def _svg_to_ppt(self, svg_files: List[str], output_path: str) -> bool:
-        """SVG转PPT"""
+        """SVG转PPT - 图片铺满页面，文字覆盖在图片上"""
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt
-            from PIL import Image
+            from pptx.enum.shapes import MSO_SHAPE
             import requests
             import uuid
-            
+
             # 创建演示文稿
             prs = Presentation()
             prs.slide_width = Inches(16)
             prs.slide_height = Inches(9)
-            
+
             for svg_file in svg_files:
                 if not os.path.exists(svg_file):
                     continue
-                
+
                 # 读取SVG
                 with open(svg_file, 'r', encoding='utf-8') as f:
                     svg_content = f.read()
-                
+
                 # 提取背景图片URL
                 img_url = self._extract_image_url(svg_content)
-                
+
                 # 创建空白幻灯片
                 blank_layout = prs.slide_layouts[6]
                 slide = prs.slides.add_slide(blank_layout)
-                
-                # 如果有背景图片，下载并添加
+
+                # ===== 步骤1: 添加背景图片（铺满整个页面）=====
                 if img_url:
                     try:
-                        response = requests.get(img_url, timeout=30)
+                        # 使用更长的超时时间
+                        response = requests.get(img_url, timeout=60)
                         if response.status_code == 200:
                             # 保存临时文件
-                            temp_img = f"/tmp/temp_{uuid.uuid4().hex}.png"
+                            temp_img = f"/tmp/temp_{uuid.uuid4().hex}.jpg"
                             with open(temp_img, 'wb') as f:
                                 f.write(response.content)
-                            
-                            # 添加图片铺满页面
+
+                            # 添加图片铺满页面 (16:9)
                             slide.shapes.add_picture(
                                 temp_img,
                                 Inches(0), Inches(0),
                                 width=Inches(16), height=Inches(9)
                             )
                             os.remove(temp_img)
+                            logger.info(f"已添加背景图片: {img_url[:50]}...")
+                        else:
+                            logger.warning(f"图片下载失败: {response.status_code}")
                     except Exception as e:
                         logger.warning(f"添加背景图片失败: {e}")
-                
-                # 提取文字内容并添加
+                else:
+                    logger.warning("SVG中未找到图片URL")
+
+                # ===== 步骤2: 不添加遮罩，直接让图片作为背景 =====
+
+                # ===== 步骤3: 添加标题 =====
+
+                # 提取文字内容
                 title, contents = self._extract_text_from_svg(svg_content)
-                
-                # 添加标题
+
                 if title:
+                    # 直接添加标题文字，不添加背景，让图片透出来
                     title_box = slide.shapes.add_textbox(
-                        Inches(0.5), Inches(0.3), 
-                        Inches(15), Inches(1)
+                        Inches(0.5), Inches(0.2),
+                        Inches(15), Inches(1.2)
                     )
                     tf = title_box.text_frame
+                    tf.word_wrap = True
                     p = tf.paragraphs[0]
                     p.text = title
-                    p.font.size = Pt(44)
+                    p.font.size = Pt(48)
                     p.font.bold = True
+                    # 白色文字，让图片透出来
                     p.font.color.rgb = RGBColor(255, 255, 255)
-                
-                # 添加内容
+                    p.alignment = 1  # 居中
+
+                # ===== 步骤4: 添加内容 =====
+
                 if contents:
+                    # 直接添加内容文字，不添加背景，让图片透出来
+
+                    # 内容区域 - 根据内容多少调整位置
                     content_box = slide.shapes.add_textbox(
-                        Inches(0.5), Inches(1.5),
-                        Inches(15), Inches(6)
+                        Inches(1.0), Inches(2.5),
+                        Inches(14), Inches(5)
                     )
                     tf = content_box.text_frame
                     tf.word_wrap = True
-                    
-                    for i, content in enumerate(contents[:8]):
+
+                    for i, content in enumerate(contents[:6]):  # 最多显示6条
                         if i == 0:
                             p = tf.paragraphs[0]
                         else:
                             p = tf.add_paragraph()
-                        p.text = f"• {content}"
-                        p.font.size = Pt(24)
+                        p.text = f"  {content}"
+                        p.font.size = Pt(26)
                         p.font.color.rgb = RGBColor(255, 255, 255)
-                        p.space_before = Pt(12)
-            
+                        p.space_before = Pt(18)
+
             # 保存
             prs.save(output_path)
             logger.info(f"PPT保存成功: {output_path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"SVG转PPT失败: {e}")
             import traceback
@@ -507,16 +593,25 @@ class PPTGenerator:
     def _extract_image_url(self, svg_content: str) -> Optional[str]:
         """从SVG中提取图片URL"""
         patterns = [
-            r'href="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"',
-            r'xlink:href="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"',
-            r'(https?://[^"\'>\s]+\.(?:jpg|jpeg|png|webp))',
+            # 匹配 href="URL" - 支持URL参数
+            r'href="([^"]+)"',
+            # 匹配 xlink:href="URL"
+            r'xlink:href="([^"]+)"',
+            # 直接匹配URL
+            r'(https?://[^\s"\'<>]+)',
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, svg_content, re.I)
             if match:
-                return match.group(1)
-        
+                url = match.group(1)
+                # 过滤掉非图片URL
+                if any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif']):
+                    return url
+                # 也接受unsplash等图片服务URL
+                if 'unsplash' in url or 'images.unsplash' in url:
+                    return url
+
         return None
 
     def _extract_text_from_svg(self, svg_content: str):
@@ -540,23 +635,25 @@ class PPTGenerator:
         exclude_patterns = [
             r'^\d+$',  # 纯数字（页码）
             r'^RabAi',  # 底部商标
-            r'^AI',  # 可能的简短文字
         ]
-        
+
         for text in all_texts:
             is_excluded = False
             for pattern in exclude_patterns:
                 if re.match(pattern, text):
                     is_excluded = True
                     break
-            # 过滤太短的文字
-            if len(text) > 2 and not is_excluded:
+            # 过滤太短的文字（允许如"AI"这样的短词）
+            if len(text) >= 2 and not is_excluded:
                 filtered_texts.append(text)
         
         # 识别标题：通常是大字体、在页面顶部(y < 200)
         title = ""
         contents = []
-        
+
+        # 添加调试日志
+        logger.info(f"[SVG提取] 开始提取文字，SVG长度: {len(svg_content)}")
+
         # 通过y坐标识别标题（y在80-200之间的是标题）
         title_matches = re.findall(r'<text[^>]*y="(\d+)"[^>]*>.*?</text>', svg_content)
         text_with_y = []
@@ -574,13 +671,15 @@ class PPTGenerator:
         
         # 按y坐标排序
         text_with_y.sort(key=lambda x: x[0])
-        
+
+        logger.info(f"[SVG提取] 找到 {len(text_with_y)} 个文本元素: {text_with_y}")
+
         # 找到标题（y < 200的第一个主要内容）
         for y, text in text_with_y:
-            if y < 200 and len(text) > 4:
+            if y < 200 and len(text) >= 2:
                 title = text
                 break
-        
+
         # 其余的是内容
         for y, text in text_with_y:
             if y >= 200 and len(text) > 2:
@@ -588,6 +687,8 @@ class PPTGenerator:
                 if y > 800:
                     continue
                 contents.append(text)
+
+        logger.info(f"[SVG提取] 提取结果: title='{title}', contents={contents}")
         
         # 如果上述方法失败，使用备用逻辑
         if not title and filtered_texts:

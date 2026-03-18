@@ -70,6 +70,7 @@ def create_pptx_from_svgs(
 
             # 尝试从 SVG 提取文本内容和图片
             title, content_lines, image_url = _extract_text_from_svg(svg_path)
+            logger.info(f"提取SVG: title='{title}', content_lines={len(content_lines) if content_lines else 0}")
 
             # 创建空白幻灯片
             blank_layout = prs.slide_layouts[6]
@@ -137,7 +138,7 @@ def create_pptx_from_svgs(
         return False, str(e)
 
 
-def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str], Optional[str]]:
+def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str], Optional[str]]]:
     """
     从 SVG 文件提取文本内容和图片URL
 
@@ -152,18 +153,31 @@ def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str], Opt
         content_lines = []
         image_url = None
 
-        # 提取标题 (第一个 text 元素)
-        title_match = re.search(r'<text[^>]*>([^<]+)</text>', content)
-        if title_match:
-            title = title_match.group(1).strip()
+        # 使用更灵活的方式提取文本 - 处理text和tspan元素
+        # 先提取所有text元素的内容（包括嵌套的tspan）
+        all_text = []
 
-        # 提取所有文本内容
-        text_matches = re.findall(r'<text[^>]*>([^<]+)</text>', content)
-        for i, text in enumerate(text_matches):
+        # 匹配 <text>...</text> 包括多行文本
+        text_matches = re.findall(r'<text[^>]*>(.*?)</text>', content, re.DOTALL)
+
+        for match in text_matches:
+            # 清理tspan标签，获取纯文本
+            text = re.sub(r'<[^>]+>', '', match).strip()
+            if text:
+                all_text.append(text)
+
+        # 第一个非空文本作为标题
+        for text in all_text:
+            if text and len(text) > 0:
+                title = text
+                break
+
+        # 其余文本作为内容
+        for text in all_text[1:]:
             text = text.strip()
             if text and text != title:
-                # 过滤掉一些非内容文本
-                if 'RabAi' not in text and 'PPT' not in text:
+                # 过滤掉页脚等非内容文本
+                if 'RabAi' not in text and 'Platform' not in text:
                     content_lines.append(text)
 
         # 提取图片 URL
@@ -171,6 +185,7 @@ def _extract_text_from_svg(svg_path: str) -> Tuple[Optional[str], List[str], Opt
         if image_match:
             image_url = image_match.group(1)
 
+        logger.info(f"从SVG提取: title='{title}', content_lines={len(content_lines)}")
         return title, content_lines[:10], image_url
 
     except Exception as e:
