@@ -8,7 +8,8 @@ API 路由定义
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
-from typing import Dict, Any
+from typing import Dict, Any, List
+from pydantic import BaseModel, Field
 import asyncio
 import time
 
@@ -22,7 +23,8 @@ from src.models import (
     HealthResponse,
     APIInfo,
     SceneType,
-    StyleType
+    StyleType,
+    LayoutType
 )
 from src.services.task_manager import get_task_manager
 from src.services.ppt_generator import get_ppt_generator
@@ -86,7 +88,10 @@ async def generate_ppt(request: GenerateRequest):
                 theme_color=request.theme_color,
                 text_style=request.text_style.value,
                 shadow_color=request.shadow_color,
-                overlay_transparency=request.overlay_transparency
+                overlay_transparency=request.overlay_transparency,
+                use_smart_layout=request.use_smart_layout,
+                slide_backgrounds=request.slide_backgrounds,
+                slide_layouts=request.slide_layouts
             )
         )
 
@@ -238,3 +243,54 @@ async def get_styles():
         {"id": "energetic", "name": "活力", "description": "充满活力风格"},
         {"id": "premium", "name": "高端", "description": "高端大气风格"}
     ]
+
+
+# ==================== AI 生图 ====================
+
+class ImageGenerationRequest(BaseModel):
+    """AI生图请求"""
+    prompt: str = Field(..., min_length=1, max_length=500, description="图片描述")
+    size: str = Field(default="1024x1024", description="图片尺寸")
+    n: int = Field(default=1, ge=1, le=4, description="生成数量")
+
+
+class ImageGenerationResponse(BaseModel):
+    """AI生图响应"""
+    success: bool
+    images: List[str]
+    message: str = ""
+
+
+@router.post("/ai-image", response_model=ImageGenerationResponse)
+async def generate_image(request: ImageGenerationRequest):
+    """AI生成图片"""
+    try:
+        from src.services.volc_api import get_volc_api
+        volc = get_volc_api()
+
+        # 调用AI生图
+        result = volc.image_generation(
+            prompt=request.prompt,
+            size=request.size,
+            n=request.n
+        )
+
+        if result.get("success"):
+            return ImageGenerationResponse(
+                success=True,
+                images=result.get("images", []),
+                message="图片生成成功"
+            )
+        else:
+            return ImageGenerationResponse(
+                success=False,
+                images=[],
+                message=result.get("error", "生成失败")
+            )
+
+    except Exception as e:
+        return ImageGenerationResponse(
+            success=False,
+            images=[],
+            message=str(e)
+        )

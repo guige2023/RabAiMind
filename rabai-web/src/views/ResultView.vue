@@ -29,8 +29,30 @@
             <button class="btn btn-primary btn-lg" @click="handleDownload">
               <span>⬇️</span> 下载 PPT
             </button>
+            <button class="btn btn-export btn-lg" @click="showExportMenu = !showExportMenu">
+              <span>📄</span> 导出其他格式
+            </button>
+            <button class="btn btn-share btn-lg" @click="handleShare">
+              <span>📤</span> 分享
+            </button>
             <button class="btn btn-secondary btn-lg" @click="handleNew">
               <span>✨</span> 创建新的
+            </button>
+          </div>
+
+          <!-- 导出菜单 -->
+          <div v-if="showExportMenu" class="export-menu">
+            <button class="export-option" @click="handleExportPDF">
+              <span class="export-icon">📕</span>
+              <span>导出 PDF</span>
+            </button>
+            <button class="export-option" @click="handleExportImages">
+              <span class="export-icon">🖼️</span>
+              <span>导出图片</span>
+            </button>
+            <button class="export-option" @click="handleExportHTML">
+              <span class="export-icon">🌐</span>
+              <span>导出 HTML</span>
             </button>
           </div>
         </div>
@@ -74,6 +96,7 @@ const status = ref('loading')
 const slideCount = ref(0)
 const fileSize = ref('0 KB')
 const errorMessage = ref('')
+const showExportMenu = ref(false)
 
 // 加载任务状态
 const loadStatus = async () => {
@@ -142,6 +165,49 @@ const handleRetry = () => {
 // 新建
 const handleNew = () => {
   router.push('/create')
+}
+
+// 导出 PDF
+const handleExportPDF = async () => {
+  showExportMenu.value = false
+  alert('PDF导出功能开发中...')
+}
+
+// 导出图片
+const handleExportImages = async () => {
+  showExportMenu.value = false
+  alert('图片导出功能开发中...')
+}
+
+// 导出 HTML
+const handleExportHTML = async () => {
+  showExportMenu.value = false
+  alert('HTML导出功能开发中...')
+}
+
+// 分享
+const handleShare = async () => {
+  const shareUrl = `${window.location.origin}/result?taskId=${taskId.value}`
+
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'RabAi Mind PPT',
+        text: '来看看我创建的PPT',
+        url: shareUrl
+      })
+    } catch (err) {
+      console.log('分享取消')
+    }
+  } else {
+    // 复制链接
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      alert('分享链接已复制到剪贴板！')
+    } catch {
+      prompt('复制以下链接分享:', shareUrl)
+    }
+  }
 }
 
 onMounted(() => {
@@ -260,5 +326,56 @@ onMounted(() => {
 .btn-lg {
   padding: 14px 32px;
   font-size: 16px;
+}
+
+.btn-export {
+  background: #34C759;
+  color: #fff;
+}
+
+.btn-export:hover {
+  background: #2dad4a;
+}
+
+.btn-share {
+  background: #5856D6;
+  color: #fff;
+}
+
+.btn-share:hover {
+  background: #4644cd;
+}
+
+/* 导出菜单 */
+.export-menu {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 12px;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-option:hover {
+  border-color: #165DFF;
+  background: #f0f7ff;
+}
+
+.export-icon {
+  font-size: 24px;
 }
 </style>

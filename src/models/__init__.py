@@ -37,6 +37,10 @@ class StyleType(str, Enum):
     SIMPLE = "simple"
     ENERGETIC = "energetic"
     PREMIUM = "premium"
+    CREATIVE = "creative"
+    TECH = "tech"
+    NATURE = "nature"
+    ELEGANT = "elegant"
 
 
 class TemplateType(str, Enum):
@@ -53,7 +57,35 @@ class TextStyleType(str, Enum):
     SHADOW = "shadow"  # 文字阴影/描边
 
 
+class LayoutType(str, Enum):
+    """布局类型"""
+    TITLE_SLIDE = "title_slide"  # 封面
+    CONTENT_CARD = "content_card"  # 卡片
+    TWO_COLUMN = "two_column"  # 双栏
+    CENTER_RADIATION = "center_radiation"  # 中心辐射
+    TIMELINE = "timeline"  # 时间线
+    DATA_VISUALIZATION = "data_visualization"  # 数据可视化
+    QUOTE = "quote"  # 金句
+    COMPARISON = "comparison"  # 对比
+
+
 # ==================== 请求模型 ====================
+
+class SlideBackground(BaseModel):
+    """单页背景设置"""
+    slide_index: int = Field(..., description="页码索引 (0-based)")
+    background_type: str = Field(default="color", description="背景类型: color(颜色), image(图片), gradient(渐变)")
+    background_color: Optional[str] = Field(default=None, description="背景颜色 (hex)")
+    background_image: Optional[str] = Field(default=None, description="背景图片URL")
+    gradient_start: Optional[str] = Field(default=None, description="渐变起始颜色")
+    gradient_end: Optional[str] = Field(default=None, description="渐变结束颜色")
+
+
+class SlideLayout(BaseModel):
+    """单页布局设置"""
+    slide_index: int = Field(..., description="页码索引 (0-based)")
+    layout_type: LayoutType = Field(default=LayoutType.CONTENT_CARD, description="布局类型")
+
 
 class GenerateRequest(BaseModel):
     """PPT生成请求"""
@@ -66,6 +98,9 @@ class GenerateRequest(BaseModel):
     text_style: TextStyleType = Field(default=TextStyleType.TRANSPARENT_OVERLAY, description="文字样式方案")
     shadow_color: str = Field(default="#000000", description="阴影颜色")
     overlay_transparency: int = Field(default=30, ge=0, le=100, description="遮罩透明度百分比")
+    use_smart_layout: bool = Field(default=False, description="是否使用智能布局模式")
+    slide_backgrounds: Optional[List[SlideBackground]] = Field(default=None, description="每页背景设置")
+    slide_layouts: Optional[List[SlideLayout]] = Field(default=None, description="每页布局设置")
 
 
 # ==================== 响应模型 ====================

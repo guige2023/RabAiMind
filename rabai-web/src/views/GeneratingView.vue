@@ -42,6 +42,19 @@
         </div>
       </div>
     </div>
+
+    <!-- 错误弹窗 -->
+    <div v-if="showErrorModal" class="error-modal-overlay">
+      <div class="error-modal">
+        <div class="error-icon">⚠️</div>
+        <h3>生成遇到问题</h3>
+        <p>{{ showError }}</p>
+        <div class="error-actions">
+          <button class="btn btn-primary" @click="retryGenerate">重试</button>
+          <button class="btn btn-secondary" @click="goHome">返回首页</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -59,6 +72,9 @@ const taskId = computed(() => route.query.taskId as string)
 const status = ref('pending')
 const progress = ref(0)
 const currentStepKey = ref('init')
+const showErrorModal = ref(false)
+const showError = ref('')
+const errorCount = ref(0)
 
 // 步骤定义
 const steps = [
@@ -113,10 +129,16 @@ const pollStatus = async () => {
       // 跳转到结果页
       router.push({ path: '/result', query: { taskId: taskId.value } })
     } else if (data.status === 'failed') {
-      alert(data.error?.message || '生成失败')
+      showError.value = data.error?.message || '生成失败，请重试'
+      showErrorModal.value = true
     }
   } catch (error) {
     console.error('查询状态失败:', error)
+    errorCount.value++
+    if (errorCount.value >= 3) {
+      showError.value = '网络不稳定，请检查网络后刷新页面'
+      showErrorModal.value = true
+    }
   }
 }
 
@@ -150,6 +172,22 @@ const handleCancel = async () => {
   } catch (error) {
     console.error('取消失败:', error)
   }
+}
+
+// 重试
+const retryGenerate = () => {
+  showErrorModal.value = false
+  errorCount.value = 0
+  status.value = 'pending'
+  progress.value = 0
+  currentStepKey.value = 'init'
+  pollStatus()
+  pollTimer = window.setInterval(pollStatus, 2000)
+}
+
+// 返回首页
+const goHome = () => {
+  router.push('/')
 }
 
 // 页面加载时开始轮询
@@ -301,5 +339,47 @@ onUnmounted(() => {
 .actions {
   padding-top: 20px;
   border-top: 1px solid #f0f0f0;
+}
+
+/* 错误弹窗 */
+.error-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.error-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  max-width: 400px;
+  margin: 20px;
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.error-modal h3 {
+  font-size: 20px;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.error-modal p {
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 </style>

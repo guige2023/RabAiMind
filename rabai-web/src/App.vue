@@ -9,6 +9,7 @@
         <nav class="nav">
           <router-link to="/" class="nav-link">首页</router-link>
           <router-link to="/create" class="nav-link">创建PPT</router-link>
+          <router-link to="/media" class="nav-link">素材库</router-link>
         </nav>
       </div>
     </header>

@@ -9,6 +9,7 @@ const routes = [
   { path: '/create', name: 'create', component: () => import('./views/CreateView.vue') },
   { path: '/generating', name: 'generating', component: () => import('./views/GeneratingView.vue') },
   { path: '/result', name: 'result', component: () => import('./views/ResultView.vue') },
+  { path: '/media', name: 'media', component: () => import('./views/MediaLibraryView.vue') },
 ]
 
 const router = createRouter({

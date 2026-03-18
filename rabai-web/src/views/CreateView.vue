@@ -148,6 +148,176 @@
           </div>
         </div>
 
+        <!-- 智能布局模式开关 -->
+        <div class="form-section">
+          <label class="form-label">生成模式</label>
+          <div class="mode-toggle">
+            <div
+              class="mode-option"
+              :class="{ active: !formData.useSmartLayout }"
+              @click="formData.useSmartLayout = false"
+            >
+              <span class="mode-icon">🎨</span>
+              <span class="mode-name">AI智能生成</span>
+              <span class="mode-desc">火山引擎AI生成精美SVG</span>
+            </div>
+            <div
+              class="mode-option"
+              :class="{ active: formData.useSmartLayout }"
+              @click="formData.useSmartLayout = true"
+            >
+              <span class="mode-icon">📐</span>
+              <span class="mode-name">智能布局模式</span>
+              <span class="mode-desc">8种布局+自动配色</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 背景颜色设置 -->
+        <div class="form-section" v-if="formData.useSmartLayout">
+          <label class="form-label">页面背景设置</label>
+          <div class="background-mode-toggle">
+            <div
+              class="bg-mode-option"
+              :class="{ active: formData.backgroundMode === '统一' }"
+              @click="formData.backgroundMode = '统一'"
+            >
+              <span class="bg-mode-name">统一背景</span>
+              <span class="bg-mode-desc">所有页面使用相同背景</span>
+            </div>
+            <div
+              class="bg-mode-option"
+              :class="{ active: formData.backgroundMode === '自定义' }"
+              @click="formData.backgroundMode = '自定义'"
+            >
+              <span class="bg-mode-name">自定义每页</span>
+              <span class="bg-mode-desc">单独设置每页背景</span>
+            </div>
+          </div>
+
+          <!-- 统一背景模式 -->
+          <div v-if="formData.backgroundMode === '统一'" class="unified-bg-setting">
+            <label class="form-label-sub">统一背景颜色</label>
+            <div class="theme-colors">
+              <div
+                v-for="color in backgroundColors"
+                :key="color.value"
+                class="theme-color"
+                :class="{ active: formData.unifiedBackground === color.value }"
+                :style="{ background: color.value }"
+                @click="formData.unifiedBackground = color.value"
+              >
+                <span v-if="formData.unifiedBackground === color.value" class="check">✓</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 自定义每页背景 -->
+          <div v-if="formData.backgroundMode === '自定义'" class="custom-bg-setting">
+            <div
+              v-for="i in formData.slideCount"
+              :key="i"
+              class="slide-bg-item"
+            >
+              <span class="slide-index">第 {{ i }} 页</span>
+              <div class="theme-colors">
+                <div
+                  v-for="color in backgroundColors"
+                  :key="color.value"
+                  class="theme-color theme-color-sm"
+                  :class="{ active: formData.slideBackgrounds[i-1] === color.value }"
+                  :style="{ background: color.value }"
+                  @click="formData.slideBackgrounds[i-1] = color.value"
+                >
+                  <span v-if="formData.slideBackgrounds[i-1] === color.value" class="check">✓</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 布局类型设置 -->
+        <div class="form-section" v-if="formData.useSmartLayout">
+          <label class="form-label">页面布局设置</label>
+          <div class="background-mode-toggle">
+            <div
+              class="bg-mode-option"
+              :class="{ active: formData.layoutMode === '统一' }"
+              @click="formData.layoutMode = '统一'"
+            >
+              <span class="bg-mode-name">统一布局</span>
+              <span class="bg-mode-desc">所有页面使用相同布局</span>
+            </div>
+            <div
+              class="bg-mode-option"
+              :class="{ active: formData.layoutMode === '自定义' }"
+              @click="formData.layoutMode = '自定义'"
+            >
+              <span class="bg-mode-name">自定义每页</span>
+              <span class="bg-mode-desc">单独设置每页布局</span>
+            </div>
+          </div>
+
+          <!-- 统一布局模式 -->
+          <div v-if="formData.layoutMode === '统一'" class="unified-layout-setting">
+            <label class="form-label-sub">统一布局类型</label>
+            <div class="layout-options">
+              <div
+                v-for="layout in layoutOptions"
+                :key="layout.value"
+                class="layout-option"
+                :class="{ active: formData.unifiedLayout === layout.value }"
+                @click="formData.unifiedLayout = layout.value"
+              >
+                <span class="layout-icon">{{ layout.icon }}</span>
+                <span class="layout-name">{{ layout.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 自定义每页布局 -->
+          <div v-if="formData.layoutMode === '自定义'" class="custom-layout-setting">
+            <div
+              v-for="i in formData.slideCount"
+              :key="i"
+              class="slide-layout-item"
+            >
+              <span class="slide-index">第 {{ i }} 页</span>
+              <div class="layout-options layout-options-sm">
+                <div
+                  v-for="layout in layoutOptions"
+                  :key="layout.value"
+                  class="layout-option layout-option-sm"
+                  :class="{ active: formData.slideLayouts[i-1] === layout.value }"
+                  @click="formData.slideLayouts[i-1] = layout.value"
+                >
+                  <span class="layout-icon">{{ layout.icon }}</span>
+                  <span class="layout-name">{{ layout.name }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 素材选择 -->
+        <div class="form-section" v-if="pptImages.length > 0">
+          <label class="form-label">我的素材</label>
+          <div class="ppt-images-grid">
+            <div
+              v-for="img in pptImages"
+              :key="img.id"
+              class="ppt-image-item"
+              :class="{ selected: selectedPptImages.includes(img.url) }"
+              @click="togglePptImage(img.url)"
+            >
+              <img :src="img.url" :alt="img.name" />
+              <span class="ppt-image-check" v-if="selectedPptImages.includes(img.url)">✓</span>
+            </div>
+          </div>
+          <p class="ppt-images-tip">点击选择图片，生成的PPT将优先使用这些图片</p>
+          <button class="btn btn-sm btn-outline" @click="clearPptImages">清空素材</button>
+        </div>
+
         <!-- 提交按钮 -->
         <div class="form-actions">
           <button
@@ -173,7 +343,24 @@ const router = useRouter()
 const route = useRoute()
 
 // 表单数据
-const formData = ref({
+const formData = ref<{
+  userRequest: string
+  slideCount: number
+  scene: string
+  style: string
+  template: string
+  themeColor: string
+  textStyle: string
+  shadowColor: string
+  overlayTransparency: number
+  useSmartLayout: boolean
+  backgroundMode: string
+  unifiedBackground: string
+  slideBackgrounds: string[]
+  layoutMode: string
+  unifiedLayout: string
+  slideLayouts: string[]
+}>({
   userRequest: '',
   slideCount: 10,
   scene: 'business',
@@ -182,8 +369,44 @@ const formData = ref({
   themeColor: '#165DFF',
   textStyle: 'transparent_overlay',
   shadowColor: '#000000',
-  overlayTransparency: 30
+  overlayTransparency: 30,
+  useSmartLayout: false,
+  backgroundMode: '统一',  // 统一或自定义
+  unifiedBackground: '#165DFF',  // 统一背景色
+  slideBackgrounds: [],  // 每页背景色数组
+  layoutMode: '统一',  // 统一或自定义
+  unifiedLayout: 'content_card',  // 统一布局
+  slideLayouts: []  // 每页布局数组
 })
+
+// PPT素材
+const pptImages = ref<{ id: string; url: string; name: string }[]>([])
+const selectedPptImages = ref<string[]>([])
+
+// 加载PPT素材
+const loadPptImages = () => {
+  const saved = localStorage.getItem('ppt_images')
+  if (saved) {
+    pptImages.value = JSON.parse(saved)
+  }
+}
+
+// 切换选择图片
+const togglePptImage = (url: string) => {
+  const index = selectedPptImages.value.indexOf(url)
+  if (index > -1) {
+    selectedPptImages.value.splice(index, 1)
+  } else {
+    selectedPptImages.value.push(url)
+  }
+}
+
+// 清空素材
+const clearPptImages = () => {
+  localStorage.removeItem('ppt_images')
+  pptImages.value = []
+  selectedPptImages.value = []
+}
 
 // 验证错误
 const errors = ref({
@@ -230,6 +453,30 @@ const shadowColors = [
   { value: '#FF9500', name: '橙色' }
 ]
 
+// 背景颜色选项
+const backgroundColors = [
+  { value: '#165DFF', name: '科技蓝' },
+  { value: '#34C759', name: '自然绿' },
+  { value: '#FF9500', name: '活力橙' },
+  { value: '#FF3B30', name: '热情红' },
+  { value: '#AF52DE', name: '神秘紫' },
+  { value: '#1A1A1A', name: '经典黑' },
+  { value: '#5856D6', name: '暗紫色' },
+  { value: '#FFFFFF', name: '纯白色' }
+]
+
+// 布局类型选项
+const layoutOptions = [
+  { value: 'title_slide', name: '封面', icon: '📄', desc: '标题封面页' },
+  { value: 'content_card', name: '卡片', icon: '🃏', desc: '内容卡片布局' },
+  { value: 'two_column', name: '双栏', icon: '📊', desc: '左右双栏布局' },
+  { value: 'center_radiation', name: '中心辐射', icon: '🌀', desc: '中心发散布局' },
+  { value: 'timeline', name: '时间线', icon: '📅', desc: '时间轴布局' },
+  { value: 'data_visualization', name: '数据可视化', icon: '📈', desc: '图表数据展示' },
+  { value: 'quote', name: '金句', icon: '💬', desc: '引用金句布局' },
+  { value: 'comparison', name: '对比', icon: '⚖️', desc: '左右对比布局' }
+]
+
 // 验证输入
 const validateRequest = () => {
   if (!formData.value.userRequest.trim()) {
@@ -253,6 +500,60 @@ const handleSubmit = async () => {
 
   isSubmitting.value = true
 
+  // 构建背景设置
+  let slideBackgrounds = null
+  if (formData.value.useSmartLayout) {
+    if (formData.value.backgroundMode === '统一') {
+      // 统一背景：所有页面使用相同颜色
+      slideBackgrounds = []
+      for (let i = 0; i < formData.value.slideCount; i++) {
+        slideBackgrounds.push({
+          slide_index: i,
+          background_type: 'color',
+          background_color: formData.value.unifiedBackground
+        })
+      }
+    } else {
+      // 自定义每页背景
+      slideBackgrounds = []
+      for (let i = 0; i < formData.value.slideCount; i++) {
+        slideBackgrounds.push({
+          slide_index: i,
+          background_type: 'color',
+          background_color: formData.value.slideBackgrounds[i] || formData.value.themeColor
+        })
+      }
+    }
+  }
+
+  // 构建布局设置
+  let slideLayouts = null
+  if (formData.value.useSmartLayout) {
+    if (formData.value.layoutMode === '统一') {
+      // 统一布局：所有页面使用相同布局
+      slideLayouts = []
+      for (let i = 0; i < formData.value.slideCount; i++) {
+        // 首页强制使用封面布局
+        const layout = i === 0 ? 'title_slide' : formData.value.unifiedLayout
+        slideLayouts.push({
+          slide_index: i,
+          layout_type: layout
+        })
+      }
+    } else {
+      // 自定义每页布局
+      slideLayouts = []
+      for (let i = 0; i < formData.value.slideCount; i++) {
+        // 首页强制使用封面布局
+        const layout = i === 0 ? 'title_slide' : (formData.value.slideLayouts[i] || formData.value.unifiedLayout)
+        slideLayouts.push({
+          slide_index: i,
+          layout_type: layout
+        })
+      }
+    }
+  }
+
   try {
     const response = await axios.post('/api/v1/ppt/generate', {
       user_request: formData.value.userRequest,
@@ -263,10 +564,13 @@ const handleSubmit = async () => {
       theme_color: formData.value.themeColor,
       text_style: formData.value.textStyle,
       shadow_color: formData.value.shadowColor,
-      overlay_transparency: formData.value.overlayTransparency
+      overlay_transparency: formData.value.overlayTransparency,
+      use_smart_layout: formData.value.useSmartLayout,
+      slide_backgrounds: slideBackgrounds,
+      slide_layouts: slideLayouts
     })
 
-    const { task_id, status } = response.data
+    const { task_id } = response.data
 
     // 跳转到生成页面
     router.push({
@@ -274,7 +578,12 @@ const handleSubmit = async () => {
       query: { taskId: task_id }
     })
   } catch (error: any) {
-    alert(error.response?.data?.detail || '提交失败，请重试')
+    isSubmitting.value = false
+    const errorMsg = error.response?.data?.detail || '网络错误，请检查网络连接'
+    const retry = confirm(`${errorMsg}\n\n是否重试？`)
+    if (retry) {
+      handleSubmit()
+    }
   } finally {
     isSubmitting.value = false
   }
@@ -285,6 +594,8 @@ onMounted(() => {
   if (route.query.scene) {
     formData.value.scene = route.query.scene as string
   }
+  // 加载PPT素材
+  loadPptImages()
 })
 </script>
 
@@ -486,5 +797,324 @@ onMounted(() => {
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+/* 模式切换 */
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .mode-toggle {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+  border: 2px solid #E5E5E5;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.mode-option:hover {
+  border-color: #165DFF;
+  background: #F0F7FF;
+}
+
+.mode-option.active {
+  border-color: #165DFF;
+  background: #E6F0FF;
+}
+
+.mode-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.mode-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.mode-desc {
+  font-size: 12px;
+  color: #888;
+}
+
+/* 背景设置 */
+.background-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bg-mode-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px;
+  border: 2px solid #E5E5E5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bg-mode-option:hover {
+  border-color: #165DFF;
+}
+
+.bg-mode-option.active {
+  border-color: #165DFF;
+  background: #E6F0FF;
+}
+
+.bg-mode-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.bg-mode-desc {
+  font-size: 12px;
+  color: #888;
+}
+
+.form-label-sub {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 8px;
+  margin-top: 12px;
+}
+
+.unified-bg-setting {
+  padding: 12px;
+  background: #F9F9F9;
+  border-radius: 8px;
+}
+
+.custom-bg-setting {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #F9F9F9;
+  border-radius: 8px;
+}
+
+.slide-bg-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #EEE;
+}
+
+.slide-bg-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.slide-index {
+  min-width: 60px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+}
+
+.theme-color-sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* 布局设置 */
+.unified-layout-setting {
+  margin-top: 12px;
+}
+
+.layout-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .layout-options {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .layout-option {
+    padding: 10px 6px;
+  }
+
+  .layout-icon {
+    font-size: 24px;
+  }
+
+  .layout-name {
+    font-size: 13px;
+  }
+
+  .layout-options-sm {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.layout-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border: 2px solid #E5E5E5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.layout-option:hover {
+  border-color: #165DFF;
+}
+
+.layout-option.active {
+  border-color: #165DFF;
+  background: #E6F0FF;
+}
+
+.layout-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.layout-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+}
+
+.custom-layout-setting {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #F9F9F9;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+.slide-layout-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #EEE;
+}
+
+.slide-layout-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.layout-options-sm {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.layout-option-sm {
+  padding: 8px 4px;
+}
+
+.layout-option-sm .layout-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.layout-option-sm .layout-name {
+  font-size: 11px;
+}
+
+/* PPT素材 */
+.ppt-images-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ppt-image-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.ppt-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ppt-image-item.selected {
+  border-color: #165DFF;
+}
+
+.ppt-image-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: #165DFF;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.ppt-images-tip {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.btn-sm {
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.btn-outline:hover {
+  background: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .ppt-images-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 </style>

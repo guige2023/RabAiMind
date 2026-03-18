@@ -43,7 +43,10 @@ class PPTGenerator:
         theme_color: str = "#165DFF",
         text_style: str = "transparent_overlay",
         shadow_color: str = "#000000",
-        overlay_transparency: int = 30
+        overlay_transparency: int = 30,
+        use_smart_layout: bool = False,
+        slide_backgrounds: list = None,
+        slide_layouts: list = None
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式"""
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}")
@@ -78,15 +81,29 @@ class PPTGenerator:
             # 3. AI生成SVG代码 (同步)
             task_manager.update_progress(task_id, 70, "AI设计SVG中", "processing")
             logger.info("开始生成SVG代码...")
-            
+
             svg_files = []
             for i, slide in enumerate(slides_content):
-                svg_code = self._generate_svg(slide, i+1)
-                svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{i+1}_okppt.svg")
+                slide_num = i + 1
+                # 获取用户指定的布局类型
+                user_layout = None
+                if slide_layouts:
+                    for layout in slide_layouts:
+                        if layout.slide_index == i:
+                            user_layout = layout.layout_type
+                            break
+                if use_smart_layout:
+                    # 使用智能布局模式
+                    svg_code = self._generate_svg_smart_layout(slide, slide_num, theme_color, style, user_layout)
+                else:
+                    # 使用原有模式
+                    svg_code = self._generate_svg(slide, slide_num)
+
+                svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_okppt.svg")
                 with open(svg_path, 'w', encoding='utf-8') as f:
                     f.write(svg_code)
                 svg_files.append(svg_path)
-                logger.info(f"slide {i+1} SVG生成完成")
+                logger.info(f"slide {slide_num} SVG生成完成")
             
             task_manager.update_progress(task_id, 85, "SVG生成完成", "processing")
 
@@ -98,7 +115,7 @@ class PPTGenerator:
             
             logger.info(f"SVG转PPT: {output_path}")
             # 同步调用
-            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency)
+            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency, use_smart_layout, slide_backgrounds)
             
             logger.info(f"PPT生成完成: {output_path}")
             task_manager.update_progress(task_id, 100, "完成", "completed")
@@ -262,8 +279,54 @@ class PPTGenerator:
             content = str(response)
         
         svg_code = self._extract_svg_code(content)
-        
+
         return svg_code
+
+    def _generate_svg_smart_layout(self, slide: Dict, slide_num: int, theme_color: str = "#165DFF", style: str = "professional", user_layout: str = None) -> str:
+        """使用智能布局模块生成SVG"""
+        from .smart_layout.creative_engine import get_creative_engine
+
+        logger.info(f"[SmartLayout] slide_{slide_num}: 使用智能布局生成")
+
+        # 获取创意引擎
+        engine = get_creative_engine()
+
+        title = slide.get("title", "")
+        subtitle = slide.get("subtitle", "")
+        content = slide.get("content", [])
+
+        # 准备内容
+        content_list = []
+        if subtitle:
+            content_list.append({"title": subtitle, "content": ""})
+        for item in content:
+            if isinstance(item, dict):
+                content_list.append({"title": item.get("title", ""), "content": item.get("content", "")})
+            else:
+                content_list.append({"title": str(item), "content": ""})
+
+        # 确定布局类型：优先使用用户指定的布局
+        if user_layout:
+            slide_type = user_layout
+            logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
+        else:
+            # 获取布局建议
+            content_text = "\n".join([str(c) for c in content])
+            suggestion = engine.get_layout_suggestion(title, content_text)
+            slide_type = suggestion.get("content_type", "content")
+
+            # 如果是第一页，使用封面布局
+            if slide_num == 1:
+                slide_type = "title_slide"
+
+        # 生成配色
+        colors = engine.generate_color_palette(style, theme_color)
+
+        # 使用模板生成SVG（不使用AI）
+        svg = engine._create_slide_from_template(title, content_list, slide_type, colors)
+
+        logger.info(f"[SmartLayout] slide_{slide_num} layout={slide_type} generated successfully")
+        return svg
 
     def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
         """智能文字模式 - 不依赖AI生成SVG，使用纯代码生成美观SVG"""
@@ -481,12 +544,13 @@ class PPTGenerator:
   <text x="800" y="450" text-anchor="middle" fill="white" font-size="48">PPT Slide</text>
 </svg>'''
 
-    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30) -> bool:
-        """SVG转PPT - 支持三种文字样式方案"""
+    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None) -> bool:
+        """SVG转PPT - 支持三种文字样式方案和智能布局模式"""
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt
             from pptx.enum.shapes import MSO_SHAPE
+            from pptx.dml.color import RGBColor
             import requests
             import uuid
             from PIL import Image
@@ -496,7 +560,7 @@ class PPTGenerator:
             prs.slide_width = Inches(16)
             prs.slide_height = Inches(9)
 
-            for svg_file in svg_files:
+            for idx, svg_file in enumerate(svg_files):
                 if not os.path.exists(svg_file):
                     continue
 
@@ -511,7 +575,92 @@ class PPTGenerator:
                 blank_layout = prs.slide_layouts[6]
                 slide = prs.slides.add_slide(blank_layout)
 
-                # ===== 步骤1: 添加背景图片（铺满整个页面）=====
+                # ===== 智能布局模式处理 =====
+                if use_smart_layout:
+                    # 确定背景颜色：优先使用用户设置，否则使用SVG中的颜色
+                    bg_color = None
+                    if slide_backgrounds and idx < len(slide_backgrounds):
+                        # 使用用户设置的背景颜色
+                        bg = slide_backgrounds[idx]
+                        bg_color = bg.background_color if hasattr(bg, 'background_color') else None
+                        logger.info(f"使用用户设置的背景颜色: {bg_color}")
+                    if not bg_color:
+                        # 从SVG提取背景颜色
+                        bg_color = self._extract_svg_background_color(svg_content)
+                        logger.info(f"使用SVG背景颜色: {bg_color}")
+
+                    if bg_color and len(bg_color) == 6:
+                        # 转换颜色
+                        r = int(bg_color[0:2], 16)
+                        g = int(bg_color[2:4], 16)
+                        b = int(bg_color[4:6], 16)
+                        slide.background.fill.solid()
+                        slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
+                        logger.info(f"已设置背景颜色: {bg_color}")
+
+                        # 计算背景亮度，决定文字颜色
+                        brightness = (r * 299 + g * 587 + b * 114) / 1000
+                        text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                    else:
+                        # 使用默认蓝色背景
+                        slide.background.fill.solid()
+                        slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
+                        text_color = RGBColor(255, 255, 255)  # 蓝色背景用白色文字
+                        logger.info("已设置默认蓝色背景")
+
+                    # 提取并添加文字
+                    title, contents = self._extract_text_from_svg(svg_content)
+
+                    # 添加标题
+                    if title:
+                        title_box = slide.shapes.add_textbox(
+                            Inches(0.5), Inches(0.3),
+                            Inches(15), Inches(1.2)
+                        )
+                        tf = title_box.text_frame
+                        tf.word_wrap = True
+                        p = tf.paragraphs[0]
+                        p.text = title
+                        p.font.size = Pt(48)
+                        p.font.bold = True
+                        p.font.color.rgb = text_color
+                        p.alignment = 1  # 居中
+                        logger.info(f"已添加标题: {title}")
+
+                    # 添加内容
+                    if contents:
+                        # 过滤掉与标题相同的内容，并去掉已有的圆点符号
+                        filtered_contents = []
+                        for c in contents:
+                            if c != title:
+                                # 去掉已有的圆点符号前缀
+                                if c.startswith("• "):
+                                    c = c[2:]
+                                filtered_contents.append(c)
+
+                        if filtered_contents:
+                            content_box = slide.shapes.add_textbox(
+                                Inches(1.0), Inches(2.2),
+                                Inches(14), Inches(5)
+                            )
+                            tf = content_box.text_frame
+                            tf.word_wrap = True
+                            for i, content in enumerate(filtered_contents[:6]):  # 最多6条
+                                if i == 0:
+                                    p = tf.paragraphs[0]
+                                else:
+                                    p = tf.add_paragraph()
+                                # 所有内容都统一添加圆点符号
+                                p.text = f"• {content}"
+                                p.font.size = Pt(24)
+                                p.font.color.rgb = text_color
+                                p.space_before = Pt(12)
+                        logger.info(f"已添加 {len(contents)} 条内容")
+
+                    logger.info(f"智能布局模式：已添加文字")
+                    continue
+
+                # ===== 原有模式：添加背景图片（铺满整个页面）=====
                 image_brightness = 128  # 默认中等亮度
                 if img_url:
                     try:
@@ -705,6 +854,35 @@ class PPTGenerator:
             return RGBColor(r, g, b)
         return RGBColor(0, 0, 0)
 
+    def _extract_svg_background_color(self, svg_content: str) -> Optional[str]:
+        """从SVG中提取背景颜色（从stop-color或fill属性）"""
+        import re
+
+        # 尝试从stop-color提取渐变起始颜色
+        match = re.search(r'stop-color:\s*([^;"]+)', svg_content)
+        if match:
+            color = match.group(1).strip()
+            if color.startswith('#'):
+                # 转换 #RRGGBB 为 RRGGBB
+                return color[1:]
+
+        # 尝试从 fill 属性提取背景色
+        match = re.search(r'<rect[^>]*fill="([^"]+)"', svg_content)
+        if match:
+            fill = match.group(1)
+            if fill.startswith('#'):
+                return fill[1:]
+            # 检查是否是渐变
+            if 'url(#' in fill:
+                # 尝试从渐变定义中提取颜色
+                grad_match = re.search(r'id="[^"]*"[^>]*>.*?<stop[^>]*stop-color:\s*([^;"]+)', svg_content, re.DOTALL)
+                if grad_match:
+                    color = grad_match.group(1).strip()
+                    if color.startswith('#'):
+                        return color[1:]
+
+        return None
+
     def _extract_image_url(self, svg_content: str) -> Optional[str]:
         """从SVG中提取图片URL"""
         patterns = [
@@ -789,15 +967,19 @@ class PPTGenerator:
 
         logger.info(f"[SVG提取] 找到 {len(text_with_y)} 个文本元素: {text_with_y}")
 
-        # 找到标题（y < 200的第一个主要内容）
+        # 找到标题（第一个文本，通常是标题）
+        # 跳过装饰性的引号等
         for y, text in text_with_y:
-            if y < 200 and len(text) >= 2:
-                title = text
-                break
+            # 跳过纯装饰符号
+            if text in ['"', '"'] or len(text) < 3:
+                continue
+            # 取第一个作为标题
+            title = text
+            break
 
-        # 其余的是内容
+        # 其余的是内容（跳过标题）
         for y, text in text_with_y:
-            if y >= 200 and len(text) > 2:
+            if text != title and len(text) > 2:
                 # 跳过页码和底部装饰
                 if y > 800:
                     continue

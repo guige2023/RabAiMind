@@ -172,6 +172,60 @@ const selectScene = (sceneId: string) => {
   display: none;
 }
 
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .hero {
+    min-height: 60vh;
+  }
+
+  .hero-content {
+    padding: 40px 20px;
+  }
+
+  .title-main {
+    font-size: 32px;
+  }
+
+  .subtitle-text {
+    font-size: 16px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .btn-lg {
+    padding: 14px 28px;
+    font-size: 15px;
+    width: 100%;
+  }
+
+  .ppt-preview {
+    transform: perspective(800px) rotateY(-10deg) rotateX(5deg);
+    gap: 10px;
+  }
+
+  .ppt-slide {
+    width: 140px;
+    height: 100px;
+    padding: 10px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .feature-card {
+    padding: 20px;
+  }
+
+  .section-title {
+    font-size: 24px;
+  }
+}
+
 @media (min-width: 1024px) {
   .hero {
     justify-content: space-between;
