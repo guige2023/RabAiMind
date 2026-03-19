@@ -8,24 +8,11 @@ from typing import Dict, Any, List
 
 # 火山引擎API配置 - 从settings读取
 from ..config import settings
+from ..models.layout import LayoutType
 
 VOLC_API_KEY = settings.VOLCANO_API_KEY
 VOLC_ENDPOINT = settings.VOLCANO_ENDPOINT
 VOLC_MODEL = settings.VOLCANO_TEXT_MODEL
-
-
-# 布局类型
-class LayoutType:
-    TITLE = "title"           # 全屏标题
-    TOC = "toc"              # 目录页
-    LEFT_TEXT_RIGHT_IMAGE = "left_text_right_image"  # 左文右图
-    LEFT_IMAGE_RIGHT_TEXT = "left_image_right_text"  # 左图右文
-    FULL_IMAGE = "full_image"  # 全屏图片
-    TOP_TEXT_BOTTOM_IMAGE = "top_text_bottom_image"  # 上文下图
-    THREE_COLUMN = "three_column"  # 三栏
-    CARD = "card"            # 卡片式
-    CENTER = "center"        # 居中
-    THANK_YOU = "thank_you"  # 尾页
 
 
 def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:

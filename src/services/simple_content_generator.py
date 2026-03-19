@@ -7,10 +7,12 @@ import os
 import json
 from typing import Dict, Any, List
 
-# 火山引擎API配置
-VOLC_API_KEY = "1d91e7e0-5761-4edb-a348-bc0b8b86affb"
-VOLC_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3"
-VOLC_MODEL = "ep-20260303221115-dk4rt"
+# 火山引擎API配置 - 从环境变量或配置文件读取
+from ..config import settings
+
+VOLC_API_KEY = os.getenv("VOLCENGINE_API_KEY", settings.VOLCANO_API_KEY)
+VOLC_ENDPOINT = os.getenv("VOLCENGINE_ENDPOINT", settings.VOLCANO_ENDPOINT)
+VOLC_MODEL = os.getenv("VOLCENGINE_TEXT_MODEL", settings.VOLCANO_TEXT_MODEL)
 
 
 def generate_ppt_content(user_request: str, slide_count: int = 5) -> List[Dict]:

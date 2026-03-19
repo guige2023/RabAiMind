@@ -9,19 +9,9 @@
 """
 
 from typing import Dict, Any, Optional
-from enum import Enum
 
-
-class LayoutType(str, Enum):
-    """布局类型枚举"""
-    TITLE_SLIDE = "title_slide"          # 封面布局
-    CONTENT_CARD = "content_card"        # 卡片式布局
-    TWO_COLUMN = "two_column"            # 双栏布局
-    CENTER_RADIATION = "center_radiation" # 中心辐射布局
-    TIMELINE = "timeline"                # 时间线布局
-    DATA_VISUALIZATION = "data_visualization"  # 数据可视化布局
-    QUOTE = "quote"                      # 金句布局
-    COMPARISON = "comparison"            # 对比布局
+# 从统一模型导入布局类型
+from ...models.layout import LayoutType
 
 
 class LayoutStrategy:
