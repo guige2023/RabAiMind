@@ -36,7 +36,7 @@ class SceneType(str, Enum):
 
 
 class StyleType(str, Enum):
-    """风格类型"""
+    """风格类型 - 与前端 constants.ts 保持同步"""
     PROFESSIONAL = "professional"
     SIMPLE = "simple"
     ENERGETIC = "energetic"
@@ -45,6 +45,8 @@ class StyleType(str, Enum):
     TECH = "tech"
     NATURE = "nature"
     ELEGANT = "elegant"
+    PLAYFUL = "playful"
+    MINIMALIST = "minimalist"
 
 
 class TemplateType(str, Enum):

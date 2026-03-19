@@ -54,7 +54,9 @@ export enum StyleType {
   CREATIVE = 'creative',
   TECH = 'tech',
   NATURE = 'nature',
-  ELEGANT = 'elegant'
+  ELEGANT = 'elegant',
+  PLAYFUL = 'playful',
+  MINIMALIST = 'minimalist'
 }
 
 // 文字样式类型枚举
