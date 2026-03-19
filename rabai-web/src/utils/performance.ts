@@ -1,4 +1,5 @@
 // Performance monitoring utility
+import { Directive } from 'vue'
 
 interface PerformanceMetric {
   name: string
@@ -12,6 +13,66 @@ interface PerformanceReport {
   firstContentfulPaint: number
   domContentLoaded: number
   resourceTiming: PerformanceMetric[]
+}
+
+// 图片懒加载指令
+export const lazyLoad: Directive<HTMLImageElement, string> = {
+  mounted(el, binding) {
+    // 使用IntersectionObserver实现懒加载
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target as HTMLImageElement
+            img.src = binding.value
+            img.removeAttribute('data-src')
+            observer.unobserve(img)
+          }
+        })
+      }, {
+        rootMargin: '50px',
+        threshold: 0.1
+      })
+
+      el.dataset.src = binding.value
+      observer.observe(el)
+    } else {
+      // 降级处理：直接加载
+      el.src = binding.value
+    }
+  },
+  updated(el, binding) {
+    if (el.src !== binding.value) {
+      el.src = binding.value
+    }
+  }
+}
+
+// 防抖函数
+export const debounce = <T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): ((...args: Parameters<T>) => void) => {
+  let timer: number | null = null
+  return (...args: Parameters<T>) => {
+    if (timer) clearTimeout(timer)
+    timer = window.setTimeout(() => fn(...args), delay)
+  }
+}
+
+// 节流函数
+export const throttle = <T extends (...args: any[]) => any>(
+  fn: T,
+  limit: number
+): ((...args: Parameters<T>) => void) => {
+  let inThrottle = false
+  return (...args: Parameters<T>) => {
+    if (!inThrottle) {
+      fn(...args)
+      inThrottle = true
+      setTimeout(() => inThrottle = false, limit)
+    }
+  }
 }
 
 // Report to console in development

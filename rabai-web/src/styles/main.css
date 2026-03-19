@@ -104,6 +104,82 @@
   background: #555555;
 }
 
+/* 暗色主题更多细节 */
+:root.dark {
+  --gray-100: #1A1A1A;
+  --gray-200: #2A2A2A;
+  --gray-300: #444444;
+  --gray-400: #555555;
+  --gray-500: #666666;
+  --gray-600: #888888;
+  --gray-700: #AAAAAA;
+  --gray-800: #CCCCCC;
+  --gray-900: #F5F5F5;
+  --white: #1A1A1A;
+}
+
+:root.dark body {
+  background: #0A0A0A;
+  color: #F5F5F5;
+}
+
+/* 暗色主题表单元素 */
+:root.dark .form-section,
+:root.dark .form-card {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .form-label {
+  color: #CCCCCC;
+}
+
+/* 暗色主题提示文字 */
+:root.dark .text-muted,
+:root.dark .text-gray {
+  color: #888888 !important;
+}
+
+/* 暗色主题分割线 */
+:root.dark .divider {
+  background: #333333;
+}
+
+/* 暗色主题模态框 */
+:root.dark .modal-content {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+/* 暗色主题下拉菜单 */
+:root.dark select {
+  background-color: #1A1A1A;
+  border-color: #333333;
+}
+
+/* 暗色主题复选框和单选框 */
+:root.dark input[type="checkbox"],
+:root.dark input[type="radio"] {
+  accent-color: var(--primary);
+}
+
+/* 暗色主题代码块 */
+:root.dark pre,
+:root.dark code {
+  background: #1A1A1A;
+  color: #E5E5E5;
+}
+
+/* 暗色主题表格 */
+:root.dark table {
+  border-color: #333333;
+}
+
+:root.dark th,
+:root.dark td {
+  border-color: #333333;
+}
+
 /* 重置 */
 *,
 *::before,

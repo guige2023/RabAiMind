@@ -222,15 +222,35 @@
 
           <!-- 分享菜单 -->
           <div v-if="showShareMenu" class="share-menu">
-            <button
-              v-for="opt in shareOptions"
-              :key="opt.id"
-              class="share-option"
-              @click="handleShare(opt.id)"
-            >
-              <span class="share-icon">{{ opt.icon }}</span>
-              <span>{{ opt.name }}</span>
-            </button>
+            <!-- 二维码展示 -->
+            <div v-if="showQRCode" class="qrcode-section">
+              <div class="qrcode-header">
+                <h4>扫描二维码分享</h4>
+                <button class="qrcode-close" @click="showQRCode = false">✕</button>
+              </div>
+              <img
+                :src="generateQRCodeUrl(shareUrl)"
+                alt="二维码"
+                class="qrcode-image"
+              />
+              <p class="qrcode-tip">扫码打开链接</p>
+              <button class="btn btn-outline" @click="handleShare('copy')">
+                复制链接
+              </button>
+            </div>
+            <!-- 分享选项 -->
+            <template v-else>
+              <button
+                v-for="opt in shareOptions"
+                :key="opt.id"
+                class="share-option"
+                :class="{ disabled: opt.supported === false && opt.id === 'native' }"
+                @click="handleShare(opt.id)"
+              >
+                <span class="share-icon">{{ opt.icon }}</span>
+                <span>{{ opt.name }}</span>
+              </button>
+            </template>
           </div>
         </div>
 
@@ -623,39 +643,102 @@ const handlePrint = () => {
 
 // 分享
 const showShareMenu = ref(false)
+const showQRCode = ref(false)
+const shareTitle = ref('RabAi Mind PPT')
 
 const shareOptions = [
+  { id: 'native', name: '系统分享', icon: '📤', supported: 'share' in navigator },
   { id: 'copy', name: '复制链接', icon: '📋' },
+  { id: 'qrcode', name: '二维码', icon: '📱' },
   { id: 'wechat', name: '微信', icon: '💬' },
+  { id: 'qq', name: 'QQ', icon: '🐧' },
   { id: 'weibo', name: '微博', icon: '🌐' },
-  { id: 'email', name: '邮件', icon: '📧' }
+  { id: 'email', name: '邮件', icon: '📧' },
+  { id: 'twitter', name: 'Twitter', icon: '🐦' },
+  { id: 'linkedin', name: 'LinkedIn', icon: '💼' }
 ]
 
+const generateQRCodeUrl = (url: string): string => {
+  // 使用第三方QR码API
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`
+}
+
+const shareUrl = computed(() => `${window.location.origin}/result?taskId=${taskId.value}`)
+
 const handleShare = async (type: string) => {
-  const shareUrl = `${window.location.origin}/result?taskId=${taskId.value}`
+  const url = shareUrl.value
 
   switch (type) {
-    case 'copy':
-      try {
-        await navigator.clipboard.writeText(shareUrl)
-        alert('链接已复制！')
-      } catch {
-        prompt('复制链接:', shareUrl)
+    case 'native':
+      // 使用原生分享API
+      if ('share' in navigator) {
+        try {
+          await navigator.share({
+            title: shareTitle.value,
+            text: '来看看我创建的PPT',
+            url
+          })
+        } catch (e) {
+          console.log('Share cancelled')
+        }
+      } else {
+        alert('您的浏览器不支持系统分享功能')
       }
       break
+
+    case 'copy':
+      try {
+        await navigator.clipboard.writeText(url)
+        alert('链接已复制到剪贴板！')
+      } catch {
+        // 降级方案
+        const input = document.createElement('input')
+        input.value = url
+        document.body.appendChild(input)
+        input.select()
+        document.execCommand('copy')
+        document.body.removeChild(input)
+        alert('链接已复制！')
+      }
+      break
+
+    case 'qrcode':
+      showQRCode.value = true
+      break
+
     case 'wechat':
-      alert('微信分享：请使用微信扫一扫扫描二维码')
+      showQRCode.value = true
       break
+
+    case 'qq':
+      const qqUrl = `http://connect.qq.com/widget/shareqq/index.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(shareTitle.value)}&desc=${encodeURIComponent('来看看我创建的PPT')}`
+      window.open(qqUrl, '_blank', 'width=600,height=400')
+      break
+
     case 'weibo':
-      const weiboUrl = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(shareUrl)}&title=RabAi%20Mind%20PPT`
-      window.open(weiboUrl, '_blank')
+      const weiboUrl = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(url)}&title=${encodeURIComponent(shareTitle.value)}`
+      window.open(weiboUrl, '_blank', 'width=600,height=400')
       break
+
     case 'email':
-      const mailto = `mailto:?subject=RabAi%20Mind%20PPT&body=来看看我创建的PPT:%0A${shareUrl}`
+      const mailto = `mailto:?subject=${encodeURIComponent(shareTitle.value)}&body=来看看我创建的PPT:%0A${encodeURIComponent(url)}`
       window.location.href = mailto
       break
+
+    case 'twitter':
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent('来看看我创建的PPT')}&url=${encodeURIComponent(url)}`
+      window.open(twitterUrl, '_blank', 'width=600,height=400')
+      break
+
+    case 'linkedin':
+      const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`
+      window.open(linkedinUrl, '_blank', 'width=600,height=400')
+      break
   }
-  showShareMenu.value = false
+
+  if (type !== 'qrcode') {
+    showShareMenu.value = false
+  }
 }
 
 onMounted(() => {
@@ -1269,6 +1352,60 @@ onMounted(() => {
 
 .share-icon {
   font-size: 24px;
+}
+
+.share-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-option.disabled:hover {
+  background: white;
+  border-color: #e5e5e5;
+}
+
+/* 二维码分享 */
+.qrcode-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+}
+
+.qrcode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.qrcode-header h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.qrcode-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  color: #999;
+}
+
+.qrcode-image {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+}
+
+.qrcode-tip {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
 }
 
 /* 移动端适配 */
