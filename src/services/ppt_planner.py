@@ -12,6 +12,7 @@ from ..models.layout import LayoutType
 
 VOLC_API_KEY = settings.VOLCANO_API_KEY
 VOLC_ENDPOINT = settings.VOLCANO_ENDPOINT
+VOLC_PROJECT_ID = settings.VOLCANO_PROJECT_ID
 VOLC_MODEL = settings.VOLCANO_TEXT_MODEL
 
 
@@ -77,7 +78,7 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
 
     try:
         resp = requests.post(
-            f"{VOLC_ENDPOINT}/projects/*/chat/completions",
+            f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
             headers=headers,
             json=data,
             timeout=90

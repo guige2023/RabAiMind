@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     VOLCANO_API_KEY: str = ""
     VOLCANO_SECRET: str = ""
     VOLCANO_ENDPOINT: str = "https://ark.cn-beijing.volces.com/api/v3"
+    VOLCANO_PROJECT_ID: str = ""
     VOLCANO_TEXT_MODEL: str = "ep-20260303221115-dk4rt"
     VOLCANO_IMAGE_MODEL: str = "ep-20260314123401-jwqhn"
 
