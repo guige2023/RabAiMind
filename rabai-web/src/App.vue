@@ -7,6 +7,7 @@
     <GlobalSearch ref="globalSearchRef" />
     <UserOnboarding />
     <AIChatPanel />
+    <MobileNavDrawer ref="mobileNavRef" />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
@@ -23,6 +24,14 @@
             <span class="logo-icon">✨</span>
             <span class="logo-text">RabAi Mind</span>
           </router-link>
+          <!-- Mobile Menu Button -->
+          <button class="mobile-menu-btn" @click="openMobileNav">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
           <nav class="nav">
             <router-link to="/" class="nav-link">首页</router-link>
             <router-link to="/create" class="nav-link">创建PPT</router-link>
@@ -64,12 +73,18 @@ import Feedback from './components/Feedback.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
+import MobileNavDrawer from './components/MobileNavDrawer.vue'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
+const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 
 const openGlobalSearch = () => {
   globalSearchRef.value?.openSearch()
+}
+
+const openMobileNav = () => {
+  mobileNavRef.value?.open()
 }
 
 onMounted(() => {
@@ -227,6 +242,39 @@ onMounted(() => {
   width: 100%;
 }
 
+/* Mobile Menu Button */
+.mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-menu-btn svg {
+  width: 24px;
+  height: 24px;
+  color: #333;
+}
+
+:global(.dark) .mobile-menu-btn svg {
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .nav {
+    display: none;
+  }
+}
+
 .search-trigger {
   display: flex;
   align-items: center;
@@ -254,6 +302,12 @@ onMounted(() => {
 .search-hint {
   font-size: 12px;
   color: #888;
+}
+
+@media (max-width: 768px) {
+  .search-hint {
+    display: none;
+  }
 }
 
 :global(.dark) .search-trigger {
