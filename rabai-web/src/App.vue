@@ -1,39 +1,59 @@
 <template>
   <div class="app">
-    <header class="header">
-      <div class="header-content">
-        <router-link to="/" class="logo">
-          <span class="logo-icon">✨</span>
-          <span class="logo-text">RabAi Mind</span>
-        </router-link>
-        <nav class="nav">
-          <router-link to="/" class="nav-link">首页</router-link>
-          <router-link to="/create" class="nav-link">创建PPT</router-link>
-          <router-link to="/media" class="nav-link">素材库</router-link>
-          <router-link to="/history" class="nav-link">历史</router-link>
-        </nav>
-        <LangSwitch />
-        <ThemeSwitch />
-        <Feedback />
+    <!-- Initial Loading -->
+    <div v-if="isLoading" class="app-loading">
+      <div class="loading-logo">✨</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
       </div>
-    </header>
-    <main class="main">
-      <router-view v-slot="{ Component }">
-        <transition name="fade" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
-    </main>
-    <footer class="footer">
-      <p>© 2026 RabAi Mind · AI PPT 生成平台</p>
-    </footer>
+    </div>
+
+    <template v-else>
+      <header class="header">
+        <div class="header-content">
+          <router-link to="/" class="logo">
+            <span class="logo-icon">✨</span>
+            <span class="logo-text">RabAi Mind</span>
+          </router-link>
+          <nav class="nav">
+            <router-link to="/" class="nav-link">首页</router-link>
+            <router-link to="/create" class="nav-link">创建PPT</router-link>
+            <router-link to="/media" class="nav-link">素材库</router-link>
+            <router-link to="/history" class="nav-link">历史</router-link>
+          </nav>
+          <LangSwitch />
+          <ThemeSwitch />
+          <Feedback />
+        </div>
+      </header>
+      <main class="main">
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+      <footer class="footer">
+        <p>© 2026 RabAi Mind · AI PPT 生成平台</p>
+      </footer>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
+
+const isLoading = ref(true)
+
+onMounted(() => {
+  // Simulate initial load
+  setTimeout(() => {
+    isLoading.value = false
+  }, 500)
+})
 </script>
 
 <style scoped>
@@ -41,6 +61,48 @@ import Feedback from './components/Feedback.vue'
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* App Loading */
+.app-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: #f5f5f5;
+}
+
+.loading-logo {
+  font-size: 48px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.loading-bar {
+  width: 200px;
+  height: 4px;
+  background: #e5e5e5;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.loading-progress {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, #165DFF, #5AC8FA);
+  border-radius: 2px;
+  animation: loading 1s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
 }
 
 .header {

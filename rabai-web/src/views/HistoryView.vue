@@ -40,8 +40,23 @@
       </div>
     </div>
 
+    <!-- 骨架屏加载 -->
+    <div class="history-list" v-if="isLoading">
+      <div v-for="i in 3" :key="i" class="history-item skeleton-item">
+        <div class="history-info">
+          <div class="skeleton-title"></div>
+          <div class="skeleton-desc"></div>
+          <div class="skeleton-meta"></div>
+        </div>
+        <div class="history-actions">
+          <div class="skeleton-btn"></div>
+          <div class="skeleton-btn"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- 历史记录列表 -->
-    <div class="history-list" v-if="filteredList.length > 0">
+    <div class="history-list" v-else-if="filteredList.length > 0">
       <div
         v-for="item in filteredList"
         :key="item.taskId"
@@ -113,6 +128,7 @@ interface HistoryItem {
 
 const historyList = ref<HistoryItem[]>([])
 const filterType = ref<'all' | 'favorites'>('all')
+const isLoading = ref(true)
 const importInput = ref<HTMLInputElement | null>(null)
 
 // 导出备份
@@ -157,10 +173,16 @@ const filteredList = computed(() => {
 })
 
 const loadHistory = () => {
-  const saved = localStorage.getItem('ppt_history')
-  if (saved) {
-    historyList.value = JSON.parse(saved)
-  }
+  isLoading.value = true
+
+  // Simulate loading delay
+  setTimeout(() => {
+    const saved = localStorage.getItem('ppt_history')
+    if (saved) {
+      historyList.value = JSON.parse(saved)
+    }
+    isLoading.value = false
+  }, 300)
 }
 
 const formatTime = (time: string) => {
@@ -433,5 +455,61 @@ onMounted(() => {
   .history-meta {
     flex-wrap: wrap;
   }
+}
+
+/* Skeleton Loading */
+.skeleton-item {
+  pointer-events: none;
+}
+
+.skeleton-title {
+  height: 20px;
+  width: 60%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.skeleton-desc {
+  height: 14px;
+  width: 90%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.skeleton-meta {
+  height: 12px;
+  width: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-btn {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+
+/* Dark mode */
+:global(.dark) .skeleton-title,
+:global(.dark) .skeleton-desc,
+:global(.dark) .skeleton-meta,
+:global(.dark) .skeleton-btn {
+  background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+  background-size: 200% 100%;
 }
 </style>

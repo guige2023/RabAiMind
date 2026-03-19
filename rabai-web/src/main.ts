@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './styles/main.css'
+import { trackPageLoad, reportWebVitals } from './utils/performance'
 
 // 路由配置
 const routes = [
@@ -21,6 +22,12 @@ const router = createRouter({
 const app = createApp(App)
 app.use(router)
 app.mount('#app')
+
+// Track performance
+trackPageLoad()
+reportWebVitals((metric) => {
+  console.log('Web Vitals:', metric)
+})
 
 // Register service worker for PWA
 if ('serviceWorker' in navigator) {
