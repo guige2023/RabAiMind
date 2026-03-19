@@ -1,5 +1,8 @@
 <template>
   <div class="app">
+    <!-- Skip to main content link for accessibility -->
+    <a href="#main-content" class="skip-link">跳转到主要内容</a>
+
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
       <div class="loading-logo">✨</div>
@@ -26,7 +29,7 @@
           <Feedback />
         </div>
       </header>
-      <main class="main">
+      <main class="main" id="main-content" tabindex="-1">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -61,6 +64,27 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Skip Link - Accessibility */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  border-radius: 0 0 8px 8px;
+  z-index: 9999;
+  font-weight: 500;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: none;
 }
 
 /* App Loading */
@@ -112,6 +136,10 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(22, 93, 255, 0.1);
+}
+
+:global(.dark) .header {
+  background: rgba(26, 26, 26, 0.95);
 }
 
 .header-content {
@@ -185,10 +213,10 @@ onMounted(() => {
 .footer {
   padding: 24px;
   text-align: center;
-  color: #999;
+  color: var(--gray-300);
   font-size: 14px;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-100);
 }
 
 .fade-enter-active,

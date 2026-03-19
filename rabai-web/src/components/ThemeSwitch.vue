@@ -1,7 +1,12 @@
 <template>
-  <div class="theme-switch" @click="toggleTheme">
-    <span class="theme-icon">{{ isDark ? '🌙' : '☀️' }}</span>
-  </div>
+  <button
+    class="theme-switch"
+    @click="toggleTheme"
+    :aria-label="isDark ? '切换到亮色模式' : '切换到暗色模式'"
+    :aria-pressed="isDark"
+  >
+    <span class="theme-icon" aria-hidden="true">{{ isDark ? '🌙' : '☀️' }}</span>
+  </button>
 </template>
 
 <script setup lang="ts">

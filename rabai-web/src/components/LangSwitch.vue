@@ -1,13 +1,15 @@
 <template>
-  <div class="lang-switch" @click="toggleLang">
+  <div class="lang-switch" @click="toggleLang" @keydown.escape="showDropdown = false" role="combobox" aria-haspopup="listbox" :aria-expanded="showDropdown" aria-label="选择语言">
     <span class="current-lang">{{ currentLangText }}</span>
-    <div class="lang-dropdown" v-if="showDropdown">
+    <div class="lang-dropdown" v-if="showDropdown" role="listbox">
       <div
         v-for="lang in languages"
         :key="lang.code"
         class="lang-option"
         :class="{ active: currentLang === lang.code }"
         @click.stop="setLang(lang.code)"
+        role="option"
+        :aria-selected="currentLang === lang.code"
       >
         {{ lang.name }}
       </div>

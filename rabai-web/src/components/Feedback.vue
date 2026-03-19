@@ -1,16 +1,23 @@
 <template>
-  <div class="feedback-trigger" @click="showFeedback = true">
-    <span class="feedback-icon">💬</span>
+  <button class="feedback-trigger" @click="showFeedback = true" aria-label="打开反馈表单">
+    <span class="feedback-icon" aria-hidden="true">💬</span>
     <span class="feedback-text">反馈</span>
-  </div>
+  </button>
 
   <!-- 反馈弹窗 -->
   <Teleport to="body">
-    <div v-if="showFeedback" class="feedback-overlay" @click.self="closeFeedback">
-      <div class="feedback-modal">
+    <div
+      v-if="showFeedback"
+      class="feedback-overlay"
+      @click.self="closeFeedback"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="feedback-title"
+    >
+      <div class="feedback-modal" role="document">
         <div class="feedback-header">
-          <h3>提交反馈</h3>
-          <button class="close-btn" @click="closeFeedback">×</button>
+          <h3 id="feedback-title">提交反馈</h3>
+          <button class="close-btn" @click="closeFeedback" aria-label="关闭反馈表单">×</button>
         </div>
 
         <div class="feedback-body">

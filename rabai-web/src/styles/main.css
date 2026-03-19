@@ -50,14 +50,58 @@
   --warning: #FF9500;
   --error: #FF3B30;
 
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+
   background: #0A0A0A;
   color: #F5F5F5;
 }
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+/* 暗色主题输入框样式 */
+:root.dark .input,
+:root.dark textarea,
+:root.dark select {
+  background: #1A1A1A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+:root.dark .input:focus,
+:root.dark textarea:focus,
+:root.dark select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(22, 93, 255, 0.2);
+}
+
+/* 暗色主题卡片样式 */
+:root.dark .card {
+  background: #1A1A1A;
+  box-shadow: var(--shadow-lg);
+}
+
+/* 暗色主题按钮次级样式 */
+:root.dark .btn-secondary {
+  background: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .btn-secondary:hover {
+  background: #444444;
+}
+
+/* 暗色主题滚动条 */
+:root.dark ::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+
+:root.dark ::-webkit-scrollbar-thumb {
+  background: #444444;
+}
+
+:root.dark ::-webkit-scrollbar-thumb:hover {
+  background: #555555;
 }
 
 /* 重置 */
@@ -278,4 +322,27 @@ select {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--gray-500);
+}
+
+/* 焦点样式 - 键盘导航 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 链接焦点 */
+a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 按钮焦点 */
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
