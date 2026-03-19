@@ -39,6 +39,15 @@ export { useMultiFormatExport } from '../useMultiFormatExport'
 // 协作功能
 export { useCollaborativeEdit } from '../useCollaborativeEdit'
 
+// 编辑器
+export { useEditor } from '../useEditor'
+
+// 媒体
+export { useMedia } from '../useMedia'
+
+// 导出
+export { useExport } from '../useExport'
+
 // 工具
 export { useKeyboardShortcuts } from '../useKeyboardShortcuts'
 export { useAccessibility } from '../useAccessibility'
