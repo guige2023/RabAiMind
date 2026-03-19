@@ -36,6 +36,25 @@
             <button class="example-btn" @click="formData.userRequest = '制作年度工作总结PPT，包含年度回顾、业绩数据、团队成就、明年计划，8页'">年度总结</button>
             <button class="example-btn" @click="formData.userRequest = '创建公司介绍PPT，包含公司背景、核心业务、竞争优势、发展愿景，12页'">公司介绍</button>
           </div>
+
+          <!-- AI智能推荐 -->
+          <div class="ai-recommendation" v-if="showRecommendation && recommendations.length > 0">
+            <div class="recommendation-header">
+              <span class="ai-icon">✨</span>
+              <span>AI 智能推荐</span>
+            </div>
+            <div class="recommendation-list">
+              <button
+                v-for="rec in recommendations"
+                :key="rec.type"
+                class="recommendation-btn"
+                @click="applyRecommendation(rec)"
+              >
+                <span class="rec-type">{{ getRecTypeName(rec.type) }}</span>
+                <span class="rec-value">{{ getRecValueName(rec) }}</span>
+              </button>
+            </div>
+          </div>
           <div class="form-hint">
             <span v-if="errors.userRequest" class="text-error">{{ errors.userRequest }}</span>
             <span class="text-muted">{{ formData.userRequest.length }} / 2000</span>
@@ -434,6 +453,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useStatistics } from '../composables/useStatistics'
 import { useAutoSave } from '../composables/useAutoSave'
+import { useSmartRecommendation } from '../composables/useSmartRecommendation'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 
@@ -527,6 +547,56 @@ const isSubmitting = ref(false)
 // 草稿保存状态
 const draftSaved = ref(false)
 
+// AI 智能推荐
+const showRecommendation = ref(false)
+const { recommendations, analyzeRequest } = useSmartRecommendation()
+
+// 应用推荐
+const applyRecommendation = (rec: any) => {
+  if (rec.type === 'scene') {
+    formData.value.scene = rec.value
+  } else if (rec.type === 'style') {
+    formData.value.style = rec.value
+  } else if (rec.type === 'template') {
+    formData.value.template = rec.value
+  }
+  showRecommendation.value = false
+}
+
+// 获取推荐类型名称
+const getRecTypeName = (type: string) => {
+  const names: Record<string, string> = {
+    scene: '场景',
+    style: '风格',
+    template: '模板'
+  }
+  return names[type] || type
+}
+
+// 获取推荐值名称
+const getRecValueName = (rec: any) => {
+  if (rec.type === 'scene') {
+    const names: Record<string, string> = {
+      business: '💼 商务',
+      education: '📚 教育',
+      tech: '🚀 科技',
+      creative: '💡 创意'
+    }
+    return names[rec.value] || rec.value
+  }
+  if (rec.type === 'style') {
+    const names: Record<string, string> = {
+      professional: '专业',
+      simple: '简约',
+      energetic: '活力',
+      premium: '高端',
+      creative: '创意'
+    }
+    return names[rec.value] || rec.value
+  }
+  return rec.value
+}
+
 // 错误弹窗状态
 const showErrorModal = ref(false)
 const errorMessage = ref('')
@@ -591,15 +661,23 @@ const themeColors = [
   { value: '#FF2D55', name: '玫瑰粉' },
   { value: '#FFD60A', name: '阳光黄' },
   { value: '#64D2FF', name: '天空蓝' },
-  { value: '#BF5AF2', name: '荧光紫' }
+  { value: '#BF5AF2', name: '荧光紫' },
+  { value: '#FF6B6B', name: '珊瑚红' },
+  { value: '#4ECDC4', name: '海洋青' },
+  { value: '#45B7D1', name: '天际蓝' },
+  { value: '#96CEB4', name: '森林绿' }
 ]
 
 // 模板选项
 const templateOptions = [
-  { value: 'default', name: '默认商务', icon: '📊', preview: 'linear-gradient(135deg, #667eea, #764ba2)' },
-  { value: 'modern', name: '现代简约', icon: '✨', preview: 'linear-gradient(135deg, #11998e, #38ef7d)' },
-  { value: 'tech', name: '科技未来', icon: '🚀', preview: 'linear-gradient(135deg, #0f0c29, #302b63)' },
-  { value: 'classic', name: '经典大气', icon: '👔', preview: 'linear-gradient(135deg, #232526, #414345)' }
+  { value: 'default', name: '默认商务', icon: '📊', preview: 'linear-gradient(135deg, #667eea, #764ba2)', desc: '通用商务风格' },
+  { value: 'modern', name: '现代简约', icon: '✨', preview: 'linear-gradient(135deg, #11998e, #38ef7d)', desc: '清新简洁风格' },
+  { value: 'tech', name: '科技未来', icon: '🚀', preview: 'linear-gradient(135deg, #0f0c29, #302b63)', desc: '酷炫科技风格' },
+  { value: 'classic', name: '经典大气', icon: '👔', preview: 'linear-gradient(135deg, #232526, #414345)', desc: '沉稳正式风格' },
+  { value: 'nature', name: '自然清新', icon: '🌿', preview: 'linear-gradient(135deg, #56ab2f, #a8e063)', desc: '自然绿色风格' },
+  { value: 'ocean', name: '海洋商务', icon: '🌊', preview: 'linear-gradient(135deg, #2193b0, #6dd5ed)', desc: '蓝色商务风格' },
+  { value: 'sunset', name: '日落暖阳', icon: '🌅', preview: 'linear-gradient(135deg, #f093fb, #f5576c)', desc: '暖色调风格' },
+  { value: 'minimal', name: '极简黑白', icon: '⬛', preview: 'linear-gradient(135deg, #304352, #d7d2cc)', desc: '极简主义风格' }
 ]
 
 // 文字样式选项
@@ -830,6 +908,16 @@ onMounted(() => {
       draftSaved.value = false
     }, 3000)
   }, { deep: true })
+
+  // 监听用户输入，显示AI推荐
+  watch(() => formData.value.userRequest, (newVal) => {
+    if (newVal && newVal.length >= 10) {
+      recommendations.value = analyzeRequest(newVal)
+      showRecommendation.value = recommendations.value.length > 0
+    } else {
+      showRecommendation.value = false
+    }
+  })
 })
 
 // 键盘快捷键
@@ -963,6 +1051,62 @@ useKeyboardShortcuts([
 .example-btn:hover {
   background: #e0f0ff;
   border-color: #165DFF;
+}
+
+/* AI 智能推荐 */
+.ai-recommendation {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f0f7ff, #fff5f0);
+  border: 1px solid #e0d8ff;
+  border-radius: 12px;
+}
+
+.recommendation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #165DFF;
+}
+
+.ai-icon {
+  font-size: 16px;
+}
+
+.recommendation-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recommendation-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.recommendation-btn:hover {
+  border-color: #165DFF;
+  background: #f0f7ff;
+}
+
+.rec-type {
+  color: #999;
+}
+
+.rec-value {
+  color: #333;
+  font-weight: 500;
 }
 
 .chart-options {
