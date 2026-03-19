@@ -79,9 +79,10 @@ export const api = {
     },
 
     // Download PPT
-    downloadPpt: (taskId: string): Promise<Blob> => {
+    downloadPpt: (taskId: string, options?: { quality?: string; dpi?: number }): Promise<Blob> => {
       return apiClient.get(`/ppt/download/${taskId}`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        params: options || {}
       })
     },
 

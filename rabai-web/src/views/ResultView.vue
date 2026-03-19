@@ -169,6 +169,29 @@
               </div>
             </div>
 
+            <!-- 导出质量选择 -->
+            <div v-if="exportFormats.find(f => f.id === selectedFormat)?.quality" class="export-quality-section">
+              <div class="export-section-title">导出质量</div>
+              <div class="quality-options">
+                <label
+                  v-for="quality in qualityOptions"
+                  :key="quality.id"
+                  class="quality-option"
+                  :class="{ active: selectedQuality === quality.id }"
+                >
+                  <input
+                    type="radio"
+                    :value="quality.id"
+                    v-model="selectedQuality"
+                    class="quality-radio"
+                  />
+                  <span class="quality-name">{{ quality.name }}</span>
+                  <span class="quality-desc">{{ quality.desc }}</span>
+                  <span class="quality-size">{{ quality.size }}</span>
+                </label>
+              </div>
+            </div>
+
             <!-- 导出按钮 -->
             <button
               class="export-confirm-btn"
@@ -364,11 +387,21 @@ type ExportFormat = 'pptx' | 'pdf' | 'images' | 'html'
 const selectedFormat = ref<ExportFormat>('pptx')
 const isExporting = ref(false)
 
+// 导出质量设置
+type ExportQuality = 'standard' | 'high' | 'ultra'
+const selectedQuality = ref<ExportQuality>('high')
+
 const exportFormats = [
-  { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx' },
-  { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf' },
-  { id: 'images', name: '图片', icon: '🖼️', desc: 'PNG高清图片', ext: '.zip' },
-  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html' }
+  { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx', quality: true },
+  { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf', quality: true },
+  { id: 'images', name: '图片', icon: '🖼️', desc: 'PNG高清图片', ext: '.zip', quality: true },
+  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html', quality: false }
+]
+
+const qualityOptions = [
+  { id: 'standard', name: '标准', desc: '适合普通演示', size: '约 2MB' },
+  { id: 'high', name: '高清', desc: '适合高质量展示', size: '约 5MB' },
+  { id: 'ultra', name: '超清', desc: '适合打印输出', size: '约 15MB' }
 ]
 
 const handleExport = () => {
@@ -475,12 +508,21 @@ const handleDownload = async () => {
   showExportMenu.value = false
 
   try {
-    const response = await api.ppt.downloadPpt(taskId.value)
+    // 根据质量设置调整请求参数
+    const qualityParams = {
+      quality: selectedQuality.value,
+      dpi: selectedQuality.value === 'ultra' ? 300 : (selectedQuality.value === 'high' ? 150 : 96)
+    }
+
+    const response = await api.ppt.downloadPpt(taskId.value, qualityParams)
+
+    // 根据质量添加后缀
+    const qualitySuffix = selectedQuality.value === 'standard' ? '' : `_${selectedQuality.value}`
 
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.download = `presentation_${taskId.value}.pptx`
+    link.download = `presentation_${taskId.value}${qualitySuffix}.pptx`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -1069,6 +1111,61 @@ onMounted(() => {
 }
 
 .format-desc {
+  font-size: 11px;
+  color: #999;
+}
+
+.export-quality-section {
+  margin: 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.quality-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quality-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quality-option:hover {
+  border-color: #b3b3b3;
+}
+
+.quality-option.active {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.quality-radio {
+  display: none;
+}
+
+.quality-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  min-width: 40px;
+}
+
+.quality-desc {
+  flex: 1;
+  font-size: 12px;
+  color: #666;
+}
+
+.quality-size {
   font-size: 11px;
   color: #999;
 }

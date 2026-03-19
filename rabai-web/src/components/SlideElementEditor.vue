@@ -2,8 +2,18 @@
   <div class="element-editor-overlay" @click.self="closeEditor">
     <div class="element-editor-panel">
       <div class="editor-header">
-        <h3>🛠️ 页面元素微调</h3>
-        <p class="editor-tip">点击画布中的元素进行编辑，拖拽调整位置</p>
+        <div class="header-left">
+          <h3>🛠️ 页面元素微调</h3>
+          <p class="editor-tip">点击画布中的元素进行编辑，拖拽调整位置 | 方向键移动 | Delete删除 | Ctrl+Z撤销</p>
+        </div>
+        <div class="header-toolbar">
+          <button class="toolbar-btn" @click="undo" :disabled="!canUndo" title="撤销 (Ctrl+Z)">
+            ↩️ 撤销
+          </button>
+          <button class="toolbar-btn" @click="redo" :disabled="!canRedo" title="重做 (Ctrl+Y)">
+            ↪️ 重做
+          </button>
+        </div>
         <button class="btn-close" @click="closeEditor">✕</button>
       </div>
 
@@ -303,6 +313,45 @@ const dragStart = ref({ x: 0, y: 0, elementX: 0, elementY: 0 })
 const resizeHandle = ref('')
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, elX: 0, elY: 0 })
 
+// 撤销/重做历史记录
+const history = ref<Slide[][]>([])
+const historyIndex = ref(-1)
+const maxHistory = 50
+
+const saveHistory = () => {
+  // 移除当前位置之后的所有历史
+  if (historyIndex.value < history.value.length - 1) {
+    history.value = history.value.slice(0, historyIndex.value + 1)
+  }
+  // 深拷贝当前状态
+  history.value.push(JSON.parse(JSON.stringify(slides.value)))
+  // 限制历史记录数量
+  if (history.value.length > maxHistory) {
+    history.value.shift()
+  } else {
+    historyIndex.value++
+  }
+}
+
+const canUndo = computed(() => historyIndex.value > 0)
+const canRedo = computed(() => historyIndex.value < history.value.length - 1)
+
+const undo = () => {
+  if (canUndo.value) {
+    historyIndex.value--
+    slides.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]))
+    selectedElementIndex.value = null
+  }
+}
+
+const redo = () => {
+  if (canRedo.value) {
+    historyIndex.value++
+    slides.value = JSON.parse(JSON.stringify(history.value[historyIndex.value]))
+    selectedElementIndex.value = null
+  }
+}
+
 // 初始化幻灯片数据
 const initSlides = () => {
   // 生成示例数据
@@ -399,11 +448,13 @@ const setAlignment = (align: string) => {
 
 const deleteElement = () => {
   if (selectedElementIndex.value === null) return
+  saveHistory()
   slides.value[activeSlideIndex.value].elements.splice(selectedElementIndex.value, 1)
   selectedElementIndex.value = null
 }
 
 const addElement = (type: 'text' | 'shape' | 'image') => {
+  saveHistory()
   const newElement: SlideElement = {
     id: Date.now().toString(),
     type,
@@ -509,6 +560,67 @@ const closeEditor = () => {
   emit('close')
 }
 
+// 键盘快捷键
+const handleKeydown = (e: KeyboardEvent) => {
+  // 如果正在输入文本，不触发快捷键
+  if ((e.target as HTMLElement).tagName === 'INPUT' ||
+      (e.target as HTMLElement).tagName === 'TEXTAREA' ||
+      (e.target as HTMLElement).isContentEditable) {
+    return
+  }
+
+  // 方向键移动元素
+  if (selectedElementIndex.value !== null) {
+    const step = e.shiftKey ? 10 : 1
+    const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault()
+        saveHistory()
+        el.x = Math.max(0, el.x - step)
+        break
+      case 'ArrowRight':
+        e.preventDefault()
+        saveHistory()
+        el.x = Math.min(800 - el.width, el.x + step)
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        saveHistory()
+        el.y = Math.max(0, el.y - step)
+        break
+      case 'ArrowDown':
+        e.preventDefault()
+        saveHistory()
+        el.y = Math.min(450 - el.height, el.y + step)
+        break
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault()
+        deleteElement()
+        break
+    }
+  }
+
+  // Ctrl/Cmd + Z 撤销
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    undo()
+  }
+
+  // Ctrl/Cmd + Shift + Z 或 Ctrl/Cmd + Y 重做
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault()
+    redo()
+  }
+
+  // Escape 取消选择
+  if (e.key === 'Escape') {
+    selectedElementIndex.value = null
+  }
+}
+
 onMounted(() => {
   // 尝试加载已保存的编辑数据
   const saved = localStorage.getItem('ppt_edited_elements')
@@ -521,6 +633,12 @@ onMounted(() => {
   } else {
     initSlides()
   }
+
+  // 初始化历史记录
+  saveHistory()
+
+  // 添加键盘事件监听
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
@@ -528,6 +646,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', stopDrag)
   document.removeEventListener('mousemove', onResize)
   document.removeEventListener('mouseup', stopResize)
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -557,18 +676,55 @@ onUnmounted(() => {
 }
 
 .editor-header {
-  padding: 20px 24px;
+  padding: 16px 24px;
   background: #f9fafb;
   border-bottom: 1px solid #e5e5e5;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   position: relative;
 }
 
-.editor-header h3 {
+.header-left {
+  flex: 1;
+}
+
+.header-left h3 {
   margin: 0;
   font-size: 20px;
+}
+
+.editor-tip {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.header-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #165DFF;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .editor-tip {
