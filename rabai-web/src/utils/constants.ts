@@ -38,7 +38,11 @@ export enum SceneType {
   BUSINESS = 'business',
   EDUCATION = 'education',
   TECH = 'tech',
-  CREATIVE = 'creative'
+  CREATIVE = 'creative',
+  MARKETING = 'marketing',
+  FINANCE = 'finance',
+  MEDICAL = 'medical',
+  GOVERNMENT = 'government'
 }
 
 // 风格类型枚举

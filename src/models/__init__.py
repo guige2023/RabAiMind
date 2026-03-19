@@ -24,11 +24,15 @@ class TaskStatus(str, Enum):
 
 
 class SceneType(str, Enum):
-    """场景类型"""
+    """场景类型 - 与前端 constants.ts 保持同步"""
     BUSINESS = "business"
     EDUCATION = "education"
     TECH = "tech"
     CREATIVE = "creative"
+    MARKETING = "marketing"
+    FINANCE = "finance"
+    MEDICAL = "medical"
+    GOVERNMENT = "government"
 
 
 class StyleType(str, Enum):
