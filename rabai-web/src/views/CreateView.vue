@@ -431,7 +431,13 @@ const themeColors = [
   { value: '#FF9500', name: '活力橙' },
   { value: '#FF3B30', name: '热情红' },
   { value: '#AF52DE', name: '神秘紫' },
-  { value: '#1A1A1A', name: '经典黑' }
+  { value: '#1A1A1A', name: '经典黑' },
+  { value: '#5856D6', name: '暗夜紫' },
+  { value: '#00B96B', name: '清新薄荷' },
+  { value: '#FF2D55', name: '玫瑰粉' },
+  { value: '#FFD60A', name: '阳光黄' },
+  { value: '#64D2FF', name: '天空蓝' },
+  { value: '#BF5AF2', name: '荧光紫' }
 ]
 
 // 模板选项

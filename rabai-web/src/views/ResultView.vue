@@ -202,7 +202,24 @@ const handleNew = () => {
 // 导出 PDF
 const handleExportPDF = async () => {
   showExportMenu.value = false
-  alert('PDF导出功能开发中...')
+
+  try {
+    const response = await axios.get(`/api/v1/ppt/export/pdf/${taskId.value}`, {
+      responseType: 'blob'
+    })
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `presentation_${taskId.value}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('PDF导出失败:', error)
+    alert('PDF导出功能暂不可用，请下载PPTX后使用Office转换')
+  }
 }
 
 // 导出图片

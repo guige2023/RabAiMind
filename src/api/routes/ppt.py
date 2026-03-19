@@ -187,6 +187,56 @@ async def download_ppt(task_id: str):
     )
 
 
+@router.get("/export/pdf/{task_id}")
+async def export_pdf(task_id: str):
+    """导出PDF"""
+    task = get_task_manager().get_task(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    if task["status"] != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"任务尚未完成"
+        )
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    import os
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PPTX文件不存在"
+        )
+
+    try:
+        # 使用python-pptx转换
+        from pptx import Presentation
+        from io import BytesIO
+
+        prs = Presentation(pptx_path)
+
+        # 保存为PDF
+        pdf_path = pptx_path.replace('.pptx', '.pdf')
+        prs.save(pdf_path)
+
+        return FileResponse(
+            path=pdf_path,
+            filename=f"presentation_{task_id}.pdf",
+            media_type="application/pdf"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF转换失败: {str(e)}"
+        )
+
+
 # ==================== 模板列表 ====================
 
 @router.get("/templates")

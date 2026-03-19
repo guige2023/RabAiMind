@@ -299,9 +299,12 @@ const generateImage = async () => {
   aiLoading.value = true
   aiResults.value = []
 
+  // 优化提示词，添加质量修饰
+  const enhancedPrompt = `${aiPrompt.value}, high quality, professional, 4k, detailed, visually stunning, professional presentation slide background`
+
   try {
     const response = await axios.post('/api/v1/ppt/ai-image', {
-      prompt: aiPrompt.value,
+      prompt: enhancedPrompt,
       size: aiSize.value,
       n: aiCount.value
     })

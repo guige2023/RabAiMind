@@ -154,10 +154,35 @@ class ColorSchemeGenerator:
             "secondary": "#333333",
             "accent": "#165DFF"
         },
-        "#5856D6": {  # 暗紫
+        "#5856D6": {  # 暗夜紫
             "primary": "#5856D6",
             "secondary": "#4644CD",
             "accent": "#FF9500"
+        },
+        "#00B96B": {  # 清新薄荷
+            "primary": "#00B96B",
+            "secondary": "#00A85F",
+            "accent": "#64D2FF"
+        },
+        "#FF2D55": {  # 玫瑰粉
+            "primary": "#FF2D55",
+            "secondary": "#E6284D",
+            "accent": "#FFD60A"
+        },
+        "#FFD60A": {  # 阳光黄
+            "primary": "#FFD60A",
+            "secondary": "#E6C209",
+            "accent": "#FF3B30"
+        },
+        "#64D2FF": {  # 天空蓝
+            "primary": "#64D2FF",
+            "secondary": "#5AC8FA",
+            "accent": "#FF9500"
+        },
+        "#BF5AF2": {  # 荧光紫
+            "primary": "#BF5AF2",
+            "secondary": "#AF4FD8",
+            "accent": "#FF2D55"
         }
     }
 
