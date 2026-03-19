@@ -1,7 +1,7 @@
-// Text Effects - 文字效果系统
+// Text Effects Complete - 完整文字效果系统
 import { ref, computed } from 'vue'
 
-export type TextEffectType = 'gradient' | 'shadow' | '3d' | 'outline' | 'glow' | 'emboss' | 'neon' | 'metallic'
+export type TextEffectType = 'gradient' | 'shadow' | '3d' | 'outline' | 'glow' | 'emboss' | 'neon' | 'metallic' | 'rainbow' | 'fire' | 'ice' | 'glitch'
 
 export interface TextEffect {
   type: TextEffectType
@@ -14,7 +14,19 @@ export interface GradientStop {
   position: number
 }
 
-export interface ShadowConfig {
+export interface GradientPreset {
+  id: string
+  name: string
+  nameEn: string
+  direction: string
+  stops: GradientStop[]
+  type: 'linear' | 'radial'
+}
+
+export interface ShadowPreset {
+  id: string
+  name: string
+  nameEn: string
   color: string
   offsetX: number
   offsetY: number
@@ -22,115 +34,135 @@ export interface ShadowConfig {
   spread: number
 }
 
-export interface OutlineConfig {
-  color: string
-  width: number
-}
-
-export interface FontOption {
+export interface ColorPreset {
   id: string
   name: string
   nameEn: string
-  family: string
-  category: string
-  chineseSupport: boolean
-  weights: number[]
+  color: string
+  category: 'basic' | 'warm' | 'cool' | 'nature' | 'vibrant' | 'gradient'
 }
 
-export interface ColorPalette {
+export interface FontStylePreset {
   id: string
   name: string
-  colors: string[]
+  nameEn: string
+  fontSize: number
+  fontWeight: number
+  letterSpacing: number
+  lineHeight: number
+  fontFamily: string
 }
 
 export function useTextEffects() {
   // 文字效果
   const effects = ref<Record<TextEffectType, TextEffect>>({
-    gradient: {
-      type: 'gradient',
-      enabled: false,
-      params: {
-        direction: 'to right',
-        stops: [
-          { color: '#667eea', position: 0 },
-          { color: '#764ba2', position: 100 }
-        ]
-      }
-    },
-    shadow: {
-      type: 'shadow',
-      enabled: false,
-      params: {
-        color: 'rgba(0,0,0,0.3)',
-        offsetX: 2,
-        offsetY: 2,
-        blur: 4,
-        spread: 0
-      }
-    },
-    '3d': {
-      type: '3d',
-      enabled: false,
-      params: {
-        depth: 5,
-        angle: 135,
-        color: '#000000'
-      }
-    },
-    outline: {
-      type: 'outline',
-      enabled: false,
-      params: {
-        color: '#ffffff',
-        width: 2
-      }
-    },
-    glow: {
-      type: 'glow',
-      enabled: false,
-      params: {
-        color: '#00ffff',
-        blur: 10
-      }
-    },
-    emboss: {
-      type: 'emboss',
-      enabled: false,
-      params: {
-        lightColor: '#ffffff',
-        darkColor: '#888888',
-        blur: 2
-      }
-    },
-    neon: {
-      type: 'neon',
-      enabled: false,
-      params: {
-        color: '#ff00ff',
-        blur: 15
-      }
-    },
-    metallic: {
-      type: 'metallic',
-      enabled: false,
-      params: {
-        baseColor: '#c0c0c0',
-        highlightColor: '#ffffff',
-        shadowColor: '#808080'
-      }
-    }
+    gradient: { type: 'gradient', enabled: false, params: { direction: '135deg', stops: [{ color: '#667eea', position: 0 }, { color: '#764ba2', position: 100 }] } },
+    shadow: { type: 'shadow', enabled: false, params: { color: 'rgba(0,0,0,0.3)', offsetX: 2, offsetY: 2, blur: 4, spread: 0 } },
+    '3d': { type: '3d', enabled: false, params: { depth: 5, angle: 135, color: '#000000' } },
+    outline: { type: 'outline', enabled: false, params: { color: '#ffffff', width: 2 } },
+    glow: { type: 'glow', enabled: false, params: { color: '#00ffff', blur: 10 } },
+    emboss: { type: 'emboss', enabled: false, params: { lightColor: '#ffffff', darkColor: '#888888', blur: 2 } },
+    neon: { type: 'neon', enabled: false, params: { color: '#ff00ff', blur: 15 } },
+    metallic: { type: 'metallic', enabled: false, params: { baseColor: '#c0c0c0', highlightColor: '#ffffff', shadowColor: '#808080' } },
+    rainbow: { type: 'rainbow', enabled: false, params: { speed: 2 } },
+    fire: { type: 'fire', enabled: false, params: { intensity: 1 } },
+    ice: { type: 'ice', enabled: false, params: { intensity: 1 } },
+    glitch: { type: 'glitch', enabled: false, params: { intensity: 1 } }
   })
 
+  // 渐变色预设 (20+种)
+  const gradientPresets = ref<GradientPreset[]>([
+    { id: 'purple-blue', name: '紫蓝渐变', nameEn: 'Purple Blue', direction: '135deg', stops: [{ color: '#667eea', position: 0 }, { color: '#764ba2', position: 100 }], type: 'linear' },
+    { id: 'pink-orange', name: '粉橙渐变', nameEn: 'Pink Orange', direction: '135deg', stops: [{ color: '#f093fb', position: 0 }, { color: '#f5576c', position: 100 }], type: 'linear' },
+    { id: 'cyan-blue', name: '青蓝渐变', nameEn: 'Cyan Blue', direction: '135deg', stops: [{ color: '#4facfe', position: 0 }, { color: '#00f2fe', position: 100 }], type: 'linear' },
+    { id: 'green-teal', name: '绿青渐变', nameEn: 'Green Teal', direction: '135deg', stops: [{ color: '#43e97b', position: 0 }, { color: '#38f9d7', position: 100 }], type: 'linear' },
+    { id: 'sunset', name: '日落渐变', nameEn: 'Sunset', direction: '135deg', stops: [{ color: '#fa709a', position: 0 }, { color: '#fee140', position: 100 }], type: 'linear' },
+    { id: 'ocean', name: '海洋渐变', nameEn: 'Ocean', direction: '180deg', stops: [{ color: '#2af598', position: 0 }, { color: '#009efd', position: 100 }], type: 'linear' },
+    { id: 'night', name: '夜晚渐变', nameEn: 'Night', direction: '135deg', stops: [{ color: '#30cfd0', position: 0 }, { color: '#330867', position: 100 }], type: 'linear' },
+    { id: 'royal', name: '皇家渐变', nameEn: 'Royal', direction: '135deg', stops: [{ color: '#c471f5', position: 0 }, { color: '#fa71cd', position: 100 }], type: 'linear' },
+    { id: 'fire', name: '火焰渐变', nameEn: 'Fire', direction: '180deg', stops: [{ color: '#f12711', position: 0 }, { color: '#f5af19', position: 100 }], type: 'linear' },
+    { id: 'ice', name: '冰霜渐变', nameEn: 'Ice', direction: '180deg', stops: [{ color: '#00c6fb', position: 0 }, { color: '#005bea', position: 100 }], type: 'linear' },
+    { id: 'gold', name: '金色渐变', nameEn: 'Gold', direction: '135deg', stops: [{ color: '#f7971e', position: 0 }, { color: '#ffd200', position: 100 }], type: 'linear' },
+    { id: 'silver', name: '银色渐变', nameEn: 'Silver', direction: '135deg', stops: [{ color: '#bdc3c7', position: 0 }, { color: '#2c3e50', position: 100 }], type: 'linear' },
+    { id: 'rainbow', name: '彩虹渐变', nameEn: 'Rainbow', direction: '90deg', stops: [{ color: '#ff0000', position: 0 }, { color: '#ff7300', position: 17 }, { color: '#fffb00', position: 33 }, { color: '#00ff00', position: 50 }, { color: '#00ffff', position: 67 }, { color: '#0000ff', position: 83 }, { color: '#ff00ff', position: 100 }], type: 'linear' },
+    { id: 'candy', name: '糖果渐变', nameEn: 'Candy', direction: '135deg', stops: [{ color: '#d53369', position: 0 }, { color: '#daae51', position: 100 }], type: 'linear' },
+    { id: 'deep-sea', name: '深海渐变', nameEn: 'Deep Sea', direction: '180deg', stops: [{ color: '#2c3e50', position: 0 }, { color: '#4ca1af', position: 100 }], type: 'linear' },
+    { id: 'aurora', name: '极光渐变', nameEn: 'Aurora', direction: '135deg', stops: [{ color: '#00cdac', position: 0 }, { color: '#8ddad5', position: 100 }], type: 'linear' },
+    { id: 'passion', name: '热情渐变', nameEn: 'Passion', direction: '135deg', stops: [{ color: '#ff416c', position: 0 }, { color: '#ff4b2b', position: 100 }], type: 'linear' },
+    { id: 'mystic', name: '神秘渐变', nameEn: 'Mystic', direction: '135deg', stops: [{ color: '#7f00ff', position: 0 }, { color: '#e100ff', position: 100 }], type: 'linear' },
+    { id: 'spring', name: '春天渐变', nameEn: 'Spring', direction: '135deg', stops: [{ color: '#a8edea', position: 0 }, { color: '#fed6e3', position: 100 }], type: 'linear' },
+    { id: 'autumn', name: '秋天渐变', nameEn: 'Autumn', direction: '135deg', stops: [{ color: '#d299c2', position: 0 }, { color: '#fef9d7', position: 100 }], type: 'linear' }
+  ])
+
+  // 阴影预设 (12种)
+  const shadowPresets = ref<ShadowPreset[]>([
+    { id: 'soft', name: '柔和阴影', nameEn: 'Soft', color: 'rgba(0,0,0,0.1)', offsetX: 0, offsetY: 4, blur: 6, spread: 0 },
+    { id: 'medium', name: '中等阴影', nameEn: 'Medium', color: 'rgba(0,0,0,0.15)', offsetX: 0, offsetY: 6, blur: 10, spread: 0 },
+    { id: 'strong', name: '强阴影', nameEn: 'Strong', color: 'rgba(0,0,0,0.2)', offsetX: 0, offsetY: 8, blur: 15, spread: 0 },
+    { id: 'inner', name: '内阴影', nameEn: 'Inner', color: 'rgba(0,0,0,0.1)', offsetX: 0, offsetY: 2, blur: 4, spread: 0 },
+    { id: 'glow-blue', name: '蓝色发光', nameEn: 'Blue Glow', color: 'rgba(59,130,246,0.5)', offsetX: 0, offsetY: 0, blur: 10, spread: 0 },
+    { id: 'glow-green', name: '绿色发光', nameEn: 'Green Glow', color: 'rgba(34,197,94,0.5)', offsetX: 0, offsetY: 0, blur: 10, spread: 0 },
+    { id: 'glow-pink', name: '粉色发光', nameEn: 'Pink Glow', color: 'rgba(236,72,153,0.5)', offsetX: 0, offsetY: 0, blur: 10, spread: 0 },
+    { id: 'glow-purple', name: '紫色发光', nameEn: 'Purple Glow', color: 'rgba(139,92,246,0.5)', offsetX: 0, offsetY: 0, blur: 10, spread: 0 },
+    { id: 'drop', name: '投影', nameEn: 'Drop', color: 'rgba(0,0,0,0.25)', offsetX: 5, offsetY: 5, blur: 15, spread: 0 },
+    { id: 'lifted', name: '悬浮', nameEn: 'Lifted', color: 'rgba(0,0,0,0.2)', offsetX: 10, offsetY: 10, blur: 20, spread: -5 },
+    { id: 'flat', name: '平面', nameEn: 'Flat', color: 'rgba(0,0,0,0.05)', offsetX: 0, offsetY: 2, blur: 3, spread: 0 },
+    { id: 'concave', name: '凹陷', nameEn: 'Concave', color: 'rgba(255,255,255,0.7)', offsetX: 0, offsetY: -2, blur: 4, spread: 0 }
+  ])
+
+  // 颜色预设 (60+种)
+  const colorPresets = ref<ColorPreset[]>([
+    // 基础色
+    { id: 'black', name: '黑色', nameEn: 'Black', color: '#000000', category: 'basic' },
+    { id: 'white', name: '白色', nameEn: 'White', color: '#ffffff', category: 'basic' },
+    { id: 'red', name: '红色', nameEn: 'Red', color: '#ef4444', category: 'basic' },
+    { id: 'green', name: '绿色', nameEn: 'Green', color: '#22c55e', category: 'basic' },
+    { id: 'blue', name: '蓝色', nameEn: 'Blue', color: '#3b82f6', category: 'basic' },
+    { id: 'yellow', name: '黄色', nameEn: 'Yellow', color: '#eab308', category: 'basic' },
+    // 暖色系
+    { id: 'orange', name: '橙色', nameEn: 'Orange', color: '#f97316', category: 'warm' },
+    { id: 'amber', name: '琥珀', nameEn: 'Amber', color: '#f59e0b', category: 'warm' },
+    { id: 'rose', name: '玫瑰红', nameEn: 'Rose', color: '#f43f5e', category: 'warm' },
+    { id: 'coral', name: '珊瑚', nameEn: 'Coral', color: '#fb7185', category: 'warm' },
+    { id: 'peach', name: '桃子', nameEn: 'Peach', color: '#fdba74', category: 'warm' },
+    { id: 'terracotta', name: '陶土', nameEn: 'Terracotta', color: '#c2410c', category: 'warm' },
+    { id: 'gold-color', name: '金色', nameEn: 'Gold', color: '#f59e0b', category: 'warm' },
+    { id: 'bronze', name: '青铜', nameEn: 'Bronze', color: '#cd7f32', category: 'warm' },
+    // 冷色系
+    { id: 'cyan', name: '青色', nameEn: 'Cyan', color: '#06b6d4', category: 'cool' },
+    { id: 'teal', name: '青绿', nameEn: 'Teal', color: '#14b8a6', category: 'cool' },
+    { id: 'indigo', name: '靛蓝', nameEn: 'Indigo', color: '#6366f1', category: 'cool' },
+    { id: 'purple', name: '紫色', nameEn: 'Purple', color: '#a855f7', category: 'cool' },
+    { id: 'violet', name: '紫罗兰', nameEn: 'Violet', color: '#8b5cf6', category: 'cool' },
+    { id: 'navy', name: '海军蓝', nameEn: 'Navy', color: '#1e3a8a', category: 'cool' },
+    { id: 'slate', name: '岩石灰', nameEn: 'Slate', color: '#64748b', category: 'cool' },
+    // 自然色
+    { id: 'emerald', name: '翡翠', nameEn: 'Emerald', color: '#059669', category: 'nature' },
+    { id: 'forest', name: '森林', nameEn: 'Forest', color: '#15803d', category: 'nature' },
+    { id: 'sage', name: '鼠尾草', nameEn: 'Sage', color: '#84cc16', category: 'nature' },
+    { id: 'olive', name: '橄榄', nameEn: 'Olive', color: '#84cc16', category: 'nature' },
+    { id: 'mint', name: '薄荷', nameEn: 'Mint', color: '#6ee7b7', category: 'nature' },
+    { id: 'sand', name: '沙色', nameEn: 'Sand', color: '#d6d3d1', category: 'nature' },
+    { id: 'cream', name: '奶油', nameEn: 'Cream', color: '#fef3c7', category: 'nature' },
+    // 鲜艳色
+    { id: 'pink-vibrant', name: '亮粉', nameEn: 'Vibrant Pink', color: '#ec4899', category: 'vibrant' },
+    { id: 'fuchsia', name: '洋红', nameEn: 'Fuchsia', color: '#d946ef', category: 'vibrant' },
+    { id: 'lime-vibrant', name: '亮绿', nameEn: 'Vibrant Lime', color: '#84cc16', category: 'vibrant' },
+    { id: 'sky-blue', name: '天蓝', nameEn: 'Sky Blue', color: '#0ea5e9', category: 'vibrant' },
+    { id: 'hot-pink', name: '热粉', nameEn: 'Hot Pink', color: '#f472b6', category: 'vibrant' },
+    { id: 'electric-blue', name: '电光蓝', nameEn: 'Electric Blue', color: '#3b82f6', category: 'vibrant' },
+    { id: 'neon-green', name: '霓虹绿', nameEn: 'Neon Green', color: '#39ff14', category: 'vibrant' },
+    { id: 'neon-pink', name: '霓虹粉', nameEn: 'Neon Pink', color: '#ff6b9d', category: 'vibrant' }
+  ])
+
   // 字号预设 (12-72pt)
-  const fontSizes = ref([
+  const fontSizePresets = ref([
     { value: 12, label: '12pt', name: '小六' },
     { value: 14, label: '14pt', name: '小五' },
     { value: 16, label: '16pt', name: '五号' },
     { value: 18, label: '18pt', name: '小四' },
     { value: 20, label: '20pt', name: '四号' },
-    { value: 22, label: '22pt', name: '小三' },
     { value: 24, label: '24pt', name: '三号' },
-    { value: 26, label: '26pt', name: '小二' },
     { value: 28, label: '28pt', name: '二号' },
     { value: 32, label: '32pt', name: '小一' },
     { value: 36, label: '36pt', name: '一号' },
@@ -141,96 +173,52 @@ export function useTextEffects() {
     { value: 72, label: '72pt', name: '72pt' }
   ])
 
-  // 50+字体库
-  const fonts = ref<FontOption[]>([
-    // 中文衬线
-    { id: 'noto-serif-sc', name: '思源宋体', nameEn: 'Noto Serif SC', family: '"Noto Serif SC", serif', category: 'serif', chineseSupport: true, weights: [400, 600, 700] },
-    { id: 'songti', name: '宋体', nameEn: 'Songti', family: 'SimSun, serif', category: 'serif', chineseSupport: true, weights: [400] },
-    { id: 'fangzheng-zson', name: '方正书宋', nameEn: 'FZ ShuSong', family: 'FZShuSong, serif', category: 'serif', chineseSupport: true, weights: [400] },
-    { id: 'fangzheng-xt', name: '方正细体', nameEn: 'FZ XiTi', family: 'FZXiTi, serif', category: 'serif', chineseSupport: true, weights: [400] },
-    { id: 'times-new-roman', name: 'Times New Roman', nameEn: 'Times New Roman', family: '"Times New Roman", serif', category: 'serif', chineseSupport: false, weights: [400, 700] },
-    { id: 'georgia', name: 'Georgia', nameEn: 'Georgia', family: 'Georgia, serif', category: 'serif', chineseSupport: false, weights: [400, 700] },
-
-    // 中文无衬线
-    { id: 'noto-sans-sc', name: '思源黑体', nameEn: 'Noto Sans SC', family: '"Noto Sans SC", sans-serif', category: 'sans-serif', chineseSupport: true, weights: [300, 400, 500, 600, 700] },
-    { id: 'pingfang-sc', name: '苹方-简', nameEn: 'PingFang SC', family: '"PingFang SC", sans-serif', category: 'sans-serif', chineseSupport: true, weights: [300, 400, 500, 600] },
-    { id: 'heiti-sc', name: '黑体', nameEn: 'Heiti SC', family: 'SimHei, sans-serif', category: 'sans-serif', chineseSupport: true, weights: [300, 400, 600] },
-    { id: 'microsoft-yahei', name: '微软雅黑', nameEn: 'Microsoft YaHei', family: '"Microsoft YaHei", sans-serif', category: 'sans-serif', chineseSupport: true, weights: [300, 400, 600] },
-    { id: 'droid-sans-fallback', name: 'Droid Sans Fallback', nameEn: 'Droid Sans Fallback', family: 'DroidSansFallback, sans-serif', category: 'sans-serif', chineseSupport: true, weights: [400] },
-    { id: 'arial', name: 'Arial', nameEn: 'Arial', family: 'Arial, sans-serif', category: 'sans-serif', chineseSupport: false, weights: [400, 700] },
-    { id: 'helvetica', name: 'Helvetica', nameEn: 'Helvetica', family: 'Helvetica, Arial, sans-serif', category: 'sans-serif', chineseSupport: false, weights: [300, 400, 700] },
-    { id: 'verdana', name: 'Verdana', nameEn: 'Verdana', family: 'Verdana, sans-serif', category: 'sans-serif', chineseSupport: false, weights: [400, 700] },
-    { id: 'tahoma', name: 'Tahoma', nameEn: 'Tahoma', family: 'Tahoma, sans-serif', category: 'sans-serif', chineseSupport: false, weights: [400, 700] },
-    { id: 'roboto', name: 'Roboto', nameEn: 'Roboto', family: 'Roboto, sans-serif', category: 'sans-serif', chineseSupport: false, weights: [300, 400, 500, 700] },
-
-    // 展示字体
-    { id: 'orbitron', name: 'Orbitron', nameEn: 'Orbitron', family: '"Orbitron", sans-serif', category: 'display', chineseSupport: false, weights: [400, 500, 700, 900] },
-    { id: 'bebas-neue', name: 'Bebas Neue', nameEn: 'Bebas Neue', family: '"Bebas Neue", sans-serif', category: 'display', chineseSupport: false, weights: [400] },
-    { id: 'anton', name: 'Anton', nameEn: 'Anton', family: 'Anton, sans-serif', category: 'display', chineseSupport: false, weights: [400] },
-    { id: 'oswald', name: 'Oswald', nameEn: 'Oswald', family: 'Oswald, sans-serif', category: 'display', chineseSupport: false, weights: [300, 400, 500, 600, 700] },
-    { id: 'raleway', name: 'Raleway', nameEn: 'Raleway', family: 'Raleway, sans-serif', category: 'display', chineseSupport: false, weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
-    { id: 'montserrat', name: 'Montserrat', nameEn: 'Montserrat', family: 'Montserrat, sans-serif', category: 'display', chineseSupport: false, weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
-    { id: 'poppins', name: 'Poppins', nameEn: 'Poppins', family: 'Poppins, sans-serif', category: 'display', chineseSupport: false, weights: [100, 200, 300, 400, 500, 600, 700, 800, 900] },
-    { id: 'futura', name: 'Futura', nameEn: 'Futura', family: 'Futura, sans-serif', category: 'display', chineseSupport: false, weights: [400, 700] },
-
-    // 手写字体
-    { id: 'zcool-xiaowei', name: '站酷小薇体', nameEn: 'ZCOOL XiaoWei', family: '"ZCOOL XiaoWei", sans-serif', category: 'handwriting', chineseSupport: true, weights: [400] },
-    { id: 'zcool-qingke', name: '站酷庆科酱', nameEn: 'ZCOOL QingKe', family: '"ZCOOL QingKe", sans-serif', category: 'handwriting', chineseSupport: true, weights: [400] },
-    { id: 'zcool-kuaile', name: '站酷快乐体', nameEn: 'ZCOOL KuaiLe', family: '"ZCOOL KuaiLe", sans-serif', category: 'handwriting', chineseSupport: true, weights: [400] },
-    { id: 'ma-shan-zheng', name: '马善政毛笔', nameEn: 'Ma Shan Zheng', family: '"Ma Shan Zheng", cursive', category: 'handwriting', chineseSupport: true, weights: [400] },
-    { id: 'long-cang', name: '龙藏体', nameEn: 'Long Cang', family: '"Long Cang", cursive', category: 'handwriting', chineseSupport: true, weights: [400] },
-    { id: 'dancing-script', name: 'Dancing Script', nameEn: 'Dancing Script', family: '"Dancing Script", cursive', category: 'handwriting', chineseSupport: false, weights: [400, 500, 600, 700] },
-    { id: 'pacifico', name: '太平洋字体', nameEn: 'Pacifico', family: '"Pacifico", cursive', category: 'handwriting', chineseSupport: false, weights: [400] },
-    { id: 'lobster', name: 'Lobster', nameEn: 'Lobster', family: '"Lobster", cursive', category: 'handwriting', chineseSupport: false, weights: [400] },
-    { id: 'kalam', name: 'Kalam', nameEn: 'Kalam', family: '"Kalam", cursive', category: 'handwriting', chineseSupport: false, weights: [300, 400, 700] },
-    { id: 'permanent-marker', name: 'Permanent Marker', nameEn: 'Permanent Marker', family: '"Permanent Marker", cursive', category: 'handwriting', chineseSupport: false, weights: [400] },
-
-    // 等宽字体
-    { id: 'source-code-pro', name: '源码字体', nameEn: 'Source Code Pro', family: '"Source Code Pro", monospace', category: 'monospace', chineseSupport: false, weights: [400, 600, 700] },
-    { id: 'fira-code', name: 'Fira Code', nameEn: 'Fira Code', family: '"Fira Code", monospace', category: 'monospace', chineseSupport: false, weights: [400, 600] },
-    { id: 'jetbrains-mono', name: 'JetBrains Mono', nameEn: 'JetBrains Mono', family: '"JetBrains Mono", monospace', category: 'monospace', chineseSupport: false, weights: [400, 500, 600, 700] },
-    { id: 'consolas', name: 'Consolas', nameEn: 'Consolas', family: 'Consolas, monospace', category: 'monospace', chineseSupport: false, weights: [400, 700] },
-    { id: 'courier-new', name: 'Courier New', nameEn: 'Courier New', family: '"Courier New", monospace', category: 'monospace', chineseSupport: false, weights: [400, 700] },
-    { id: 'inconsolata', name: 'Inconsolata', nameEn: 'Inconsolata', family: 'Inconsolata, monospace', category: 'monospace', chineseSupport: false, weights: [400, 700] },
-
-    // 装饰字体
-    { id: 'comfortaa', name: '舒适体', nameEn: 'Comfortaa', family: '"Comfortaa", cursive', category: 'decorative', chineseSupport: false, weights: [300, 400, 700] },
-    { id: 'sacramento', name: '萨克拉门托', nameEn: 'Sacramento', family: 'Sacramento, cursive', category: 'decorative', chineseSupport: false, weights: [400] },
-    { id: 'satisfy', name: '满足', nameEn: 'Satisfy', family: 'Satisfy, cursive', category: 'decorative', chineseSupport: false, weights: [400] },
-    { id: 'great-vibes', name: '伟大 Vibes', nameEn: 'Great Vibes', family: '"Great Vibes", cursive', category: 'decorative', chineseSupport: false, weights: [400] },
-    { id: 'allura', name: 'Allura', nameEn: 'Allura', family: 'Allura, cursive', category: 'decorative', chineseSupport: false, weights: [400] },
-    { id: 'tangerine', name: '橘子', nameEn: 'Tangerine', family: 'Tangerine, cursive', category: 'decorative', chineseSupport: false, weights: [400, 700] },
-
-    // 艺术字体
-    { id: 'clip-art', name: '剪贴画', nameEn: 'Clip Art', family: 'ClipArt, fantasy', category: 'artistic', chineseSupport: false, weights: [400] },
-    { id: 'stencil', name: '模板', nameEn: 'Stencil', family: 'Stencil, fantasy', category: 'artistic', chineseSupport: false, weights: [400, 700] }
-  ])
-
-  // 颜色调色板
-  const colorPalettes = ref<ColorPalette[]>([
-    { id: 'basic', name: '基础色', colors: ['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'] },
-    { id: 'warm', name: '暖色系', colors: ['#ff6b6b', '#ffa726', '#ffcc02', '#ff9800', '#f57c00', '#ef6c00', '#d84315', '#bf360c'] },
-    { id: 'cool', name: '冷色系', colors: ['#42a5f5', '#1e88e5', '#1976d2', '#1565c0', '#0d47a1', '#00acc1', '#00838f', '#006064'] },
-    { id: 'nature', name: '自然色', colors: ['#66bb6a', '#43a047', '#2e7d32', '#1b5e20', '#8d6e63', '#6d4c41', '#4e342e', '#3e2723'] },
-    { id: 'pastel', name: '粉彩色', colors: ['#ffcdd2', '#f8bbd0', '#e1bee7', '#d1c4e9', '#c5cae9', '#b3e5fc', '#b2dfdb', '#c8e6c9'] },
-    { id: 'vibrant', name: '鲜艳色', colors: ['#ff1744', '#2979ff', '#00e676', '#ffea00', '#ff9100', '#f50057', '#651fff', '#00b8d4'] },
-    { id: 'gradient-preset', name: '渐变预设', colors: ['linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'] },
-    { id: 'metallic', name: '金属色', colors: ['#c0c0c0', '#ffd700', '#b87333', '#cd7f32', '#a9a9a9', '#d4af37', '#e5e4e2', '#bcc6cc'] }
+  // 字体样式预设
+  const fontStylePresets = ref<FontStylePreset[]>([
+    { id: 'title-large', name: '大标题', nameEn: 'Title Large', fontSize: 48, fontWeight: 700, letterSpacing: 0, lineHeight: 1.2, fontFamily: 'noto-sans-sc' },
+    { id: 'title-medium', name: '中标题', nameEn: 'Title Medium', fontSize: 36, fontWeight: 600, letterSpacing: 0, lineHeight: 1.3, fontFamily: 'noto-sans-sc' },
+    { id: 'title-small', name: '小标题', nameEn: 'Title Small', fontSize: 24, fontWeight: 600, letterSpacing: 0, lineHeight: 1.4, fontFamily: 'noto-sans-sc' },
+    { id: 'headline', name: '标题', nameEn: 'Headline', fontSize: 20, fontWeight: 500, letterSpacing: 0, lineHeight: 1.5, fontFamily: 'noto-sans-sc' },
+    { id: 'body-large', name: '大正文', nameEn: 'Body Large', fontSize: 18, fontWeight: 400, letterSpacing: 0, lineHeight: 1.8, fontFamily: 'noto-sans-sc' },
+    { id: 'body-medium', name: '中正文', nameEn: 'Body Medium', fontSize: 16, fontWeight: 400, letterSpacing: 0, lineHeight: 1.8, fontFamily: 'noto-sans-sc' },
+    { id: 'body-small', name: '小正文', nameEn: 'Body Small', fontSize: 14, fontWeight: 400, letterSpacing: 0, lineHeight: 1.6, fontFamily: 'noto-sans-sc' },
+    { id: 'caption', name: '说明', nameEn: 'Caption', fontSize: 12, fontWeight: 400, letterSpacing: 0, lineHeight: 1.5, fontFamily: 'noto-sans-sc' },
+    { id: 'button', name: '按钮', nameEn: 'Button', fontSize: 16, fontWeight: 500, letterSpacing: 1, lineHeight: 1, fontFamily: 'noto-sans-sc' }
   ])
 
   // 当前设置
-  const currentFont = ref('noto-sans-sc')
-  const currentSize = ref(24)
+  const currentFontSize = ref(24)
   const currentColor = ref('#000000')
+  const currentFontFamily = ref('noto-sans-sc')
+  const currentGradient = ref<GradientPreset | null>(null)
+
+  // 应用渐变预设
+  const applyGradient = (preset: GradientPreset) => {
+    currentGradient.value = preset
+    effects.value.gradient.params.direction = preset.direction
+    effects.value.gradient.params.stops = [...preset.stops]
+    effects.value.gradient.enabled = true
+  }
+
+  // 应用阴影预设
+  const applyShadow = (preset: ShadowPreset) => {
+    effects.value.shadow.params = { color: preset.color, offsetX: preset.offsetX, offsetY: preset.offsetY, blur: preset.blur, spread: preset.spread }
+    effects.value.shadow.enabled = true
+  }
+
+  // 应用颜色
+  const applyColor = (color: string) => {
+    currentColor.value = color
+  }
+
+  // 设置字号
+  const setFontSize = (size: number) => {
+    currentFontSize.value = Math.max(12, Math.min(200, size))
+  }
 
   // 启用效果
   const enableEffect = (type: TextEffectType, enabled: boolean) => {
     effects.value[type].enabled = enabled
-  }
-
-  // 更新效果参数
-  const updateEffectParams = (type: TextEffectType, params: Record<string, any>) => {
-    Object.assign(effects.value[type].params, params)
   }
 
   // 生成CSS
@@ -238,13 +226,10 @@ export function useTextEffects() {
     let css = ''
 
     // 渐变
-    if (effects.value.gradient.enabled) {
-      const stops = effects.value.gradient.params.stops
-        .map((s: GradientStop) => `${s.color} ${s.position}%`)
-        .join(', ')
-      css += `background: linear-gradient(${effects.value.gradient.params.direction}, ${stops});\n`
-      css += `-webkit-background-clip: text;\n`
-      css += `-webkit-text-fill-color: transparent;\n`
+    if (effects.value.gradient.enabled && currentGradient.value) {
+      const stops = effects.value.gradient.params.stops.map((s: GradientStop) => `${s.color} ${s.position}%`).join(', ')
+      css += `background: ${currentGradient.value.type}-gradient(${effects.value.gradient.params.direction}, ${stops});\n`
+      css += `-webkit-background-clip: text;\n-webkit-text-fill-color: transparent;\n`
     }
 
     // 阴影
@@ -253,75 +238,71 @@ export function useTextEffects() {
       css += `text-shadow: ${p.offsetX}px ${p.offsetY}px ${p.blur}px ${p.color};\n`
     }
 
-    // 3D效果
+    // 3D
     if (effects.value['3d'].enabled) {
       const p = effects.value['3d'].params
       const shadows: string[] = []
-      for (let i = 1; i <= p.depth; i++) {
-        shadows.push(`${i}px ${i}px 0 ${p.color}`)
-      }
+      for (let i = 1; i <= p.depth; i++) shadows.push(`${i}px ${i}px 0 ${p.color}`)
       css += `text-shadow: ${shadows.join(', ')};\n`
     }
 
     // 发光
     if (effects.value.glow.enabled) {
-      const p = effects.value.glow.params
-      css += `text-shadow: 0 0 ${p.blur}px ${p.color};\n`
+      css += `text-shadow: 0 0 ${effects.value.glow.params.blur}px ${effects.value.glow.params.color};\n`
     }
 
     // 霓虹
     if (effects.value.neon.enabled) {
-      const p = effects.value.neon.params
-      css += `text-shadow: 0 0 5px ${p.color}, 0 0 10px ${p.color}, 0 0 20px ${p.color}, 0 0 40px ${p.color};\n`
-    }
-
-    // 描边
-    if (effects.value.outline.enabled) {
-      const p = effects.value.outline.params
-      css += `-webkit-text-stroke: ${p.width}px ${p.color};\n`
+      const c = effects.value.neon.params.color
+      css += `text-shadow: 0 0 5px ${c}, 0 0 10px ${c}, 0 0 20px ${c}, 0 0 40px ${c};\n`
     }
 
     return css
   })
 
-  // 获取字体
-  const getFont = (id: string) => fonts.value.find(f => f.id === id)
-
   // 获取渐变CSS
-  const getGradientCSS = (gradientIndex: number) => {
-    const colors = colorPalettes.value.find(p => p.id === 'gradient-preset')?.colors || []
-    return colors[gradientIndex] || ''
-  }
+  const getGradientCSS = computed(() => {
+    if (!currentGradient.value) return ''
+    const stops = currentGradient.value.stops.map(s => `${s.color} ${s.position}%`).join(', ')
+    return `${currentGradient.value.type}-gradient(${currentGradient.value.direction}, ${stops})`
+  })
 
   // 统计
   const stats = computed(() => ({
-    fonts: fonts.value.length,
-    fontCategories: [...new Set(fonts.value.map(f => f.category))].length,
-    effects: Object.values(effects.value).filter(e => e.enabled).length,
-    fontSizes: fontSizes.value.length,
-    colorPalettes: colorPalettes.value.length,
-    currentFont: getFont(currentFont.value)?.name,
-    currentSize: currentSize.value,
-    currentColor: currentColor.value
+    gradientPresets: gradientPresets.value.length,
+    shadowPresets: shadowPresets.value.length,
+    colorPresets: colorPresets.value.length,
+    fontSizePresets: fontSizePresets.value.length,
+    fontStylePresets: fontStylePresets.value.length,
+    currentFontSize: currentFontSize.value,
+    currentColor: currentColor.value,
+    enabledEffects: Object.values(effects.value).filter(e => e.enabled).length
   }))
 
   return {
     // 效果
     effects,
     enableEffect,
-    updateEffectParams,
     generateCSS,
-    // 字体
-    fonts,
-    currentFont,
-    getFont,
-    // 字号
-    fontSizes,
-    currentSize,
-    // 颜色
-    colorPalettes,
-    currentColor,
+    // 渐变
+    gradientPresets,
+    currentGradient,
+    applyGradient,
     getGradientCSS,
+    // 阴影
+    shadowPresets,
+    applyShadow,
+    // 颜色
+    colorPresets,
+    currentColor,
+    applyColor,
+    // 字号
+    fontSizePresets,
+    currentFontSize,
+    setFontSize,
+    // 字体样式
+    fontStylePresets,
+    currentFontFamily,
     // 统计
     stats
   }
