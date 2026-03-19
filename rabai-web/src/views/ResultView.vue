@@ -461,9 +461,57 @@ const handleExportMarkdown = () => {
   downloadFile(content, 'ppt-outline', 'text/markdown')
 }
 
-const handleExportDocx = () => {
-  const content = JSON.stringify({ slides: presentationSlides.value })
-  downloadFile(content, 'ppt-document', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+const handleExportDocx = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
+  showExportMenu.value = false
+
+  try {
+    const slides = presentationSlides.value
+
+    // 使用HTML格式创建Word文档（Word可以打开HTML）
+    const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>PPT大纲</title>
+<style>
+body { font-family: '微软雅黑', sans-serif; }
+h1 { color: #165DFF; }
+h2 { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+p { line-height: 1.6; }
+</style>
+</head>
+<body>
+<h1>PPT演示文稿大纲</h1>
+<p>共 ${slides.length} 页</p>
+<hr>
+${slides.map((slide: any, i: number) => `
+<h2>第${i + 1}页: ${slide.title || '无标题'}</h2>
+<p>${slide.content || ''}</p>
+`).join('')}
+<hr>
+<p><small>由 RabAiMind 生成</small></p>
+</body>
+</html>`
+
+    const blob = new Blob([content], { type: 'application/msword;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `presentation_${taskId.value || Date.now()}.doc`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    alert('Word文档导出成功！')
+  } catch (error) {
+    console.error('Word导出失败:', error)
+    alert('Word导出失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 const handleExportJSON = () => {
