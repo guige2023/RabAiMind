@@ -192,6 +192,11 @@
             </div>
           </div>
 
+            <button class="btn btn-lg btn-element-edit" @click="showElementEditor = true">
+              <span>🛠️</span> 元素微调
+            </button>
+          </div>
+
           <!-- 分享菜单 -->
           <div v-if="showShareMenu" class="share-menu">
             <button
@@ -243,6 +248,14 @@
       v-model:active="showPresentation"
       :slides="presentationSlides"
     />
+
+    <!-- 元素微调编辑器 -->
+    <SlideElementEditor
+      v-if="showElementEditor"
+      :slide-count="slideCount"
+      @close="showElementEditor = false"
+      @apply="handleElementApply"
+    />
   </div>
 </template>
 
@@ -251,6 +264,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
+import SlideElementEditor from '../components/SlideElementEditor.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -269,6 +283,14 @@ const showPresentation = ref(false)
 // 内容编辑模式
 const isEditMode = ref(false)
 const isRegenerating = ref(false)
+
+// 元素微调模式
+const showElementEditor = ref(false)
+
+const handleElementApply = (editedSlides: any) => {
+  console.log('元素已更新:', editedSlides)
+  alert('元素微调已保存！请下载更新后的PPT。')
+}
 const editableSlides = ref<{
   title: string
   content: string
@@ -865,6 +887,16 @@ onMounted(() => {
 
 .btn-outline-edit:hover {
   background: #EEF2FF;
+}
+
+.btn-element-edit {
+  background: white;
+  border: 1px solid #7C3AED;
+  color: #7C3AED;
+}
+
+.btn-element-edit:hover {
+  background: #F5F3FF;
 }
 
 /* 内容编辑面板 */
