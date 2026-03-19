@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '../api/client'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 
 const router = useRouter()
@@ -124,7 +124,7 @@ const pollStatus = async () => {
   if (!taskId.value) return
 
   try {
-    const response = await axios.get(`/api/v1/ppt/task/${taskId.value}`)
+    const response = await api.ppt.getTask(taskId.value)
     const data = response.data
 
     status.value = data.status
@@ -179,7 +179,7 @@ const handleCancel = async () => {
   if (!taskId.value) return
 
   try {
-    await axios.delete(`/api/v1/ppt/task/${taskId.value}`)
+    await api.ppt.cancelTask(taskId.value)
     router.push('/create')
   } catch (error) {
     console.error('取消失败:', error)

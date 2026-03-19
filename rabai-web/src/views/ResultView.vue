@@ -138,7 +138,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '../api/client'
 
 const router = useRouter()
 const route = useRoute()
@@ -194,7 +194,7 @@ const loadStatus = async () => {
   }
 
   try {
-    const response = await axios.get(`/api/v1/ppt/task/${taskId.value}`)
+    const response = await api.ppt.getTask(taskId.value)
     const data = response.data
 
     status.value = data.status
@@ -227,7 +227,7 @@ const handleDownload = async () => {
   if (!taskId.value) return
 
   try {
-    const response = await axios.get(`/api/v1/ppt/download/${taskId.value}`, {
+    const response = await api.ppt.downloadPpt(taskId.value)
       responseType: 'blob'
     })
 
@@ -259,9 +259,7 @@ const handleExportPDF = async () => {
   showExportMenu.value = false
 
   try {
-    const response = await axios.get(`/api/v1/ppt/export/pdf/${taskId.value}`, {
-      responseType: 'blob'
-    })
+    const response = await api.ppt.exportPdf(taskId.value)
 
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')

@@ -19,6 +19,18 @@
             立即开始创建
           </router-link>
         </div>
+        <!-- 统计数据 -->
+        <div class="hero-stats animate-fadeIn" style="animation-delay: 0.3s" v-if="statistics.totalGenerations > 0">
+          <div class="stat-item">
+            <span class="stat-value">{{ statistics.totalGenerations }}</span>
+            <span class="stat-label">已生成</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-value">{{ statistics.totalSlides }}</span>
+            <span class="stat-label">幻灯片</span>
+          </div>
+        </div>
       </div>
       <div class="hero-visual">
         <div class="ppt-preview">
@@ -71,8 +83,10 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useStatistics } from '../composables/useStatistics'
 
 const router = useRouter()
+const { statistics } = useStatistics()
 
 const features = [
   { icon: '⚡', title: '快速生成', desc: '3分钟完成PPT生成' },
@@ -445,5 +459,53 @@ const selectScene = (sceneId: string) => {
 .scene-desc {
   font-size: 14px;
   color: #666;
+}
+
+/* 统计样式 */
+.hero-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 40px;
+  padding: 16px 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .hero-stats {
+    padding: 12px 20px;
+    gap: 16px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+  }
 }
 </style>

@@ -424,8 +424,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
+import { useStatistics } from '../composables/useStatistics'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '../api/client'
 
 const router = useRouter()
 const route = useRoute()
@@ -718,7 +719,7 @@ const handleSubmit = async () => {
   }
 
   try {
-    const response = await axios.post('/api/v1/ppt/generate', {
+    const response = await api.ppt.createTask({
       user_request: formData.value.userRequest,
       slide_count: formData.value.slideCount,
       scene: formData.value.scene,
@@ -753,6 +754,10 @@ const handleSubmit = async () => {
     // 只保留最近20条
     if (history.length > 20) history.pop()
     localStorage.setItem('ppt_history', JSON.stringify(history))
+
+    // 记录统计数据
+    const { recordGeneration } = useStatistics()
+    recordGeneration(formData.value.slideCount, formData.value.style)
 
     // 跳转到生成页面
     router.push({

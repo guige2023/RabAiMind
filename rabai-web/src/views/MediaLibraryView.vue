@@ -164,6 +164,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { apiClient } from '../api/client'
 
 interface MediaItem {
   id: string
@@ -291,8 +292,6 @@ const deleteMedia = (item: MediaItem) => {
 }
 
 // AI生图
-import axios from 'axios'
-
 const generateImage = async () => {
   if (!aiPrompt.value.trim()) return
 
@@ -303,7 +302,7 @@ const generateImage = async () => {
   const enhancedPrompt = `${aiPrompt.value}, high quality, professional, 4k, detailed, visually stunning, professional presentation slide background`
 
   try {
-    const response = await axios.post('/api/v1/ppt/ai-image', {
+    const response = await apiClient.post('/ppt/ai-image', {
       prompt: enhancedPrompt,
       size: aiSize.value,
       n: aiCount.value
