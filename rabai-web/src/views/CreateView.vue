@@ -1139,7 +1139,11 @@ const handleSubmit = async () => {
       overlay_transparency: formData.value.overlayTransparency,
       // 布局模式
       layout_mode: formData.value.layoutMode,
-      unified_layout: formData.value.unifiedLayout
+      unified_layout: formData.value.unifiedLayout,
+      // 生成模式
+      generation_mode: formData.value.generationMode,
+      output_format: formData.value.outputFormat,
+      quality: formData.value.quality
     })
 
     const { task_id } = response.data
@@ -2176,5 +2180,163 @@ useKeyboardShortcuts([
 .font-preview .preview-caption {
   font-size: 12px;
   opacity: 0.6;
+}
+
+/* 生成模式样式 */
+.generation-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.generation-mode-card {
+  padding: 16px;
+  background: #f9f9f9;
+  border: 2px solid #eee;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.generation-mode-card:hover {
+  background: #f0f0f0;
+  border-color: #ddd;
+}
+
+.generation-mode-card.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+}
+
+.generation-mode-card .mode-icon {
+  font-size: 28px;
+}
+
+.generation-mode-card .mode-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.generation-mode-card .mode-desc {
+  font-size: 11px;
+  color: #666;
+}
+
+.generation-mode-card .mode-time {
+  font-size: 10px;
+  color: #165DFF;
+  background: #EEF2FF;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 输出格式样式 */
+.output-format-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.output-format-card {
+  padding: 16px;
+  background: #f9f9f9;
+  border: 2px solid #eee;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.output-format-card:hover {
+  background: #f0f0f0;
+  border-color: #ddd;
+}
+
+.output-format-card.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+}
+
+.output-format-card .format-icon {
+  font-size: 24px;
+}
+
+.output-format-card .format-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.output-format-card .format-desc {
+  font-size: 11px;
+  color: #666;
+}
+
+/* 质量选择样式 */
+.quality-toggle {
+  display: flex;
+  gap: 12px;
+}
+
+.quality-option {
+  flex: 1;
+  padding: 16px;
+  background: #f9f9f9;
+  border: 2px solid #eee;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.quality-option:hover {
+  background: #f0f0f0;
+  border-color: #ddd;
+}
+
+.quality-option.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+}
+
+.quality-option .quality-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.quality-option .quality-dpi {
+  font-size: 12px;
+  color: #165DFF;
+  font-weight: 500;
+}
+
+.quality-option .quality-desc {
+  font-size: 11px;
+  color: #666;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .generation-mode-grid,
+  .output-format-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quality-toggle {
+    flex-direction: column;
+  }
 }
 </style>
