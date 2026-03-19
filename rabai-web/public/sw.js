@@ -1,9 +1,11 @@
-const CACHE_NAME = 'rabai-mind-v1';
+const CACHE_NAME = 'rabai-mind-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/robots.txt',
+  '/sitemap.xml'
 ];
 
 // Install event - cache static assets
@@ -32,40 +34,79 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
   // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
+  if (request.method !== 'GET') return;
 
   // Skip API requests
-  if (event.request.url.includes('/api/')) return;
+  if (url.pathname.startsWith('/api/')) return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Clone the response
-        const responseClone = response.clone();
-
-        // Cache successful responses
-        if (response.status === 200) {
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-
-        return response;
-      })
-      .catch(() => {
-        // Fallback to cache
-        return caches.match(event.request).then((cachedResponse) => {
+  // For same-origin requests
+  if (url.origin === location.origin) {
+    // Static assets - cache first
+    if (
+      request.destination === 'style' ||
+      request.destination === 'script' ||
+      request.destination === 'image' ||
+      request.destination === 'font'
+    ) {
+      event.respondWith(
+        caches.match(request).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
+          return fetch(request).then((response) => {
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
+            return response;
+          });
+        })
+      );
+      return;
+    }
 
-          // Return offline page for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
+    // HTML pages - network first
+    if (request.mode === 'navigate') {
+      event.respondWith(
+        fetch(request)
+          .then((response) => {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone);
+            });
+            return response;
+          })
+          .catch(() => {
+            return caches.match(request).then((cachedResponse) => {
+              return cachedResponse || caches.match('/');
+            });
+          })
+      );
+      return;
+    }
+  }
 
-          return new Response('Offline', { status: 503 });
+  // Default - network first, fallback to cache
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.status === 200) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        return caches.match(request).then((cachedResponse) => {
+          return cachedResponse || new Response('Offline', { status: 503 });
         });
       })
   );

@@ -1,9 +1,11 @@
 {
   "name": "RabAi Mind - AI PPT 生成平台",
   "short_name": "RabAi Mind",
-  "description": "使用AI快速生成专业PPT演示文稿",
+  "description": "使用AI快速生成专业PPT演示文稿。支持智能排版、多样化模板、自动配图等功能。",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["fullscreen", "minimal-ui"],
   "background_color": "#ffffff",
   "theme_color": "#165DFF",
   "orientation": "portrait-primary",
@@ -12,15 +14,34 @@
       "src": "/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-192.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
+  "screenshots": [],
   "categories": ["productivity", "utilities"],
-  "lang": "zh-CN"
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "创建PPT",
+      "short_name": "创建",
+      "description": "创建新的PPT演示文稿",
+      "url": "/create",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "历史记录",
+      "short_name": "历史",
+      "description": "查看历史PPT",
+      "url": "/history",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
 }
