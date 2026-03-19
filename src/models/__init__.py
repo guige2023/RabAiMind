@@ -101,6 +101,11 @@ class GenerateRequest(BaseModel):
     use_smart_layout: bool = Field(default=False, description="是否使用智能布局模式")
     slide_backgrounds: Optional[List[SlideBackground]] = Field(default=None, description="每页背景设置")
     slide_layouts: Optional[List[SlideLayout]] = Field(default=None, description="每页布局设置")
+    include_charts: bool = Field(default=False, description="是否包含数据图表")
+    include_pie_chart: bool = Field(default=True, description="是否包含饼图")
+    include_bar_chart: bool = Field(default=True, description="是否包含柱状图")
+    include_line_chart: bool = Field(default=False, description="是否包含折线图")
+    add_watermark: bool = Field(default=False, description="是否添加水印")
 
 
 # ==================== 响应模型 ====================

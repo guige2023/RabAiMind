@@ -46,7 +46,12 @@ class PPTGenerator:
         overlay_transparency: int = 30,
         use_smart_layout: bool = False,
         slide_backgrounds: list = None,
-        slide_layouts: list = None
+        slide_layouts: list = None,
+        include_charts: bool = False,
+        include_pie_chart: bool = True,
+        include_bar_chart: bool = True,
+        include_line_chart: bool = False,
+        add_watermark: bool = False
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式"""
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}")

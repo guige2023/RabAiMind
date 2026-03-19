@@ -96,6 +96,48 @@
           </div>
         </div>
 
+        <!-- 数据图表设置 -->
+        <div class="form-section">
+          <label class="form-label">
+            数据可视化
+            <span class="label-tip">在PPT中添加图表</span>
+          </label>
+          <div class="chart-options">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.includeCharts" />
+              <span>包含数据图表</span>
+            </label>
+          </div>
+          <div v-if="formData.includeCharts" class="chart-type-select">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.includePieChart" />
+              <span>饼图</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.includeBarChart" />
+              <span>柱状图</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.includeLineChart" />
+              <span>折线图</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 水印设置 -->
+        <div class="form-section">
+          <label class="form-label">
+            高级设置
+            <span class="label-tip">可选功能</span>
+          </label>
+          <div class="chart-options">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formData.addWatermark" />
+              <span>添加水印</span>
+            </label>
+          </div>
+        </div>
+
         <!-- 主题色 -->
         <div class="form-section">
           <label class="form-label">主题色</label>
@@ -378,6 +420,11 @@ const formData = ref<{
   layoutMode: string
   unifiedLayout: string
   slideLayouts: string[]
+  includeCharts: boolean
+  includePieChart: boolean
+  includeBarChart: boolean
+  includeLineChart: boolean
+  addWatermark: boolean
 }>({
   userRequest: '',
   slideCount: 10,
@@ -394,7 +441,12 @@ const formData = ref<{
   slideBackgrounds: [],  // 每页背景色数组
   layoutMode: '统一',  // 统一或自定义
   unifiedLayout: 'content_card',  // 统一布局
-  slideLayouts: []  // 每页布局数组
+  slideLayouts: [],  // 每页布局数组
+  includeCharts: false,  // 包含图表
+  includePieChart: true,  // 饼图
+  includeBarChart: true,  // 柱状图
+  includeLineChart: false,  // 折线图
+  addWatermark: false  // 添加水印
 })
 
 // PPT素材
@@ -599,7 +651,12 @@ const handleSubmit = async () => {
       overlay_transparency: formData.value.overlayTransparency,
       use_smart_layout: formData.value.useSmartLayout,
       slide_backgrounds: slideBackgrounds,
-      slide_layouts: slideLayouts
+      slide_layouts: slideLayouts,
+      include_charts: formData.value.includeCharts,
+      include_pie_chart: formData.value.includePieChart,
+      include_bar_chart: formData.value.includeBarChart,
+      include_line_chart: formData.value.includeLineChart,
+      add_watermark: formData.value.addWatermark
     })
 
     const { task_id } = response.data
@@ -731,6 +788,37 @@ onMounted(() => {
 .example-btn:hover {
   background: #e0f0ff;
   border-color: #165DFF;
+}
+
+.chart-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.chart-type-select {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .form-row {

@@ -91,7 +91,12 @@ async def generate_ppt(request: GenerateRequest):
                 overlay_transparency=request.overlay_transparency,
                 use_smart_layout=request.use_smart_layout,
                 slide_backgrounds=request.slide_backgrounds,
-                slide_layouts=request.slide_layouts
+                slide_layouts=request.slide_layouts,
+                include_charts=request.include_charts,
+                include_pie_chart=request.include_pie_chart,
+                include_bar_chart=request.include_bar_chart,
+                include_line_chart=request.include_line_chart,
+                add_watermark=request.add_watermark
             )
         )
 
