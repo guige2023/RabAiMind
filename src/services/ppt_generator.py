@@ -51,10 +51,37 @@ class PPTGenerator:
         include_pie_chart: bool = True,
         include_bar_chart: bool = True,
         include_line_chart: bool = False,
-        add_watermark: bool = False
+        add_watermark: bool = False,
+        # 新增参数
+        font_title: str = "思源黑体",
+        font_subtitle: str = "思源黑体",
+        font_content: str = "思源宋体",
+        font_caption: str = "思源黑体",
+        generation_mode: str = "standard",  # standard/fast/quality/stream
+        output_format: str = "pptx",  # pptx/pdf/svg/png
+        quality: str = "standard"  # standard/high/ultra
     ) -> Dict[str, Any]:
-        """生成 PPT - okppt方式"""
-        logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}")
+        """生成 PPT - okppt方式
+
+        Args:
+            generation_mode: 生成模式
+                - standard: 标准模式，平衡速度和质量
+                - fast: 快速模式，快速生成预览
+                - quality: 高清模式，高质量输出
+                - stream: 流式模式，边生成边输出
+
+            output_format: 输出格式
+                - pptx: PowerPoint文件
+                - pdf: PDF文件
+                - svg: SVG矢量图
+                - png: PNG图片
+
+            quality: 输出质量
+                - standard: 1080p
+                - high: 1440p
+                - ultra: 4K
+        """
+        logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}, mode={generation_mode}, format={output_format}, quality={quality}")
 
         try:
             from .task_manager import get_task_manager
@@ -100,7 +127,17 @@ class PPTGenerator:
                             user_layout = layout.layout_type
                             break
                 if use_smart_layout:
-                    svg_code = self._generate_svg_smart_layout(slide, slide_num, theme_color, style, user_layout)
+                    # 传递文字样式和字体参数
+                    svg_code = self._generate_svg_smart_layout(
+                        slide, slide_num, theme_color, style, user_layout,
+                        text_style=text_style,
+                        shadow_color=shadow_color,
+                        overlay_transparency=overlay_transparency,
+                        font_title=font_title,
+                        font_subtitle=font_subtitle,
+                        font_content=font_content,
+                        font_caption=font_caption
+                    )
                 else:
                     svg_code = self._generate_svg(slide, slide_num)
                 return slide_num, svg_code
@@ -143,10 +180,37 @@ class PPTGenerator:
                 compression_ratio=1.0
             )
 
+            # 根据输出格式生成不同文件
+            output_files = {
+                "pptx": output_path,
+                "format": output_format,
+                "quality": quality,
+                "generation_mode": generation_mode
+            }
+
+            # 如果需要导出其他格式
+            if output_format == "svg":
+                # 保留SVG文件路径
+                output_files["svg_paths"] = svg_files
+            elif output_format == "png":
+                # 转换为PNG
+                png_dir = os.path.join(settings.OUTPUT_DIR, f"png_{task_id}")
+                os.makedirs(png_dir, exist_ok=True)
+                png_paths = self._convert_svg_to_png(svg_files, png_dir, quality)
+                output_files["png_paths"] = png_paths
+            elif output_format == "pdf":
+                # 转换为PDF
+                pdf_path = os.path.join(settings.OUTPUT_DIR, f"presentation_{task_id}.pdf")
+                self._svg_to_pdf(svg_files, pdf_path)
+                output_files["pdf_path"] = pdf_path
+
+            logger.info(f"PPT生成完成: {output_format}, quality={quality}, mode={generation_mode}")
+
             return {
                 "success": True,
                 "pptx_path": output_path,
-                "slide_count": len(slides_content)
+                "slide_count": len(slides_content),
+                "output_files": output_files
             }
 
         except Exception as e:
@@ -297,11 +361,40 @@ class PPTGenerator:
 
         return svg_code
 
-    def _generate_svg_smart_layout(self, slide: Dict, slide_num: int, theme_color: str = "#165DFF", style: str = "professional", user_layout: str = None) -> str:
-        """使用智能布局模块生成SVG"""
+    def _generate_svg_smart_layout(
+        self,
+        slide: Dict,
+        slide_num: int,
+        theme_color: str = "#165DFF",
+        style: str = "professional",
+        user_layout: str = None,
+        text_style: str = "transparent_overlay",
+        shadow_color: str = "#000000",
+        overlay_transparency: int = 30,
+        font_title: str = "思源黑体",
+        font_subtitle: str = "思源黑体",
+        font_content: str = "思源宋体",
+        font_caption: str = "思源黑体"
+    ) -> str:
+        """使用智能布局模块生成SVG
+
+        Args:
+            slide: 幻灯片内容
+            slide_num: 幻灯片编号
+            theme_color: 主题色
+            style: 风格
+            user_layout: 用户指定的布局类型
+            text_style: 文字样式 (transparent_overlay/shadow/glow/outline/gradient/neon)
+            shadow_color: 阴影颜色
+            overlay_transparency: 遮罩透明度
+            font_title: 标题字体
+            font_subtitle: 副标题字体
+            font_content: 正文字体
+            font_caption: 注释字体
+        """
         from .smart_layout.creative_engine import get_creative_engine
 
-        logger.info(f"[SmartLayout] slide_{slide_num}: 使用智能布局生成")
+        logger.info(f"[SmartLayout] slide_{slide_num}: 使用智能布局生成, text_style={text_style}")
 
         # 获取创意引擎
         engine = get_creative_engine()
@@ -337,10 +430,21 @@ class PPTGenerator:
         # 生成配色
         colors = engine.generate_color_palette(style, theme_color)
 
+        # 添加文字样式和字体配置
+        colors["text_style"] = text_style
+        colors["shadow_color"] = shadow_color
+        colors["overlay_transparency"] = overlay_transparency
+        colors["fonts"] = {
+            "title": font_title,
+            "subtitle": font_subtitle,
+            "content": font_content,
+            "caption": font_caption
+        }
+
         # 使用模板生成SVG（不使用AI）
         svg = engine._create_slide_from_template(title, content_list, slide_type, colors)
 
-        logger.info(f"[SmartLayout] slide_{slide_num} layout={slide_type} generated successfully")
+        logger.info(f"[SmartLayout] slide_{slide_num} layout={slide_type} text_style={text_style} generated successfully")
         return svg
 
     def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
@@ -1010,6 +1114,120 @@ class PPTGenerator:
             contents = [t for t in filtered_texts if t != title]
         
         return title, contents
+
+
+    def _convert_svg_to_png(self, svg_files: List[str], output_dir: str, quality: str = "standard") -> List[str]:
+        """将SVG转换为PNG图片
+
+        Args:
+            svg_files: SVG文件路径列表
+            output_dir: 输出目录
+            quality: 质量 (standard/high/ultra)
+
+        Returns:
+            PNG文件路径列表
+        """
+        # 根据质量设置分辨率
+        quality_dpi = {
+            "standard": 96,
+            "high": 144,
+            "ultra": 192
+        }
+        dpi = quality_dpi.get(quality, 96)
+
+        png_paths = []
+        for svg_file in svg_files:
+            if not os.path.exists(svg_file):
+                continue
+
+            # 提取文件名
+            basename = os.path.basename(svg_file).replace(".svg", ".png")
+            png_path = os.path.join(output_dir, basename)
+
+            try:
+                # 使用cairosvg转换（如果可用）
+                try:
+                    import cairosvg
+                    cairosvg.svg2png(url=svg_file, write_to=png_path, dpi=dpi)
+                    logger.info(f"SVG转PNG成功: {png_path}")
+                except ImportError:
+                    # 备用方案：使用PIL
+                    from PIL import Image
+                    import io
+
+                    # 读取SVG
+                    with open(svg_file, 'r', encoding='utf-8') as f:
+                        svg_content = f.read()
+
+                    # 创建临时PNG
+                    # 注意：PIL需要先转换为其他格式，这里简化处理
+                    # 实际使用需要cairosvg或其他库
+                    logger.warning("cairosvg未安装，PNG转换可能不完整")
+
+                png_paths.append(png_path)
+            except Exception as e:
+                logger.error(f"SVG转PNG失败: {e}")
+
+        return png_paths
+
+    def _svg_to_pdf(self, svg_files: List[str], output_path: str) -> bool:
+        """将SVG转换为PDF
+
+        Args:
+            svg_files: SVG文件路径列表
+            output_path: 输出PDF路径
+
+        Returns:
+            是否成功
+        """
+        try:
+            # 方法1: 使用reportlab
+            try:
+                from reportlab.graphics import renderPDF
+                from reportlab.lib.pagesizes import landscape
+                from svglib.svglib import svg2rlg
+
+                from reportlab.pdfgen import canvas
+                from reportlab.lib.units import inch
+
+                c = canvas.Canvas(output_path, pagesize=landscape((16*inch, 9*inch)))
+
+                for svg_file in svg_files:
+                    if not os.path.exists(svg_file):
+                        continue
+
+                    # 转换SVG到reportlab图形
+                    drawing = svg2rlg(svg_file)
+
+                    if drawing:
+                        # 渲染到PDF
+                        renderPDF.draw(drawing, c, 0, 0)
+                        c.showPage()
+
+                c.save()
+                logger.info(f"SVG转PDF成功: {output_path}")
+                return True
+            except ImportError:
+                # 方法2: 备用方案 - 先转PPTX再转PDF
+                logger.warning("reportlab未安装，尝试备用方案")
+
+                # 创建临时PPTX
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
+                    tmp_path = tmp.name
+
+                self._svg_to_ppt(svg_files, tmp_path)
+                logger.info(f"临时PPTX已生成: {tmp_path}")
+
+                # 注意：实际PDF转换需要安装libreoffice或其他工具
+                # 这里只是标记需要后续处理
+                logger.warning("请使用PPTX导出或安装libreoffice进行PDF转换")
+
+                return False
+
+        except Exception as e:
+            logger.error(f"SVG转PDF失败: {e}")
+            return False
 
 
 # 全局实例

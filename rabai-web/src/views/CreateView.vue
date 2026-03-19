@@ -35,6 +35,9 @@
             <button class="example-btn" @click="formData.userRequest = '创建一份产品发布会的PPT，包含产品介绍、功能演示、定价策略、市场目标等，10页左右'">产品发布会</button>
             <button class="example-btn" @click="formData.userRequest = '制作年度工作总结PPT，包含年度回顾、业绩数据、团队成就、明年计划，8页'">年度总结</button>
             <button class="example-btn" @click="formData.userRequest = '创建公司介绍PPT，包含公司背景、核心业务、竞争优势、发展愿景，12页'">公司介绍</button>
+            <button class="example-btn" @click="formData.userRequest = '制作商业计划书PPT，包含市场分析、商业模式、竞争优势、融资计划，15页'">商业计划书</button>
+            <button class="example-btn" @click="formData.userRequest = '创建教育培训课程PPT，包含课程目标、教学内容、学习成果、案例分析，20页'">教育培训</button>
+            <button class="example-btn" @click="formData.userRequest = '制作数据分析报告PPT，包含数据概览、关键发现、深度分析、建议行动，12页'">数据分析报告</button>
           </div>
 
           <!-- AI智能推荐 -->
@@ -87,6 +90,10 @@
               <option value="education">📚 教育</option>
               <option value="tech">🚀 科技</option>
               <option value="creative">💡 创意</option>
+              <option value="marketing">📢 营销</option>
+              <option value="finance">💰 金融</option>
+              <option value="medical">🏥 医疗</option>
+              <option value="government">🏛️ 政府</option>
             </select>
           </div>
         </div>
