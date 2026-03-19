@@ -53,6 +53,9 @@
             <button class="btn btn-primary btn-lg" @click="handleDownload">
               <span>⬇️</span> 下载 PPT
             </button>
+            <button class="btn btn-lg btn-presentation" @click="showPresentation = true">
+              <span>🎬</span> 演示模式
+            </button>
             <button
               class="btn btn-lg"
               :class="isFavorite ? 'btn-favorite-active' : 'btn-favorite'"
@@ -73,6 +76,23 @@
 
           <!-- 导出菜单 -->
           <div v-if="showExportMenu" class="export-menu">
+            <!-- 主题切换 -->
+            <div class="export-theme-toggle">
+              <button
+                class="theme-btn"
+                :class="{ active: exportTheme === 'light' }"
+                @click="exportTheme = 'light'"
+              >
+                ☀️ 亮色
+              </button>
+              <button
+                class="theme-btn"
+                :class="{ active: exportTheme === 'dark' }"
+                @click="exportTheme = 'dark'"
+              >
+                🌙 暗色
+              </button>
+            </div>
             <button class="export-option" @click="handleExportPDF">
               <span class="export-icon">📕</span>
               <span>导出 PDF</span>
@@ -132,13 +152,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 演示模式 -->
+    <PresentationMode
+      v-model:active="showPresentation"
+      :slides="presentationSlides"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
+import PresentationMode from '../components/PresentationMode.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -151,6 +178,17 @@ const errorMessage = ref('')
 const showExportMenu = ref(false)
 const previewLoaded = ref(false)
 const isFavorite = ref(false)
+const exportTheme = ref<'light' | 'dark'>('light')
+const showPresentation = ref(false)
+
+// Mock slides for presentation mode
+const presentationSlides = computed(() => {
+  return Array.from({ length: slideCount.value }, (_, i) => ({
+    title: `幻灯片 ${i + 1}`,
+    content: '点击"演示模式"预览PPT效果',
+    background: `linear-gradient(${['135deg, #667eea, #764ba2', '11998e, #38ef7d', '0f0c29, #302b63', '232526, #414345'][i % 4]})`
+  }))
+})
 
 // 检查并加载收藏状态
 const checkFavorite = () => {
@@ -559,6 +597,15 @@ onMounted(() => {
   background: #4644cd;
 }
 
+.btn-presentation {
+  background: #FF9500;
+  color: #fff;
+}
+
+.btn-presentation:hover {
+  background: #e08600;
+}
+
 .btn-favorite {
   background: #f5f5f5;
   color: #666;
@@ -581,12 +628,41 @@ onMounted(() => {
 /* 导出菜单 */
 .export-menu {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  justify-content: center;
   margin-top: 20px;
   padding: 16px;
   background: #f9f9f9;
   border-radius: 12px;
+}
+
+.export-theme-toggle {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 4px;
+}
+
+.theme-btn {
+  padding: 8px 16px;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-btn:hover {
+  border-color: var(--primary);
+}
+
+.theme-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 
 .export-option {

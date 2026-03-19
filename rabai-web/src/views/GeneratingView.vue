@@ -333,6 +333,7 @@ onUnmounted(() => {
   background: linear-gradient(90deg, var(--primary), var(--secondary));
   border-radius: 4px;
   transition: width 0.5s ease;
+  will-change: width;
 }
 
 .progress-info {
