@@ -413,8 +413,12 @@ const selectedQuality = ref<ExportQuality>('high')
 const exportFormats = [
   { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx', quality: true },
   { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf', quality: true },
-  { id: 'images', name: '图片', icon: '🖼️', desc: 'PNG高清图片', ext: '.zip', quality: true },
-  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html', quality: false }
+  { id: 'png', name: 'PNG', icon: '🖼️', desc: 'PNG高清图片', ext: '.png', quality: true },
+  { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true },
+  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html', quality: false },
+  { id: 'md', name: 'Markdown', icon: '📝', desc: 'Markdown大纲', ext: '.md', quality: false },
+  { id: 'docx', name: 'Word', icon: '📃', desc: 'Word文档', ext: '.docx', quality: false },
+  { id: 'json', name: 'JSON', icon: '💾', desc: 'JSON数据', ext: '.json', quality: false }
 ]
 
 const qualityOptions = [
@@ -431,13 +435,53 @@ const handleExport = () => {
     case 'pdf':
       handleExportPDF()
       break
-    case 'images':
+    case 'png':
+    case 'jpg':
       handleExportImages()
       break
     case 'html':
       handleExportHTML()
       break
+    case 'md':
+      handleExportMarkdown()
+      break
+    case 'docx':
+      handleExportDocx()
+      break
+    case 'json':
+      handleExportJSON()
+      break
   }
+}
+
+// 新增导出方法
+const handleExportMarkdown = () => {
+  const content = `# PPT大纲\n\n${presentationSlides.value.map((s: any, i: number) => `## 第${i+1}页: ${s.title}\n\n${s.content}`).join('\n\n')}`
+  downloadFile(content, 'ppt-outline', 'text/markdown')
+}
+
+const handleExportDocx = () => {
+  const content = JSON.stringify({ slides: presentationSlides.value })
+  downloadFile(content, 'ppt-document', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+}
+
+const handleExportJSON = () => {
+  const content = JSON.stringify({
+    title: 'PPT文档',
+    createdAt: new Date().toISOString(),
+    slides: presentationSlides.value
+  }, null, 2)
+  downloadFile(content, 'ppt-data', 'application/json')
+}
+
+const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${filename}.${selectedFormat.value}`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // Mock slides for presentation mode
