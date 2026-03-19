@@ -196,23 +196,110 @@ const deleteSlide = (index: number) => {
   }
 }
 
+// 布局类型映射
+const mapLayoutType = (layout: string) => {
+  const map: Record<string, string> = {
+    'title_slide': 'title',
+    'content': 'content',
+    'two_column': 'two-column',
+    'left_text_right_image': 'image-right',
+    'left_image_right_text': 'image-left',
+    'center': 'centered'
+  }
+  return map[layout] || 'content'
+}
+
 // AI重新生成大纲
 const generateOutline = async () => {
   isLoading.value = true
   try {
-    // 模拟AI生成（实际应调用API）
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    // 示例数据
     const request = route.query.request as string || '商务演示'
-    outline.slides = [
-      { id: generateId(), title: `${request} - 封面`, content: '副标题/演讲者信息', layout: 'title' as const },
-      { id: generateId(), title: '目录', content: '1. 背景介绍\n2. 核心内容\n3. 实施计划\n4. 总结展望', layout: 'content' as const },
-      { id: generateId(), title: '背景与目标', content: '阐述项目背景\n说明主要目标\n预期达成的效果', layout: 'two-column' as const },
-      { id: generateId(), title: '方案详情', content: '详细介绍解决方案\n实施步骤说明\n关键里程碑', layout: 'content' as const },
-      { id: generateId(), title: '总结与展望', content: '核心要点回顾\n下一步计划\n感谢提问', layout: 'centered' as const }
-    ]
+
+    // 尝试调用后端API生成大纲
+    try {
+      const { api } = await import('../api/client')
+      const response = await api.ppt.plan(request)
+      if (response && response.data && response.data.slides) {
+        // 使用API返回的大纲
+        outline.slides = response.data.slides.map((s: any, i: number) => ({
+          id: generateId(),
+          title: s.title || `第${i + 1}页`,
+          content: Array.isArray(s.content) ? s.content.join('\n') : (s.content || ''),
+          layout: mapLayoutType(s.layout || 'content')
+        }))
+        isLoading.value = false
+        return
+      }
+    } catch (apiError) {
+      console.warn('API调用失败，使用本地智能生成:', apiError)
+    }
+
+    // API不可用时使用本地智能生成
+    await new Promise(resolve => setTimeout(resolve, 800))
+
+    // 智能生成基于用户请求
+    const requestLower = request.toLowerCase()
+    let slideData: any[]
+
+    if (requestLower.includes('商务') || requestLower.includes('企业') || requestLower.includes('公司')) {
+      slideData = [
+        { title: request, content: '副标题\n演讲者：姓名', layout: 'title' },
+        { title: '目录', content: '一、行业概述\n二、市场分析\n三、竞争格局\n四、发展策略\n五、总结展望', layout: 'content' },
+        { title: '行业概述', content: '• 行业定义与发展历程\n• 市场规模与增长趋势\n• 政策环境分析', layout: 'content' },
+        { title: '市场分析', content: '• 目标市场定位\n• 用户需求洞察\n• 市场份额分析', layout: 'two-column' },
+        { title: '竞争格局', content: '• 主要竞争对手\n• 竞争优势分析\n• 差异化策略', layout: 'content' },
+        { title: '发展策略', content: '• 短期目标\n• 中期规划\n• 长期愿景', layout: 'content' },
+        { title: '总结与展望', content: '• 核心观点回顾\n• 下一步行动计划\n• 感谢聆听', layout: 'centered' }
+      ]
+    } else if (requestLower.includes('教育') || requestLower.includes('培训') || requestLower.includes('课程')) {
+      slideData = [
+        { title: request, content: '课程名称\n讲师：姓名', layout: 'title' },
+        { title: '课程目录', content: '第一章：基础知识\n第二章：核心要点\n第三章：实战应用\n第四章：总结复习', layout: 'content' },
+        { title: '第一章：基础知识', content: '• 知识点1\n• 知识点2\n• 知识点3', layout: 'content' },
+        { title: '第二章：核心要点', content: '• 核心概念\n• 案例分析\n• 实践方法', layout: 'two-column' },
+        { title: '第三章：实战应用', content: '• 实战演练\n• 常见问题\n• 解决方案', layout: 'content' },
+        { title: '第四章：总结复习', content: '• 知识回顾\n• 重点总结\n• 课后作业', layout: 'content' },
+        { title: '谢谢观看', content: '感谢您的聆听\n欢迎提问交流', layout: 'centered' }
+      ]
+    } else if (requestLower.includes('数据') || requestLower.includes('报告') || requestLower.includes('分析')) {
+      slideData = [
+        { title: request, content: '报告周期：2024年\n汇报部门：数据分析部', layout: 'title' },
+        { title: '报告摘要', content: '• 核心发现\n• 关键指标\n• 建议行动', layout: 'content' },
+        { title: '数据概览', content: '• 总体数据\n• 趋势分析\n• 对比数据', layout: 'content' },
+        { title: '详细分析', content: '• 维度一分析\n• 维度二分析\n• 维度三分析', layout: 'two-column' },
+        { title: '洞察发现', content: '• 主要发现1\n• 主要发现2\n• 主要发现3', layout: 'content' },
+        { title: '建议方案', content: '• 短期行动\n• 中期优化\n• 长期规划', layout: 'content' },
+        { title: '总结', content: '• 核心结论\n• 下一步计划', layout: 'centered' }
+      ]
+    } else if (requestLower.includes('产品') || requestLower.includes('发布')) {
+      slideData = [
+        { title: request, content: '产品名称\n发布会主题', layout: 'title' },
+        { title: '产品介绍', content: '• 核心功能\n• 创新亮点\n• 使用体验', layout: 'content' },
+        { title: '产品特点', content: '• 特点一\n• 特点二\n• 特点三', layout: 'two-column' },
+        { title: '应用场景', content: '• 场景一\n• 场景二\n• 场景三', layout: 'content' },
+        { title: '定价与发售', content: '• 价格方案\n• 优惠政策\n• 上市时间', layout: 'content' },
+        { title: '谢谢观看', content: '感谢您的关注\n欢迎预订', layout: 'centered' }
+      ]
+    } else {
+      // 默认通用模板
+      slideData = [
+        { title: request, content: '副标题\n演讲者信息', layout: 'title' },
+        { title: '目录', content: '第一部分：背景\n第二部分：内容\n第三部分：总结', layout: 'content' },
+        { title: '第一部分', content: '• 要点1\n• 要点2\n• 要点3', layout: 'content' },
+        { title: '第二部分', content: '• 要点1\n• 要点2\n• 要点3', layout: 'two-column' },
+        { title: '第三部分', content: '• 总结1\n• 总结2\n• 总结3', layout: 'content' },
+        { title: '谢谢观看', content: '感谢您的聆听\n欢迎提问', layout: 'centered' }
+      ]
+    }
+
+    outline.slides = slideData.map((s) => ({
+      id: generateId(),
+      title: s.title,
+      content: s.content,
+      layout: s.layout
+    }))
   } catch (e) {
+    console.error('生成失败:', e)
     alert('生成失败，请重试')
   } finally {
     isLoading.value = false

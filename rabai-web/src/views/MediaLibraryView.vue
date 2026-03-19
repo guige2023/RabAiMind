@@ -213,12 +213,40 @@ const categories = [
   { id: 'icon', name: '图标' }
 ]
 
-// 模拟素材数据
-const mediaList = ref<MediaItem[]>([
-  { id: '1', name: '背景1', url: 'https://picsum.photos/400/300?random=1', type: 'background', size: 102400, createdAt: '2024-01-01' },
-  { id: '2', name: '背景2', url: 'https://picsum.photos/400/300?random=2', type: 'background', size: 102400, createdAt: '2024-01-02' },
-  { id: '3', name: '图片1', url: 'https://picsum.photos/400/300?random=3', type: 'image', size: 204800, createdAt: '2024-01-03' }
-])
+// 加载素材列表（从本地存储或使用默认数据）
+const loadMediaList = (): MediaItem[] => {
+  const saved = localStorage.getItem('media_library')
+  if (saved) {
+    try {
+      return JSON.parse(saved)
+    } catch {
+      // ignore
+    }
+  }
+  // 默认示例素材
+  return [
+    { id: 'bg1', name: '商务蓝渐变', url: 'https://picsum.photos/seed/bgblue/800/600', type: 'background', size: 245760, createdAt: '2024-01-15' },
+    { id: 'bg2', name: '科技深色', url: 'https://picsum.photos/seed/bgtech/800/600', type: 'background', size: 204800, createdAt: '2024-01-16' },
+    { id: 'bg3', name: '清新绿', url: 'https://picsum.photos/seed/bggreen/800/600', type: 'background', size: 189000, createdAt: '2024-01-17' },
+    { id: 'bg4', name: '暖色渐变', url: 'https://picsum.photos/seed/bgwarm/800/600', size: 210000, type: 'background', createdAt: '2024-01-18' },
+    { id: 'bg5', name: '紫色优雅', url: 'https://picsum.photos/seed/bgpurple/800/600', type: 'background', size: 198000, createdAt: '2024-01-19' },
+    { id: 'img1', name: '城市建筑', url: 'https://picsum.photos/seed/city/800/600', type: 'image', size: 350000, createdAt: '2024-01-20' },
+    { id: 'img2', name: '自然风景', url: 'https://picsum.photos/seed/nature/800/600', type: 'image', size: 420000, createdAt: '2024-01-21' },
+    { id: 'img3', name: '科技创新', url: 'https://picsum.photos/seed/tech/800/600', type: 'image', size: 380000, createdAt: '2024-01-22' },
+    { id: 'img4', name: '商务会议', url: 'https://picsum.photos/seed/meeting/800/600', type: 'image', size: 310000, createdAt: '2024-01-23' },
+    { id: 'img5', name: '团队协作', url: 'https://picsum.photos/seed/team/800/600', type: 'image', size: 290000, createdAt: '2024-01-24' },
+    { id: 'icon1', name: '图标-商务', url: 'https://picsum.photos/seed/iconbiz/400/400', type: 'icon', size: 45000, createdAt: '2024-01-25' },
+    { id: 'icon2', name: '图标-科技', url: 'https://picsum.photos/seed/icontech/400/400', type: 'icon', size: 52000, createdAt: '2024-01-26' }
+  ]
+}
+
+// 保存素材列表到本地存储
+const saveMediaList = () => {
+  localStorage.setItem('media_library', JSON.stringify(mediaList.value))
+}
+
+// 初始化素材列表
+const mediaList = ref<MediaItem[]>(loadMediaList())
 
 const filteredMedia = computed(() => {
   if (activeCategory.value === 'all') return mediaList.value
