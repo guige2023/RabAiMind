@@ -66,6 +66,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 
 const router = useRouter()
 const route = useRoute()
@@ -206,6 +207,19 @@ onMounted(() => {
   pollStatus()
   pollTimer = window.setInterval(pollStatus, 2000)
 })
+
+// 键盘快捷键
+useKeyboardShortcuts([
+  {
+    key: 'Escape',
+    handler: () => {
+      if (!showErrorModal.value) {
+        handleCancel()
+      }
+    },
+    description: '取消生成'
+  }
+])
 
 // 页面卸载时停止轮询
 onUnmounted(() => {

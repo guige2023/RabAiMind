@@ -14,6 +14,7 @@
         </nav>
         <LangSwitch />
         <ThemeSwitch />
+        <Feedback />
       </div>
     </header>
     <main class="main">
@@ -32,6 +33,7 @@
 <script setup lang="ts">
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
+import Feedback from './components/Feedback.vue'
 </script>
 
 <style scoped>

@@ -392,10 +392,38 @@
       </div>
     </div>
   </div>
+
+  <!-- 错误弹窗 -->
+  <Teleport to="body">
+    <div v-if="showErrorModal" class="error-modal-overlay" @click.self="showErrorModal = false">
+      <div class="error-modal">
+        <div class="error-icon" :class="errorType">
+          {{ errorType === 'network' ? '📡' : errorType === 'validation' ? '⚠️' : '🔧' }}
+        </div>
+        <h3>出错了</h3>
+        <p class="error-text">{{ errorMessage }}</p>
+        <div class="error-hint" v-if="errorType === 'network'">
+          <ul>
+            <li>检查网络连接是否正常</li>
+            <li>确认防火墙没有阻止请求</li>
+          </ul>
+        </div>
+        <div class="error-actions">
+          <button class="btn btn-primary" @click="handleSubmit">
+            🔄 重试
+          </button>
+          <button class="btn btn-secondary" @click="showErrorModal = false">
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 
@@ -485,6 +513,57 @@ const errors = ref({
 
 // 提交状态
 const isSubmitting = ref(false)
+
+// 错误弹窗状态
+const showErrorModal = ref(false)
+const errorMessage = ref('')
+const errorType = ref<'network' | 'validation' | 'server'>('network')
+
+// 友好的错误消息映射
+const getFriendlyError = (error: any): { message: string; type: 'network' | 'validation' | 'server' } => {
+  const status = error.response?.status
+  const detail = error.response?.data?.detail
+
+  if (!status || status === 0) {
+    return {
+      message: '网络连接失败，请检查您的网络设置',
+      type: 'network'
+    }
+  }
+
+  if (status === 400) {
+    return {
+      message: detail || '请求参数有误，请检查输入内容',
+      type: 'validation'
+    }
+  }
+
+  if (status === 401) {
+    return {
+      message: '登录状态已过期，请刷新页面重试',
+      type: 'server'
+    }
+  }
+
+  if (status === 429) {
+    return {
+      message: '请求过于频繁，请稍后再试',
+      type: 'server'
+    }
+  }
+
+  if (status >= 500) {
+    return {
+      message: '服务器繁忙，请稍后重试',
+      type: 'server'
+    }
+  }
+
+  return {
+    message: detail || '操作失败，请重试',
+    type: 'server'
+  }
+}
 
 // 主题色选项
 const themeColors = [
@@ -682,11 +761,10 @@ const handleSubmit = async () => {
     })
   } catch (error: any) {
     isSubmitting.value = false
-    const errorMsg = error.response?.data?.detail || '网络错误，请检查网络连接'
-    const retry = confirm(`${errorMsg}\n\n是否重试？`)
-    if (retry) {
-      handleSubmit()
-    }
+    const friendlyError = getFriendlyError(error)
+    errorMessage.value = friendlyError.message
+    errorType.value = friendlyError.type
+    showErrorModal.value = true
   } finally {
     isSubmitting.value = false
   }
@@ -700,6 +778,29 @@ onMounted(() => {
   // 加载PPT素材
   loadPptImages()
 })
+
+// 键盘快捷键
+useKeyboardShortcuts([
+  {
+    key: 'Enter',
+    ctrl: true,
+    handler: () => {
+      if (isValid.value && !isSubmitting.value) {
+        handleSubmit()
+      }
+    },
+    description: '提交表单'
+  },
+  {
+    key: 'Escape',
+    handler: () => {
+      if (showErrorModal.value) {
+        showErrorModal.value = false
+      }
+    },
+    description: '关闭弹窗'
+  }
+])
 </script>
 
 <style scoped>
@@ -1330,5 +1431,88 @@ onMounted(() => {
   .ppt-images-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* 错误弹窗 */
+.error-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.error-modal {
+  background: var(--white);
+  border-radius: 20px;
+  padding: 32px;
+  text-align: center;
+  max-width: 400px;
+  margin: 20px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.error-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+
+.error-icon.network { animation: shake 0.5s ease; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.error-modal h3 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 12px;
+}
+
+.error-text {
+  font-size: 15px;
+  color: var(--gray-500);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.error-hint {
+  text-align: left;
+  background: var(--gray-100);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.error-hint ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.error-hint li {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+
+.error-hint li:last-child {
+  margin-bottom: 0;
+}
+
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 </style>
