@@ -55,7 +55,45 @@ export function useExtendedTemplates() {
 
     // 政府
     { id: 'g1', name: '政务汇报', nameEn: 'Government Report', category: 'government', style: 'formal', slides: 15, tags: ['政务', '汇报', '政府'], popularity: 80, isPremium: false },
-    { id: 'g2', name: '党建活动', nameEn: 'Party Building', category: 'government', style: 'formal', slides: 10, tags: ['党建', '活动', '组织'], popularity: 78, isPremium: false }
+    { id: 'g2', name: '党建活动', nameEn: 'Party Building', category: 'government', style: 'formal', slides: 10, tags: ['党建', '活动', '组织'], popularity: 78, isPremium: false },
+
+    // 餐饮
+    { id: 'r1', name: '餐厅菜单', nameEn: 'Restaurant Menu', category: 'restaurant', style: 'elegant', slides: 8, tags: ['餐饮', '菜单', '美食'], popularity: 85, isPremium: false },
+    { id: 'r2', name: '食品宣传', nameEn: 'Food Promo', category: 'restaurant', style: 'colorful', slides: 10, tags: ['食品', '宣传', '推广'], popularity: 88, isPremium: false },
+    { id: 'r3', name: '烹饪课程', nameEn: 'Cooking Class', category: 'restaurant', style: 'friendly', slides: 12, tags: ['烹饪', '菜谱', '教学'], popularity: 82, isPremium: false },
+
+    // 房地产
+    { id: 're1', name: '房产推介', nameEn: 'Property Presentation', category: 'realestate', style: 'luxury', slides: 15, tags: ['房产', '地产', '楼盘'], popularity: 89, isPremium: true },
+    { id: 're2', name: '户型展示', nameEn: 'Floor Plan', category: 'realestate', style: 'modern', slides: 10, tags: ['户型', '房间', '布局'], popularity: 86, isPremium: false },
+    { id: 're3', name: '楼盘宣传', nameEn: 'Property Promo', category: 'realestate', style: 'premium', slides: 12, tags: ['楼盘', '宣传', '销售'], popularity: 87, isPremium: true },
+
+    // 旅游
+    { id: 'tr1', name: '旅游攻略', nameEn: 'Travel Guide', category: 'travel', style: 'adventure', slides: 15, tags: ['旅游', '攻略', '出行'], popularity: 91, isPremium: false },
+    { id: 'tr2', name: '行程安排', nameEn: 'Itinerary', category: 'travel', style: 'minimal', slides: 8, tags: ['行程', '安排', '计划'], popularity: 88, isPremium: false },
+    { id: 'tr3', name: '酒店介绍', nameEn: 'Hotel Introduction', category: 'travel', style: 'luxury', slides: 10, tags: ['酒店', '住宿', '介绍'], popularity: 84, isPremium: false },
+
+    // 运动健身
+    { id: 'sp1', name: '健身计划', nameEn: 'Fitness Plan', category: 'sports', style: 'energetic', slides: 12, tags: ['健身', '运动', '计划'], popularity: 86, isPremium: false },
+    { id: 'sp2', name: '赛事介绍', nameEn: 'Event Introduction', category: 'sports', style: 'dynamic', slides: 10, tags: ['赛事', '比赛', '活动'], popularity: 83, isPremium: false },
+    { id: 'sp3', name: '体育教学', nameEn: 'Sports Teaching', category: 'sports', style: 'professional', slides: 15, tags: ['体育', '教学', '训练'], popularity: 81, isPremium: false },
+
+    // 音乐艺术
+    { id: 'ma1', name: '音乐会', nameEn: 'Concert', category: 'music', style: 'artistic', slides: 10, tags: ['音乐', '演唱会', '艺术'], popularity: 85, isPremium: false },
+    { id: 'ma2', name: '画展介绍', nameEn: 'Art Exhibition', category: 'music', style: 'elegant', slides: 12, tags: ['画展', '艺术', '展览'], popularity: 82, isPremium: false },
+    { id: 'ma3', name: '乐器教学', nameEn: 'Music Teaching', category: 'music', style: 'classic', slides: 15, tags: ['乐器', '音乐', '教学'], popularity: 80, isPremium: false },
+
+    // 时尚美妆
+    { id: 'fc1', name: '时尚走秀', nameEn: 'Fashion Show', category: 'fashion', style: 'trendy', slides: 10, tags: ['时尚', '走秀', '服装'], popularity: 87, isPremium: true },
+    { id: 'fc2', name: '美妆教程', nameEn: 'Beauty Tutorial', category: 'fashion', style: 'glamorous', slides: 12, tags: ['美妆', '化妆', '教程'], popularity: 89, isPremium: false },
+    { id: 'fc3', name: '穿搭分享', nameEn: 'Outfit Sharing', category: 'fashion', style: 'modern', slides: 8, tags: ['穿搭', '服装', '时尚'], popularity: 85, isPremium: false },
+
+    // 宠物
+    { id: 'pe1', name: '宠物展示', nameEn: 'Pet Show', category: 'pet', style: 'cute', slides: 10, tags: ['宠物', '可爱', '动物'], popularity: 84, isPremium: false },
+    { id: 'pe2', name: '宠物训练', nameEn: 'Pet Training', category: 'pet', style: 'friendly', slides: 12, tags: ['宠物', '训练', '教学'], popularity: 81, isPremium: false },
+
+    // 环保
+    { id: 'en1', name: '环保宣传', nameEn: 'Environmental Promo', category: 'environmental', style: 'natural', slides: 10, tags: ['环保', '绿色', '宣传'], popularity: 83, isPremium: false },
+    { id: 'en2', name: '公益活动', nameEn: 'Charity Event', category: 'environmental', style: 'warm', slides: 12, tags: ['公益', '活动', '慈善'], popularity: 86, isPremium: false }
   ])
 
   const categories = [
@@ -66,7 +104,15 @@ export function useExtendedTemplates() {
     { id: 'marketing', name: '营销', count: 3 },
     { id: 'finance', name: '金融', count: 2 },
     { id: 'medical', name: '医疗', count: 2 },
-    { id: 'government', name: '政府', count: 2 }
+    { id: 'government', name: '政府', count: 2 },
+    { id: 'restaurant', name: '餐饮', count: 3 },
+    { id: 'realestate', name: '房地产', count: 3 },
+    { id: 'travel', name: '旅游', count: 3 },
+    { id: 'sports', name: '运动', count: 3 },
+    { id: 'music', name: '音乐艺术', count: 3 },
+    { id: 'fashion', name: '时尚美妆', count: 3 },
+    { id: 'pet', name: '宠物', count: 2 },
+    { id: 'environmental', name: '环保公益', count: 2 }
   ]
 
   const getByCategory = (cat: string) => templates.value.filter(t => t.category === cat)
