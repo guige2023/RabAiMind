@@ -44,12 +44,16 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
 
 请设计{slide_count}页PPT的完整方案。
 
-**【重要】生成内容时绝对不要包含或重复用户原始需求文本！**
-例如：
-- ❌ 错误："第一部分：{user_request[:10]}概述"
-- ✅ 正确："第一部分：行业概述"
+**【重要要求】**
+1. 内容必须专业、实用、有深度
+2. 标题要简洁有力，能吸引注意力
+3. 内容要点要具体，避免空泛表述
+4. 每页内容要有实质信息，不要泛泛而谈
 
-标题和内容要点必须是你自己生成的，不能包含用户需求！
+**【绝对禁止】**
+- 不要包含或重复用户原始需求文本
+- 不要使用"根据用户需求"、"按照要求"这类表述
+- 不要生成空洞的套话
 
 返回JSON格式：
 {{
@@ -57,13 +61,13 @@ def plan_ppt(user_request: str, slide_count: int = 5) -> List[Dict]:
         {{
             "slide_type": "title",
             "title": "人工智能",
-            "content": ["副标题"],
+            "subtitle": "驱动未来的核心技术",
             "layout": "title_full"
         }},
         {{
             "slide_type": "content",
             "title": "目录",
-            "content": ["行业概述", "市场分析", "发展趋势", "总结"],
+            "content": ["行业概述", "市场分析", "技术应用", "发展趋势"],
             "layout": "center"
         }},
         ...

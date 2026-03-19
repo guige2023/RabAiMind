@@ -68,13 +68,21 @@
 
           <!-- 模板选择 -->
           <div class="form-section">
-            <label class="form-label">模板</label>
-            <select v-model="formData.template" class="input select">
-              <option value="default">默认模板</option>
-              <option value="modern">现代模板</option>
-              <option value="tech">科技模板</option>
-              <option value="classic">经典模板</option>
-            </select>
+            <label class="form-label">模板风格</label>
+            <div class="template-grid">
+              <div
+                v-for="tpl in templateOptions"
+                :key="tpl.value"
+                class="template-card"
+                :class="{ active: formData.template === tpl.value }"
+                @click="formData.template = tpl.value"
+              >
+                <div class="template-preview" :style="{ background: tpl.preview }">
+                  <span class="template-icon">{{ tpl.icon }}</span>
+                </div>
+                <span class="template-name">{{ tpl.name }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -426,6 +434,14 @@ const themeColors = [
   { value: '#1A1A1A', name: '经典黑' }
 ]
 
+// 模板选项
+const templateOptions = [
+  { value: 'default', name: '默认商务', icon: '📊', preview: 'linear-gradient(135deg, #667eea, #764ba2)' },
+  { value: 'modern', name: '现代简约', icon: '✨', preview: 'linear-gradient(135deg, #11998e, #38ef7d)' },
+  { value: 'tech', name: '科技未来', icon: '🚀', preview: 'linear-gradient(135deg, #0f0c29, #302b63)' },
+  { value: 'classic', name: '经典大气', icon: '👔', preview: 'linear-gradient(135deg, #232526, #414345)' }
+]
+
 // 文字样式选项
 const textStyleOptions = [
   {
@@ -706,6 +722,50 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 500;
   color: #165DFF;
+}
+
+/* 模板选择 */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-preview {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  border: 2px solid transparent;
+}
+
+.template-card.active .template-preview {
+  border-color: #165DFF;
+}
+
+.template-icon {
+  font-size: 24px;
+}
+
+.template-name {
+  font-size: 13px;
+  color: #333;
+}
+
+.template-card.active .template-name {
+  color: #165DFF;
+  font-weight: 500;
 }
 
 .theme-colors {

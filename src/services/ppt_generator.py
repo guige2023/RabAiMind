@@ -82,10 +82,12 @@ class PPTGenerator:
             task_manager.update_progress(task_id, 70, "AI设计SVG中", "processing")
             logger.info("开始生成SVG代码...")
 
-            svg_files = []
-            for i, slide in enumerate(slides_content):
+            # 使用多线程并行生成SVG
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            def generate_single_svg(args):
+                i, slide = args
                 slide_num = i + 1
-                # 获取用户指定的布局类型
                 user_layout = None
                 if slide_layouts:
                     for layout in slide_layouts:
@@ -93,17 +95,25 @@ class PPTGenerator:
                             user_layout = layout.layout_type
                             break
                 if use_smart_layout:
-                    # 使用智能布局模式
                     svg_code = self._generate_svg_smart_layout(slide, slide_num, theme_color, style, user_layout)
                 else:
-                    # 使用原有模式
                     svg_code = self._generate_svg(slide, slide_num)
+                return slide_num, svg_code
 
-                svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_okppt.svg")
-                with open(svg_path, 'w', encoding='utf-8') as f:
-                    f.write(svg_code)
-                svg_files.append(svg_path)
-                logger.info(f"slide {slide_num} SVG生成完成")
+            # 并行生成SVG
+            svg_files = []
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
+                for future in as_completed(futures):
+                    slide_num, svg_code = future.result()
+                    svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_okppt.svg")
+                    with open(svg_path, 'w', encoding='utf-8') as f:
+                        f.write(svg_code)
+                    svg_files.append(svg_path)
+                    logger.info(f"slide {slide_num} SVG生成完成")
+
+            # 按页码排序
+            svg_files.sort(key=lambda x: int(x.split('_')[-2]))
             
             task_manager.update_progress(task_id, 85, "SVG生成完成", "processing")
 
