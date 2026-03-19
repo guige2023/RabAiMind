@@ -307,6 +307,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
+import { getContrastColor, parseGradient, generateInteractiveHTML, generatePrintHTML } from '../utils/exportGenerator'
 
 const router = useRouter()
 const route = useRoute()
@@ -616,22 +617,55 @@ const handleExportPDF = async () => {
   showExportMenu.value = false
 
   try {
-    const response = await api.ppt.exportPdf(taskId.value)
+    // 尝试调用后端API
+    const response = await api.ppt.exportPdf(taskId.value).catch(() => null)
 
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `presentation_${taskId.value}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    if (response) {
+      // 后端可用，下载返回的PDF
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `presentation_${taskId.value}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } else {
+      // 后端不可用，使用浏览器打印功能
+      exportViaPrint()
+    }
   } catch (error) {
-    console.error('PDF导出失败:', error)
-    alert('PDF导出功能暂不可用，请下载PPTX后使用Office转换')
+    console.error('PDF导出失败，使用打印替代:', error)
+    // 降级到打印
+    exportViaPrint()
   } finally {
     isExporting.value = false
   }
+}
+
+// 通过浏览器打印导出PDF
+const exportViaPrint = () => {
+  const slides = presentationSlides.value
+
+  // 创建打印窗口
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('请允许弹出窗口以导出PDF')
+    return
+  }
+
+  // 使用工具函数生成打印HTML
+  const printHtml = generatePrintHTML(slides)
+
+  printWindow.document.write(printHtml)
+  printWindow.document.close()
+
+  // 等待内容加载后打印
+  printWindow.onload = () => {
+    printWindow.print()
+  }
+
+  alert('已打开打印对话框，请选择"另存为PDF"保存')
 }
 
 // 批量导出
@@ -640,7 +674,7 @@ const handleBatchExport = async () => {
   alert('批量导出功能开发中，将同时导出PDF和图片格式')
 }
 
-// 导出图片
+// 导出图片 - 客户端实现
 const handleExportImages = async () => {
   if (isExporting.value) return
 
@@ -648,9 +682,53 @@ const handleExportImages = async () => {
   showExportMenu.value = false
 
   try {
-    // 模拟导出图片（实际应该调用API）
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    alert('图片导出功能开发中，请期待更新')
+    const format = selectedFormat.value // 'png' or 'jpg'
+    const slides = presentationSlides.value
+    const ext = format === 'jpg' ? 'jpg' : 'png'
+
+    // 为每张幻灯片生成图片并下载
+    for (let i = 0; i < slides.length; i++) {
+      const slide = slides[i]
+
+      // 创建canvas
+      const canvas = document.createElement('canvas')
+      canvas.width = 1920
+      canvas.height = 1080
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) continue
+
+      // 绘制背景
+      const bg = slide.background || '#ffffff'
+      if (bg.includes('gradient')) {
+        const gradient = parseGradient(bg, ctx, canvas.width, canvas.height)
+        ctx.fillStyle = gradient
+      } else {
+        ctx.fillStyle = bg
+      }
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // 绘制标题
+      ctx.fillStyle = getContrastColor(bg)
+      ctx.font = 'bold 56px "思源黑体", sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(slide.title || `第${i + 1}页`, canvas.width / 2, canvas.height / 2 - 30)
+
+      // 绘制内容
+      ctx.font = '28px "思源宋体", sans-serif'
+      ctx.fillText(slide.content || '', canvas.width / 2, canvas.height / 2 + 40)
+
+      // 下载
+      const link = document.createElement('a')
+      link.download = `slide_${i + 1}.${ext}`
+      link.href = canvas.toDataURL(`image/${ext}`, 0.92)
+      link.click()
+
+      // 避免同时触发多个下载
+      await new Promise(r => setTimeout(r, 300))
+    }
+
+    alert(`已成功导出 ${slides.length} 张图片！`)
   } catch (error) {
     console.error('图片导出失败:', error)
     alert('图片导出失败，请重试')
@@ -659,7 +737,7 @@ const handleExportImages = async () => {
   }
 }
 
-// 导出 HTML
+// 导出 HTML - 生成可交互的HTML文件
 const handleExportHTML = async () => {
   if (isExporting.value) return
 
@@ -667,9 +745,24 @@ const handleExportHTML = async () => {
   showExportMenu.value = false
 
   try {
-    // 模拟导出HTML（实际应该调用API）
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    alert('HTML导出功能开发中，请期待更新')
+    const slides = presentationSlides.value
+    const isDark = exportTheme.value === 'dark'
+
+    // 生成HTML内容
+    const html = generateInteractiveHTML(slides, isDark)
+
+    // 创建Blob并下载
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `presentation_${taskId.value || Date.now()}.html`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    alert('HTML导出成功！')
   } catch (error) {
     console.error('HTML导出失败:', error)
     alert('HTML导出失败，请重试')
