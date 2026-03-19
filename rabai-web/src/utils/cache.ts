@@ -98,6 +98,110 @@ export const storageCache = {
   }
 }
 
+// IndexedDB for larger data storage
+const DB_NAME = 'rabai-mind-cache'
+const DB_VERSION = 1
+
+class IndexedDBCache {
+  private db: IDBDatabase | null = null
+
+  async init(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION)
+
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        this.db = request.result
+        resolve()
+      }
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
+        if (!db.objectStoreNames.contains('cache')) {
+          db.createObjectStore('cache', { keyPath: 'key' })
+        }
+      }
+    })
+  }
+
+  private async getDB(): Promise<IDBDatabase> {
+    if (!this.db) {
+      await this.init()
+    }
+    return this.db!
+  }
+
+  async set(key: string, value: any, ttl?: number): Promise<void> {
+    const db = await this.getDB()
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('cache', 'readwrite')
+      const store = transaction.objectStore('cache')
+      const request = store.put({
+        key,
+        value,
+        expiry: ttl ? Date.now() + ttl : null
+      })
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async get<T>(key: string): Promise<T | null> {
+    const db = await this.getDB()
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('cache', 'readonly')
+      const store = transaction.objectStore('cache')
+      const request = store.get(key)
+
+      request.onsuccess = () => {
+        const result = request.result
+        if (!result) {
+          resolve(null)
+          return
+        }
+
+        if (result.expiry && Date.now() > result.expiry) {
+          this.delete(key)
+          resolve(null)
+          return
+        }
+
+        resolve(result.value as T)
+      }
+
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async delete(key: string): Promise<void> {
+    const db = await this.getDB()
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('cache', 'readwrite')
+      const store = transaction.objectStore('cache')
+      const request = store.delete(key)
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async clear(): Promise<void> {
+    const db = await this.getDB()
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction('cache', 'readwrite')
+      const store = transaction.objectStore('cache')
+      const request = store.clear()
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+}
+
+// Create IndexedDB cache instance
+export const indexedDBCache = new IndexedDBCache()
+
+// Initialize IndexedDB on load
+indexedDBCache.init().catch(console.error)
+
 // Cache key generators
 export const cacheKeys = {
   taskStatus: (taskId: string) => `cache_task_${taskId}`,
@@ -106,4 +210,4 @@ export const cacheKeys = {
   statistics: () => 'ppt_statistics'
 }
 
-export default { apiCache, storageCache, cacheKeys }
+export default { apiCache, storageCache, indexedDBCache, cacheKeys }

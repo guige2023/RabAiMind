@@ -93,6 +93,11 @@
                 🌙 暗色
               </button>
             </div>
+            <!-- 批量导出 -->
+            <button class="export-option export-batch" @click="handleBatchExport">
+              <span class="export-icon">📦</span>
+              <span>批量导出 (PDF+图片)</span>
+            </button>
             <button class="export-option" @click="handleExportPDF">
               <span class="export-icon">📕</span>
               <span>导出 PDF</span>
@@ -104,6 +109,10 @@
             <button class="export-option" @click="handleExportHTML">
               <span class="export-icon">🌐</span>
               <span>导出 HTML</span>
+            </button>
+            <button class="export-option" @click="handlePrint">
+              <span class="export-icon">🖨️</span>
+              <span>打印</span>
             </button>
           </div>
 
@@ -313,6 +322,12 @@ const handleExportPDF = async () => {
   }
 }
 
+// 批量导出
+const handleBatchExport = async () => {
+  showExportMenu.value = false
+  alert('批量导出功能开发中，将同时导出PDF和图片格式')
+}
+
 // 导出图片
 const handleExportImages = async () => {
   showExportMenu.value = false
@@ -323,6 +338,12 @@ const handleExportImages = async () => {
 const handleExportHTML = async () => {
   showExportMenu.value = false
   alert('HTML导出功能开发中...')
+}
+
+// 打印
+const handlePrint = () => {
+  showExportMenu.value = false
+  window.print()
 }
 
 // 分享
@@ -681,6 +702,17 @@ onMounted(() => {
 .export-option:hover {
   border-color: #165DFF;
   background: #f0f7ff;
+}
+
+.export-option.export-batch {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+}
+
+.export-option.export-batch:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 .export-icon {

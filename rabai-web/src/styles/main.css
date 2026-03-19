@@ -318,6 +318,58 @@ select {
   }
 }
 
+/* 打印样式 */
+@media print {
+  /* 隐藏不需要打印的元素 */
+  .no-print,
+  .header,
+  .footer,
+  .nav,
+  .btn,
+  button,
+  .sidebar,
+  .modal-overlay {
+    display: none !important;
+  }
+
+  /* 页面设置 */
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+
+  /* 确保内容可打印 */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* 链接样式 */
+  a {
+    color: black !important;
+    text-decoration: underline;
+  }
+
+  /* 图片 */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* 避免分页 */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 表格和列表 */
+  table, tr, td, li {
+    page-break-inside: avoid;
+  }
+}
+
 /* 滚动条 */
 ::-webkit-scrollbar {
   width: 8px;
