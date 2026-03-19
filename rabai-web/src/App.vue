@@ -5,6 +5,7 @@
 
     <!-- Global Search -->
     <GlobalSearch ref="globalSearchRef" />
+    <ToastNotifications />
     <UserOnboarding />
     <AIChatPanel />
     <MobileNavDrawer ref="mobileNavRef" />
@@ -85,6 +86,7 @@ import AIChatPanel from './components/AIChatPanel.vue'
 import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import UserExperience from './components/UserExperience.vue'
 import HelpCenter from './components/HelpCenter.vue'
+import ToastNotifications from './components/ToastNotifications.vue'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
