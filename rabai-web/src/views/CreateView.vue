@@ -2,8 +2,16 @@
   <div class="create">
     <div class="container">
       <div class="create-header">
-        <h1 class="page-title">创建你的 PPT</h1>
-        <p class="page-subtitle">描述你想要的内容，AI 将为你生成专业演示文稿</p>
+        <div class="header-top">
+          <div>
+            <h1 class="page-title">创建你的 PPT</h1>
+            <p class="page-subtitle">描述你想要的内容，AI 将为你生成专业演示文稿</p>
+          </div>
+          <div class="draft-status" v-if="draftSaved">
+            <span class="draft-icon">✓</span>
+            <span class="draft-text">草稿已保存</span>
+          </div>
+        </div>
       </div>
 
       <div class="create-form">
@@ -425,6 +433,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useStatistics } from '../composables/useStatistics'
+import { useAutoSave } from '../composables/useAutoSave'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 
@@ -514,6 +523,9 @@ const errors = ref({
 
 // 提交状态
 const isSubmitting = ref(false)
+
+// 草稿保存状态
+const draftSaved = ref(false)
 
 // 错误弹窗状态
 const showErrorModal = ref(false)
@@ -782,6 +794,42 @@ onMounted(() => {
   }
   // 加载PPT素材
   loadPptImages()
+
+  // 自动保存草稿
+  const { loadDraft, setupAutoSave, saveDraft: doSaveDraft } = useAutoSave({
+    key: 'create',
+    data: formData,
+    debounceMs: 2000,
+    excludeKeys: ['userRequest'] // 不保存用户输入内容
+  })
+
+  // 加载草稿（如果有）
+  const draft = loadDraft()
+  if (draft) {
+    // 只恢复非用户输入的设置
+    formData.value.slideCount = draft.slideCount || formData.value.slideCount
+    formData.value.scene = draft.scene || formData.value.scene
+    formData.value.style = draft.style || formData.value.style
+    formData.value.template = draft.template || formData.value.template
+    formData.value.themeColor = draft.themeColor || formData.value.themeColor
+    formData.value.textStyle = draft.textStyle || formData.value.textStyle
+    formData.value.useSmartLayout = draft.useSmartLayout ?? formData.value.useSmartLayout
+    formData.value.backgroundMode = draft.backgroundMode || formData.value.backgroundMode
+    formData.value.layoutMode = draft.layoutMode || formData.value.layoutMode
+    formData.value.includeCharts = draft.includeCharts ?? formData.value.includeCharts
+    formData.value.addWatermark = draft.addWatermark ?? formData.value.addWatermark
+  }
+
+  // 启动自动保存
+  setupAutoSave()
+
+  // 监听数据变化并显示保存提示
+  watch(formData, () => {
+    draftSaved.value = true
+    setTimeout(() => {
+      draftSaved.value = false
+    }, 3000)
+  }, { deep: true })
 })
 
 // 键盘快捷键
@@ -830,6 +878,27 @@ useKeyboardShortcuts([
 .page-subtitle {
   font-size: 16px;
   color: #666;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.draft-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #E8F5E9;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #2E7D32;
+}
+
+.draft-icon {
+  font-size: 12px;
 }
 
 .create-form {

@@ -19,9 +19,24 @@
             ⭐ 收藏
           </button>
         </div>
-        <button v-if="historyList.length > 0" class="btn btn-outline" @click="clearHistory">
-          清空历史
-        </button>
+        <div class="backup-actions">
+          <button class="btn btn-outline" @click="handleExport" title="导出备份">
+            📤 导出
+          </button>
+          <button class="btn btn-outline" @click="triggerImport" title="导入备份">
+            📥 导入
+          </button>
+          <input
+            type="file"
+            ref="importInput"
+            accept=".json"
+            @change="handleImport"
+            hidden
+          />
+          <button v-if="historyList.length > 0" class="btn btn-outline btn-danger" @click="clearHistory">
+            清空历史
+          </button>
+        </div>
       </div>
     </div>
 
@@ -82,6 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { exportBackup, importBackup } from '../composables/useCloudBackup'
 
 const router = useRouter()
 
@@ -97,6 +113,41 @@ interface HistoryItem {
 
 const historyList = ref<HistoryItem[]>([])
 const filterType = ref<'all' | 'favorites'>('all')
+const importInput = ref<HTMLInputElement | null>(null)
+
+// 导出备份
+const handleExport = () => {
+  try {
+    exportBackup()
+    alert('导出成功！')
+  } catch (e) {
+    alert('导出失败')
+  }
+}
+
+// 触发导入
+const triggerImport = () => {
+  importInput.value?.click()
+}
+
+// 导入备份
+const handleImport = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const result = await importBackup(file)
+  if (result.success) {
+    alert(result.message)
+    loadHistory() // Reload history
+    window.location.reload() // Refresh to apply settings
+  } else {
+    alert(result.message)
+  }
+
+  // Reset input
+  target.value = ''
+}
 
 const filteredList = computed(() => {
   if (filterType.value === 'favorites') {
@@ -195,6 +246,20 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-danger {
+  color: #FF3B30;
+  border-color: #FF3B30;
+}
+
+.btn-danger:hover {
+  background: #FFEBEE;
 }
 
 .filter-tabs {

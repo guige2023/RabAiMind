@@ -100,6 +100,14 @@
           </div>
 
           <!-- 上传列表 -->
+          <!-- 上传进度 -->
+          <div v-if="uploadProgress > 0 && uploadProgress < 100" class="upload-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${uploadProgress}%` }"></div>
+            </div>
+            <span class="progress-text">上传中... {{ uploadProgress }}%</span>
+          </div>
+
           <div v-if="uploadQueue.length > 0" class="upload-queue">
             <div v-for="(item, index) in uploadQueue" :key="index" class="upload-item">
               <img :src="item.preview" class="upload-preview" />
@@ -165,6 +173,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { apiClient } from '../api/client'
+import { compressImage } from '../utils/imageCompressor'
 
 interface MediaItem {
   id: string
@@ -195,6 +204,7 @@ interface UploadItem {
 }
 
 const uploadQueue = ref<UploadItem[]>([])
+const uploadProgress = ref(0)
 
 const categories = [
   { id: 'all', name: '全部' },
@@ -237,25 +247,54 @@ const handleDrop = (e: DragEvent) => {
   }
 }
 
-const addFiles = (files: File[]) => {
+const addFiles = async (files: File[]) => {
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
-    const preview = URL.createObjectURL(file)
-    uploadQueue.value.push({
-      file,
-      preview,
-      status: 'pending'
-    })
+
+    try {
+      // Compress large images
+      let processedFile = file
+      if (file.size > 1024 * 1024) { // > 1MB
+        processedFile = await compressImage(file, {
+          maxWidth: 1920,
+          maxHeight: 1080,
+          quality: 0.85
+        })
+      }
+
+      const preview = URL.createObjectURL(processedFile)
+      uploadQueue.value.push({
+        file: processedFile,
+        preview,
+        status: 'pending'
+      })
+    } catch (e) {
+      console.warn('Failed to compress image:', e)
+      // Use original if compression fails
+      const preview = URL.createObjectURL(file)
+      uploadQueue.value.push({
+        file,
+        preview,
+        status: 'pending'
+      })
+    }
   }
 }
 
 const startUpload = async () => {
+  const total = uploadQueue.value.filter(i => i.status === 'pending').length
+  let completed = 0
+
   for (const item of uploadQueue.value) {
     if (item.status !== 'pending') continue
     item.status = 'uploading'
 
     // 模拟上传
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // 更新进度
+    completed++
+    uploadProgress.value = Math.round((completed / total) * 100))
 
     // 模拟成功
     const newMedia: MediaItem = {
@@ -273,6 +312,7 @@ const startUpload = async () => {
   setTimeout(() => {
     showUpload.value = false
     uploadQueue.value = []
+    uploadProgress.value = 0
   }, 500)
 }
 
@@ -500,6 +540,34 @@ const useForPPT = (item: MediaItem) => {
 .status-uploading { color: #165DFF; }
 .status-done { color: #34C759; }
 .status-error { color: #FF3B30; }
+
+/* Upload Progress */
+.upload-progress {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.upload-progress .progress-bar {
+  height: 6px;
+  background: #e5e5e5;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.upload-progress .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #165DFF, #5AC8FA);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.upload-progress .progress-text {
+  font-size: 13px;
+  color: #666;
+}
 
 /* Category */
 .category-tabs {
