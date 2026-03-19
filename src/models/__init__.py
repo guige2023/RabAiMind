@@ -52,13 +52,17 @@ class TemplateType(str, Enum):
 
 
 class TextStyleType(str, Enum):
-    """文字样式类型"""
+    """文字样式类型 - 与前端 constants.ts 保持同步"""
     TRANSPARENT_OVERLAY = "transparent_overlay"  # 半透明遮罩
-    SHADOW = "shadow"  # 文字阴影/描边
+    SHADOW = "shadow"  # 文字阴影
+    GLOW = "glow"  # 发光效果
+    OUTLINE = "outline"  # 描边效果
+    GRADIENT = "gradient"  # 渐变文字
+    NEON = "neon"  # 霓虹灯效
 
 
 class LayoutType(str, Enum):
-    """布局类型"""
+    """布局类型 - 与前端 constants.ts 保持同步"""
     TITLE_SLIDE = "title_slide"  # 封面
     CONTENT_CARD = "content_card"  # 卡片
     TWO_COLUMN = "two_column"  # 双栏
@@ -67,6 +71,10 @@ class LayoutType(str, Enum):
     DATA_VISUALIZATION = "data_visualization"  # 数据可视化
     QUOTE = "quote"  # 金句
     COMPARISON = "comparison"  # 对比
+    MASONRY = "masonry"  # 瀑布流
+    FULL_IMAGE = "full_image"  # 全屏图
+    PROCESS = "process"  # 流程图
+    TEAM = "team"  # 团队介绍
 
 
 # ==================== 请求模型 ====================
@@ -106,6 +114,15 @@ class GenerateRequest(BaseModel):
     include_bar_chart: bool = Field(default=True, description="是否包含柱状图")
     include_line_chart: bool = Field(default=False, description="是否包含折线图")
     add_watermark: bool = Field(default=False, description="是否添加水印")
+    # 字体系统4级设置
+    font_title: Optional[str] = Field(default="思源黑体", description="一级字体（标题）")
+    font_subtitle: Optional[str] = Field(default="思源黑体", description="二级字体（副标题）")
+    font_content: Optional[str] = Field(default="思源宋体", description="三级字体（正文）")
+    font_caption: Optional[str] = Field(default="思源黑体", description="四级字体（注释）")
+    # 生成模式
+    generation_mode: Optional[str] = Field(default="standard", description="生成模式: standard/fast/quality/stream")
+    output_format: Optional[str] = Field(default="pptx", description="输出格式: pptx/pdf/svg/png")
+    quality: Optional[str] = Field(default="standard", description="输出质量: standard/high/ultra")
 
 
 # ==================== 响应模型 ====================

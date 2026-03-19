@@ -367,6 +367,70 @@
           </div>
         </div>
 
+        <!-- 生成模式选择 -->
+        <div class="form-section">
+          <label class="form-label">
+            生成模式
+            <span class="label-tip">选择生成速度和输出质量</span>
+          </label>
+          <div class="generation-mode-grid">
+            <div
+              v-for="mode in generationModeOptions"
+              :key="mode.value"
+              class="generation-mode-card"
+              :class="{ active: formData.generationMode === mode.value }"
+              @click="formData.generationMode = mode.value"
+            >
+              <span class="mode-icon">{{ mode.icon }}</span>
+              <span class="mode-name">{{ mode.name }}</span>
+              <span class="mode-desc">{{ mode.desc }}</span>
+              <span class="mode-time">{{ mode.time }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 输出格式选择 -->
+        <div class="form-section">
+          <label class="form-label">
+            输出格式
+            <span class="label-tip">选择导出文件格式</span>
+          </label>
+          <div class="output-format-grid">
+            <div
+              v-for="fmt in outputFormatOptions"
+              :key="fmt.value"
+              class="output-format-card"
+              :class="{ active: formData.outputFormat === fmt.value }"
+              @click="formData.outputFormat = fmt.value"
+            >
+              <span class="format-icon">{{ fmt.icon }}</span>
+              <span class="format-name">{{ fmt.name }}</span>
+              <span class="format-desc">{{ fmt.desc }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 质量选择 -->
+        <div class="form-section">
+          <label class="form-label">
+            输出质量
+            <span class="label-tip">选择输出分辨率</span>
+          </label>
+          <div class="quality-toggle">
+            <div
+              v-for="q in qualityOptions"
+              :key="q.value"
+              class="quality-option"
+              :class="{ active: formData.quality === q.value }"
+              @click="formData.quality = q.value"
+            >
+              <span class="quality-name">{{ q.name }}</span>
+              <span class="quality-dpi">{{ q.dpi }}</span>
+              <span class="quality-desc">{{ q.desc }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 背景颜色设置 -->
         <div class="form-section" v-if="formData.useSmartLayout">
           <label class="form-label">页面背景设置</label>
@@ -603,6 +667,10 @@ const formData = ref<{
   fontContent: string
   fontCaption: string
   fontLevel: number
+  // 生成模式
+  generationMode: string
+  outputFormat: string
+  quality: string
 }>({
   userRequest: '',
   slideCount: 10,
@@ -612,6 +680,10 @@ const formData = ref<{
   themeColor: '#165DFF',
   textStyle: 'transparent_overlay',
   shadowColor: '#000000',
+  // 生成模式
+  generationMode: 'standard',
+  outputFormat: 'pptx',
+  quality: 'standard',
   overlayTransparency: 30,
   useSmartLayout: false,
   backgroundMode: '统一',  // 统一或自定义
@@ -901,6 +973,29 @@ const backgroundColors = [
 ]
 
 // 布局类型选项
+// 生成模式选项
+const generationModeOptions = [
+  { value: 'standard', name: '标准模式', icon: '⚡', desc: '平衡速度和质量，适合大多数场景', time: '约3-5分钟' },
+  { value: 'fast', name: '快速模式', icon: '🚀', desc: '快速生成，适合预览和初稿', time: '约1-2分钟' },
+  { value: 'quality', name: '高清模式', icon: '🎬', desc: '高清输出，适合正式演示', time: '约8-10分钟' },
+  { value: 'stream', name: '流式模式', icon: '🌊', desc: '实时流式输出，边生成边预览', time: '实时' }
+]
+
+// 输出格式选项
+const outputFormatOptions = [
+  { value: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint格式，可编辑' },
+  { value: 'pdf', name: 'PDF', icon: '📄', desc: 'PDF格式，便于分享' },
+  { value: 'svg', name: 'SVG', icon: '🎨', desc: '矢量格式，高清无损' },
+  { value: 'png', name: 'PNG', icon: '🖼️', desc: '图片格式，高清图片' }
+]
+
+// 质量选项
+const qualityOptions = [
+  { value: 'standard', name: '标准', dpi: '1080p', desc: '适合屏幕展示' },
+  { value: 'high', name: '高清', dpi: '1440p', desc: '适合大屏展示' },
+  { value: 'ultra', name: '超清', dpi: '4K', desc: '适合打印输出' }
+]
+
 const layoutOptions = [
   { value: 'title_slide', name: '封面', icon: '📄', desc: '标题封面页', preview: 'full' },
   { value: 'content_card', name: '卡片', icon: '🃏', desc: '内容卡片布局', preview: 'card' },
