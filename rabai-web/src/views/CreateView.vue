@@ -188,6 +188,107 @@
           </div>
         </div>
 
+        <!-- 字体系统 - 4级字体设置 -->
+        <div class="form-section">
+          <label class="form-label">
+            字体系统
+            <span class="label-tip">4级字体设置</span>
+          </label>
+
+          <!-- 字体级别选择 -->
+          <div class="font-level-tabs">
+            <button
+              v-for="level in fontLevelOptions"
+              :key="level.value"
+              class="font-level-btn"
+              :class="{ active: formData.fontLevel === level.value }"
+              @click="formData.fontLevel = level.value"
+            >
+              <span class="level-num">{{ level.value }}</span>
+              <span class="level-name">{{ level.name }}</span>
+            </button>
+          </div>
+
+          <!-- 字体选择 -->
+          <div class="font-select-grid">
+            <!-- 一级字体 -->
+            <div v-if="formData.fontLevel === 1" class="font-select-group">
+              <label class="form-label-sub">一级字体（标题）</label>
+              <div class="font-options">
+                <div
+                  v-for="font in fontFamilyOptions"
+                  :key="font.value"
+                  class="font-option"
+                  :class="{ active: formData.fontTitle === font.value }"
+                  @click="formData.fontTitle = font.value"
+                >
+                  <span class="font-name" :style="{ fontFamily: font.value }">{{ font.name }}</span>
+                  <span class="font-desc">{{ font.desc }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 二级字体 -->
+            <div v-if="formData.fontLevel === 2" class="font-select-group">
+              <label class="form-label-sub">二级字体（副标题）</label>
+              <div class="font-options">
+                <div
+                  v-for="font in fontFamilyOptions"
+                  :key="font.value"
+                  class="font-option"
+                  :class="{ active: formData.fontSubtitle === font.value }"
+                  @click="formData.fontSubtitle = font.value"
+                >
+                  <span class="font-name" :style="{ fontFamily: font.value }">{{ font.name }}</span>
+                  <span class="font-desc">{{ font.desc }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 三级字体 -->
+            <div v-if="formData.fontLevel === 3" class="font-select-group">
+              <label class="form-label-sub">三级字体（正文）</label>
+              <div class="font-options">
+                <div
+                  v-for="font in fontFamilyOptions"
+                  :key="font.value"
+                  class="font-option"
+                  :class="{ active: formData.fontContent === font.value }"
+                  @click="formData.fontContent = font.value"
+                >
+                  <span class="font-name" :style="{ fontFamily: font.value }">{{ font.name }}</span>
+                  <span class="font-desc">{{ font.desc }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 四级字体 -->
+            <div v-if="formData.fontLevel === 4" class="font-select-group">
+              <label class="form-label-sub">四级字体（注释）</label>
+              <div class="font-options">
+                <div
+                  v-for="font in fontFamilyOptions"
+                  :key="font.value"
+                  class="font-option"
+                  :class="{ active: formData.fontCaption === font.value }"
+                  @click="formData.fontCaption = font.value"
+                >
+                  <span class="font-name" :style="{ fontFamily: font.value }">{{ font.name }}</span>
+                  <span class="font-desc">{{ font.desc }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 字体预览 -->
+          <div class="font-preview" :style="{ fontFamily: getCurrentFont() }">
+            <div class="preview-title" :style="{ fontFamily: formData.fontTitle }">演示文稿标题</div>
+            <div class="preview-subtitle" :style="{ fontFamily: formData.fontSubtitle }">副标题示例文本</div>
+            <div class="preview-content" :style="{ fontFamily: formData.fontContent }">这是正文内容，用于展示主要信息和详细描述。</div>
+            <div class="preview-caption" :style="{ fontFamily: formData.fontCaption }">这是注释说明</div>
+          </div>
+        </div>
+
         <!-- 文字样式方案 -->
         <div class="form-section">
           <label class="form-label">文字样式方案</label>
@@ -496,6 +597,12 @@ const formData = ref<{
   includeBarChart: boolean
   includeLineChart: boolean
   addWatermark: boolean
+  // 字体系统4级设置
+  fontTitle: string
+  fontSubtitle: string
+  fontContent: string
+  fontCaption: string
+  fontLevel: number
 }>({
   userRequest: '',
   slideCount: 10,
@@ -510,6 +617,12 @@ const formData = ref<{
   backgroundMode: '统一',  // 统一或自定义
   unifiedBackground: '#165DFF',  // 统一背景色
   slideBackgrounds: [],  // 每页背景色数组
+  // 字体系统4级设置
+  fontTitle: '思源黑体',
+  fontSubtitle: '思源黑体',
+  fontContent: '思源宋体',
+  fontCaption: '思源黑体',
+  fontLevel: 1,
   layoutMode: '统一',  // 统一或自定义
   unifiedLayout: 'content_card',  // 统一布局
   slideLayouts: [],  // 每页布局数组
@@ -610,6 +723,17 @@ const getRecValueName = (rec: any) => {
   return rec.value
 }
 
+// 获取当前字体级别对应的字体
+const getCurrentFont = () => {
+  const levelMap: Record<number, string> = {
+    1: formData.value.fontTitle,
+    2: formData.value.fontSubtitle,
+    3: formData.value.fontContent,
+    4: formData.value.fontCaption
+  }
+  return levelMap[formData.value.fontLevel] || '思源黑体'
+}
+
 // 错误弹窗状态
 const showErrorModal = ref(false)
 const errorMessage = ref('')
@@ -660,6 +784,26 @@ const getFriendlyError = (error: any): { message: string; type: 'network' | 'val
     type: 'server'
   }
 }
+
+// 字体系统选项 - 4级字体设置
+const fontLevelOptions = [
+  { value: 1, name: '一级字体', desc: '标题字体', font: '思源黑体 Bold', size: '56px' },
+  { value: 2, name: '二级字体', desc: '副标题字体', font: '思源黑体 Medium', size: '40px' },
+  { value: 3, name: '三级字体', desc: '正文字体', font: '思源宋体 Regular', size: '24px' },
+  { value: 4, name: '四级字体', desc: '注释字体', font: '思源黑体 Light', size: '16px' }
+]
+
+// 字体族选项
+const fontFamilyOptions = [
+  { value: '思源黑体', name: '思源黑体', desc: '现代黑体，适合标题' },
+  { value: '思源宋体', name: '思源宋体', desc: '传统宋体，适合正文' },
+  { value: 'Noto Sans SC', name: 'Noto Sans', desc: '无衬线字体' },
+  { value: 'Noto Serif SC', name: 'Noto Serif', desc: '衬线字体' },
+  { value: '阿里巴巴普惠体', name: '阿里巴巴普惠体', desc: '阿里免费字体' },
+  { value: '站酷高端黑', name: '站酷高端黑', desc: '创意黑体' },
+  { value: '站酷快乐体', name: '站酷快乐体', desc: '手写风格' },
+  { value: 'OPPOSans', name: 'OPPO Sans', desc: 'OPPO字体' }
+]
 
 // 主题色选项
 const themeColors = [
@@ -860,7 +1004,12 @@ const handleSubmit = async () => {
       include_pie_chart: formData.value.includePieChart,
       include_bar_chart: formData.value.includeBarChart,
       include_line_chart: formData.value.includeLineChart,
-      add_watermark: formData.value.addWatermark
+      add_watermark: formData.value.addWatermark,
+      // 字体系统4级设置
+      font_title: formData.value.fontTitle,
+      font_subtitle: formData.value.fontSubtitle,
+      font_content: formData.value.fontContent,
+      font_caption: formData.value.fontCaption
     })
 
     const { task_id } = response.data
@@ -1770,5 +1919,132 @@ useKeyboardShortcuts([
   display: flex;
   gap: 12px;
   justify-content: center;
+}
+
+/* 字体系统样式 */
+.font-level-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.font-level-btn {
+  flex: 1;
+  padding: 12px 16px;
+  background: #f5f5f5;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.font-level-btn:hover {
+  background: #e5e5e5;
+}
+
+.font-level-btn.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+}
+
+.level-num {
+  font-size: 18px;
+  font-weight: bold;
+  color: #165DFF;
+}
+
+.level-name {
+  font-size: 12px;
+  color: #666;
+}
+
+.font-select-grid {
+  margin-bottom: 16px;
+}
+
+.font-select-group {
+  margin-bottom: 12px;
+}
+
+.form-label-sub {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.font-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.font-option {
+  padding: 12px;
+  background: #f9f9f9;
+  border: 2px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.font-option:hover {
+  background: #f0f0f0;
+  border-color: #ddd;
+}
+
+.font-option.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+}
+
+.font-option .font-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.font-option .font-desc {
+  font-size: 11px;
+  color: #999;
+}
+
+.font-preview {
+  padding: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-radius: 12px;
+  color: white;
+}
+
+.font-preview .preview-title {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.font-preview .preview-subtitle {
+  font-size: 20px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.font-preview .preview-content {
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+.font-preview .preview-caption {
+  font-size: 12px;
+  opacity: 0.6;
 }
 </style>
