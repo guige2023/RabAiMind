@@ -86,6 +86,14 @@
           <div class="failed-icon">😔</div>
           <h2 class="result-title">生成失败</h2>
           <p class="result-error">{{ errorMessage }}</p>
+          <div class="error-suggestions">
+            <p class="suggestion-title">可能的原因：</p>
+            <ul class="suggestion-list">
+              <li>网络不稳定，请检查网络连接</li>
+              <li>服务器繁忙，请稍后重试</li>
+              <li>内容包含敏感词，请修改后重试</li>
+            </ul>
+          </div>
 
           <div class="result-actions">
             <button class="btn btn-primary btn-lg" @click="handleRetry">
@@ -416,10 +424,36 @@ onMounted(() => {
 .result-error {
   font-size: 14px;
   color: #FF3B30;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
   padding: 12px;
   background: #FFEBEE;
   border-radius: 8px;
+}
+
+.error-suggestions {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.suggestion-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.suggestion-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #888;
+}
+
+.suggestion-list li {
+  margin-bottom: 4px;
 }
 
 /* 加载状态 */

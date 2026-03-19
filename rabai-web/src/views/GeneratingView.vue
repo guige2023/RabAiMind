@@ -18,6 +18,7 @@
           </div>
           <div class="progress-info">
             <span class="progress-percent">{{ progress }}%</span>
+            <span class="progress-time" v-if="progress > 0 && progress < 100">预计剩余 {{ estimatedTime }} 秒</span>
           </div>
         </div>
 
@@ -75,6 +76,13 @@ const currentStepKey = ref('init')
 const showErrorModal = ref(false)
 const showError = ref('')
 const errorCount = ref(0)
+const startTime = ref(Date.now())
+const estimatedTime = computed(() => {
+  if (progress.value <= 0) return 60
+  const elapsed = (Date.now() - startTime.value) / 1000
+  const total = elapsed / (progress.value / 100)
+  return Math.max(5, Math.round(total - elapsed))
+})
 
 // 步骤定义
 const steps = [
@@ -276,12 +284,20 @@ onUnmounted(() => {
 .progress-info {
   margin-top: 12px;
   text-align: right;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .progress-percent {
   font-size: 14px;
   font-weight: 600;
   color: #165DFF;
+}
+
+.progress-time {
+  font-size: 13px;
+  color: #999;
 }
 
 .steps {

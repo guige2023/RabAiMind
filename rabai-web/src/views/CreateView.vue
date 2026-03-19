@@ -9,7 +9,10 @@
       <div class="create-form">
         <!-- 需求输入 -->
         <div class="form-section">
-          <label class="form-label">需求描述</label>
+          <label class="form-label">
+            需求描述
+            <span class="label-tip">描述越详细，生成效果越好</span>
+          </label>
           <textarea
             v-model="formData.userRequest"
             class="input textarea"
@@ -18,6 +21,13 @@
             rows="5"
             @input="validateRequest"
           ></textarea>
+          <!-- 快速示例 -->
+          <div class="quick-examples" v-if="!formData.userRequest">
+            <span class="tip-label">试试这些：</span>
+            <button class="example-btn" @click="formData.userRequest = '创建一份产品发布会的PPT，包含产品介绍、功能演示、定价策略、市场目标等，10页左右'">产品发布会</button>
+            <button class="example-btn" @click="formData.userRequest = '制作年度工作总结PPT，包含年度回顾、业绩数据、团队成就、明年计划，8页'">年度总结</button>
+            <button class="example-btn" @click="formData.userRequest = '创建公司介绍PPT，包含公司背景、核心业务、竞争优势、发展愿景，12页'">公司介绍</button>
+          </div>
           <div class="form-hint">
             <span v-if="errors.userRequest" class="text-error">{{ errors.userRequest }}</span>
             <span class="text-muted">{{ formData.userRequest.length }} / 2000</span>
@@ -685,6 +695,42 @@ onMounted(() => {
   justify-content: space-between;
   margin-top: 8px;
   font-size: 13px;
+}
+
+.label-tip {
+  font-size: 12px;
+  font-weight: normal;
+  color: #999;
+  margin-left: 8px;
+}
+
+.quick-examples {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.tip-label {
+  font-size: 13px;
+  color: #999;
+}
+
+.example-btn {
+  padding: 4px 12px;
+  background: #f0f7ff;
+  border: 1px solid #d0e8ff;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #165DFF;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.example-btn:hover {
+  background: #e0f0ff;
+  border-color: #165DFF;
 }
 
 .form-row {
