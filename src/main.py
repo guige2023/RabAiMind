@@ -8,9 +8,9 @@ RabAi Mind API 主入口
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api import api_router
-from src.config import settings
-from src.utils import setup_logger
+from .api import api_router
+from .config import settings
+from .utils import setup_logger
 
 # 配置日志
 logger = setup_logger("api")

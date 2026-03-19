@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 import asyncio
 import time
 
-from src.models import (
+from ...models import (
     GenerateRequest,
     GenerateResponse,
     TaskStatusResponse,
@@ -26,8 +26,8 @@ from src.models import (
     StyleType,
     LayoutType
 )
-from src.services.task_manager import get_task_manager
-from src.services.ppt_generator import get_ppt_generator
+from ...services.task_manager import get_task_manager
+from ...services.ppt_generator import get_ppt_generator
 
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])

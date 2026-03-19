@@ -7,8 +7,8 @@ API 路由初始化
 """
 
 from fastapi import APIRouter
-from src.api.routes.ppt import router as ppt_router
-from src.api.routes.template import router as template_router
+from .routes.ppt import router as ppt_router
+from .routes.template import router as template_router
 
 # 创建主路由
 api_router = APIRouter()

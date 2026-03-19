@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 from pydantic import BaseModel
 
-from src.services.template_manager import get_template_manager, Template
+from ...services.template_manager import get_template_manager, Template
 
 
 router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
