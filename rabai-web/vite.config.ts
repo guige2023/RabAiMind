@@ -63,8 +63,6 @@ export default defineConfig({
         }
       }
     },
-    // 启用tree shaking
-    treeShaking: true,
     // Optimize chunk size
     chunkSizeWarningLimit: 500,
     // Minify with esbuild (faster than terser)
