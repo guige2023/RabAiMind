@@ -96,10 +96,16 @@
           <div class="form-section">
             <label class="form-label">视觉风格</label>
             <select v-model="formData.style" class="input select">
-              <option value="professional">专业商务</option>
-              <option value="simple">简约现代</option>
-              <option value="energetic">活力动感</option>
-              <option value="premium">高端大气</option>
+              <option value="professional">💼 专业商务</option>
+              <option value="simple">✨ 简约现代</option>
+              <option value="energetic">🔥 活力动感</option>
+              <option value="premium">👑 高端大气</option>
+              <option value="tech">🚀 科技未来</option>
+              <option value="creative">🎨 创意艺术</option>
+              <option value="elegant">🌸 优雅古典</option>
+              <option value="playful">🎮 卡通趣味</option>
+              <option value="nature">🌿 自然清新</option>
+              <option value="minimalist">⬜ 极简留白</option>
             </select>
           </div>
 

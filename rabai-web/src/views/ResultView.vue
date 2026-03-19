@@ -1274,8 +1274,8 @@ onMounted(() => {
 /* 移动端适配 */
 @media (max-width: 768px) {
   .result-card {
-    margin: 20px;
-    padding: 24px 16px;
+    margin: 16px;
+    padding: 20px 16px;
   }
 
   .success-icon {
@@ -1283,29 +1283,89 @@ onMounted(() => {
   }
 
   .result-title {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .file-info {
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px;
   }
 
   .result-actions {
     flex-direction: column;
+    gap: 10px;
   }
 
   .btn-lg {
     width: 100%;
     justify-content: center;
+    padding: 12px 16px;
+    font-size: 14px;
   }
 
   .export-menu {
+    padding: 12px;
+  }
+
+  .format-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-options {
+    gap: 8px;
+  }
+
+  .quality-option {
+    padding: 10px;
+  }
+
+  .quality-name {
+    min-width: 36px;
+    font-size: 12px;
+  }
+
+  .quality-desc {
+    font-size: 11px;
+  }
+
+  .export-confirm-btn {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .export-others {
     flex-direction: column;
+  }
+
+  .export-option {
+    padding: 12px;
+    font-size: 13px;
   }
 
   .preview-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .content-edit-panel {
+    padding: 16px;
+  }
+
+  .edit-slides {
+    grid-template-columns: 1fr;
+    max-height: 300px;
+  }
+
+  .edit-slide-card {
+    padding: 12px;
+  }
+
+  .edit-actions {
+    flex-direction: column;
+  }
+
+  .edit-actions .btn {
+    width: 100%;
   }
 }
 </style>

@@ -223,7 +223,7 @@ const generateOutline = async () => {
 const loadTemplate = () => {
   const templates: { name: string; slides: Slide[] }[] = [
     {
-      name: '商业计划书',
+      name: '1. 商业计划书',
       slides: [
         { id: generateId(), title: '公司介绍', content: '公司背景\n核心业务\n团队介绍', layout: 'title' as const },
         { id: generateId(), title: '市场分析', content: '行业规模\n目标用户\n竞争分析', layout: 'content' as const },
@@ -232,25 +232,72 @@ const loadTemplate = () => {
       ]
     },
     {
-      name: '产品发布',
+      name: '2. 产品发布会',
       slides: [
-        { id: generateId(), title: '新品发布', content: '产品名称\n发布主题', layout: 'title' as const },
+        { id: generateId(), title: '新品发布', content: '产品名称\n发布主题\n演讲嘉宾', layout: 'title' as const },
         { id: generateId(), title: '产品介绍', content: '核心功能\n创新亮点\n使用体验', layout: 'content' as const },
-        { id: generateId(), title: '定价策略', content: '价格方案\n优惠政策\n上市时间', layout: 'content' as const }
+        { id: generateId(), title: '产品演示', content: '演示环节\n互动问答', layout: 'image-right' as const },
+        { id: generateId(), title: '定价与上市', content: '价格方案\n优惠政策\n上市时间', layout: 'content' as const }
       ]
     },
     {
-      name: '培训课件',
+      name: '3. 培训课件',
       slides: [
         { id: generateId(), title: '培训主题', content: '培训目标\n课程大纲', layout: 'title' as const },
         { id: generateId(), title: '知识点一', content: '概念讲解\n案例分析', layout: 'content' as const },
         { id: generateId(), title: '知识点二', content: '方法论\n实践操作', layout: 'content' as const },
-        { id: generateId(), title: '总结', content: '要点回顾\n课后作业', layout: 'centered' as const }
+        { id: generateId(), title: '总结与问答', content: '要点回顾\n课后作业\n问答环节', layout: 'centered' as const }
+      ]
+    },
+    {
+      name: '4. 年度总结',
+      slides: [
+        { id: generateId(), title: '年度工作总结', content: '年度回顾\n核心成就', layout: 'title' as const },
+        { id: generateId(), title: '业绩数据', content: '关键指标\n同比分析\n环比趋势', layout: 'two-column' as const },
+        { id: generateId(), title: '团队成就', content: '团队建设\n人才培养\n文化建设', layout: 'content' as const },
+        { id: generateId(), title: '明年计划', content: '目标设定\n战略方向\n资源规划', layout: 'content' as const }
+      ]
+    },
+    {
+      name: '5. 项目汇报',
+      slides: [
+        { id: generateId(), title: '项目概述', content: '项目背景\n项目目标\n团队成员', layout: 'title' as const },
+        { id: generateId(), title: '项目进度', content: '里程碑\n已完成工作\n进行中工作', layout: 'content' as const },
+        { id: generateId(), title: '问题与解决', content: '遇到的问题\n解决方案\n风险控制', layout: 'two-column' as const },
+        { id: generateId(), title: '下一步计划', content: '后续安排\n资源需求\n预期成果', layout: 'content' as const }
+      ]
+    },
+    {
+      name: '6. 公司介绍',
+      slides: [
+        { id: generateId(), title: '公司介绍', content: '公司名称\n创立时间\n发展历程', layout: 'title' as const },
+        { id: generateId(), title: '核心业务', content: '主要产品\n服务领域\n客户群体', layout: 'content' as const },
+        { id: generateId(), title: '竞争优势', content: '技术优势\n团队优势\n资源优势', layout: 'two-column' as const },
+        { id: generateId(), title: '发展愿景', content: '战略目标\n未来规划\n合作期待', layout: 'centered' as const }
+      ]
+    },
+    {
+      name: '7. 融资路演',
+      slides: [
+        { id: generateId(), title: '融资计划', content: '项目名称\n融资轮次\n融资金额', layout: 'title' as const },
+        { id: generateId(), title: '商业模式', content: '产品定位\n盈利模式\n市场空间', layout: 'content' as const },
+        { id: generateId(), title: '竞争优势', content: '核心竞争力\n技术壁垒\n团队优势', layout: 'two-column' as const },
+        { id: generateId(), title: '融资用途', content: '资金分配\n使用计划\n预期回报', layout: 'content' as const },
+        { id: generateId(), title: '联系方式', content: '联系人\n电话\n邮箱', layout: 'centered' as const }
+      ]
+    },
+    {
+      name: '8. 党建汇报',
+      slides: [
+        { id: generateId(), title: '党建工作汇报', content: '党组织名称\n汇报时间', layout: 'title' as const },
+        { id: generateId(), title: '组织建设', content: '党员情况\n组织活动\n制度建设', layout: 'content' as const },
+        { id: generateId(), title: '思想建设', content: '理论学习\n主题教育\n思想动态', layout: 'content' as const },
+        { id: generateId(), title: '下一步计划', content: '工作目标\n重点任务', layout: 'centered' as const }
       ]
     }
   ]
 
-  const choice = prompt(`选择模板:\n${templates.map((t, i) => `${i + 1}. ${t.name}`).join('\n')}`)
+  const choice = prompt(`选择模板:\n${templates.map(t => t.name).join('\n')}`)
   const index = parseInt(choice || '0') - 1
   if (index >= 0 && index < templates.length) {
     outline.slides = templates[index].slides.map(s => ({ ...s, id: generateId() }))

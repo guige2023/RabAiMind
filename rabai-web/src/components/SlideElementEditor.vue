@@ -1107,4 +1107,111 @@ onUnmounted(() => {
 .btn-primary:hover {
   background: #0e42d2;
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .element-editor-panel {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .editor-header {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-left h3 {
+    font-size: 16px;
+  }
+
+  .editor-tip {
+    font-size: 11px;
+  }
+
+  .header-toolbar {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .toolbar-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .editor-content {
+    flex-direction: column;
+  }
+
+  .slides-list {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .slide-thumb {
+    min-width: 60px;
+  }
+
+  .thumb-preview {
+    height: 40px;
+  }
+
+  .edit-canvas {
+    padding: 10px;
+    min-height: 200px;
+  }
+
+  .canvas-slide {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .properties-panel {
+    width: 100%;
+    max-height: 200px;
+  }
+
+  .panel-content {
+    padding: 8px;
+  }
+
+  .prop-group {
+    margin-bottom: 8px;
+  }
+
+  .prop-label {
+    font-size: 11px;
+  }
+
+  .prop-input input {
+    padding: 4px 6px;
+    font-size: 12px;
+    width: 50px;
+  }
+
+  .prop-select {
+    padding: 4px;
+    font-size: 12px;
+  }
+
+  .color-input {
+    width: 30px;
+    height: 26px;
+  }
+
+  .editor-footer {
+    padding: 12px 16px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}
 </style>
