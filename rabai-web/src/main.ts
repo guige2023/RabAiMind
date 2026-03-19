@@ -8,6 +8,7 @@ import { trackPageLoad, reportWebVitals } from './utils/performance'
 const routes = [
   { path: '/', name: 'home', component: () => import('./views/HomeView.vue') },
   { path: '/create', name: 'create', component: () => import('./views/CreateView.vue') },
+  { path: '/outline', name: 'outline', component: () => import('./views/OutlineEditView.vue') },
   { path: '/generating', name: 'generating', component: () => import('./views/GeneratingView.vue') },
   { path: '/result', name: 'result', component: () => import('./views/ResultView.vue') },
   { path: '/media', name: 'media', component: () => import('./views/MediaLibraryView.vue') },

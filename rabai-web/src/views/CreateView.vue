@@ -408,6 +408,13 @@
         <!-- 提交按钮 -->
         <div class="form-actions">
           <button
+            class="btn btn-outline btn-lg"
+            :disabled="!isValid || isSubmitting"
+            @click="editOutline"
+          >
+            📝 编辑大纲
+          </button>
+          <button
             class="btn btn-primary btn-lg"
             :disabled="!isValid || isSubmitting"
             @click="handleSubmit"
@@ -746,6 +753,27 @@ const validateRequest = () => {
 const isValid = computed(() => {
   return formData.value.userRequest.length >= 10 && formData.value.userRequest.length <= 2000
 })
+
+// 编辑大纲
+const editOutline = () => {
+  validateRequest()
+  if (!isValid.value) return
+
+  // 保存当前表单数据
+  localStorage.setItem('ppt_outline_temp', JSON.stringify({
+    style: formData.value.style,
+    theme: formData.value.themeColor
+  }))
+
+  // 跳转到大纲编辑页面
+  router.push({
+    path: '/outline',
+    query: {
+      request: formData.value.userRequest,
+      style: formData.value.style
+    }
+  })
+}
 
 // 提交
 const handleSubmit = async () => {
@@ -1315,6 +1343,10 @@ useKeyboardShortcuts([
 .form-actions {
   margin-top: 36px;
   text-align: center;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .btn-lg {

@@ -76,44 +76,71 @@
 
           <!-- 导出菜单 -->
           <div v-if="showExportMenu" class="export-menu">
+            <!-- 导出格式选择 -->
+            <div class="export-format-section">
+              <div class="export-section-title">选择导出格式</div>
+              <div class="format-grid">
+                <label
+                  v-for="format in exportFormats"
+                  :key="format.id"
+                  class="format-option"
+                  :class="{ active: selectedFormat === format.id }"
+                >
+                  <input
+                    type="radio"
+                    :value="format.id"
+                    v-model="selectedFormat"
+                    class="format-radio"
+                  />
+                  <span class="format-icon">{{ format.icon }}</span>
+                  <span class="format-name">{{ format.name }}</span>
+                  <span class="format-desc">{{ format.desc }}</span>
+                </label>
+              </div>
+            </div>
+
             <!-- 主题切换 -->
             <div class="export-theme-toggle">
-              <button
-                class="theme-btn"
-                :class="{ active: exportTheme === 'light' }"
-                @click="exportTheme = 'light'"
-              >
-                ☀️ 亮色
+              <span class="export-section-title">主题风格</span>
+              <div class="theme-buttons">
+                <button
+                  class="theme-btn"
+                  :class="{ active: exportTheme === 'light' }"
+                  @click="exportTheme = 'light'"
+                >
+                  ☀️ 亮色
+                </button>
+                <button
+                  class="theme-btn"
+                  :class="{ active: exportTheme === 'dark' }"
+                  @click="exportTheme = 'dark'"
+                >
+                  🌙 暗色
+                </button>
+              </div>
+            </div>
+
+            <!-- 导出按钮 -->
+            <button
+              class="export-confirm-btn"
+              @click="handleExport"
+              :disabled="isExporting"
+            >
+              <span v-if="isExporting">导出中...</span>
+              <span v-else>📥 导出 {{ exportFormats.find(f => f.id === selectedFormat)?.name }}</span>
+            </button>
+
+            <!-- 其他选项 -->
+            <div class="export-others">
+              <button class="export-option" @click="handleBatchExport">
+                <span class="export-icon">📦</span>
+                <span>批量导出</span>
               </button>
-              <button
-                class="theme-btn"
-                :class="{ active: exportTheme === 'dark' }"
-                @click="exportTheme = 'dark'"
-              >
-                🌙 暗色
+              <button class="export-option" @click="handlePrint">
+                <span class="export-icon">🖨️</span>
+                <span>打印</span>
               </button>
             </div>
-            <!-- 批量导出 -->
-            <button class="export-option export-batch" @click="handleBatchExport">
-              <span class="export-icon">📦</span>
-              <span>批量导出 (PDF+图片)</span>
-            </button>
-            <button class="export-option" @click="handleExportPDF">
-              <span class="export-icon">📕</span>
-              <span>导出 PDF</span>
-            </button>
-            <button class="export-option" @click="handleExportImages">
-              <span class="export-icon">🖼️</span>
-              <span>导出图片</span>
-            </button>
-            <button class="export-option" @click="handleExportHTML">
-              <span class="export-icon">🌐</span>
-              <span>导出 HTML</span>
-            </button>
-            <button class="export-option" @click="handlePrint">
-              <span class="export-icon">🖨️</span>
-              <span>打印</span>
-            </button>
           </div>
 
           <!-- 分享菜单 -->
@@ -189,6 +216,35 @@ const previewLoaded = ref(false)
 const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
+
+// 导出格式选项
+type ExportFormat = 'pptx' | 'pdf' | 'images' | 'html'
+const selectedFormat = ref<ExportFormat>('pptx')
+const isExporting = ref(false)
+
+const exportFormats = [
+  { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx' },
+  { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf' },
+  { id: 'images', name: '图片', icon: '🖼️', desc: 'PNG高清图片', ext: '.zip' },
+  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html' }
+]
+
+const handleExport = () => {
+  switch (selectedFormat.value) {
+    case 'pptx':
+      handleDownload()
+      break
+    case 'pdf':
+      handleExportPDF()
+      break
+    case 'images':
+      handleExportImages()
+      break
+    case 'html':
+      handleExportHTML()
+      break
+  }
+}
 
 // Mock slides for presentation mode
 const presentationSlides = computed(() => {
@@ -271,12 +327,13 @@ const formatSize = (bytes: number): string => {
 
 // 下载
 const handleDownload = async () => {
-  if (!taskId.value) return
+  if (!taskId.value || isExporting.value) return
+
+  isExporting.value = true
+  showExportMenu.value = false
 
   try {
     const response = await api.ppt.downloadPpt(taskId.value)
-      responseType: 'blob'
-    })
 
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
@@ -287,7 +344,10 @@ const handleDownload = async () => {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
   } catch (error) {
+    console.error('下载失败:', error)
     alert('下载失败，请重试')
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -303,6 +363,9 @@ const handleNew = () => {
 
 // 导出 PDF
 const handleExportPDF = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
   showExportMenu.value = false
 
   try {
@@ -319,6 +382,8 @@ const handleExportPDF = async () => {
   } catch (error) {
     console.error('PDF导出失败:', error)
     alert('PDF导出功能暂不可用，请下载PPTX后使用Office转换')
+  } finally {
+    isExporting.value = false
   }
 }
 
@@ -330,14 +395,40 @@ const handleBatchExport = async () => {
 
 // 导出图片
 const handleExportImages = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
   showExportMenu.value = false
-  alert('图片导出功能开发中...')
+
+  try {
+    // 模拟导出图片（实际应该调用API）
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    alert('图片导出功能开发中，请期待更新')
+  } catch (error) {
+    console.error('图片导出失败:', error)
+    alert('图片导出失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 // 导出 HTML
 const handleExportHTML = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
   showExportMenu.value = false
-  alert('HTML导出功能开发中...')
+
+  try {
+    // 模拟导出HTML（实际应该调用API）
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    alert('HTML导出功能开发中，请期待更新')
+  } catch (error) {
+    console.error('HTML导出失败:', error)
+    alert('HTML导出失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
 }
 
 // 打印
@@ -657,13 +748,77 @@ onMounted(() => {
   border-radius: 12px;
 }
 
+.export-format-section {
+  margin-bottom: 12px;
+}
+
+.export-section-title {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.format-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  background: #fff;
+  border: 2px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.format-option:hover {
+  border-color: #b3b3b3;
+}
+
+.format-option.active {
+  border-color: var(--primary);
+  background: #f0f5ff;
+}
+
+.format-radio {
+  display: none;
+}
+
+.format-icon {
+  font-size: 24px;
+}
+
+.format-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.format-desc {
+  font-size: 11px;
+  color: #999;
+}
+
 .export-theme-toggle {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  justify-content: center;
   padding-bottom: 12px;
   border-bottom: 1px solid #e5e5e5;
   margin-bottom: 4px;
+}
+
+.theme-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }
 
 .theme-btn {
