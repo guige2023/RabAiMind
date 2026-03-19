@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './styles/main.css'
+import './styles/mobile.css'
 import { trackPageLoad, reportWebVitals } from './utils/performance'
 
 // 路由配置

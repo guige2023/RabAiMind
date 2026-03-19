@@ -1,0 +1,210 @@
+/* Mobile Responsive Styles - 移动端响应式样式补充 */
+
+@media (max-width: 768px) {
+  /* 通用移动端调整 */
+  .container {
+    padding: 0 16px;
+  }
+
+  /* 移动端隐藏 */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* 移动端显示 */
+  .show-mobile {
+    display: block !important;
+  }
+
+  /* 移动端文字大小 */
+  h1 { font-size: 28px; }
+  h2 { font-size: 24px; }
+  h3 { font-size: 20px; }
+  h4 { font-size: 18px; }
+  p { font-size: 14px; }
+
+  /* 移动端按钮 */
+  .btn {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+
+  .btn-lg {
+    padding: 14px 24px;
+    font-size: 16px;
+  }
+
+  /* 移动端卡片 */
+  .card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  /* 移动端输入框 */
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* 防止iOS缩放 */
+    padding: 12px;
+  }
+
+  /* 移动端网格 */
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* 移动端Flex */
+  .flex-row {
+    flex-direction: column;
+  }
+
+  /* 移动端间距 */
+  .gap-4 { gap: 12px; }
+  .gap-6 { gap: 16px; }
+  .gap-8 { gap: 20px; }
+
+  /* 移动端内边距 */
+  .p-4 { padding: 12px; }
+  .p-6 { padding: 16px; }
+  .p-8 { padding: 20px; }
+
+  /* 移动端外边距 */
+  .m-4 { margin: 12px; }
+  .m-6 { margin: 16px; }
+  .m-auto { margin: 16px auto; }
+}
+
+@media (max-width: 480px) {
+  /* 超小屏幕调整 */
+  .container {
+    padding: 0 12px;
+  }
+
+  h1 { font-size: 24px; }
+  h2 { font-size: 20px; }
+  h3 { font-size: 18px; }
+
+  /* 极小屏幕按钮 */
+  .btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .btn-lg {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+}
+
+/* 触摸友好 - 增加触摸目标大小 */
+@media (pointer: coarse) {
+  /* 确保可点击元素足够大 */
+  button,
+  a,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 触摸反馈 */
+  button:active,
+  a:active {
+    transform: scale(0.97);
+    opacity: 0.9;
+  }
+
+  /* 移除悬停效果 */
+  .hover\:bg-gray-100:hover {
+    background: transparent;
+  }
+}
+
+/* 安全区域适配 - iPhone X+ */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .safe-area-top {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+
+  .safe-area-left {
+    padding-left: max(16px, env(safe-area-inset-left));
+  }
+
+  .safe-area-right {
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
+
+/* 横向屏幕适配 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-hide {
+    display: none;
+  }
+
+  .landscape-compact {
+    padding: 8px;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    font-size: 12pt;
+  }
+
+  .card {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}
+
+/* 暗色模式增强 */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg-primary: #0A0A0A;
+    --bg-secondary: #1A1A1A;
+    --bg-tertiary: #2A2A2A;
+    --text-primary: #FFFFFF;
+    --text-secondary: #B0B0B0;
+    --border-color: #333333;
+  }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: more) {
+  :root {
+    --border-width: 2px;
+  }
+
+  .card {
+    border: 2px solid var(--border-color);
+  }
+
+  button,
+  a {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+}
+
+/* 减少动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

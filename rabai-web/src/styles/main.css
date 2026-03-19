@@ -891,3 +891,139 @@ button:focus-visible {
   align-items: center;
   justify-content: center;
 }
+
+/* === 更多动画效果 === */
+
+/* 浮动动画 */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* 震动动画 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* 缩放弹跳 */
+@keyframes scaleIn {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 文字打字机效果 */
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  0%, 100% { border-color: var(--primary); }
+  50% { border-color: transparent; }
+}
+
+/* 旋转放大 */
+@keyframes rotateScale {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* 渐变流动 */
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* 卡片悬停3D效果 */
+@keyframes cardHover3d {
+  0% { transform: perspective(1000px) rotateY(0deg); }
+  100% { transform: perspective(1000px) rotateY(10deg); }
+}
+
+/* 脉冲扩散 */
+@keyframes pulseExpand {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+/* 翻转 */
+@keyframes flip {
+  0% { transform: perspective(400px) rotateY(0); }
+  100% { transform: perspective(400px) rotateY(360deg); }
+}
+
+/* 滑入滑出 */
+@keyframes slideInUp {
+  0% { transform: translateY(100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideInDown {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* 动画类 */
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-shake { animation: shake 0.5s ease-in-out; }
+.animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+.animate-rotateScale { animation: rotateScale 1s ease-in-out; }
+.animate-gradientFlow { animation: gradientFlow 3s ease infinite; background-size: 200% 200%; }
+.animate-pulseExpand { animation: pulseExpand 1.5s ease-out infinite; }
+.animate-flip { animation: flip 0.8s ease-in-out; }
+.animate-slideInUp { animation: slideInUp 0.4s ease-out; }
+.animate-slideInDown { animation: slideInDown 0.4s ease-out; }
+
+/* 打字机效果 */
+.typing-effect {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typing 2s steps(30, end);
+}
+
+.typing-cursor {
+  border-right: 2px solid var(--primary);
+  animation: blink 0.75s step-end infinite;
+}
+
+/* 3D卡片效果 */
+.card-3d {
+  transition: transform 0.3s ease;
+  transform-style: preserve-3d;
+}
+
+.card-3d:hover {
+  transform: perspective(1000px) rotateY(5deg);
+}
+
+/* 响应式动画 - 减少移动端动画 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-shake,
+  .animate-scaleIn,
+  .animate-rotateScale,
+  .animate-gradientFlow,
+  .animate-pulseExpand,
+  .animate-flip,
+  .animate-slideInUp,
+  .animate-slideInDown {
+    animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .animate-float { animation: float 4s ease-in-out infinite; }
+}
+
+/* 移动端适配 - 隐藏不必要的动画 */
+@media (max-width: 480px) {
+  .animate-shake,
+  .animate-flip {
+    display: none;
+  }
+}
