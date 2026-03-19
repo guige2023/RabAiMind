@@ -13,6 +13,7 @@ const routes = [
   { path: '/result', name: 'result', component: () => import('./views/ResultView.vue') },
   { path: '/media', name: 'media', component: () => import('./views/MediaLibraryView.vue') },
   { path: '/history', name: 'history', component: () => import('./views/HistoryView.vue') },
+  { path: '/templates', name: 'templates', component: () => import('./views/TemplateMarketView.vue') },
 ]
 
 const router = createRouter({

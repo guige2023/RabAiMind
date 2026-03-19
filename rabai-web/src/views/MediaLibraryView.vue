@@ -294,7 +294,7 @@ const startUpload = async () => {
 
     // 更新进度
     completed++
-    uploadProgress.value = Math.round((completed / total) * 100))
+    uploadProgress.value = Math.round((completed / total) * 100)
 
     // 模拟成功
     const newMedia: MediaItem = {

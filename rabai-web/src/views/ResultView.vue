@@ -215,10 +215,9 @@
             </div>
           </div>
 
-            <button class="btn btn-lg btn-element-edit" @click="showElementEditor = true">
-              <span>🛠️</span> 元素微调
-            </button>
-          </div>
+          <button class="btn btn-lg btn-element-edit" @click="showElementEditor = true">
+            <span>🛠️</span> 元素微调
+          </button>
 
           <!-- 分享菜单 -->
           <div v-if="showShareMenu" class="share-menu">

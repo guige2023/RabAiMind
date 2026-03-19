@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
-import { classifyError } from '../utils/apiErrors'
+import apiErrors from '../utils/apiErrors'
+
+const { classifyError } = apiErrors
 
 // Create axios instance with optimized defaults
 const createApiClient = (): AxiosInstance => {

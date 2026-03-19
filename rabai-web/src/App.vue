@@ -3,6 +3,10 @@
     <!-- Skip to main content link for accessibility -->
     <a href="#main-content" class="skip-link">跳转到主要内容</a>
 
+    <!-- Global Search -->
+    <GlobalSearch ref="globalSearchRef" />
+    <UserOnboarding />
+
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
       <div class="loading-logo">✨</div>
@@ -21,9 +25,17 @@
           <nav class="nav">
             <router-link to="/" class="nav-link">首页</router-link>
             <router-link to="/create" class="nav-link">创建PPT</router-link>
+            <router-link to="/templates" class="nav-link">模板市场</router-link>
             <router-link to="/media" class="nav-link">素材库</router-link>
             <router-link to="/history" class="nav-link">历史</router-link>
           </nav>
+          <button class="search-trigger" @click="openGlobalSearch" title="搜索 (Ctrl+K)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <span class="search-hint">Ctrl+K</span>
+          </button>
           <LangSwitch />
           <ThemeSwitch />
           <Feedback />
@@ -48,8 +60,15 @@ import { ref, onMounted } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
+import GlobalSearch from './components/GlobalSearch.vue'
+import UserOnboarding from './components/UserOnboarding.vue'
 
 const isLoading = ref(true)
+const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
+
+const openGlobalSearch = () => {
+  globalSearchRef.value?.openSearch()
+}
 
 onMounted(() => {
   // Simulate initial load
@@ -204,6 +223,44 @@ onMounted(() => {
 .nav-link:hover::after,
 .nav-link.router-link-active::after {
   width: 100%;
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.search-trigger:hover {
+  background: #fff;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.search-trigger svg {
+  width: 18px;
+  height: 18px;
+}
+
+.search-hint {
+  font-size: 12px;
+  color: #888;
+}
+
+:global(.dark) .search-trigger {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+:global(.dark) .search-trigger:hover {
+  background: #333;
 }
 
 .main {
