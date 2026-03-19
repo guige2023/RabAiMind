@@ -7,12 +7,49 @@ interface PerformanceMetric {
   timestamp: number
 }
 
+interface WebVitalsMetric {
+  id: string
+  name: string
+  value: number
+  delta: number
+  rating?: 'good' | 'needs-improvement' | 'poor'
+}
+
 interface PerformanceReport {
   pageLoad: number
   firstPaint: number
   firstContentfulPaint: number
+  largestContentfulPaint: number
+  firstInputDelay: number
+  cumulativeLayoutShift: number
+  timeToInteractive: number
   domContentLoaded: number
   resourceTiming: PerformanceMetric[]
+}
+
+// 性能等级评估
+const getRating = (name: string, value: number): 'good' | 'needs-improvement' | 'poor' => {
+  const thresholds = {
+    // FCP (First Contentful Paint) - ms
+    'FCP': { good: 1800, poor: 3000 },
+    // LCP (Largest Contentful Paint) - ms
+    'LCP': { good: 2500, poor: 4000 },
+    // FID (First Input Delay) - ms
+    'FID': { good: 100, poor: 300 },
+    // CLS (Cumulative Layout Shift) - score
+    'CLS': { good: 0.1, poor: 0.25 },
+    // TTFB (Time to First Byte) - ms
+    'TTFB': { good: 800, poor: 1800 },
+    // INP (Interaction to Next Paint) - ms
+    'INP': { good: 200, poor: 500 }
+  }
+
+  const threshold = thresholds[name as keyof typeof thresholds]
+  if (!threshold) return 'good'
+
+  if (value <= threshold.good) return 'good'
+  if (value <= threshold.poor) return 'needs-improvement'
+  return 'poor'
 }
 
 // 图片懒加载指令
@@ -191,11 +228,28 @@ export const getPerformanceSummary = (): PerformanceReport | null => {
   const timing = window.performance.timing
   const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
 
+  // Get LCP
+  const lcpEntry = window.performance.getEntriesByType('largest-contentful-paint')[0] as any
+
+  // Get FID (First Input Delay)
+  const fidEntry = window.performance.getEntriesByType('first-input')[0] as any
+
+  // Get CLS (Cumulative Layout Shift)
+  let clsValue = 0
+  if ('LayoutShift' in window) {
+    const layoutShiftEntries = (window.performance as any).getEntriesByType('layout-shift') as any[]
+    clsValue = layoutShiftEntries.reduce((sum, entry) => sum + (entry.hadRecentInput ? 0 : entry.value), 0)
+  }
+
   return {
     pageLoad: navigation ? navigation.loadEventEnd - navigation.fetchStart : 0,
     firstPaint: window.performance.getEntriesByType('paint')[0]?.startTime || 0,
     firstContentfulPaint: window.performance.getEntriesByType('paint')
       .find((e) => e.name === 'first-contentful-paint')?.startTime || 0,
+    largestContentfulPaint: lcpEntry?.startTime || 0,
+    firstInputDelay: fidEntry?.processingStart - fidEntry?.startTime || 0,
+    cumulativeLayoutShift: clsValue,
+    timeToInteractive: navigation?.interactive ? navigation.loadEventEnd - navigation.fetchStart : 0,
     domContentLoaded: timing.domContentLoadedEventEnd - timing.fetchStart,
     resourceTiming: window.performance.getEntriesByType('resource').map((r) => ({
       name: r.name,
@@ -203,4 +257,97 @@ export const getPerformanceSummary = (): PerformanceReport | null => {
       timestamp: r.startTime
     }))
   }
+}
+
+// 发送性能数据到分析服务
+export const sendToAnalytics = (metric: WebVitalsMetric): void => {
+  // 开发环境只打印
+  if (isDev) {
+    console.log(`📈 Web Vitals [${metric.name}]: ${metric.value.toFixed(2)}ms (${metric.rating})`)
+    return
+  }
+
+  // 生产环境发送到分析服务
+  try {
+    // 可以发送到Google Analytics、Mixpanel等
+    if (typeof (window as any).gtag === 'function') {
+      (window as any).gtag('event', metric.name, {
+        event_category: 'Web Vitals',
+        event_label: metric.id,
+        value: Math.round(metric.value),
+        non_interaction: true
+      })
+    }
+  } catch (e) {
+    // 忽略发送失败
+  }
+}
+
+// 完整的Web Vitals监控
+export const initWebVitals = (): void => {
+  // 监控CLS
+  if ('LayoutShift' in window) {
+    const clsObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as any) {
+        if (!entry.hadRecentInput) {
+          const metric: WebVitalsMetric = {
+            id: 'cls',
+            name: 'CLS',
+            value: (window.performance as any).getEntriesByType('layout-shift')
+              .reduce((sum: number, e: any) => sum + (e.hadRecentInput ? 0 : e.value), 0),
+            delta: entry.value,
+            rating: getRating('CLS', entry.value)
+          }
+          sendToAnalytics(metric)
+        }
+      }
+    })
+    clsObserver.observe({ type: 'layout-shift', buffered: true })
+  }
+
+  // 监控LCP
+  const lcpObserver = new PerformanceObserver((list) => {
+    const entries = list.getEntries()
+    const lastEntry = entries[entries.length - 1] as any
+    const metric: WebVitalsMetric = {
+      id: 'lcp',
+      name: 'LCP',
+      value: lastEntry.startTime,
+      delta: lastEntry.startTime,
+      rating: getRating('LCP', lastEntry.startTime)
+    }
+    sendToAnalytics(metric)
+  })
+  lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })
+
+  // 监控INP
+  const inpObserver = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries() as any) {
+      if (entry.interactionId) {
+        const metric: WebVitalsMetric = {
+          id: 'inp',
+          name: 'INP',
+          value: entry.duration,
+          delta: entry.duration,
+          rating: getRating('INP', entry.duration)
+        }
+        sendToAnalytics(metric)
+      }
+    }
+  })
+  inpObserver.observe({ type: 'event', buffered: true, entryTypes: ['event'] })
+}
+
+// 获取慢请求列表
+export const getSlowRequests = (threshold = 1000): PerformanceMetric[] => {
+  if (!window.performance) return []
+
+  return window.performance.getEntriesByType('resource')
+    .filter(r => r.duration > threshold)
+    .map(r => ({
+      name: r.name,
+      value: r.duration,
+      timestamp: r.startTime
+    }))
+    .sort((a, b) => b.value - a.value)
 }
