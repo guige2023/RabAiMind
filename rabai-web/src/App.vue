@@ -9,6 +9,7 @@
     <AIChatPanel />
     <MobileNavDrawer ref="mobileNavRef" />
     <UserExperience ref="uxRef" />
+    <HelpCenter ref="helpRef" />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
@@ -50,6 +51,13 @@
           <LangSwitch />
           <ThemeSwitch />
           <Feedback />
+          <button class="help-btn" @click="openHelp" title="帮助">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <path d="M12 17h.01"/>
+            </svg>
+          </button>
         </div>
       </header>
       <main class="main" id="main-content" tabindex="-1">
@@ -76,11 +84,13 @@ import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
 import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import UserExperience from './components/UserExperience.vue'
+import HelpCenter from './components/HelpCenter.vue'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
+const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
 
 const openGlobalSearch = () => {
   globalSearchRef.value?.openSearch()
@@ -88,6 +98,10 @@ const openGlobalSearch = () => {
 
 const openMobileNav = () => {
   mobileNavRef.value?.open()
+}
+
+const openHelp = () => {
+  helpRef.value?.open()
 }
 
 onMounted(() => {
@@ -320,6 +334,43 @@ onMounted(() => {
 
 :global(.dark) .search-trigger:hover {
   background: #333;
+}
+
+.help-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.help-btn:hover {
+  background: #f0f0f0;
+}
+
+.help-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #666;
+}
+
+:global(.dark) .help-btn:hover {
+  background: #2a2a2a;
+}
+
+:global(.dark) .help-btn svg {
+  color: #aaa;
+}
+
+@media (max-width: 768px) {
+  .help-btn {
+    display: none;
+  }
 }
 
 .main {
