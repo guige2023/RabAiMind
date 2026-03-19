@@ -1,10 +1,19 @@
 import { ref, computed } from 'vue'
 
-interface Recommendation {
+export interface Recommendation {
+  id: string
   type: 'scene' | 'style' | 'template' | 'color' | 'structure' | 'quality'
   value: string
   reason: string
   confidence: number
+}
+
+export interface UserPreference {
+  industry: string
+  role: string
+  experience: 'beginner' | 'intermediate' | 'expert'
+  preferredStyles: string[]
+  recentTopics: string[]
 }
 
 // Keywords for analysis - expanded with more industries and scenarios
@@ -63,6 +72,77 @@ const structureRecommendations: Record<string, { layout: string[]; tips: string[
 export function useSmartRecommendation() {
   const recommendations = ref<Recommendation[]>([])
   const isAnalyzing = ref(false)
+  const userPreference = ref<UserPreference>({
+    industry: '',
+    role: '',
+    experience: 'intermediate',
+    preferredStyles: [],
+    recentTopics: []
+  })
+
+  // Load user preference
+  const loadPreference = (): void => {
+    try {
+      const saved = localStorage.getItem('user_preference')
+      if (saved) {
+        userPreference.value = { ...userPreference.value, ...JSON.parse(saved) }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Save user preference
+  const savePreference = (): void => {
+    try {
+      localStorage.setItem('user_preference', JSON.stringify(userPreference.value))
+    } catch {
+      // ignore
+    }
+  }
+
+  // Update preference
+  const updatePreference = (updates: Partial<UserPreference>): void => {
+    userPreference.value = { ...userPreference.value, ...updates }
+    savePreference()
+  }
+
+  // Add recent topic
+  const addRecentTopic = (topic: string): void => {
+    const recent = userPreference.value.recentTopics.filter(t => t !== topic)
+    recent.unshift(topic)
+    userPreference.value.recentTopics = recent.slice(0, 10)
+    savePreference()
+  }
+
+  // Recommend by preference
+  const recommendByPreference = (): Recommendation[] => {
+    const results: Recommendation[] = []
+
+    // Based on industry
+    if (userPreference.value.industry) {
+      results.push({
+        id: `industry_${userPreference.value.industry}`,
+        type: 'scene',
+        value: userPreference.value.industry,
+        reason: `根据您的行业推荐`,
+        confidence: 0.85
+      })
+    }
+
+    // Based on preferred styles
+    userPreference.value.preferredStyles.forEach(style => {
+      results.push({
+        id: `style_${style}`,
+        type: 'style',
+        value: style,
+        reason: `根据您的风格偏好`,
+        confidence: 0.8
+      })
+    })
+
+    return results
+  }
 
   // Analyze user request and generate recommendations
   const analyzeRequest = (request: string): Recommendation[] => {
@@ -213,8 +293,18 @@ export function useSmartRecommendation() {
   return {
     recommendations,
     isAnalyzing,
+    userPreference,
     analyzeRequest,
     getRecommendation,
-    applyRecommendations
+    applyRecommendations,
+    loadPreference,
+    savePreference,
+    updatePreference,
+    addRecentTopic,
+    recommendByPreference
   }
 }
+
+// Initialize preference on load
+const recommendation = useSmartRecommendation()
+recommendation.loadPreference()

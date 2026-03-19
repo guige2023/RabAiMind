@@ -6,6 +6,7 @@
     <!-- Global Search -->
     <GlobalSearch ref="globalSearchRef" />
     <UserOnboarding />
+    <AIChatPanel />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
@@ -62,6 +63,7 @@ import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import UserOnboarding from './components/UserOnboarding.vue'
+import AIChatPanel from './components/AIChatPanel.vue'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
