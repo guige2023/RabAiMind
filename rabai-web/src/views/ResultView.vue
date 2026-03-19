@@ -53,6 +53,9 @@
             <button class="btn btn-primary btn-lg" @click="handleDownload">
               <span>⬇️</span> 下载 PPT
             </button>
+            <button class="btn btn-lg btn-outline-edit" @click="toggleEditMode">
+              <span>📝</span> {{ isEditMode ? '完成编辑' : '编辑内容' }}
+            </button>
             <button class="btn btn-lg btn-presentation" @click="showPresentation = true">
               <span>🎬</span> 演示模式
             </button>
@@ -72,6 +75,52 @@
             <button class="btn btn-secondary btn-lg" @click="handleNew">
               <span>✨</span> 创建新的
             </button>
+          </div>
+
+          <!-- 内容编辑面板 -->
+          <div v-if="isEditMode" class="content-edit-panel">
+            <div class="edit-header">
+              <h3>编辑幻灯片内容</h3>
+              <p class="edit-tip">点击下方标题或内容进行编辑，修改后可重新生成</p>
+            </div>
+            <div class="edit-slides">
+              <div
+                v-for="(slide, index) in editableSlides"
+                :key="index"
+                class="edit-slide-card"
+              >
+                <div class="edit-slide-header">
+                  <span class="slide-num">第 {{ index + 1 }} 页</span>
+                  <select v-model="slide.layout" class="layout-select">
+                    <option value="title">标题页</option>
+                    <option value="content">内容页</option>
+                    <option value="two-column">双栏</option>
+                    <option value="image-left">左图右文</option>
+                    <option value="image-right">左文右图</option>
+                  </select>
+                </div>
+                <input
+                  v-model="slide.title"
+                  type="text"
+                  class="edit-slide-title"
+                  placeholder="幻灯片标题"
+                />
+                <textarea
+                  v-model="slide.content"
+                  class="edit-slide-content"
+                  placeholder="幻灯片内容，每行一个要点"
+                  rows="4"
+                ></textarea>
+              </div>
+            </div>
+            <div class="edit-actions">
+              <button class="btn btn-outline" @click="addEditSlide">
+                + 添加页面
+              </button>
+              <button class="btn btn-primary" @click="regenerateWithEdits" :disabled="isRegenerating">
+                {{ isRegenerating ? '重新生成中...' : '💾 重新生成PPT' }}
+              </button>
+            </div>
           </div>
 
           <!-- 导出菜单 -->
@@ -216,6 +265,77 @@ const previewLoaded = ref(false)
 const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
+
+// 内容编辑模式
+const isEditMode = ref(false)
+const isRegenerating = ref(false)
+const editableSlides = ref<{
+  title: string
+  content: string
+  layout: string
+}[]>([])
+
+// 切换编辑模式
+const toggleEditMode = () => {
+  if (!isEditMode.value) {
+    // 进入编辑模式，初始化可编辑数据
+    initEditableSlides()
+  }
+  isEditMode.value = !isEditMode.value
+}
+
+// 初始化可编辑的幻灯片数据
+const initEditableSlides = () => {
+  // 从本地存储或生成默认数据
+  const savedOutline = localStorage.getItem('ppt_outline')
+  if (savedOutline) {
+    const outline = JSON.parse(savedOutline)
+    editableSlides.value = outline.slides || []
+  } else {
+    // 生成默认的幻灯片结构
+    editableSlides.value = Array.from({ length: slideCount.value }, (_, i) => ({
+      title: i === 0 ? '封面标题' : `第 ${i + 1} 页标题`,
+      content: i === 0 ? '副标题\n演讲者信息' : '内容要点1\n内容要点2\n内容要点3',
+      layout: i === 0 ? 'title' : 'content'
+    }))
+  }
+}
+
+// 添加新页面
+const addEditSlide = () => {
+  editableSlides.value.push({
+    title: '',
+    content: '',
+    layout: 'content'
+  })
+}
+
+// 使用编辑的内容重新生成PPT
+const regenerateWithEdits = async () => {
+  isRegenerating.value = true
+
+  try {
+    // 保存编辑后的大纲
+    localStorage.setItem('ppt_outline', JSON.stringify({
+      slides: editableSlides.value,
+      style: 'professional',
+      theme: 'blue'
+    }))
+
+    // 跳转到生成页面
+    router.push({
+      path: '/generating',
+      query: {
+        taskId: taskId.value,
+        regenerate: 'true'
+      }
+    })
+  } catch (error) {
+    console.error('重新生成失败:', error)
+    alert('重新生成失败，请重试')
+    isRegenerating.value = false
+  }
+}
 
 // 导出格式选项
 type ExportFormat = 'pptx' | 'pdf' | 'images' | 'html'
@@ -735,6 +855,121 @@ onMounted(() => {
 
 .btn-favorite-active:hover {
   background: #ffe4b3;
+}
+
+.btn-outline-edit {
+  background: white;
+  border: 1px solid #165DFF;
+  color: #165DFF;
+}
+
+.btn-outline-edit:hover {
+  background: #EEF2FF;
+}
+
+/* 内容编辑面板 */
+.content-edit-panel {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.edit-header {
+  margin-bottom: 20px;
+}
+
+.edit-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px;
+}
+
+.edit-tip {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.edit-slides {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.edit-slide-card {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e5e5e5;
+}
+
+.edit-slide-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.slide-num {
+  font-size: 13px;
+  font-weight: 600;
+  color: #165DFF;
+}
+
+.layout-select {
+  padding: 4px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+  cursor: pointer;
+}
+
+.edit-slide-title {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 10px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.edit-slide-title:focus {
+  border-color: #165DFF;
+}
+
+.edit-slide-content {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.edit-slide-content:focus {
+  border-color: #165DFF;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
 }
 
 /* 导出菜单 */
