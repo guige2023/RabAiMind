@@ -1,1 +1,1 @@
-{"root":["./src/main.ts","./src/app.vue","./src/views/createview.vue","./src/views/generatingview.vue","./src/views/historyview.vue","./src/views/homeview.vue","./src/views/medialibraryview.vue","./src/views/resultview.vue"],"version":"5.7.3"}
+{"root":["./src/main.ts","./src/app.vue","./src/components/langswitch.vue","./src/views/createview.vue","./src/views/generatingview.vue","./src/views/historyview.vue","./src/views/homeview.vue","./src/views/medialibraryview.vue","./src/views/resultview.vue"],"version":"5.7.3"}

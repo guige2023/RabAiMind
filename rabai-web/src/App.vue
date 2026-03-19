@@ -12,6 +12,7 @@
           <router-link to="/media" class="nav-link">素材库</router-link>
           <router-link to="/history" class="nav-link">历史</router-link>
         </nav>
+        <LangSwitch />
       </div>
     </header>
     <main class="main">
@@ -28,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+import LangSwitch from './components/LangSwitch.vue'
 </script>
 
 <style scoped>
