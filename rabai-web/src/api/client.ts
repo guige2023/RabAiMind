@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import { classifyError } from '../utils/apiErrors'
 
 // Create axios instance with optimized defaults
 const createApiClient = (): AxiosInstance => {
@@ -20,17 +21,24 @@ const createApiClient = (): AxiosInstance => {
           _t: Date.now()
         }
       }
+      // Add loading state
+      document.body.classList.add('api-loading')
       return config
     },
     (error) => {
+      document.body.classList.remove('api-loading')
       return Promise.reject(error)
     }
   )
 
-  // Response interceptor with retry logic
+  // Response interceptor with retry logic and error handling
   client.interceptors.response.use(
-    (response) => response,
+    (response) => {
+      document.body.classList.remove('api-loading')
+      return response
+    },
     async (error) => {
+      document.body.classList.remove('api-loading')
       const config = error.config
 
       // Retry logic for network errors
@@ -46,9 +54,14 @@ const createApiClient = (): AxiosInstance => {
       ) {
         config.__retryCount++
         const delay = Math.pow(2, config.__retryCount) * 1000
+        console.log(`Retrying request (${config.__retryCount}/3) after ${delay}ms...`)
         await new Promise((resolve) => setTimeout(resolve, delay))
         return client(config)
       }
+
+      // Classify and enhance error
+      const classifiedError = classifyError(error)
+      error.classified = classifiedError
 
       return Promise.reject(error)
     }

@@ -1,27 +1,44 @@
-import { watch, onMounted, onUnmounted, Ref } from 'vue'
+import { watch, ref, Ref } from 'vue'
 
 interface AutoSaveOptions {
   key: string
   data: Ref<any>
   debounceMs?: number
   excludeKeys?: string[]
+  maxAge?: number // 草稿有效期（毫秒），默认24小时
 }
 
-export function useAutoSave({ key, data, debounceMs = 1000, excludeKeys = [] }: AutoSaveOptions) {
+interface DraftInfo {
+  data: any
+  savedAt: number
+  expiresAt: number
+}
+
+export function useAutoSave({ key, data, debounceMs = 2000, excludeKeys = [], maxAge = 24 * 60 * 60 * 1000 }: AutoSaveOptions) {
   const STORAGE_KEY = `ppt_draft_${key}`
+  const lastSavedTime = ref<number | null>(null)
+  const isSaving = ref(false)
 
   // Save to localStorage
   const saveDraft = () => {
+    isSaving.value = true
     try {
       const dataToSave = { ...data.value }
       // Exclude specified keys
       excludeKeys.forEach(k => delete dataToSave[k])
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+
+      const draftInfo: DraftInfo = {
         data: dataToSave,
-        savedAt: Date.now()
-      }))
+        savedAt: Date.now(),
+        expiresAt: Date.now() + maxAge
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draftInfo))
+      lastSavedTime.value = draftInfo.savedAt
     } catch (e) {
       console.warn('Failed to save draft:', e)
+    } finally {
+      isSaving.value = false
     }
   }
 
@@ -30,10 +47,14 @@ export function useAutoSave({ key, data, debounceMs = 1000, excludeKeys = [] }: 
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
-        const { data: savedData, savedAt } = JSON.parse(saved)
-        // Check if draft is less than 24 hours old
-        if (savedAt && Date.now() - savedAt < 24 * 60 * 60 * 1000) {
-          return savedData
+        const draftInfo: DraftInfo = JSON.parse(saved)
+        // Check if draft is not expired
+        if (draftInfo.expiresAt && Date.now() < draftInfo.expiresAt) {
+          lastSavedTime.value = draftInfo.savedAt
+          return draftInfo.data
+        } else {
+          // Draft expired, clear it
+          clearDraft()
         }
       }
     } catch (e) {
@@ -42,14 +63,71 @@ export function useAutoSave({ key, data, debounceMs = 1000, excludeKeys = [] }: 
     return null
   }
 
+  // Get draft info
+  const getDraftInfo = (): { savedAt: number; expiresAt: number; timeAgo: string } | null => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const draftInfo: DraftInfo = JSON.parse(saved)
+        const timeAgo = getTimeAgo(draftInfo.savedAt)
+        return {
+          savedAt: draftInfo.savedAt,
+          expiresAt: draftInfo.expiresAt,
+          timeAgo
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to get draft info:', e)
+    }
+    return null
+  }
+
+  // Format time ago
+  const getTimeAgo = (timestamp: number): string => {
+    const diff = Date.now() - timestamp
+    const seconds = Math.floor(diff / 1000)
+    const minutes = Math.floor(seconds / 60)
+    const hours = Math.floor(minutes / 60)
+    const days = Math.floor(hours / 24)
+
+    if (days > 0) return `${days}天前`
+    if (hours > 0) return `${hours}小时前`
+    if (minutes > 0) return `${minutes}分钟前`
+    return '刚刚'
+  }
+
   // Clear draft
   const clearDraft = () => {
     localStorage.removeItem(STORAGE_KEY)
+    lastSavedTime.value = null
   }
 
   // Check if draft exists
   const hasDraft = () => {
-    return localStorage.getItem(STORAGE_KEY) !== null
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return false
+
+    try {
+      const draftInfo: DraftInfo = JSON.parse(saved)
+      return Date.now() < draftInfo.expiresAt
+    } catch {
+      return false
+    }
+  }
+
+  // Get remaining time
+  const getRemainingTime = (): string => {
+    const info = getDraftInfo()
+    if (!info) return ''
+
+    const remaining = info.expiresAt - Date.now()
+    if (remaining <= 0) return '已过期'
+
+    const hours = Math.floor(remaining / (1000 * 60 * 60))
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (hours > 0) return `${hours}小时${minutes}分钟`
+    return `${minutes}分钟`
   }
 
   // Watch for changes and auto-save with debounce
@@ -77,7 +155,11 @@ export function useAutoSave({ key, data, debounceMs = 1000, excludeKeys = [] }: 
     loadDraft,
     clearDraft,
     hasDraft,
+    getDraftInfo,
+    getRemainingTime,
     setupAutoSave,
-    cleanup
+    cleanup,
+    lastSavedTime,
+    isSaving
   }
 }
