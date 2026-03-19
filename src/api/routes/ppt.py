@@ -96,7 +96,16 @@ async def generate_ppt(request: GenerateRequest):
                 include_pie_chart=request.include_pie_chart,
                 include_bar_chart=request.include_bar_chart,
                 include_line_chart=request.include_line_chart,
-                add_watermark=request.add_watermark
+                add_watermark=request.add_watermark,
+                # 新增参数：字体系统
+                font_title=request.font_title,
+                font_subtitle=request.font_subtitle,
+                font_content=request.font_content,
+                font_caption=request.font_caption,
+                # 新增参数：生成模式
+                generation_mode=request.generation_mode,
+                output_format=request.output_format,
+                quality=request.quality
             )
         )
 
