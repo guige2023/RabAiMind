@@ -72,7 +72,11 @@ export enum TemplateType {
   DEFAULT = 'default',
   MODERN = 'modern',
   CLASSIC = 'classic',
-  TECH = 'tech'
+  TECH = 'tech',
+  NATURE = 'nature',
+  OCEAN = 'ocean',
+  SUNSET = 'sunset',
+  MINIMAL = 'minimal'
 }
 
 // 常用颜色

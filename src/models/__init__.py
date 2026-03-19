@@ -48,11 +48,15 @@ class StyleType(str, Enum):
 
 
 class TemplateType(str, Enum):
-    """模板类型"""
+    """模板类型 - 与前端 constants.ts 保持同步"""
     DEFAULT = "default"
     MODERN = "modern"
     CLASSIC = "classic"
     TECH = "tech"
+    NATURE = "nature"
+    OCEAN = "ocean"
+    SUNSET = "sunset"
+    MINIMAL = "minimal"
 
 
 class TextStyleType(str, Enum):
