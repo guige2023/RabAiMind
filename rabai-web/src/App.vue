@@ -8,6 +8,7 @@
     <UserOnboarding />
     <AIChatPanel />
     <MobileNavDrawer ref="mobileNavRef" />
+    <UserExperience ref="uxRef" />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading">
@@ -74,10 +75,12 @@ import GlobalSearch from './components/GlobalSearch.vue'
 import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
 import MobileNavDrawer from './components/MobileNavDrawer.vue'
+import UserExperience from './components/UserExperience.vue'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
+const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
 
 const openGlobalSearch = () => {
   globalSearchRef.value?.openSearch()
