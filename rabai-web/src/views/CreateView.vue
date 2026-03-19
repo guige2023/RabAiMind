@@ -850,6 +850,30 @@ const textStyleOptions = [
     name: '文字阴影',
     desc: '白色文字带阴影效果，图片上清晰可见',
     icon: '✨'
+  },
+  {
+    value: 'glow',
+    name: '发光效果',
+    desc: '文字边缘发光效果，科技感强',
+    icon: '💫'
+  },
+  {
+    value: 'outline',
+    name: '描边效果',
+    desc: '文字外描边，内部镂空，潮流风格',
+    icon: '✏️'
+  },
+  {
+    value: 'gradient',
+    name: '渐变文字',
+    desc: '文字使用渐变色，视觉冲击力强',
+    icon: '🌈'
+  },
+  {
+    value: 'neon',
+    name: '霓虹灯效',
+    desc: '霓虹灯效果文字，适合暗色背景',
+    icon: '🌃'
   }
 ]
 
@@ -878,14 +902,18 @@ const backgroundColors = [
 
 // 布局类型选项
 const layoutOptions = [
-  { value: 'title_slide', name: '封面', icon: '📄', desc: '标题封面页' },
-  { value: 'content_card', name: '卡片', icon: '🃏', desc: '内容卡片布局' },
-  { value: 'two_column', name: '双栏', icon: '📊', desc: '左右双栏布局' },
-  { value: 'center_radiation', name: '中心辐射', icon: '🌀', desc: '中心发散布局' },
-  { value: 'timeline', name: '时间线', icon: '📅', desc: '时间轴布局' },
-  { value: 'data_visualization', name: '数据可视化', icon: '📈', desc: '图表数据展示' },
-  { value: 'quote', name: '金句', icon: '💬', desc: '引用金句布局' },
-  { value: 'comparison', name: '对比', icon: '⚖️', desc: '左右对比布局' }
+  { value: 'title_slide', name: '封面', icon: '📄', desc: '标题封面页', preview: 'full' },
+  { value: 'content_card', name: '卡片', icon: '🃏', desc: '内容卡片布局', preview: 'card' },
+  { value: 'two_column', name: '双栏', icon: '📊', desc: '左右双栏布局', preview: 'split' },
+  { value: 'center_radiation', name: '中心辐射', icon: '🌀', desc: '中心发散布局', preview: 'radial' },
+  { value: 'timeline', name: '时间线', icon: '📅', desc: '时间轴布局', preview: 'timeline' },
+  { value: 'data_visualization', name: '数据可视化', icon: '📈', desc: '图表数据展示', preview: 'chart' },
+  { value: 'quote', name: '金句', icon: '💬', desc: '引用金句布局', preview: 'quote' },
+  { value: 'comparison', name: '对比', icon: '⚖️', desc: '左右对比布局', preview: 'compare' },
+  { value: 'masonry', name: '瀑布流', icon: '🧱', desc: '不规则网格布局', preview: 'masonry' },
+  { value: 'full_image', name: '全屏图', icon: '🖼️', desc: '全屏图片背景布局', preview: 'fullimg' },
+  { value: 'process', name: '流程图', icon: '🔀', desc: '流程步骤展示布局', preview: 'process' },
+  { value: 'team', name: '团队介绍', icon: '👥', desc: '人物卡片展示布局', preview: 'team' }
 ]
 
 // 验证输入
@@ -1009,7 +1037,14 @@ const handleSubmit = async () => {
       font_title: formData.value.fontTitle,
       font_subtitle: formData.value.fontSubtitle,
       font_content: formData.value.fontContent,
-      font_caption: formData.value.fontCaption
+      font_caption: formData.value.fontCaption,
+      // 文字样式
+      text_style: formData.value.textStyle,
+      shadow_color: formData.value.shadowColor,
+      overlay_transparency: formData.value.overlayTransparency,
+      // 布局模式
+      layout_mode: formData.value.layoutMode,
+      unified_layout: formData.value.unifiedLayout
     })
 
     const { task_id } = response.data
