@@ -3,11 +3,25 @@
     <div class="history-header">
       <h1 class="page-title">历史记录</h1>
       <div class="header-actions">
+        <!-- 批量选择按钮 -->
+        <button class="btn btn-outline" @click="toggleSelectMode">
+          {{ isSelectMode ? '取消选择' : '批量选择' }}
+        </button>
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索历史记录..."
+            class="search-input"
+          />
+        </div>
         <div class="filter-tabs">
           <button
             class="tab-btn"
             :class="{ active: filterType === 'all' }"
-            @click="filterType = 'all'"
+            @click="clearTagFilter()"
           >
             全部
           </button>
@@ -17,6 +31,13 @@
             @click="filterType = 'favorites'"
           >
             ⭐ 收藏
+          </button>
+          <button
+            v-if="activeTag"
+            class="tab-btn active"
+            @click="filterType = 'tags'"
+          >
+            🏷️ {{ activeTag }}
           </button>
         </div>
         <div class="backup-actions">
@@ -37,6 +58,30 @@
             清空历史
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- 批量操作栏 -->
+    <div v-if="isSelectMode && filteredList.length > 0" class="batch-actions">
+      <label class="select-all">
+        <input
+          type="checkbox"
+          :checked="isAllSelected"
+          @change="isAllSelected ? deselectAll() : selectAll()"
+        />
+        {{ isAllSelected ? '取消全选' : '全选' }}
+      </label>
+      <span class="selected-count">已选择 {{ selectedItems.size }} 项</span>
+      <div class="batch-buttons">
+        <button class="batch-btn batch-favorite" @click="batchFavorite" :disabled="selectedItems.size === 0">
+          ⭐ 批量收藏
+        </button>
+        <button class="batch-btn batch-export" @click="batchExport" :disabled="selectedItems.size === 0">
+          📥 批量导出
+        </button>
+        <button class="batch-btn batch-delete" @click="batchDelete" :disabled="selectedItems.size === 0">
+          🗑️ 批量删除
+        </button>
       </div>
     </div>
 
@@ -61,8 +106,18 @@
         v-for="item in filteredList"
         :key="item.taskId"
         class="history-item"
+        :class="{ selected: selectedItems.has(item.taskId) }"
         @click="viewResult(item)"
       >
+        <!-- 复选框 -->
+        <div class="item-checkbox" @click.stop>
+          <input
+            v-if="isSelectMode"
+            type="checkbox"
+            :checked="selectedItems.has(item.taskId)"
+            @change="toggleSelect(item.taskId)"
+          />
+        </div>
         <div class="history-info">
           <h3 class="history-title">{{ item.title || '未命名PPT' }}</h3>
           <p class="history-desc">{{ item.request }}</p>
@@ -79,6 +134,35 @@
               <span class="meta-icon">🕐</span>
               {{ formatTime(item.createdAt) }}
             </span>
+          </div>
+          <!-- 标签显示 -->
+          <div class="tags-container" v-if="item.tags && item.tags.length > 0">
+            <span
+              v-for="tag in item.tags"
+              :key="tag"
+              class="tag"
+              @click.stop="filterByTag(tag)"
+            >
+              {{ tag }}
+              <span class="tag-remove" @click.stop="removeTag(item, tag)">×</span>
+            </span>
+            <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加</button>
+          </div>
+          <div v-else class="tags-empty">
+            <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加标签</button>
+          </div>
+          <!-- 标签编辑 -->
+          <div v-if="editingTags === item.taskId" class="tag-edit" @click.stop>
+            <input
+              v-model="newTag"
+              type="text"
+              placeholder="输入标签..."
+              class="tag-input"
+              @keyup.enter="addTag(item)"
+              @keyup.escape="closeEditTags"
+            />
+            <button class="tag-confirm" @click="addTag(item)">添加</button>
+            <button class="tag-cancel" @click="closeEditTags">取消</button>
           </div>
         </div>
         <div class="history-actions">
@@ -103,7 +187,7 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <div class="empty-icon">{{ filterType === 'favorites' ? '⭐' : '📂' }}</div>
-      <p>{{ filterType === 'favorites' ? '暂无收藏记录' : '暂无历史记录' }}</p>
+      <p>{{ searchQuery ? '未找到匹配结果' : (filterType === 'favorites' ? '暂无收藏记录' : '暂无历史记录') }}</p>
       <button class="btn btn-primary" @click="goCreate">开始创建</button>
     </div>
   </div>
@@ -124,10 +208,81 @@ interface HistoryItem {
   style: string
   createdAt: string
   favorite?: boolean
+  tags?: string[]
 }
 
 const historyList = ref<HistoryItem[]>([])
-const filterType = ref<'all' | 'favorites'>('all')
+const filterType = ref<'all' | 'favorites' | 'tags'>('all')
+const searchQuery = ref('')
+const activeTag = ref<string | null>(null)
+
+// 批量选择
+const selectedItems = ref<Set<string>>(new Set())
+const isSelectMode = ref(false)
+
+const toggleSelectMode = () => {
+  isSelectMode.value = !isSelectMode.value
+  if (!isSelectMode.value) {
+    selectedItems.value.clear()
+  }
+}
+
+const toggleSelect = (taskId: string) => {
+  if (selectedItems.value.has(taskId)) {
+    selectedItems.value.delete(taskId)
+  } else {
+    selectedItems.value.add(taskId)
+  }
+}
+
+const selectAll = () => {
+  filteredList.value.forEach(item => selectedItems.value.add(item.taskId))
+}
+
+const deselectAll = () => {
+  selectedItems.value.clear()
+}
+
+const isAllSelected = computed(() => {
+  return filteredList.value.length > 0 && filteredList.value.every(item => selectedItems.value.has(item.taskId))
+})
+
+// 批量操作
+const batchDelete = () => {
+  if (selectedItems.value.size === 0) return
+  if (confirm(`确定要删除选中的 ${selectedItems.value.size} 条记录吗？`)) {
+    historyList.value = historyList.value.filter(item => !selectedItems.value.has(item.taskId))
+    localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
+    selectedItems.value.clear()
+    isSelectMode.value = false
+  }
+}
+
+const batchFavorite = () => {
+  if (selectedItems.value.size === 0) return
+  historyList.value.forEach(item => {
+    if (selectedItems.value.has(item.taskId)) {
+      item.favorite = true
+    }
+  })
+  localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
+  selectedItems.value.clear()
+  isSelectMode.value = false
+}
+
+const batchExport = () => {
+  if (selectedItems.value.size === 0) return
+  const selectedData = historyList.value.filter(item => selectedItems.value.has(item.taskId))
+  const blob = new Blob([JSON.stringify(selectedData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `ppt_history_backup_${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  selectedItems.value.clear()
+  isSelectMode.value = false
+}
 const isLoading = ref(true)
 const importInput = ref<HTMLInputElement | null>(null)
 
@@ -166,10 +321,30 @@ const handleImport = async (e: Event) => {
 }
 
 const filteredList = computed(() => {
+  let list = historyList.value
+
+  // Filter by favorites
   if (filterType.value === 'favorites') {
-    return historyList.value.filter(item => item.favorite)
+    list = list.filter(item => item.favorite)
   }
-  return historyList.value
+
+  // Filter by tag
+  if (filterType.value === 'tags' && activeTag.value) {
+    list = list.filter(item => item.tags?.includes(activeTag.value!))
+  }
+
+  // Filter by search query
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase()
+    list = list.filter(item =>
+      item.title?.toLowerCase().includes(query) ||
+      item.request?.toLowerCase().includes(query) ||
+      item.style?.toLowerCase().includes(query) ||
+      item.tags?.some(tag => tag.toLowerCase().includes(query))
+    )
+  }
+
+  return list
 })
 
 const loadHistory = () => {
@@ -232,6 +407,46 @@ const toggleFavorite = (item: HistoryItem) => {
   localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
 }
 
+// 标签管理
+const editingTags = ref<string | null>(null)
+const newTag = ref('')
+
+const startEditTags = (item: HistoryItem) => {
+  editingTags.value = item.taskId
+}
+
+const addTag = (item: HistoryItem) => {
+  if (!newTag.value.trim()) return
+  if (!item.tags) item.tags = []
+  if (!item.tags.includes(newTag.value)) {
+    item.tags.push(newTag.value)
+    localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
+  }
+  newTag.value = ''
+}
+
+const removeTag = (item: HistoryItem, tag: string) => {
+  if (!item.tags) return
+  item.tags = item.tags.filter(t => t !== tag)
+  localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
+}
+
+const closeEditTags = () => {
+  editingTags.value = null
+  newTag.value = ''
+}
+
+const filterByTag = (tag: string) => {
+  activeTag.value = tag
+  filterType.value = 'tags'
+  searchQuery.value = ''
+}
+
+const clearTagFilter = () => {
+  activeTag.value = null
+  filterType.value = 'all'
+}
+
 const clearHistory = () => {
   if (confirm('确定要清空所有历史记录吗？')) {
     historyList.value = []
@@ -284,6 +499,36 @@ onMounted(() => {
   background: #FFEBEE;
 }
 
+/* Search Box */
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  min-width: 200px;
+}
+
+.search-icon {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+  color: var(--gray-700);
+}
+
+.search-input::placeholder {
+  color: var(--gray-300);
+}
+
 .filter-tabs {
   display: flex;
   background: var(--white);
@@ -322,12 +567,13 @@ onMounted(() => {
 
 .history-item {
   display: flex;
-  justify-content: space-between;
+  align-items: flex-start;
   background: var(--white);
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
   transition: all 0.2s;
+  border: 2px solid transparent;
 }
 
 .history-item:hover {
@@ -358,6 +604,110 @@ onMounted(() => {
 .history-meta {
   display: flex;
   gap: 16px;
+  margin-bottom: 8px;
+}
+
+/* Tags */
+.tags-container, .tags-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #EEF2FF;
+  color: #4F46E5;
+  border-radius: 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag:hover {
+  background: #E0E7FF;
+}
+
+.tag-remove {
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+  color: #DC2626;
+}
+
+.tag-add-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px dashed #ccc;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag-add-btn:hover {
+  border-color: #4F46E5;
+  color: #4F46E5;
+}
+
+.tag-edit {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.tag-input {
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+.tag-input:focus {
+  border-color: #4F46E5;
+}
+
+.tag-confirm {
+  padding: 6px 12px;
+  background: #4F46E5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tag-confirm:hover {
+  background: #4338CA;
+}
+
+.tag-cancel {
+  padding: 6px 12px;
+  background: #f3f4f6;
+  color: #666;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tag-cancel:hover {
+  background: #e5e7EB;
 }
 
 .meta-item {
@@ -394,6 +744,103 @@ onMounted(() => {
 
 .action-btn.favorited {
   color: #FFB800;
+}
+
+/* Batch Actions */
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #EEF2FF;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #4F46E5;
+}
+
+.select-all input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.selected-count {
+  font-size: 14px;
+  color: #666;
+  flex: 1;
+}
+
+.batch-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.batch-favorite {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+.batch-favorite:hover:not(:disabled) {
+  background: #FDE68A;
+}
+
+.batch-export {
+  background: #DBEAFE;
+  color: #2563EB;
+}
+
+.batch-export:hover:not(:disabled) {
+  background: #BFDBFE;
+}
+
+.batch-delete {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.batch-delete:hover:not(:disabled) {
+  background: #FECACA;
+}
+
+/* Checkbox */
+.item-checkbox {
+  display: flex;
+  align-items: center;
+  padding-right: 12px;
+}
+
+.item-checkbox input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.history-item.selected {
+  background: #EEF2FF;
+  border: 2px solid #4F46E5;
 }
 
 /* Empty */
