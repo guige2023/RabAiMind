@@ -52,3 +52,32 @@ export function setupGlobalShortcuts() {
 
   return { useKeyboardShortcuts: () => useKeyboardShortcuts(shortcuts) }
 }
+
+// 常用快捷键映射
+export const shortcutHints: Record<string, string> = {
+  'Ctrl+Enter': '提交',
+  'Ctrl+S': '保存',
+  'Ctrl+Z': '撤销',
+  'Ctrl+Y': '重做',
+  'Ctrl+Shift+Z': '重做',
+  'Ctrl+C': '复制',
+  'Ctrl+V': '粘贴',
+  'Ctrl+A': '全选',
+  'Delete': '删除',
+  'Escape': '关闭/取消',
+  'Enter': '确认',
+  'ArrowUp': '上移/上一个',
+  'ArrowDown': '下移/下一个',
+  'ArrowLeft': '左移/上一个',
+  'ArrowRight': '右移/下一个',
+  'Tab': '下一个焦点',
+  'Shift+Tab': '上一个焦点',
+  'Space': '选中/播放',
+  '?': '显示帮助',
+  'n': '新建',
+  's': '保存',
+  'e': '编辑',
+  'd': '删除',
+  'f': '搜索',
+  '/': '搜索'
+}
