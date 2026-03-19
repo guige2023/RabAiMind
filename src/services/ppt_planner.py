@@ -110,7 +110,7 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
         "slide_type": "title",
         "title": "演示文稿",
         "content": ["专业演示 · 精彩呈现"],
-        "layout": LayoutType.TITLE,
+        "layout": LayoutType.TITLE_SLIDE,
         "image_hint": "大气发布会现场，科技创新",
         "design_notes": "全屏标题，大气背景"
     })
@@ -126,7 +126,7 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
                 "第三部分：发展趋势",
                 "第四部分：总结展望"
             ],
-            "layout": LayoutType.CENTER,
+            "layout": LayoutType.CENTER_RADIATION,
             "image_hint": "",
             "design_notes": "居中展示"
         })

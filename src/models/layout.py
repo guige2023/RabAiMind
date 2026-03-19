@@ -21,3 +21,7 @@ class LayoutType(str, Enum):
     COMPARISON = "comparison"  # 对比
     TOC = "toc"  # 目录
     THANK_YOU = "thank_you"  # 结束页
+    # 额外布局类型
+    LEFT_TEXT_RIGHT_IMAGE = "left_text_right_image"  # 左文右图
+    LEFT_IMAGE_RIGHT_TEXT = "left_image_right_text"  # 左图右文
+    THREE_COLUMN = "three_column"  # 三栏
