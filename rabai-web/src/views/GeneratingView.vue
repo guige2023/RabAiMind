@@ -3,8 +3,11 @@
     <div class="container">
       <div class="generating-card">
         <div class="generating-icon">
-          <div class="ai-brain">
-            <span v-for="i in 5" :key="i" class="brain-wave" :style="{ animationDelay: `${i * 0.2}s` }">🧠</span>
+          <div class="ai-orb">
+            <div class="orb-ring"></div>
+            <div class="orb-ring" style="animation-delay: -0.5s"></div>
+            <div class="orb-ring" style="animation-delay: -1s"></div>
+            <div class="orb-core">✨</div>
           </div>
         </div>
 
@@ -225,41 +228,78 @@ onUnmounted(() => {
   max-width: 500px;
   text-align: center;
   padding: 60px 40px;
-  background: #fff;
+  background: var(--white);
   border-radius: 24px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
 }
 
 .generating-icon {
   margin-bottom: 32px;
-}
-
-.ai-brain {
+  height: 120px;
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
 }
 
-.brain-wave {
-  font-size: 28px;
-  animation: pulse 1.5s ease-in-out infinite;
+.ai-orb {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.7; }
+.orb-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid transparent;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: orbit 2s linear infinite;
+}
+
+.orb-ring:nth-child(2) {
+  width: 80%;
+  height: 80%;
+  border-top-color: var(--secondary);
+  animation-duration: 1.5s;
+  animation-direction: reverse;
+}
+
+.orb-ring:nth-child(3) {
+  width: 60%;
+  height: 60%;
+  border-top-color: var(--accent);
+  animation-duration: 1s;
+}
+
+.orb-core {
+  font-size: 36px;
+  animation: glow 1.5s ease-in-out infinite;
+}
+
+@keyframes orbit {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes glow {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.1); filter: brightness(1.3); }
 }
 
 .generating-title {
   font-size: 28px;
   font-weight: 700;
-  color: #1A1A1A;
+  color: var(--gray-900);
   margin-bottom: 8px;
 }
 
 .generating-desc {
   font-size: 15px;
-  color: #666;
+  color: var(--gray-500);
   margin-bottom: 32px;
 }
 
@@ -269,14 +309,14 @@ onUnmounted(() => {
 
 .progress-bar {
   height: 8px;
-  background: #E5E5E5;
+  background: var(--gray-200);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #165DFF, #5AC8FA);
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
   border-radius: 4px;
   transition: width 0.5s ease;
 }
@@ -330,31 +370,31 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  background: #F5F5F5;
+  background: var(--gray-100);
   border-radius: 50%;
 }
 
 .step.active .step-icon {
-  background: linear-gradient(135deg, #165DFF, #5AC8FA);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
 }
 
 .step.completed .step-icon {
-  background: #34C759;
+  background: var(--success);
 }
 
 .step-name {
   font-size: 12px;
-  color: #666;
+  color: var(--gray-500);
 }
 
 .step.active .step-name {
-  color: #165DFF;
+  color: var(--primary);
   font-weight: 500;
 }
 
 .actions {
   padding-top: 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--gray-200);
 }
 
 /* 错误弹窗 */
@@ -369,7 +409,7 @@ onUnmounted(() => {
 }
 
 .error-modal {
-  background: #fff;
+  background: var(--white);
   border-radius: 16px;
   padding: 32px;
   text-align: center;
@@ -384,12 +424,12 @@ onUnmounted(() => {
 
 .error-modal h3 {
   font-size: 20px;
-  color: #333;
+  color: var(--gray-900);
   margin-bottom: 12px;
 }
 
 .error-modal p {
-  color: #666;
+  color: var(--gray-500);
   margin-bottom: 24px;
 }
 

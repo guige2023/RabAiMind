@@ -2,15 +2,33 @@
   <div class="history-page">
     <div class="history-header">
       <h1 class="page-title">历史记录</h1>
-      <button v-if="historyList.length > 0" class="btn btn-outline" @click="clearHistory">
-        清空历史
-      </button>
+      <div class="header-actions">
+        <div class="filter-tabs">
+          <button
+            class="tab-btn"
+            :class="{ active: filterType === 'all' }"
+            @click="filterType = 'all'"
+          >
+            全部
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: filterType === 'favorites' }"
+            @click="filterType = 'favorites'"
+          >
+            ⭐ 收藏
+          </button>
+        </div>
+        <button v-if="historyList.length > 0" class="btn btn-outline" @click="clearHistory">
+          清空历史
+        </button>
+      </div>
     </div>
 
     <!-- 历史记录列表 -->
-    <div class="history-list" v-if="historyList.length > 0">
+    <div class="history-list" v-if="filteredList.length > 0">
       <div
-        v-for="item in historyList"
+        v-for="item in filteredList"
         :key="item.taskId"
         class="history-item"
         @click="viewResult(item)"
@@ -34,6 +52,14 @@
           </div>
         </div>
         <div class="history-actions">
+          <button
+            class="action-btn"
+            :class="{ favorited: item.favorite }"
+            @click.stop="toggleFavorite(item)"
+            :title="item.favorite ? '取消收藏' : '收藏'"
+          >
+            {{ item.favorite ? '⭐' : '☆' }}
+          </button>
           <button class="action-btn" @click.stop="downloadAgain(item)" title="重新下载">
             ⬇️
           </button>
@@ -46,15 +72,15 @@
 
     <!-- 空状态 -->
     <div v-else class="empty-state">
-      <div class="empty-icon">📂</div>
-      <p>暂无历史记录</p>
+      <div class="empty-icon">{{ filterType === 'favorites' ? '⭐' : '📂' }}</div>
+      <p>{{ filterType === 'favorites' ? '暂无收藏记录' : '暂无历史记录' }}</p>
       <button class="btn btn-primary" @click="goCreate">开始创建</button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -66,9 +92,18 @@ interface HistoryItem {
   slideCount: number
   style: string
   createdAt: string
+  favorite?: boolean
 }
 
 const historyList = ref<HistoryItem[]>([])
+const filterType = ref<'all' | 'favorites'>('all')
+
+const filteredList = computed(() => {
+  if (filterType.value === 'favorites') {
+    return historyList.value.filter(item => item.favorite)
+  }
+  return historyList.value
+})
 
 const loadHistory = () => {
   const saved = localStorage.getItem('ppt_history')
@@ -119,6 +154,11 @@ const deleteItem = (taskId: string) => {
   }
 }
 
+const toggleFavorite = (item: HistoryItem) => {
+  item.favorite = !item.favorite
+  localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
+}
+
 const clearHistory = () => {
   if (confirm('确定要清空所有历史记录吗？')) {
     historyList.value = []
@@ -138,7 +178,7 @@ onMounted(() => {
 <style scoped>
 .history-page {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--gray-100);
   padding: 24px;
 }
 
@@ -147,12 +187,44 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.filter-tabs {
+  display: flex;
+  background: var(--white);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: white;
 }
 
 .page-title {
   font-size: 28px;
   font-weight: 600;
-  color: #1D2129;
+  color: var(--gray-900);
 }
 
 .history-list {
@@ -164,7 +236,7 @@ onMounted(() => {
 .history-item {
   display: flex;
   justify-content: space-between;
-  background: #fff;
+  background: var(--white);
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
@@ -172,7 +244,7 @@ onMounted(() => {
 }
 
 .history-item:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .history-info {
@@ -182,13 +254,13 @@ onMounted(() => {
 .history-title {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--gray-700);
   margin-bottom: 8px;
 }
 
 .history-desc {
   font-size: 14px;
-  color: #666;
+  color: var(--gray-500);
   margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -206,7 +278,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: #999;
+  color: var(--gray-300);
 }
 
 .meta-icon {
@@ -220,16 +292,21 @@ onMounted(() => {
 }
 
 .action-btn {
-  background: #f5f5f5;
+  background: var(--gray-100);
   border: none;
   border-radius: 8px;
   padding: 8px 12px;
   cursor: pointer;
   font-size: 16px;
+  transition: all 0.2s;
 }
 
 .action-btn:hover {
-  background: #e5e5e5;
+  background: var(--gray-200);
+}
+
+.action-btn.favorited {
+  color: #FFB800;
 }
 
 /* Empty */
@@ -244,7 +321,7 @@ onMounted(() => {
 }
 
 .empty-state p {
-  color: #999;
+  color: var(--gray-300);
   margin-bottom: 20px;
 }
 

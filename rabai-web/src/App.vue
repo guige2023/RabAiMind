@@ -13,6 +13,7 @@
           <router-link to="/history" class="nav-link">历史</router-link>
         </nav>
         <LangSwitch />
+        <ThemeSwitch />
       </div>
     </header>
     <main class="main">
@@ -30,6 +31,7 @@
 
 <script setup lang="ts">
 import LangSwitch from './components/LangSwitch.vue'
+import ThemeSwitch from './components/ThemeSwitch.vue'
 </script>
 
 <style scoped>

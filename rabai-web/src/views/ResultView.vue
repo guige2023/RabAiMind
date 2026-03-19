@@ -53,6 +53,13 @@
             <button class="btn btn-primary btn-lg" @click="handleDownload">
               <span>⬇️</span> 下载 PPT
             </button>
+            <button
+              class="btn btn-lg"
+              :class="isFavorite ? 'btn-favorite-active' : 'btn-favorite'"
+              @click="toggleFavorite"
+            >
+              <span>{{ isFavorite ? '⭐' : '☆' }}</span> {{ isFavorite ? '已收藏' : '收藏' }}
+            </button>
             <button class="btn btn-export btn-lg" @click="showExportMenu = !showExportMenu">
               <span>📄</span> 导出其他格式
             </button>
@@ -143,6 +150,33 @@ const fileSize = ref('0 KB')
 const errorMessage = ref('')
 const showExportMenu = ref(false)
 const previewLoaded = ref(false)
+const isFavorite = ref(false)
+
+// 检查并加载收藏状态
+const checkFavorite = () => {
+  const saved = localStorage.getItem('ppt_history')
+  if (saved) {
+    const historyList = JSON.parse(saved)
+    const item = historyList.find((h: any) => h.taskId === taskId.value)
+    if (item) {
+      isFavorite.value = item.favorite || false
+    }
+  }
+}
+
+// 切换收藏状态
+const toggleFavorite = () => {
+  const saved = localStorage.getItem('ppt_history')
+  if (saved) {
+    const historyList = JSON.parse(saved)
+    const index = historyList.findIndex((h: any) => h.taskId === taskId.value)
+    if (index > -1) {
+      historyList[index].favorite = !historyList[index].favorite
+      isFavorite.value = historyList[index].favorite
+      localStorage.setItem('ppt_history', JSON.stringify(historyList))
+    }
+  }
+}
 
 // 模拟加载预览（实际应该调用API获取预览图）
 const loadPreview = () => {
@@ -295,6 +329,7 @@ const handleShare = async (type: string) => {
 onMounted(() => {
   loadStatus()
   loadPreview()
+  checkFavorite()
 })
 </script>
 
@@ -524,6 +559,25 @@ onMounted(() => {
 
 .btn-share:hover {
   background: #4644cd;
+}
+
+.btn-favorite {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.btn-favorite:hover {
+  background: #ffe4b3;
+  color: #b8860b;
+}
+
+.btn-favorite-active {
+  background: #FFF3CD;
+  color: #FFB800;
+}
+
+.btn-favorite-active:hover {
+  background: #ffe4b3;
 }
 
 /* 导出菜单 */
