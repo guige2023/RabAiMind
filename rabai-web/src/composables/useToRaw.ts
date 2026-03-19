@@ -1,8 +1,8 @@
 // useToRaw.ts - 原始数据模块
-import { toRaw, ref } from 'vue'
+import { toRaw } from 'vue'
 
 export function useToRaw() {
-  const toRaw2 = <T>(obj: T) => toRaw(obj)
+  const toRaw2 = <T>(obj: T): T => toRaw(obj)
   return { toRaw: toRaw2 }
 }
 
