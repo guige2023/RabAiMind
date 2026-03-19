@@ -279,6 +279,51 @@ const selectScene = (sceneId: string) => {
   50% { transform: translateY(-10px); }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.hero-title {
+  animation: slideUp 0.8s ease-out;
+}
+
+.hero-subtitle {
+  animation: slideUp 0.8s ease-out 0.2s both;
+}
+
+.hero-actions {
+  animation: slideUp 0.8s ease-out 0.4s both;
+}
+
+.ppt-preview {
+  animation: slideUp 0.8s ease-out 0.6s both;
+}
+
+.feature-card {
+  animation: slideUp 0.6s ease-out both;
+}
+
+.feature-card:nth-child(1) { animation-delay: 0.1s; }
+.feature-card:nth-child(2) { animation-delay: 0.2s; }
+.feature-card:nth-child(3) { animation-delay: 0.3s; }
+
+.title-main {
+  background: linear-gradient(90deg, #fff, #5AC8FA, #fff);
+  background-size: 200% auto;
+  animation: shine 3s linear infinite;
+}
+
 .slide-content {
   height: 100%;
 }

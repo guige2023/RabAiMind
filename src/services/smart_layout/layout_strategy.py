@@ -110,6 +110,7 @@ class LayoutStrategy:
                 - element_count: 元素数量
                 - has_timeline: 是否包含时间线
                 - has_comparison: 是否需要对比
+                - keywords: 关键词列表
 
         Returns:
             布局类型字符串
@@ -119,6 +120,7 @@ class LayoutStrategy:
         element_count = content_analysis.get("element_count", 3)
         has_timeline = content_analysis.get("has_timeline", False)
         has_comparison = content_analysis.get("has_comparison", False)
+        keywords = content_analysis.get("keywords", [])
 
         # 决策逻辑
         if slide_type == "title_slide":
@@ -129,8 +131,11 @@ class LayoutStrategy:
             return "timeline"
         elif slide_type == "comparison" or has_comparison:
             return "comparison"
+        # 数据可视化：包含数据、统计、增长等关键词
+        elif any(k in keywords for k in ['数据', '统计', '增长', '比例', '图表', '业绩', '收入', '用户', '市场', 'data', 'growth', 'percent', 'increase']):
+            return "data_visualization"
         elif content_density >= 8:
-            # 高密度内容使用双栏或卡片布局
+            # 高密度内容使用双栏
             return "two_column"
         elif element_count <= 3 and content_density <= 3:
             # 少元素低密度使用中心辐射

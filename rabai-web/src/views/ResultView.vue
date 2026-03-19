@@ -56,7 +56,7 @@
             <button class="btn btn-export btn-lg" @click="showExportMenu = !showExportMenu">
               <span>📄</span> 导出其他格式
             </button>
-            <button class="btn btn-share btn-lg" @click="handleShare">
+            <button class="btn btn-share btn-lg" @click="showShareMenu = !showShareMenu">
               <span>📤</span> 分享
             </button>
             <button class="btn btn-secondary btn-lg" @click="handleNew">
@@ -77,6 +77,19 @@
             <button class="export-option" @click="handleExportHTML">
               <span class="export-icon">🌐</span>
               <span>导出 HTML</span>
+            </button>
+          </div>
+
+          <!-- 分享菜单 -->
+          <div v-if="showShareMenu" class="share-menu">
+            <button
+              v-for="opt in shareOptions"
+              :key="opt.id"
+              class="share-option"
+              @click="handleShare(opt.id)"
+            >
+              <span class="share-icon">{{ opt.icon }}</span>
+              <span>{{ opt.name }}</span>
             </button>
           </div>
         </div>
@@ -243,28 +256,40 @@ const handleExportHTML = async () => {
 }
 
 // 分享
-const handleShare = async () => {
+const showShareMenu = ref(false)
+
+const shareOptions = [
+  { id: 'copy', name: '复制链接', icon: '📋' },
+  { id: 'wechat', name: '微信', icon: '💬' },
+  { id: 'weibo', name: '微博', icon: '🌐' },
+  { id: 'email', name: '邮件', icon: '📧' }
+]
+
+const handleShare = async (type: string) => {
   const shareUrl = `${window.location.origin}/result?taskId=${taskId.value}`
 
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: 'RabAi Mind PPT',
-        text: '来看看我创建的PPT',
-        url: shareUrl
-      })
-    } catch (err) {
-      console.log('分享取消')
-    }
-  } else {
-    // 复制链接
-    try {
-      await navigator.clipboard.writeText(shareUrl)
-      alert('分享链接已复制到剪贴板！')
-    } catch {
-      prompt('复制以下链接分享:', shareUrl)
-    }
+  switch (type) {
+    case 'copy':
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+        alert('链接已复制！')
+      } catch {
+        prompt('复制链接:', shareUrl)
+      }
+      break
+    case 'wechat':
+      alert('微信分享：请使用微信扫一扫扫描二维码')
+      break
+    case 'weibo':
+      const weiboUrl = `https://service.weibo.com/share/share.php?url=${encodeURIComponent(shareUrl)}&title=RabAi%20Mind%20PPT`
+      window.open(weiboUrl, '_blank')
+      break
+    case 'email':
+      const mailto = `mailto:?subject=RabAi%20Mind%20PPT&body=来看看我创建的PPT:%0A${shareUrl}`
+      window.location.href = mailto
+      break
   }
+  showShareMenu.value = false
 }
 
 onMounted(() => {
@@ -531,6 +556,39 @@ onMounted(() => {
 }
 
 .export-icon {
+  font-size: 24px;
+}
+
+/* 分享菜单 */
+.share-menu {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 12px;
+}
+
+.share-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.share-option:hover {
+  border-color: #165DFF;
+  background: #f0f7ff;
+}
+
+.share-icon {
   font-size: 24px;
 }
 
