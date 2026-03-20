@@ -13,7 +13,7 @@ class VolcEngineAPI:
     """火山引擎API客户端"""
     
     def __init__(self, api_key: Optional[str] = None, endpoint: Optional[str] = None):
-        self.api_key = api_key or os.getenv("VOLCENGINE_API_KEY", "")
+        self.api_key = api_key or os.getenv("VOLCANO_API_KEY", os.getenv("VOLCENGINE_API_KEY", ""))
         self.endpoint = endpoint or os.getenv("VOLCENGINE_ENDPOINT", "https://ark.cn-beijing.volces.com")
         self.project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
         self.timeout = 120

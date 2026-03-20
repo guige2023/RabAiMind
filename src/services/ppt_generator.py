@@ -434,7 +434,7 @@ class PPTGenerator:
     def _check_volc_api_available(self, volc) -> bool:
         """检查火山引擎API是否可用"""
         import os
-        api_key = os.getenv("VOLCENGINE_API_KEY", "")
+        api_key = os.getenv("VOLCANO_API_KEY", os.getenv("VOLCENGINE_API_KEY", ""))
         project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
         
         if not api_key or not project_id:
