@@ -9,7 +9,7 @@ API 路由定义
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import asyncio
 import threading
 import time
@@ -527,6 +527,14 @@ class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=500, description="图片描述")
     size: str = Field(default="1024x1024", description="图片尺寸")
     n: int = Field(default=1, ge=1, le=4, description="生成数量")
+
+    @field_validator('size')
+    @classmethod
+    def validate_size(cls, v):
+        import re
+        if not re.match(r'^\d+x\d+$', v):
+            raise ValueError('尺寸格式无效，请使用如"1024x1024"格式')
+        return v
 
 
 class ImageGenerationResponse(BaseModel):
