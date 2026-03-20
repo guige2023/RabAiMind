@@ -1,8 +1,10 @@
 # RabAi Mind AI PPT 生成平台配置文件
+# ⚠️ 重要：不要在此文件中存储真实API密钥，请使用环境变量
 
 ## 火山引擎 API 配置 (Volcengine)
 volcano:
-  api_key: "1d91e7e0-5761-4edb-a348-bc0b8b86affb"
+  # 请通过环境变量 VOLCANO_API_KEY 设置
+  api_key: "${VOLCANO_API_KEY}"
   # 文本生成模型 - 火山引擎方舟
   text_model: "ep-20260303221115-dk4rt"
   # 图片生成模型 - 火山引擎方舟

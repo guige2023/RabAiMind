@@ -604,11 +604,12 @@ class PPTGenerator:
         # 标题处理
         escaped_title = self._escape_html(title)
         
-        # 背景图片处理（如果有）
+        # 背景图片处理（如果有）- URL转义防止XSS
         bg_image = ""
         if image_url:
+            escaped_url = self._escape_url(image_url)
             bg_image = f'''
-<image href="{image_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" opacity="0.4"/>'''
+<image href="{escaped_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" opacity="0.4"/>'''
         
         svg_code = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
@@ -676,6 +677,14 @@ class PPTGenerator:
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#39;"))
+
+    def _escape_url(self, url: str) -> str:
+        """转义URL中的特殊字符，防止XSS"""
+        # 只转义XML/SVG中可能导致问题的字符
+        return (url
+            .replace("&", "&amp;")
             .replace('"', "&quot;")
             .replace("'", "&#39;"))
 
