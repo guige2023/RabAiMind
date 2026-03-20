@@ -19,6 +19,21 @@
             立即开始创建
           </router-link>
         </div>
+        <!-- 快捷入口 -->
+        <div class="quick-entry animate-fadeIn" style="animation-delay: 0.3s">
+          <router-link to="/history" class="quick-entry-btn">
+            <span class="entry-icon">📋</span>
+            <span class="entry-text">历史记录</span>
+          </router-link>
+          <router-link to="/favorites" class="quick-entry-btn">
+            <span class="entry-icon">⭐</span>
+            <span class="entry-text">我的收藏</span>
+          </router-link>
+          <router-link to="/templates" class="quick-entry-btn">
+            <span class="entry-icon">📑</span>
+            <span class="entry-text">模板市场</span>
+          </router-link>
+        </div>
         <!-- 统计数据 -->
         <div class="hero-stats animate-fadeIn" style="animation-delay: 0.3s" v-if="statistics.totalGenerations > 0">
           <div class="stat-item">
@@ -175,6 +190,36 @@ const selectScene = (sceneId: string) => {
   display: flex;
   gap: 16px;
   justify-content: center;
+}
+
+.quick-entry {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.quick-entry-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.quick-entry-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.entry-icon {
+  font-size: 16px;
 }
 
 .btn-lg {
