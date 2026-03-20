@@ -2,10 +2,13 @@
 AI分析服务
 需求理解、任务分解、内容规划
 """
+import logging
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -158,9 +161,12 @@ class AIAnalyzer:
                     }
                 )
             except json.JSONDecodeError as e:
-                return self._create_default_result(requirement, f"JSON解析失败: {str(e)}")
+                logger.warning(f"JSON解析失败: {type(e).__name__}")
+                return self._create_default_result(requirement, "JSON解析失败")
         else:
-            return self._create_default_result(requirement, response.get("error", "API调用失败"))
+            # error已由volc_api脱敏，直接使用
+            error_msg = response.get("error", "API调用失败")
+            return self._create_default_result(requirement, error_msg)
     
     def generate_content(self, topic: str, outline: List[Dict], style: str, audience: str) -> Dict[str, Any]:
         """
