@@ -539,6 +539,13 @@ class ImageGenerationResponse(BaseModel):
 @router.post("/ai-image", response_model=ImageGenerationResponse)
 async def generate_image(request: ImageGenerationRequest):
     """AI生成图片"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     try:
         from src.services.volc_api import get_volc_api
         from src.services.ppt_planner import sanitize_prompt
@@ -594,6 +601,13 @@ class PlanResponse(BaseModel):
 @router.post("/plan", response_model=PlanResponse)
 async def plan_ppt(request: PlanRequest):
     """生成PPT大纲"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     try:
         from src.services.ppt_planner import plan_ppt, sanitize_prompt
         safe_request = sanitize_prompt(request.user_request)
