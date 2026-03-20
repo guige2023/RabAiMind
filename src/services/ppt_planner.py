@@ -47,8 +47,14 @@ def sanitize_prompt(user_input: str) -> str:
     ]
 
     result = user_input
+    detected_patterns = []
     for pattern in dangerous_patterns:
+        if re.search(pattern, result, flags=re.IGNORECASE):
+            detected_patterns.append(pattern)
         result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+    if detected_patterns:
+        logger.warning(f"检测到潜在Prompt注入，已移除{len(detected_patterns)}个危险模式")
 
     # 限制长度
     max_length = 5000

@@ -378,7 +378,7 @@ async def download_ppt(task_id: str):
         )
 
     return FileResponse(
-        path=str(file_path),
+        path=str(file_path_abs),
         filename=f"presentation_{task_id}.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
@@ -433,7 +433,15 @@ async def export_pdf(task_id: str):
         import subprocess
         import shutil
 
-        pdf_path = pptx_path.replace('.pptx', '.pdf')
+        # 使用验证后的路径计算PDF路径
+        pdf_path = pptx_path_abs.replace('.pptx', '.pdf')
+        # 验证PDF路径也在允许目录内
+        pdf_path_abs = os.path.realpath(pdf_path)
+        if not pdf_path_abs.startswith(output_dir):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="文件路径不安全"
+            )
 
         # 方法1: 尝试使用 LibreOffice 转换
         libreoffice_path = shutil.which('libreoffice') or shutil.which('soffice')
@@ -442,7 +450,7 @@ async def export_pdf(task_id: str):
             # 使用 LibreOffice 转换为 PDF
             result = subprocess.run(
                 [libreoffice_path, "--headless", "--convert-to", "pdf", "--outdir",
-                 os.path.dirname(pptx_path), pptx_path],
+                 os.path.dirname(pptx_path_abs), pptx_path_abs],
                 capture_output=True,
                 timeout=120
             )
@@ -456,15 +464,15 @@ async def export_pdf(task_id: str):
                 )
 
             # LibreOffice 会自动命名输出文件
-            expected_name = os.path.splitext(os.path.basename(pptx_path))[0] + ".pdf"
-            expected_path = os.path.join(os.path.dirname(pptx_path), expected_name)
+            expected_name = os.path.splitext(os.path.basename(pptx_path_abs))[0] + ".pdf"
+            expected_path = os.path.join(os.path.dirname(pptx_path_abs), expected_name)
 
-            if os.path.exists(expected_path) and expected_path != pdf_path:
-                shutil.move(expected_path, pdf_path)
+            if os.path.exists(expected_path) and expected_path != pdf_path_abs:
+                shutil.move(expected_path, pdf_path_abs)
 
-            if os.path.exists(pdf_path):
+            if os.path.exists(pdf_path_abs):
                 return FileResponse(
-                    path=pdf_path,
+                    path=str(pdf_path_abs),
                     filename=f"presentation_{task_id}.pdf",
                     media_type="application/pdf"
                 )
