@@ -27,6 +27,7 @@ from .theme_manager import get_theme_manager, ThemeManager
 from .slide_factory import get_slide_factory, SlideFactory
 from .element_handler import get_element_handler, ElementHandler
 from .animation_manager import get_animation_manager, AnimationManager
+from .generation_mode import get_generation_mode_handler, GenerationModeHandler
 
 logger = setup_logger("ppt_generator")
 
