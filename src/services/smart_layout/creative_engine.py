@@ -10,6 +10,7 @@ PPT 创意引擎
 
 import json
 import logging
+import threading
 from typing import Dict, Any, List, Optional
 
 from .layout_strategy import LayoutStrategy, get_layout_strategy
@@ -213,11 +214,14 @@ class PPTCreativeEngine:
 
 # 单例实例
 _creative_engine_instance: Optional[PPTCreativeEngine] = None
+_manager_lock = threading.Lock()
 
 
 def get_creative_engine(llm_client=None) -> PPTCreativeEngine:
-    """获取创意引擎单例"""
+    """获取创意引擎单例（线程安全）"""
     global _creative_engine_instance
     if _creative_engine_instance is None:
-        _creative_engine_instance = PPTCreativeEngine(llm_client)
+        with _manager_lock:
+            if _creative_engine_instance is None:
+                _creative_engine_instance = PPTCreativeEngine(llm_client)
     return _creative_engine_instance

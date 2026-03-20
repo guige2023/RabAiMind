@@ -12,6 +12,7 @@
 日期: 2026-03-20
 """
 
+import threading
 from typing import Dict, Any, List, Optional
 
 
@@ -309,11 +310,14 @@ class AnimationManager:
 
 # 全局实例
 _animation_manager: Optional[AnimationManager] = None
+_manager_lock = threading.Lock()
 
 
 def get_animation_manager() -> AnimationManager:
-    """获取动画管理器实例"""
+    """获取动画管理器实例（线程安全）"""
     global _animation_manager
     if _animation_manager is None:
-        _animation_manager = AnimationManager()
+        with _manager_lock:
+            if _animation_manager is None:
+                _animation_manager = AnimationManager()
     return _animation_manager

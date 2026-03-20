@@ -10,6 +10,7 @@ AI 视觉设计器
 
 import json
 import re
+import threading
 from typing import Dict, Any, Optional, List
 import logging
 
@@ -277,11 +278,14 @@ class AIVisualDesigner:
 
 # 单例实例
 _ai_visual_designer_instance: Optional[AIVisualDesigner] = None
+_manager_lock = threading.Lock()
 
 
 def get_ai_visual_designer(llm_client=None) -> AIVisualDesigner:
-    """获取AI视觉设计器单例"""
+    """获取AI视觉设计器单例（线程安全）"""
     global _ai_visual_designer_instance
     if _ai_visual_designer_instance is None:
-        _ai_visual_designer_instance = AIVisualDesigner(llm_client)
+        with _manager_lock:
+            if _ai_visual_designer_instance is None:
+                _ai_visual_designer_instance = AIVisualDesigner(llm_client)
     return _ai_visual_designer_instance

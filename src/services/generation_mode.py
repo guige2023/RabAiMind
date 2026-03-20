@@ -13,6 +13,8 @@
 日期: 2026-03-20
 """
 
+import threading
+
 from typing import Dict, Any, List, Optional, Callable, Generator
 import asyncio
 
@@ -293,11 +295,14 @@ class GenerationModeHandler:
 
 # 全局实例
 _generation_mode_handler: Optional[GenerationModeHandler] = None
+_manager_lock = threading.Lock()
 
 
 def get_generation_mode_handler() -> GenerationModeHandler:
-    """获取生成模式处理器实例"""
+    """获取生成模式处理器实例（线程安全）"""
     global _generation_mode_handler
     if _generation_mode_handler is None:
-        _generation_mode_handler = GenerationModeHandler()
+        with _manager_lock:
+            if _generation_mode_handler is None:
+                _generation_mode_handler = GenerationModeHandler()
     return _generation_mode_handler

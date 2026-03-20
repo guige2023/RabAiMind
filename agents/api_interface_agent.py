@@ -286,10 +286,20 @@ class APIInterfaceAgent:
         @app.post("/api/v1/upload/template")
         async def upload_template(file: UploadFile = File(...)):
             """上传模板"""
+            import re
             template_dir = self.config.get("template_dir", "./templates")
             os.makedirs(template_dir, exist_ok=True)
 
-            file_path = os.path.join(template_dir, file.filename)
+            # 安全验证：去除文件名中的路径遍历字符
+            safe_filename = re.sub(r'[^\w.-]', '_', file.filename)
+            if not safe_filename or safe_filename.startswith('.'):
+                safe_filename = f"template_{uuid.uuid4().hex[:8]}"
+
+            # 验证最终路径在允许目录内（防止符号链接绕过）
+            template_dir_abs = os.path.realpath(template_dir)
+            file_path = os.path.join(template_dir_abs, safe_filename)
+            if not os.path.realpath(file_path).startswith(template_dir_abs):
+                return {"error": "无效的文件路径"}, 403
 
             with open(file_path, "wb") as f:
                 content = await file.read()

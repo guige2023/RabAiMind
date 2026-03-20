@@ -8,6 +8,7 @@ SVG 视觉元素库
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, Optional
 import math
 
@@ -306,11 +307,14 @@ class SVGElementLibrary:
 
 # 单例实例
 _svg_element_library_instance: Optional[SVGElementLibrary] = None
+_manager_lock = threading.Lock()
 
 
 def get_svg_element_library() -> SVGElementLibrary:
-    """获取SVG元素库单例"""
+    """获取SVG元素库单例（线程安全）"""
     global _svg_element_library_instance
     if _svg_element_library_instance is None:
-        _svg_element_library_instance = SVGElementLibrary()
+        with _manager_lock:
+            if _svg_element_library_instance is None:
+                _svg_element_library_instance = SVGElementLibrary()
     return _svg_element_library_instance

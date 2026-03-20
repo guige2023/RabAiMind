@@ -8,6 +8,7 @@
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 import re
@@ -274,11 +275,14 @@ class ContentAnalyzer:
 
 # 单例实例
 _content_analyzer_instance: Optional[ContentAnalyzer] = None
+_manager_lock = threading.Lock()
 
 
 def get_content_analyzer() -> ContentAnalyzer:
-    """获取内容分析器单例"""
+    """获取内容分析器单例（线程安全）"""
     global _content_analyzer_instance
     if _content_analyzer_instance is None:
-        _content_analyzer_instance = ContentAnalyzer()
+        with _manager_lock:
+            if _content_analyzer_instance is None:
+                _content_analyzer_instance = ContentAnalyzer()
     return _content_analyzer_instance

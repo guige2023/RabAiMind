@@ -12,6 +12,7 @@
 日期: 2026-03-20
 """
 
+import threading
 from typing import Dict, Any, List, Optional, Tuple
 import re
 
@@ -408,11 +409,14 @@ class ElementHandler:
 
 # 全局实例
 _element_handler: Optional[ElementHandler] = None
+_manager_lock = threading.Lock()
 
 
 def get_element_handler() -> ElementHandler:
-    """获取元素处理器实例"""
+    """获取元素处理器实例（线程安全）"""
     global _element_handler
     if _element_handler is None:
-        _element_handler = ElementHandler()
+        with _manager_lock:
+            if _element_handler is None:
+                _element_handler = ElementHandler()
     return _element_handler

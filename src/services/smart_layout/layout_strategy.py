@@ -8,6 +8,7 @@
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, Optional
 
 # 从统一模型导入布局类型
@@ -187,11 +188,14 @@ class LayoutStrategy:
 
 # 单例实例
 _layout_strategy_instance: Optional[LayoutStrategy] = None
+_manager_lock = threading.Lock()
 
 
 def get_layout_strategy() -> LayoutStrategy:
-    """获取布局策略单例"""
+    """获取布局策略单例（线程安全）"""
     global _layout_strategy_instance
     if _layout_strategy_instance is None:
-        _layout_strategy_instance = LayoutStrategy()
+        with _manager_lock:
+            if _layout_strategy_instance is None:
+                _layout_strategy_instance = LayoutStrategy()
     return _layout_strategy_instance

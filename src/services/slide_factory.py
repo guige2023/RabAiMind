@@ -11,6 +11,7 @@
 日期: 2026-03-20
 """
 
+import threading
 from typing import Dict, Any, List, Optional
 import random
 
@@ -403,11 +404,14 @@ class SlideFactory:
 
 # 全局实例
 _slide_factory: Optional[SlideFactory] = None
+_manager_lock = threading.Lock()
 
 
 def get_slide_factory() -> SlideFactory:
-    """获取幻灯片工厂实例"""
+    """获取幻灯片工厂实例（线程安全）"""
     global _slide_factory
     if _slide_factory is None:
-        _slide_factory = SlideFactory()
+        with _manager_lock:
+            if _slide_factory is None:
+                _slide_factory = SlideFactory()
     return _slide_factory

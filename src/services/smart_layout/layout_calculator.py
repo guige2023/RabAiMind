@@ -8,6 +8,7 @@
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
 
@@ -303,11 +304,14 @@ class LayoutCalculator:
 
 # 单例实例
 _layout_calculator_instance: Optional[LayoutCalculator] = None
+_manager_lock = threading.Lock()
 
 
 def get_layout_calculator() -> LayoutCalculator:
-    """获取布局计算器单例"""
+    """获取布局计算器单例（线程安全）"""
     global _layout_calculator_instance
     if _layout_calculator_instance is None:
-        _layout_calculator_instance = LayoutCalculator()
+        with _manager_lock:
+            if _layout_calculator_instance is None:
+                _layout_calculator_instance = LayoutCalculator()
     return _layout_calculator_instance

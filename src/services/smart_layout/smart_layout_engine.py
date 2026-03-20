@@ -17,6 +17,7 @@ SmartLayout引擎 - 整合智能布局模块
 日期: 2026-03-20
 """
 
+import threading
 from typing import Dict, Any, List, Optional
 
 
@@ -235,11 +236,14 @@ class SmartLayoutEngine:
 
 # 全局实例
 _smart_layout_engine: Optional[SmartLayoutEngine] = None
+_manager_lock = threading.Lock()
 
 
 def get_smart_layout_engine() -> SmartLayoutEngine:
-    """获取SmartLayout引擎实例"""
+    """获取SmartLayout引擎实例（线程安全）"""
     global _smart_layout_engine
     if _smart_layout_engine is None:
-        _smart_layout_engine = SmartLayoutEngine()
+        with _manager_lock:
+            if _smart_layout_engine is None:
+                _smart_layout_engine = SmartLayoutEngine()
     return _smart_layout_engine

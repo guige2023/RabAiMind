@@ -8,6 +8,7 @@
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import random
@@ -355,11 +356,14 @@ class ColorSchemeGenerator:
 
 # 单例实例
 _color_scheme_instance: Optional[ColorSchemeGenerator] = None
+_manager_lock = threading.Lock()
 
 
 def get_color_scheme_generator() -> ColorSchemeGenerator:
-    """获取配色生成器单例"""
+    """获取配色生成器单例（线程安全）"""
     global _color_scheme_instance
     if _color_scheme_instance is None:
-        _color_scheme_instance = ColorSchemeGenerator()
+        with _manager_lock:
+            if _color_scheme_instance is None:
+                _color_scheme_instance = ColorSchemeGenerator()
     return _color_scheme_instance

@@ -8,6 +8,7 @@
 日期: 2026-03-18
 """
 
+import threading
 from typing import Dict, Any, List, Optional
 import math
 import textwrap
@@ -550,11 +551,14 @@ class VisualElementGenerator:
 
 # 单例实例
 _visual_element_generator_instance: Optional[VisualElementGenerator] = None
+_manager_lock = threading.Lock()
 
 
 def get_visual_element_generator() -> VisualElementGenerator:
-    """获取视觉元素生成器单例"""
+    """获取视觉元素生成器单例（线程安全）"""
     global _visual_element_generator_instance
     if _visual_element_generator_instance is None:
-        _visual_element_generator_instance = VisualElementGenerator()
+        with _manager_lock:
+            if _visual_element_generator_instance is None:
+                _visual_element_generator_instance = VisualElementGenerator()
     return _visual_element_generator_instance
