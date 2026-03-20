@@ -8,6 +8,7 @@
 
 import time
 import json
+import logging
 import threading
 import asyncio
 from typing import Dict, Any, Optional
@@ -17,6 +18,8 @@ from pathlib import Path
 
 from ..utils import generate_task_id, get_timestamp, ensure_dir
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class TaskManager:
@@ -133,8 +136,6 @@ class TaskManager:
 
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
         """任务失败"""
-        import logging
-        logger = logging.getLogger(__name__)
         with self._task_lock:
             if task_id in self.tasks:
                 self.tasks[task_id].update({
@@ -228,8 +229,6 @@ class TaskManager:
 
     def _lazy_cleanup_unlocked(self) -> None:
         """懒清理：已持有锁时调用，清理超过30分钟的已完成任务"""
-        import logging
-        logger = logging.getLogger(__name__)
         from datetime import datetime
 
         max_age_minutes = self._max_task_age_minutes

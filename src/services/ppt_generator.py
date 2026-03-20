@@ -617,8 +617,6 @@ class PPTGenerator:
     def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
         """智能文字模式 - 不依赖AI生成SVG，使用纯代码生成美观SVG"""
         # DEBUG日志
-        import logging
-        logger = logging.getLogger("ppt_generator")
         logger.info(f"[DEBUG] slide_{slide_num}: title={slide.get('title', '')[:30]}... content={slide.get('content', [])}")
         title = slide.get("title", "")
         subtitle = slide.get("subtitle", "")
