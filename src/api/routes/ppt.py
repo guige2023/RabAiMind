@@ -546,7 +546,7 @@ async def generate_image(request: ImageGenerationRequest):
         return ImageGenerationResponse(
             success=False,
             images=[],
-            message=str(e)
+            message="图片生成失败，请稍后重试"
         )
 
 
@@ -554,8 +554,8 @@ async def generate_image(request: ImageGenerationRequest):
 
 class PlanRequest(BaseModel):
     """PPT规划请求"""
-    user_request: str
-    slide_count: int = 5
+    user_request: str = Field(..., min_length=1, max_length=5000, description="用户需求")
+    slide_count: int = Field(default=5, ge=1, le=50, description="幻灯片数量")
     scene: str = "business"
     style: str = "professional"
 
@@ -595,5 +595,5 @@ async def plan_ppt(request: PlanRequest):
         return PlanResponse(
             success=False,
             slides=[],
-            message=str(e)
+            message="大纲生成失败，请稍后重试"
         )
