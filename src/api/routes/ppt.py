@@ -204,6 +204,13 @@ async def get_svg_file(task_id: str, slide_num: int):
     import os
     from ...config import settings
 
+    # 防止路径遍历攻击
+    if not task_id or not slide_num or ".." in task_id or "/" in task_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的参数"
+        )
+
     filename = f"slide_{slide_num}_{task_id}.svg"
     filepath = os.path.join(settings.OUTPUT_DIR, filename)
 

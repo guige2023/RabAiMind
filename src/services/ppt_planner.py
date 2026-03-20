@@ -459,7 +459,6 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
                             continue
     except Exception as e:
         print(f"流式输出失败: {e}")
-        yield ""
     finally:
         # 确保关闭HTTP连接
         if resp:
