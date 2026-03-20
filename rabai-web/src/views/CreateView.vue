@@ -1140,10 +1140,6 @@ const handleSubmit = async () => {
       font_subtitle: formData.value.fontSubtitle,
       font_content: formData.value.fontContent,
       font_caption: formData.value.fontCaption,
-      // 文字样式
-      text_style: formData.value.textStyle,
-      shadow_color: formData.value.shadowColor,
-      overlay_transparency: formData.value.overlayTransparency,
       // 布局模式
       layout_mode: formData.value.layoutMode,
       unified_layout: formData.value.unifiedLayout,
