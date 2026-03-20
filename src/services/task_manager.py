@@ -97,48 +97,51 @@ class TaskManager:
         compression_ratio: float = 0.0
     ) -> None:
         """完成任务"""
-        if task_id in self.tasks:
-            file_path = Path(pptx_path)
-            actual_size = file_path.stat().st_size if file_path.exists() else file_size
+        with self._task_lock:
+            if task_id in self.tasks:
+                file_path = Path(pptx_path)
+                actual_size = file_path.stat().st_size if file_path.exists() else file_size
 
-            self.tasks[task_id].update({
-                "status": "completed",
-                "progress": 100,
-                "current_step": "完成",
-                "updated_at": get_timestamp(),
-                "result": {
-                    "pptx_path": pptx_path,
-                    "slide_count": slide_count,
-                    "file_size": actual_size,
-                    "compression_ratio": compression_ratio,
-                    "compatibility": {
-                        "wps": True,
-                        "office": True,
-                        "mobile": True
+                self.tasks[task_id].update({
+                    "status": "completed",
+                    "progress": 100,
+                    "current_step": "完成",
+                    "updated_at": get_timestamp(),
+                    "result": {
+                        "pptx_path": pptx_path,
+                        "slide_count": slide_count,
+                        "file_size": actual_size,
+                        "compression_ratio": compression_ratio,
+                        "compatibility": {
+                            "wps": True,
+                            "office": True,
+                            "mobile": True
+                        }
                     }
-                }
-            })
+                })
 
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
         """任务失败"""
-        if task_id in self.tasks:
-            self.tasks[task_id].update({
-                "status": "failed",
-                "updated_at": get_timestamp(),
-                "error": {
-                    "code": error_code,
-                    "message": error_message
-                }
-            })
+        with self._task_lock:
+            if task_id in self.tasks:
+                self.tasks[task_id].update({
+                    "status": "failed",
+                    "updated_at": get_timestamp(),
+                    "error": {
+                        "code": error_code,
+                        "message": error_message
+                    }
+                })
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
-        if task_id in self.tasks:
-            task = self.tasks[task_id]
-            if task["status"] in ["pending", "processing"]:
-                task["status"] = "cancelled"
-                task["updated_at"] = get_timestamp()
-                return True
+        with self._task_lock:
+            if task_id in self.tasks:
+                task = self.tasks[task_id]
+                if task["status"] in ["pending", "processing"]:
+                    task["status"] = "cancelled"
+                    task["updated_at"] = get_timestamp()
+                    return True
         return False
 
 
