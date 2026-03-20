@@ -131,12 +131,6 @@ class SlideLayout(BaseModel):
     layout_type: LayoutType = Field(default=LayoutType.CONTENT_CARD, description="布局类型")
 
 
-class SlideLayout(BaseModel):
-    """单页布局设置"""
-    slide_index: int = Field(..., description="页码索引 (0-based)")
-    layout_type: LayoutType = Field(default=LayoutType.CONTENT_CARD, description="布局类型")
-
-
 class GenerateRequest(BaseModel):
     """PPT生成请求"""
     user_request: str = Field(..., min_length=10, max_length=2000, description="用户需求描述")

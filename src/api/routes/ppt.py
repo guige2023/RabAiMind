@@ -587,8 +587,8 @@ class PlanRequest(BaseModel):
     """PPT规划请求"""
     user_request: str = Field(..., min_length=1, max_length=5000, description="用户需求")
     slide_count: int = Field(default=5, ge=1, le=50, description="幻灯片数量")
-    scene: str = "business"
-    style: str = "professional"
+    scene: SceneType = Field(default=SceneType.BUSINESS, description="场景类型")
+    style: StyleType = Field(default=StyleType.PROFESSIONAL, description="风格类型")
 
 
 class PlanResponse(BaseModel):
