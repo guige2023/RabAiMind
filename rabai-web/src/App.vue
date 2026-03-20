@@ -40,6 +40,10 @@
             <router-link to="/create" class="nav-link">创建PPT</router-link>
             <router-link to="/templates" class="nav-link">模板市场</router-link>
             <router-link to="/media" class="nav-link">素材库</router-link>
+            <router-link to="/favorites" class="nav-link">
+              <span>收藏</span>
+              <span class="nav-badge" v-if="favoritesCount > 0">{{ favoritesCount }}</span>
+            </router-link>
             <router-link to="/history" class="nav-link">历史</router-link>
           </nav>
           <button class="search-trigger" @click="openGlobalSearch" title="搜索 (Ctrl+K)">
@@ -76,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
@@ -87,12 +91,17 @@ import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import UserExperience from './components/UserExperience.vue'
 import HelpCenter from './components/HelpCenter.vue'
 import ToastNotifications from './components/ToastNotifications.vue'
+import { useTemplateStore } from './composables/useTemplateStore'
 
 const isLoading = ref(true)
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
 const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
+
+// Template store for favorites count
+const templateStore = useTemplateStore()
+const favoritesCount = computed(() => templateStore.favorites.size)
 
 const openGlobalSearch = () => {
   globalSearchRef.value?.openSearch()
@@ -107,6 +116,9 @@ const openHelp = () => {
 }
 
 onMounted(() => {
+  // Load favorites
+  templateStore.loadFavorites()
+
   // Simulate initial load
   setTimeout(() => {
     isLoading.value = false
@@ -259,6 +271,22 @@ onMounted(() => {
 .nav-link:hover::after,
 .nav-link.router-link-active::after {
   width: 100%;
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  background: #FF4D4F;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 9px;
+  line-height: 1;
 }
 
 /* Mobile Menu Button */
