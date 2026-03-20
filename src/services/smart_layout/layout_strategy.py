@@ -11,7 +11,7 @@
 from typing import Dict, Any, Optional
 
 # 从统一模型导入布局类型
-from ...models.layout import LayoutType
+from ...models import LayoutType
 
 
 class LayoutStrategy:

@@ -156,7 +156,9 @@ class PPTGenerator:
                         font_title=font_title,
                         font_subtitle=font_subtitle,
                         font_content=font_content,
-                        font_caption=font_caption
+                        font_caption=font_caption,
+                        layout_mode=layout_mode,
+                        unified_layout=unified_layout
                     )
                 else:
                     svg_code = self._generate_svg(slide, slide_num)
@@ -490,7 +492,9 @@ class PPTGenerator:
         font_title: str = "思源黑体",
         font_subtitle: str = "思源黑体",
         font_content: str = "思源宋体",
-        font_caption: str = "思源黑体"
+        font_caption: str = "思源黑体",
+        layout_mode: str = "auto",
+        unified_layout: bool = True
     ) -> str:
         """使用智能布局模块生成SVG
 

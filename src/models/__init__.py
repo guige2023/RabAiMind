@@ -81,6 +81,11 @@ class LayoutType(str, Enum):
     DATA_VISUALIZATION = "data_visualization"  # 数据可视化
     QUOTE = "quote"  # 金句
     COMPARISON = "comparison"  # 对比
+    TOC = "toc"  # 目录
+    THANK_YOU = "thank_you"  # 结束页
+    LEFT_TEXT_RIGHT_IMAGE = "left_text_right_image"  # 左文右图
+    LEFT_IMAGE_RIGHT_TEXT = "left_image_right_text"  # 左图右文
+    THREE_COLUMN = "three_column"  # 三栏
     MASONRY = "masonry"  # 瀑布流
     FULL_IMAGE = "full_image"  # 全屏图
     PROCESS = "process"  # 流程图

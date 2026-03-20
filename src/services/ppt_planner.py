@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional, Generator
 
 # 火山引擎API配置 - 从settings读取
 from ..config import settings
-from ..models.layout import LayoutType
+from ..models import LayoutType
 
 VOLC_API_KEY = settings.VOLCANO_API_KEY
 VOLC_ENDPOINT = settings.VOLCANO_ENDPOINT
