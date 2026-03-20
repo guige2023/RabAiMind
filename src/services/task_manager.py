@@ -9,6 +9,7 @@
 import time
 import json
 import threading
+import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime
 import os
@@ -34,6 +35,7 @@ class TaskManager:
     def __init__(self):
         self.tasks: Dict[str, Dict] = {}
         self._task_lock = threading.Lock()
+        self._async_tasks: Dict[str, asyncio.Task] = {}  # 保存异步任务引用
         ensure_dir(settings.OUTPUT_DIR)
 
     def create_task(
@@ -122,6 +124,8 @@ class TaskManager:
 
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
         """任务失败"""
+        import logging
+        logger = logging.getLogger(__name__)
         with self._task_lock:
             if task_id in self.tasks:
                 self.tasks[task_id].update({
@@ -132,6 +136,22 @@ class TaskManager:
                         "message": error_message
                     }
                 })
+                logger.warning(f"任务 {task_id} 失败: [{error_code}] {error_message}")
+            else:
+                logger.warning(f"任务 {task_id} 不存在，无法标记为失败")
+
+    def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
+        """注册异步任务引用"""
+        self._async_tasks[task_id] = async_task
+
+    def cancel_async_task(self, task_id: str) -> bool:
+        """取消异步任务"""
+        if task_id in self._async_tasks:
+            async_task = self._async_tasks[task_id]
+            if not async_task.done():
+                async_task.cancel()
+                return True
+        return False
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""

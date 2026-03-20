@@ -76,7 +76,7 @@ async def generate_ppt(request: GenerateRequest):
             theme_color=request.theme_color
         )
 
-        # 异步执行生成任务 - 使用 asyncio.create_task 在后台运行
+        # 异步执行生成任务 - 保存 task 引用以便跟踪和取消
         async def run_task():
             try:
                 await get_ppt_generator().generate(
@@ -108,11 +108,14 @@ async def generate_ppt(request: GenerateRequest):
                 )
             except Exception as e:
                 # 任务失败处理
-                from .task_manager import get_task_manager
-                task_manager = get_task_manager()
-                task_manager.fail_task(task_id, "GENERATION_ERROR", str(e))
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"任务 {task_id} 生成失败: {str(e)}")
+                get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
 
-        asyncio.create_task(run_task())
+        # 创建 task 并保存引用
+        task = asyncio.create_task(run_task())
+        get_task_manager().register_async_task(task_id, task)
 
         return GenerateResponse(
             success=True,
