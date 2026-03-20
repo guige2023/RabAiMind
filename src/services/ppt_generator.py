@@ -689,9 +689,10 @@ class PPTGenerator:
             .replace("'", "&#39;"))
 
     def _validate_url(self, url: str) -> bool:
-        """验证URL是否安全，防止SSRF攻击"""
+        """验证URL是否安全，防止SSRF攻击（含DNS Rebinding防护）"""
         from urllib.parse import urlparse
         import ipaddress
+        import socket
 
         try:
             parsed = urlparse(url)
@@ -701,20 +702,39 @@ class PPTGenerator:
             if parsed.scheme not in ('http', 'https'):
                 return False
 
-            # 解析IP地址
+            # DNS Rebinding防护：解析域名获取IP，并再次验证
+            # 防止攻击者先解析为外网IP，请求时解析为内网IP
             try:
-                ip = ipaddress.ip_address(hostname)
-                # 阻止内网IP
-                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                # 强制DNS解析获取IP地址
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+
+                # 阻止所有内网IP
+                if (ip.is_private or ip.is_loopback or ip.is_link_local or
+                    ip.is_reserved or ip.is_multicast):
                     return False
-            except ValueError:
-                # hostname不是IP，可能是域名
+
+                # 阻止特定内网段
+                if ip_str.startswith(('10.', '172.16.', '172.17.', '172.18.',
+                                    '172.19.', '172.20.', '172.21.', '172.22.',
+                                    '172.23.', '172.24.', '172.25.', '172.26.',
+                                    '172.27.', '172.28.', '172.29.', '172.30.',
+                                    '172.31.', '192.168.', '127.', '169.254.')):
+                    return False
+
+                # IPv6内网
+                if ip_str.startswith(('::1', 'fe80:', 'fc', 'fd', '2001:db8:')):
+                    return False
+
+            except (socket.gaierror, ValueError):
+                # 无法解析，跳过IP检查但继续域名检查
                 pass
 
             # 阻止常见内网域名
             internal_domains = ('localhost', '127.', '10.', '192.168.', '172.16.',
-                              '172.17.', '172.18.', '172.19.', '172.2',
-                              '169.254.', '::1', 'fe80:', '.local', '.intranet.')
+                              '172.17.', '172.18.', '172.19.', '172.2', '172.3',
+                              '169.254.', '::1', 'fe80:', '.local', '.intranet.',
+                              '.corp', '.home.', 'metadata.google.internal')
             for domain in internal_domains:
                 if hostname.startswith(domain) or hostname.endswith(domain + '.local'):
                     return False
