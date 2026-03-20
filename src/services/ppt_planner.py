@@ -18,6 +18,34 @@ VOLC_PROJECT_ID = settings.VOLCANO_PROJECT_ID
 VOLC_MODEL = settings.VOLCANO_TEXT_MODEL
 
 
+def sanitize_prompt(user_input: str) -> str:
+    """过滤用户输入中的危险字符，防止Prompt注入"""
+    if not user_input:
+        return ""
+
+    # 移除可能导致Prompt注入的特殊指令
+    dangerous_patterns = [
+        r'```[\s\S]*?```',  # 代码块
+        r'ignore\s+previous\s+instructions',
+        r'override\s+system',
+        r'#instructions',
+        r'system:',
+        r'user:',
+        r'assistant:',
+    ]
+
+    result = user_input
+    for pattern in dangerous_patterns:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+    # 限制长度
+    max_length = 5000
+    if len(result) > max_length:
+        result = result[:max_length]
+
+    return result.strip()
+
+
 def _parse_json_response(content: str) -> Optional[Dict]:
     """P0修复: 健壮的JSON解析"""
     if not content:

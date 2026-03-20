@@ -32,6 +32,40 @@ from ...services.ppt_generator import get_ppt_generator
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
 
+# ==================== 安全警告 ====================
+# ⚠️ 安全警告：
+# 1. 当前API无认证保护，建议生产环境添加JWT/API Key认证
+# 2. 建议添加速率限制防止滥用（如 @router.middleware 添加限流）
+# 3. 用户输入已做基本过滤，建议根据业务需求加强
+
+# 简单速率限制（内存中）
+_rate_limit_storage: Dict[str, List[float]] = {}
+_RATE_LIMIT_MAX = 20  # 每分钟最大请求数
+_RATE_LIMIT_WINDOW = 60  # 时间窗口秒
+
+
+def _check_rate_limit(client_id: str = "default") -> bool:
+    """简单速率限制检查"""
+    import time
+    now = time.time()
+
+    if client_id not in _rate_limit_storage:
+        _rate_limit_storage[client_id] = []
+
+    # 清理过期记录
+    _rate_limit_storage[client_id] = [
+        t for t in _rate_limit_storage[client_id]
+        if now - t < _RATE_LIMIT_WINDOW
+    ]
+
+    # 检查限制
+    if len(_rate_limit_storage[client_id]) >= _RATE_LIMIT_MAX:
+        return False
+
+    # 记录请求
+    _rate_limit_storage[client_id].append(now)
+    return True
+
 
 # ==================== 健康检查 ====================
 
@@ -65,10 +99,21 @@ async def get_api_info():
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_ppt(request: GenerateRequest):
     """提交 PPT 生成任务"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     try:
+        # 用户输入过滤：防止Prompt注入
+        from src.services.ppt_planner import sanitize_prompt
+        safe_request = sanitize_prompt(request.user_request)
+
         # 创建任务
         task_id = get_task_manager().create_task(
-            user_request=request.user_request,
+            user_request=safe_request,
             slide_count=request.slide_count,
             scene=request.scene.value,
             style=request.style.value,
