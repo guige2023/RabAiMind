@@ -13,6 +13,7 @@ import re
 import json
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+from io import BytesIO
 
 # 导入工具函数
 from ..utils import ensure_dir, get_timestamp, setup_logger
@@ -901,8 +902,18 @@ class PPTGenerator:
                         if response.status_code == 200:
                             # 保存临时文件
                             temp_img = f"/tmp/temp_{uuid.uuid4().hex}.jpg"
-                            with open(temp_img, 'wb') as f:
-                                f.write(response.content)
+
+                            # 图片压缩 - 优化文件大小
+                            try:
+                                img = Image.open(BytesIO(response.content))
+                                # 调整大小为合适分辨率 (1920x1080 for 16:9)
+                                img = img.resize((1920, 1080), Image.Resampling.LANCZOS)
+                                # 保存为压缩JPEG
+                                img.save(temp_img, 'JPEG', quality=75, optimize=True)
+                            except Exception as e:
+                                logger.warning(f"图片压缩失败，使用原图: {e}")
+                                with open(temp_img, 'wb') as f:
+                                    f.write(response.content)
 
                             # 分析图片亮度
                             try:
@@ -1069,12 +1080,59 @@ class PPTGenerator:
             # 保存
             prs.save(output_path)
             logger.info(f"PPT保存成功: {output_path}")
+
+            # 文件压缩优化
+            self._compress_pptx(output_path)
+
             return True
 
         except Exception as e:
             logger.error(f"SVG转PPT失败: {e}")
             import traceback
             traceback.print_exc()
+            return False
+
+    def _compress_pptx(self, file_path: str) -> bool:
+        """压缩PPTX文件"""
+        import zipfile
+        import os
+
+        if not os.path.exists(file_path):
+            return False
+
+        try:
+            original_size = os.path.getsize(file_path)
+
+            # 创建临时文件
+            temp_path = file_path + '.tmp'
+
+            # 使用最大压缩比重新压缩
+            with zipfile.ZipFile(temp_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zip_out:
+                with zipfile.ZipFile(file_path, 'r') as zip_in:
+                    for item in zip_in.infolist():
+                        data = zip_in.read(item.filename)
+                        # 对媒体文件使用更高压缩
+                        if item.filename.endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                            zip_out.writestr(item, data, compresslevel=9)
+                        else:
+                            zip_out.writestr(item, data, compresslevel=9)
+
+            # 替换原文件
+            os.replace(temp_path, file_path)
+
+            compressed_size = os.path.getsize(file_path)
+            ratio = (1 - compressed_size / original_size) * 100
+
+            logger.info(f"PPT压缩完成: {original_size / 1024 / 1024:.2f}MB -> {compressed_size / 1024 / 1024:.2f}MB (减少 {ratio:.1f}%)")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"PPT压缩失败: {e}")
+            # 清理临时文件
+            temp_path = file_path + '.tmp'
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             return False
 
     def _hex_to_rgb(self, hex_color: str) -> RGBColor:
