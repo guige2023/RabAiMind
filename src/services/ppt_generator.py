@@ -25,13 +25,6 @@ from ..config import settings
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
-# 导入新模块（预留，后续拆分可能用到）
-# from .theme_manager import get_theme_manager, ThemeManager
-# from .slide_factory import get_slide_factory, SlideFactory
-# from .element_handler import get_element_handler, ElementHandler
-# from .animation_manager import get_animation_manager, AnimationManager
-# from .generation_mode import get_generation_mode_handler, GenerationModeHandler
-
 logger = setup_logger("ppt_generator")
 
 

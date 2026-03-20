@@ -146,6 +146,35 @@ class GenerateRequest(BaseModel):
     @classmethod
     def validate_hex_color(cls, v):
         return validate_hex_color(v, '颜色')
+
+    @field_validator('generation_mode')
+    @classmethod
+    def validate_generation_mode(cls, v):
+        if v not in ['standard', 'fast', 'quality', 'stream']:
+            raise ValueError('generation_mode必须是 standard/fast/quality/stream 之一')
+        return v
+
+    @field_validator('output_format')
+    @classmethod
+    def validate_output_format(cls, v):
+        if v not in ['pptx', 'pdf', 'svg', 'png']:
+            raise ValueError('output_format必须是 pptx/pdf/svg/png 之一')
+        return v
+
+    @field_validator('quality')
+    @classmethod
+    def validate_quality(cls, v):
+        if v not in ['standard', 'high', 'ultra']:
+            raise ValueError('quality必须是 standard/high/ultra 之一')
+        return v
+
+    @field_validator('layout_mode')
+    @classmethod
+    def validate_layout_mode(cls, v):
+        if v not in ['auto', 'manual']:
+            raise ValueError('layout_mode必须是 auto/manual 之一')
+        return v
+
     overlay_transparency: int = Field(default=30, ge=0, le=100, description="遮罩透明度百分比")
     use_smart_layout: bool = Field(default=False, description="是否使用智能布局模式")
     slide_backgrounds: Optional[List[SlideBackground]] = Field(default=None, description="每页背景设置")
