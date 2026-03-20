@@ -253,13 +253,21 @@ async def get_task_preview(task_id: str):
 async def get_svg_file(task_id: str, slide_num: int):
     """获取单个SVG文件"""
     import os
+    import re
     from ...config import settings
 
-    # 防止路径遍历攻击
-    if not task_id or not slide_num or ".." in task_id or "/" in task_id:
+    # 防止路径遍历攻击：严格验证task_id格式
+    if not task_id or not slide_num or not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="无效的参数"
+        )
+
+    # 验证slide_num是正整数
+    if not isinstance(slide_num, int) or slide_num < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的页码"
         )
 
     filename = f"slide_{slide_num}_{task_id}.svg"

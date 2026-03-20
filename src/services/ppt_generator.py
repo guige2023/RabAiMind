@@ -541,11 +541,21 @@ class PPTGenerator:
             # 手动模式：只使用用户指定的布局，不自动检测
             if user_layout:
                 slide_type = user_layout
-                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用用户指定布局 {slide_type}")
             else:
                 # 没有指定布局时使用默认
                 slide_type = "content_card"
-                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，无指定布局，使用默认 {slide_type}")
+
+            # 统一布局模式：保存首页布局（线程安全）
+            if unified_layout:
+                with self._layout_lock:
+                    if self._first_page_layout is None:
+                        self._first_page_layout = slide_type
+                        logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，设置首页布局 {slide_type}")
+                    else:
+                        slide_type = self._first_page_layout
+                        logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，复用布局 {slide_type}")
+            else:
+                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用布局 {slide_type}")
         else:
             # 自动模式：智能检测布局
             if user_layout:

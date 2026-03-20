@@ -36,6 +36,7 @@ class TaskManager:
         self.tasks: Dict[str, Dict] = {}
         self._task_lock = threading.Lock()
         self._async_tasks: Dict[str, asyncio.Task] = {}  # 保存异步任务引用
+        self._async_tasks_lock = threading.Lock()  # 保护_async_tasks的线程锁
         self._cleanup_counter: int = 0  # 懒清理计数器
         self._cleanup_interval: int = 10  # 每10次操作清理一次
         self._max_task_age_minutes: int = 30  # 任务最大存活时间(分钟)
@@ -149,25 +150,28 @@ class TaskManager:
                 logger.warning(f"任务 {task_id} 不存在，无法标记为失败")
 
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
-        """注册异步任务引用"""
-        self._async_tasks[task_id] = async_task
+        """注册异步任务引用（线程安全）"""
+        with self._async_tasks_lock:
+            self._async_tasks[task_id] = async_task
 
     def cancel_async_task(self, task_id: str) -> bool:
-        """取消异步任务"""
-        if task_id in self._async_tasks:
-            async_task = self._async_tasks[task_id]
-            if not async_task.done():
-                async_task.cancel()
-            # 无论是否取消成功，都清理引用防止内存泄漏
-            del self._async_tasks[task_id]
-            return True
-        return False
+        """取消异步任务（线程安全）"""
+        with self._async_tasks_lock:
+            if task_id in self._async_tasks:
+                async_task = self._async_tasks[task_id]
+                if not async_task.done():
+                    async_task.cancel()
+                # 无论是否取消成功，都清理引用防止内存泄漏
+                del self._async_tasks[task_id]
+                return True
+            return False
 
     def _cleanup_finished_async_tasks(self) -> None:
-        """清理已完成的异步任务引用，防止内存泄漏"""
-        finished = [tid for tid, task in self._async_tasks.items() if task.done()]
-        for tid in finished:
-            del self._async_tasks[tid]
+        """清理已完成的异步任务引用，防止内存泄漏（线程安全）"""
+        with self._async_tasks_lock:
+            finished = [tid for tid, task in self._async_tasks.items() if task.done()]
+            for tid in finished:
+                del self._async_tasks[tid]
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
@@ -210,7 +214,10 @@ class TaskManager:
             for task_id in tasks_to_remove:
                 del self.tasks[task_id]
                 removed += 1
-                # 同时清理对应的异步任务引用
+
+        # 清理对应的异步任务引用（需要单独加锁）
+        with self._async_tasks_lock:
+            for task_id in tasks_to_remove:
                 if task_id in self._async_tasks:
                     del self._async_tasks[task_id]
 
