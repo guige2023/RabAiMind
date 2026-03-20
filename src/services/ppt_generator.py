@@ -514,7 +514,7 @@ class PPTGenerator:
         """
         from .smart_layout.creative_engine import get_creative_engine
 
-        logger.info(f"[SmartLayout] slide_{slide_num}: 使用智能布局生成, text_style={text_style}")
+        logger.info(f"[SmartLayout] slide_{slide_num}: layout_mode={layout_mode}, unified_layout={unified_layout}, text_style={text_style}")
 
         # 获取创意引擎
         engine = get_creative_engine()
@@ -533,19 +533,44 @@ class PPTGenerator:
             else:
                 content_list.append({"title": str(item), "content": ""})
 
-        # 确定布局类型：优先使用用户指定的布局
-        if user_layout:
-            slide_type = user_layout
-            logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
+        # 确定布局类型
+        if layout_mode == 'manual':
+            # 手动模式：只使用用户指定的布局，不自动检测
+            if user_layout:
+                slide_type = user_layout
+                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用用户指定布局 {slide_type}")
+            else:
+                # 没有指定布局时使用默认
+                slide_type = "content_card"
+                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，无指定布局，使用默认 {slide_type}")
         else:
-            # 获取布局建议
-            content_text = "\n".join([str(c) for c in content])
-            suggestion = engine.get_layout_suggestion(title, content_text)
-            slide_type = suggestion.get("content_type", "content")
+            # 自动模式：智能检测布局
+            if user_layout:
+                # 有用户指定布局
+                if unified_layout and slide_num > 1:
+                    # 统一布局模式：后续页面复用第一页的布局
+                    slide_type = getattr(self, '_first_page_layout', user_layout)
+                    if not hasattr(self, '_first_page_layout'):
+                        self._first_page_layout = user_layout
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，首页布局 {slide_type}")
+                    else:
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，复用布局 {slide_type}")
+                else:
+                    slide_type = user_layout
+                    logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
+            else:
+                # 无用户指定，自动检测
+                content_text = "\n".join([str(c) for c in content])
+                suggestion = engine.get_layout_suggestion(title, content_text)
+                slide_type = suggestion.get("content_type", "content")
 
-            # 如果是第一页，使用封面布局
-            if slide_num == 1:
-                slide_type = "title_slide"
+                # 如果是第一页，使用封面布局
+                if slide_num == 1:
+                    slide_type = "title_slide"
+
+                # 统一布局模式：保存首页布局
+                if unified_layout:
+                    self._first_page_layout = slide_type
 
         # 生成配色
         colors = engine.generate_color_palette(style, theme_color)
