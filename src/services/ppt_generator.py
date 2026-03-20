@@ -759,11 +759,17 @@ class PPTGenerator:
 
             # DNS Rebinding防护：遍历域名解析的所有IP，确保全部安全
             # 防止攻击者配置多IP DNS绕过检查
+            dns_resolved = False
             try:
                 # 获取所有IP地址
                 addr_info = socket.getaddrinfo(hostname, None)
                 all_ips = set(info[4][0] for info in addr_info)
 
+                # 如果DNS解析成功但没有返回任何IP，拒绝请求
+                if not all_ips:
+                    return False
+
+                dns_resolved = True
                 for ip_str in all_ips:
                     try:
                         ip = ipaddress.ip_address(ip_str)
