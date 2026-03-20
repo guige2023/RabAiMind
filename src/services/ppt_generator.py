@@ -757,31 +757,37 @@ class PPTGenerator:
             if parsed.scheme not in ('http', 'https'):
                 return False
 
-            # DNS Rebinding防护：解析域名获取IP，并再次验证
-            # 防止攻击者先解析为外网IP，请求时解析为内网IP
+            # DNS Rebinding防护：遍历域名解析的所有IP，确保全部安全
+            # 防止攻击者配置多IP DNS绕过检查
             try:
-                # 强制DNS解析获取IP地址
-                ip_str = socket.gethostbyname(hostname)
-                ip = ipaddress.ip_address(ip_str)
+                # 获取所有IP地址
+                addr_info = socket.getaddrinfo(hostname, None)
+                all_ips = set(info[4][0] for info in addr_info)
 
-                # 阻止所有内网IP
-                if (ip.is_private or ip.is_loopback or ip.is_link_local or
-                    ip.is_reserved or ip.is_multicast):
-                    return False
+                for ip_str in all_ips:
+                    try:
+                        ip = ipaddress.ip_address(ip_str)
 
-                # 阻止特定内网段
-                if ip_str.startswith(('10.', '172.16.', '172.17.', '172.18.',
-                                    '172.19.', '172.20.', '172.21.', '172.22.',
-                                    '172.23.', '172.24.', '172.25.', '172.26.',
-                                    '172.27.', '172.28.', '172.29.', '172.30.',
-                                    '172.31.', '192.168.', '127.', '169.254.')):
-                    return False
+                        # 阻止所有内网IP
+                        if (ip.is_private or ip.is_loopback or ip.is_link_local or
+                            ip.is_reserved or ip.is_multicast):
+                            return False
 
-                # IPv6内网
-                if ip_str.startswith(('::1', 'fe80:', 'fc', 'fd', '2001:db8:')):
-                    return False
+                        # 阻止特定内网段
+                        if ip_str.startswith(('10.', '172.16.', '172.17.', '172.18.',
+                                            '172.19.', '172.20.', '172.21.', '172.22.',
+                                            '172.23.', '172.24.', '172.25.', '172.26.',
+                                            '172.27.', '172.28.', '172.29.', '172.30.',
+                                            '172.31.', '192.168.', '127.', '169.254.')):
+                            return False
 
-            except (socket.gaierror, ValueError):
+                        # IPv6内网
+                        if ip_str.startswith(('::1', 'fe80:', 'fc', 'fd', '2001:db8:')):
+                            return False
+                    except ValueError:
+                        continue
+
+            except (socket.gaierror, OSError):
                 # 无法解析，跳过IP检查但继续域名检查
                 pass
 

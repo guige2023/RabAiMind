@@ -221,6 +221,13 @@ async def get_task_status(task_id: str):
 @router.get("/preview/{task_id}")
 async def get_task_preview(task_id: str):
     """获取任务预览图列表 - 用于实时预览"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     import os
     from ...config import settings
 
@@ -268,6 +275,13 @@ async def get_task_preview(task_id: str):
 @router.get("/svg/{task_id}/{slide_num}")
 async def get_svg_file(task_id: str, slide_num: int):
     """获取单个SVG文件"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     import os
     from ...config import settings
 
@@ -333,6 +347,13 @@ async def cancel_task(task_id: str):
 @router.get("/download/{task_id}")
 async def download_ppt(task_id: str):
     """下载 PPT 文件"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     task = get_task_manager().get_task(task_id)
 
     if not task:
@@ -387,6 +408,13 @@ async def download_ppt(task_id: str):
 @router.get("/export/pdf/{task_id}")
 async def export_pdf(task_id: str):
     """导出PDF"""
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
     task = get_task_manager().get_task(task_id)
 
     if not task:
