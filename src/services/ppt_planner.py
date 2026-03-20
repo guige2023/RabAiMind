@@ -241,7 +241,7 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
         LayoutType.LEFT_TEXT_RIGHT_IMAGE,
         LayoutType.LEFT_IMAGE_RIGHT_TEXT,
         LayoutType.THREE_COLUMN,
-        LayoutType.CARD
+        LayoutType.CONTENT_CARD
     ]
 
     # 基于用户请求生成内容
