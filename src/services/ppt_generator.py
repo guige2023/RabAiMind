@@ -678,18 +678,20 @@ class PPTGenerator:
         # 如果没有找到，返回默认SVG
         return self._default_svg()
 
-    def _default_svg(self) -> str:
-        """默认SVG"""
-        return '''<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
+    def _default_svg(self, slide_num: int = 1, title: str = "PPT Slide") -> str:
+        """默认SVG - 用于错误时的回退"""
+        escaped_title = self._escape_html(title)
+        return f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e"/>
-      <stop offset="100%" style="stop-color:#16213e"/>
+      <stop offset="0%" style="stop-color:#165DFF"/>
+      <stop offset="100%" style="stop-color:#0D47E8"/>
     </linearGradient>
   </defs>
   <rect width="1600" height="900" fill="url(#bg)"/>
-  <text x="800" y="450" text-anchor="middle" fill="white" font-size="48">PPT Slide</text>
+  <text x="800" y="420" text-anchor="middle" fill="white" font-size="56" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-weight="bold">{escaped_title}</text>
+  <text x="800" y="520" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">第 {slide_num} 页</text>
 </svg>'''
 
     def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None) -> bool:
