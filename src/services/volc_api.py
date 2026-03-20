@@ -2,11 +2,28 @@
 火山引擎API封装
 提供文本生成、图片生成等AI能力
 """
+import logging
 import os
 import json
 import requests
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+def _sanitize_error(e: Exception) -> str:
+    """错误信息脱敏 - 不泄露内部细节"""
+    error_msg = str(e)
+    # 通用错误消息，不包含任何内部信息
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return "网络连接失败，请检查网络后重试"
+    elif isinstance(e, requests.exceptions.Timeout):
+        return "请求超时，请稍后重试"
+    elif isinstance(e, requests.exceptions.HTTPError):
+        return f"HTTP错误，请稍后重试"
+    else:
+        return "服务暂时不可用，请稍后重试"
 
 
 class VolcEngineAPI:
@@ -72,12 +89,13 @@ class VolcEngineAPI:
                 "model": model
             }
         except requests.exceptions.RequestException as e:
+            logger.warning(f"文本生成API失败: {type(e).__name__}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": _sanitize_error(e),
                 "model": model
             }
-    
+
     def image_to_text(
         self,
         image_url: str,
@@ -129,12 +147,13 @@ class VolcEngineAPI:
                 "model": model
             }
         except requests.exceptions.RequestException as e:
+            logger.warning(f"图片理解API失败: {type(e).__name__}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": _sanitize_error(e),
                 "model": model
             }
-    
+
     def image_generation(
         self,
         prompt: str,
@@ -188,9 +207,10 @@ class VolcEngineAPI:
                 "model": model
             }
         except requests.exceptions.RequestException as e:
+            logger.warning(f"图片生成API失败: {type(e).__name__}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": _sanitize_error(e),
                 "model": model
             }
 

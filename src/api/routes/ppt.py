@@ -12,6 +12,7 @@ from typing import Dict, Any, List
 from pydantic import BaseModel, Field, field_validator
 import asyncio
 import logging
+import re
 import threading
 import time
 
@@ -221,7 +222,6 @@ async def get_task_status(task_id: str):
 async def get_task_preview(task_id: str):
     """获取任务预览图列表 - 用于实时预览"""
     import os
-    import re
     from ...config import settings
 
     # 验证task_id格式
@@ -269,7 +269,6 @@ async def get_task_preview(task_id: str):
 async def get_svg_file(task_id: str, slide_num: int):
     """获取单个SVG文件"""
     import os
-    import re
     from ...config import settings
 
     # 防止路径遍历攻击：严格验证task_id格式
