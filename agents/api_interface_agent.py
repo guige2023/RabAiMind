@@ -201,7 +201,7 @@ class APIInterfaceAgent:
                 message="PPT 生成任务已创建"
             )
 
-        @app.get("/api/v1/ppt/status/{task_id}")
+        @app.get("/api/v1/ppt/task/{task_id}")
         async def get_status(task_id: str):
             """获取任务状态"""
             task = self.task_manager.get_task(task_id)
