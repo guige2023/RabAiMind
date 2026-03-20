@@ -545,6 +545,10 @@ class PPTGenerator:
                 # 没有指定布局时使用默认
                 slide_type = "content_card"
 
+            # 如果是第一页，使用封面布局
+            if slide_num == 1:
+                slide_type = "title_slide"
+
             # 统一布局模式：保存首页布局（线程安全）
             if unified_layout:
                 with self._layout_lock:
@@ -1564,11 +1568,15 @@ class PPTGenerator:
 
 # 全局实例
 _ppt_generator: Optional[PPTGenerator] = None
+_generator_lock = threading.Lock()  # 保护单例创建
 
 
 def get_ppt_generator() -> PPTGenerator:
-    """获取PPT生成器实例"""
+    """获取PPT生成器实例（线程安全）"""
     global _ppt_generator
     if _ppt_generator is None:
-        _ppt_generator = PPTGenerator()
+        with _generator_lock:
+            # 双重检查
+            if _ppt_generator is None:
+                _ppt_generator = PPTGenerator()
     return _ppt_generator
