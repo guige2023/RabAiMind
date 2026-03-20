@@ -262,13 +262,23 @@ class PPTGenerator:
 
         content_gen = get_content_generator()
 
+        # 构建更好的提示词
         prompt = slide.get("image_prompt", "")
         if not prompt:
-            prompt = slide.get("title", "")
+            # 基于标题和内容构建提示词
+            title = slide.get("title", "")
+            content = slide.get("content", [])
+            slide_type = slide.get("slide_type", "content")
 
-        # 尝试生成图片
+            # 构建英文提示词
+            prompt = self._build_image_prompt(title, content, slide_type)
+
+        # 尝试生成图片 (使用16:9比例)
         try:
-            image_url = content_gen.generate_image(prompt)
+            image_url = content_gen.generate_image(
+                prompt=prompt,
+                model="stable-diffusion-xl-2600"
+            )
             if image_url:
                 logger.info(f"AI生成图片成功: {image_url[:50]}...")
                 return image_url
@@ -278,6 +288,70 @@ class PPTGenerator:
         # 返回备用图片URL
         logger.info("使用备用图片")
         return self._get_fallback_image_url(slide, slide_num)
+
+    def _build_image_prompt(self, title: str, content: List, slide_type: str) -> str:
+        """构建AI图片提示词"""
+        # 中文标题转英文
+        title_en = self._translate_to_english(title)
+
+        # 构建提示词
+        if slide_type == "title" or slide_type == "thank_you":
+            prompt = f"Professional business presentation {title_en}, clean modern design, minimal abstract background, soft gradient, high quality, 16:9 aspect ratio"
+        elif slide_type == "toc":
+            prompt = f"Table of contents layout, {title_en}, organized list design, clean typography, business presentation style, high quality, 16:9"
+        else:
+            # 内容页 - 基于内容构建
+            content_desc = ", ".join(content[:3]) if content else "business content"
+            content_en = self._translate_to_english(content_desc)
+            prompt = f"Professional business illustration for {title_en}, {content_en}, modern corporate style, clean design, high quality, 16:9 aspect ratio"
+
+        return prompt
+
+    def _translate_to_english(self, text: str) -> str:
+        """简单的中文到英文翻译（关键词映射）"""
+        # 常用关键词映射
+        keywords = {
+            "商业": "business",
+            "企业": "corporate",
+            "公司": "company",
+            "产品": "product",
+            "服务": "service",
+            "市场": "market",
+            "营销": "marketing",
+            "销售": "sales",
+            "技术": "technology",
+            "创新": "innovation",
+            "发展": "development",
+            "团队": "team",
+            "领导": "leadership",
+            "管理": "management",
+            "培训": "training",
+            "教育": "education",
+            "学习": "learning",
+            "财务": "finance",
+            "数据": "data",
+            "分析": "analysis",
+            "报告": "report",
+            "总结": "summary",
+            "计划": "plan",
+            "目标": "goal",
+            "战略": "strategy",
+            "优势": "advantage",
+            "挑战": "challenge",
+            "解决方案": "solution",
+            "案例": "case study",
+            "谢谢": "thank you",
+            "感谢": "thank you",
+            "结束": "ending"
+        }
+
+        text_lower = text.lower()
+        for cn, en in keywords.items():
+            if cn in text_lower:
+                return en
+
+        # 如果没有匹配，返回原文（作为后备）
+        return text
 
     def _get_fallback_image_url(self, slide: Dict, slide_num: int = 1) -> str:
         """获取备用图片URL - 根据内容类型选择合适的背景图"""
