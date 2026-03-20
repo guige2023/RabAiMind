@@ -8,6 +8,7 @@
 
 import time
 import json
+import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 import os
@@ -20,8 +21,19 @@ from ..config import settings
 class TaskManager:
     """任务管理器 - 管理PPT生成任务"""
 
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self):
         self.tasks: Dict[str, Dict] = {}
+        self._task_lock = threading.Lock()
         ensure_dir(settings.OUTPUT_DIR)
 
     def create_task(
@@ -53,7 +65,8 @@ class TaskManager:
             "error": None
         }
 
-        self.tasks[task_id] = task
+        with self._task_lock:
+            self.tasks[task_id] = task
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Dict]:
@@ -68,11 +81,12 @@ class TaskManager:
         status: str = "processing"
     ) -> None:
         """更新任务进度"""
-        if task_id in self.tasks:
-            self.tasks[task_id]["progress"] = progress
-            self.tasks[task_id]["current_step"] = current_step
-            self.tasks[task_id]["status"] = status
-            self.tasks[task_id]["updated_at"] = get_timestamp()
+        with self._task_lock:
+            if task_id in self.tasks:
+                self.tasks[task_id]["progress"] = progress
+                self.tasks[task_id]["current_step"] = current_step
+                self.tasks[task_id]["status"] = status
+                self.tasks[task_id]["updated_at"] = get_timestamp()
 
     def complete_task(
         self,
