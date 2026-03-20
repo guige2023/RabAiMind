@@ -32,15 +32,26 @@
               <p>加载预览中...</p>
             </div>
             <div class="preview-grid" v-else>
-              <div
-                v-for="i in Math.min(slideCount, 6)"
-                :key="i"
-                class="preview-slide"
-              >
-                <div class="preview-placeholder">
-                  <span>第 {{ i }} 页</span>
+              <template v-if="previewSlides.length > 0">
+                <div
+                  v-for="slide in previewSlides.slice(0, 6)"
+                  :key="slide.slideNum"
+                  class="preview-slide"
+                >
+                  <img :src="slide.url" :alt="`第 ${slide.slideNum} 页`" class="preview-image" />
                 </div>
-              </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="i in Math.min(slideCount, 6)"
+                  :key="i"
+                  class="preview-slide"
+                >
+                  <div class="preview-placeholder">
+                    <span>第 {{ i }} 页</span>
+                  </div>
+                </div>
+              </template>
               <div v-if="slideCount > 6" class="preview-more">
                 +{{ slideCount - 6 }} 页
               </div>
@@ -319,6 +330,7 @@ const fileSize = ref('0 KB')
 const errorMessage = ref('')
 const showExportMenu = ref(false)
 const previewLoaded = ref(false)
+const previewSlides = ref<Array<{url: string; slideNum: number}>>([])
 const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
@@ -568,11 +580,23 @@ const toggleFavorite = () => {
   }
 }
 
-// 模拟加载预览（实际应该调用API获取预览图）
-const loadPreview = () => {
-  setTimeout(() => {
+// 加载预览（调用真实API获取SVG预览）
+const loadPreview = async () => {
+  if (!taskId.value) return
+
+  try {
+    const response = await api.ppt.getTaskPreview(taskId.value)
+    if (response.data && response.data.slides) {
+      previewSlides.value = response.data.slides.map((s: any) => ({
+        url: s.url,
+        slideNum: s.slide_num
+      }))
+    }
+  } catch (e) {
+    console.warn('预览加载失败:', e)
+  } finally {
     previewLoaded.value = true
-  }, 500)
+  }
 }
 
 // 加载任务状态
