@@ -2,12 +2,22 @@
 内容生成服务
 文本生成、图片生成等
 """
+import logging
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 import json
 from datetime import datetime
 
 from .volc_api import get_volc_api, VolcEngineAPI
+
+logger = logging.getLogger(__name__)
+
+# 输入长度限制
+MAX_TOPIC_LENGTH = 500
+MAX_STYLE_LENGTH = 100
+MAX_AUDIENCE_LENGTH = 100
+MAX_PROMPT_LENGTH = 4000
+MAX_SLIDE_COUNT = 30
 
 
 @dataclass
@@ -53,19 +63,25 @@ class ContentGenerator:
     ) -> List[SlideContent]:
         """
         生成幻灯片内容
-        
+
         Args:
             topic: 主题
             slide_structure: 幻灯片结构
             style: 风格
             audience: 目标受众
-            
+
         Returns:
             幻灯片内容列表
         """
+        # 输入验证
+        topic = topic[:MAX_TOPIC_LENGTH] if topic else ""
+        style = style[:MAX_STYLE_LENGTH] if style else "professional"
+        audience = audience[:MAX_AUDIENCE_LENGTH] if audience else "business"
+        slide_structure = slide_structure[:MAX_SLIDE_COUNT] if slide_structure else []
+
         # 构建prompt
         prompt = self._build_content_prompt(topic, slide_structure, style, audience)
-        
+
         # 调用API生成
         response = self.volc_api.text_generation(
             prompt=prompt,
@@ -73,10 +89,11 @@ class ContentGenerator:
             temperature=0.7,
             max_tokens=4096
         )
-        
+
         if not response.get("success"):
+            logger.warning(f"文本生成API失败: {response.get('error', '未知错误')}")
             return self._create_default_content(slide_structure)
-        
+
         # 解析结果
         try:
             content = response.get("content", "")
@@ -84,10 +101,10 @@ class ContentGenerator:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
-                
+
             data = json.loads(content.strip())
             slides = data.get("slides", [])
-            
+
             result = []
             for i, slide_data in enumerate(slides):
                 result.append(SlideContent(
@@ -97,10 +114,11 @@ class ContentGenerator:
                     bullet_points=slide_data.get("bullet_points", []),
                     notes=slide_data.get("notes")
                 ))
-            
+
             return result
-            
-        except (json.JSONDecodeError, KeyError):
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"解析生成内容失败: {type(e).__name__}, 使用默认内容")
             return self._create_default_content(slide_structure)
     
     def generate_image_prompt(
@@ -110,19 +128,25 @@ class ContentGenerator:
     ) -> str:
         """
         生成图片提示词
-        
+
         Args:
             slide_content: 幻灯片内容
             style: 风格
-            
+
         Returns:
             英文提示词
         """
+        # 限制输入长度
+        title = slide_content.title[:200] if slide_content.title else ""
+        content = slide_content.content[:1000] if slide_content.content else ""
+        bullet_points = [bp[:200] for bp in (slide_content.bullet_points or [])[:5]]
+        style = style[:MAX_STYLE_LENGTH] if style else "professional"
+
         prompt = f"""根据以下幻灯片内容生成AI绘画提示词：
 
-标题：{slide_content.title}
-内容：{slide_content.content}
-要点：{', '.join(slide_content.bullet_points)}
+标题：{title}
+内容：{content}
+要点：{', '.join(bullet_points)}
 
 要求：
 1. 详细描述画面内容
@@ -131,16 +155,16 @@ class ContentGenerator:
 4. 返回英文提示词
 
 直接返回提示词，不要其他内容。"""
-        
+
         response = self.volc_api.text_generation(
             prompt=prompt,
             max_tokens=512,
             temperature=0.7
         )
-        
+
         if response.get("success"):
             return response.get("content", "").strip()
-        
+
         return ""
     
     def generate_image(
@@ -150,23 +174,26 @@ class ContentGenerator:
     ) -> Optional[str]:
         """
         生成图片
-        
+
         Args:
             prompt: 提示词
             model: 模型
-            
+
         Returns:
             图片URL
         """
+        # 限制提示词长度
+        prompt = prompt[:MAX_PROMPT_LENGTH] if prompt else ""
+
         response = self.volc_api.image_generation(
             prompt=prompt,
             model=model
         )
-        
+
         if response.get("success"):
             images = response.get("images", [])
             return images[0] if images else None
-        
+
         return None
     
     def understand_image(self, image_url: str, question: str = "描述这张图片") -> str:
