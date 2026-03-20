@@ -1,48 +1,80 @@
 <template>
   <div class="generating">
     <div class="container">
-      <div class="generating-card">
-        <div class="generating-icon">
-          <div class="ai-orb">
-            <div class="orb-ring"></div>
-            <div class="orb-ring" style="animation-delay: -0.5s"></div>
-            <div class="orb-ring" style="animation-delay: -1s"></div>
-            <div class="orb-core">✨</div>
+      <div class="generating-layout">
+        <!-- 左侧：进度卡片 -->
+        <div class="generating-card">
+          <div class="generating-icon">
+            <div class="ai-orb">
+              <div class="orb-ring"></div>
+              <div class="orb-ring" style="animation-delay: -0.5s"></div>
+              <div class="orb-ring" style="animation-delay: -1s"></div>
+              <div class="orb-core">✨</div>
+            </div>
+          </div>
+
+          <h2 class="generating-title">{{ statusText }}</h2>
+          <p class="generating-desc">{{ currentStep }}</p>
+
+          <!-- 进度条 -->
+          <div class="progress-wrapper">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
+            </div>
+            <div class="progress-info">
+              <span class="progress-percent">{{ progress }}%</span>
+              <span class="progress-time" v-if="progress > 0 && progress < 100">预计剩余 {{ estimatedTime }} 秒</span>
+            </div>
+          </div>
+
+          <!-- 步骤提示 -->
+          <div class="steps">
+            <div
+              v-for="(step, index) in steps"
+              :key="step.key"
+              class="step"
+              :class="{ active: currentStepKey === step.key, completed: stepOrder.indexOf(currentStepKey) > index }"
+            >
+              <div class="step-icon">{{ step.icon }}</div>
+              <span class="step-name">{{ step.name }}</span>
+            </div>
+          </div>
+
+          <!-- 取消按钮 -->
+          <div class="actions">
+            <button class="btn btn-ghost" @click="handleCancel">
+              取消生成
+            </button>
           </div>
         </div>
 
-        <h2 class="generating-title">{{ statusText }}</h2>
-        <p class="generating-desc">{{ currentStep }}</p>
-
-        <!-- 进度条 -->
-        <div class="progress-wrapper">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: `${progress}%` }"></div>
+        <!-- 右侧：实时预览 -->
+        <div class="preview-panel">
+          <div class="preview-header">
+            <h3>实时预览</h3>
+            <span class="preview-count">{{ previewSlides.length }} / {{ totalSlides }} 页</span>
           </div>
-          <div class="progress-info">
-            <span class="progress-percent">{{ progress }}%</span>
-            <span class="progress-time" v-if="progress > 0 && progress < 100">预计剩余 {{ estimatedTime }} 秒</span>
+          <div class="preview-grid">
+            <div
+              v-for="(slide, index) in previewSlides"
+              :key="slide.slide_num"
+              class="preview-slide"
+              :class="{ active: index === currentPreviewIndex }"
+            >
+              <div class="slide-number">{{ slide.slide_num }}</div>
+              <img :src="slide.url" :alt="`Slide ${slide.slide_num}`" @load="onSlideLoad(index)" />
+            </div>
+            <!-- 占位符 -->
+            <div
+              v-for="i in (totalSlides - previewSlides.length)"
+              :key="`placeholder-${i}`"
+              class="preview-slide placeholder"
+            >
+              <div class="placeholder-content">
+                <span class="placeholder-number">{{ previewSlides.length + i }}</span>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <!-- 步骤提示 -->
-        <div class="steps">
-          <div
-            v-for="(step, index) in steps"
-            :key="step.key"
-            class="step"
-            :class="{ active: currentStepKey === step.key, completed: stepOrder.indexOf(currentStepKey) > index }"
-          >
-            <div class="step-icon">{{ step.icon }}</div>
-            <span class="step-name">{{ step.name }}</span>
-          </div>
-        </div>
-
-        <!-- 取消按钮 -->
-        <div class="actions">
-          <button class="btn btn-ghost" @click="handleCancel">
-            取消生成
-          </button>
         </div>
       </div>
     </div>
@@ -81,6 +113,13 @@ const showErrorModal = ref(false)
 const showError = ref('')
 const errorCount = ref(0)
 const startTime = ref(Date.now())
+
+// 预览相关状态
+const previewSlides = ref<{ slide_num: number; url: string }[]>([])
+const totalSlides = ref(10)
+const currentPreviewIndex = ref(0)
+let previewPollTimer: number | null = null
+
 const estimatedTime = computed(() => {
   if (progress.value <= 0) return 60
   const elapsed = (Date.now() - startTime.value) / 1000
@@ -137,6 +176,11 @@ const pollStatus = async () => {
       currentStepKey.value = getStepKey(data.progress)
     }
 
+    // 获取总页数
+    if (data.result?.slide_count) {
+      totalSlides.value = data.result.slide_count
+    }
+
     if (data.status === 'completed') {
       // 跳转到结果页
       router.push({ path: '/result', query: { taskId: taskId.value } })
@@ -152,6 +196,39 @@ const pollStatus = async () => {
       showErrorModal.value = true
     }
   }
+}
+
+// 获取预览图
+const pollPreview = async () => {
+  if (!taskId.value) return
+
+  try {
+    const response = await api.ppt.getTaskPreview(taskId.value)
+    const data = response.data
+
+    if (data.slides && data.slides.length > 0) {
+      // 添加时间戳避免缓存
+      const slidesWithTimestamp = data.slides.map((s: { slide_num: number; url: string }) => ({
+        slide_num: s.slide_num,
+        url: `${s.url}?t=${Date.now()}`
+      }))
+
+      // 更新预览（只在有新幻灯片时更新）
+      if (slidesWithTimestamp.length > previewSlides.value.length) {
+        previewSlides.value = slidesWithTimestamp
+        // 自动滚动到最新
+        currentPreviewIndex.value = slidesWithTimestamp.length - 1
+      }
+    }
+  } catch (error) {
+    // 预览获取失败不显示错误，静默处理
+    console.debug('获取预览失败:', error)
+  }
+}
+
+// 幻灯片加载完成
+const onSlideLoad = (index: number) => {
+  console.debug(`Slide ${index + 1} loaded`)
 }
 
 // 根据进度获取步骤
@@ -205,7 +282,9 @@ const goHome = () => {
 // 页面加载时开始轮询
 onMounted(() => {
   pollStatus()
+  pollPreview() // 立即获取一次预览
   pollTimer = window.setInterval(pollStatus, 2000)
+  previewPollTimer = window.setInterval(pollPreview, 1500) // 更频繁地获取预览
 })
 
 // 键盘快捷键
@@ -226,6 +305,9 @@ onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer)
   }
+  if (previewPollTimer) {
+    clearInterval(previewPollTimer)
+  }
 })
 </script>
 
@@ -233,15 +315,22 @@ onUnmounted(() => {
 .generating {
   min-height: 80vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 40px 0;
 }
 
+.generating-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  max-width: 1200px;
+  width: 100%;
+}
+
 .generating-card {
-  max-width: 500px;
   text-align: center;
-  padding: 60px 40px;
+  padding: 40px;
   background: var(--white);
   border-radius: 24px;
   box-shadow: var(--shadow-lg);
@@ -410,6 +499,115 @@ onUnmounted(() => {
 .actions {
   padding-top: 20px;
   border-top: 1px solid var(--gray-200);
+}
+
+/* 实时预览面板 */
+.preview-panel {
+  background: var(--white);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.preview-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.preview-count {
+  font-size: 13px;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.preview-slide {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--gray-100);
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.preview-slide.active {
+  border-color: var(--blue-500);
+}
+
+.preview-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slide-number {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  z-index: 1;
+}
+
+.preview-slide.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--gray-200);
+  border-radius: 50%;
+}
+
+.placeholder-number {
+  color: var(--gray-400);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 响应式 */
+@media (max-width: 900px) {
+  .generating-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-panel {
+    max-height: 400px;
+  }
+
+  .preview-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* 错误弹窗 */

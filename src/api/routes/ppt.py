@@ -150,6 +150,68 @@ async def get_task_status(task_id: str):
     )
 
 
+@router.get("/preview/{task_id}")
+async def get_task_preview(task_id: str):
+    """获取任务预览图列表 - 用于实时预览"""
+    import os
+    from ...config import settings
+
+    task = get_task_manager().get_task(task_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    # 获取SVG文件列表
+    svg_files = []
+    output_dir = settings.OUTPUT_DIR
+
+    # 查找该任务的所有SVG文件
+    if os.path.exists(output_dir):
+        for filename in os.listdir(output_dir):
+            if filename.startswith(f"slide_") and filename.endswith(f"_{task_id}.svg"):
+                slide_num = int(filename.split("_")[1])
+                svg_files.append({
+                    "slide_num": slide_num,
+                    "filename": filename,
+                    "url": f"/api/v1/ppt/svg/{task_id}/{slide_num}"
+                })
+
+    # 按页码排序
+    svg_files.sort(key=lambda x: x["slide_num"])
+
+    return {
+        "success": True,
+        "task_id": task_id,
+        "slides": svg_files,
+        "total": len(svg_files)
+    }
+
+
+@router.get("/svg/{task_id}/{slide_num}")
+async def get_svg_file(task_id: str, slide_num: int):
+    """获取单个SVG文件"""
+    import os
+    from ...config import settings
+
+    filename = f"slide_{slide_num}_{task_id}.svg"
+    filepath = os.path.join(settings.OUTPUT_DIR, filename)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"SVG文件不存在"
+        )
+
+    return FileResponse(
+        filepath,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "no-cache"}
+    )
+
+
 @router.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """取消任务"""

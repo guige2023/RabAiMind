@@ -88,6 +88,11 @@ export const api = {
       return apiClient.get(`/ppt/task/${taskId}`)
     },
 
+    // Get task preview (SVG slides)
+    getTaskPreview: (taskId: string): Promise<AxiosResponse> => {
+      return apiClient.get(`/ppt/preview/${taskId}`)
+    },
+
     // Cancel task
     cancelTask: (taskId: string): Promise<AxiosResponse> => {
       return apiClient.delete(`/ppt/task/${taskId}`)
