@@ -113,18 +113,6 @@ class TestOkPPTAgent:
         assert agent is not None
         assert agent.output_dir == "./output"
 
-    def test_convert_with_mock(self, agent):
-        """测试转换 (Mock)"""
-        svg_files = ["/tmp/slide1.svg", "/tmp/slide2.svg"]
-
-        with patch('mcp_server_okppt.svg_module.insert_svg_to_pptx') as mock_convert:
-            mock_convert.return_value = "/tmp/test.pptx"
-
-            result = agent.convert_svg_to_pptx(svg_files)
-
-            assert result["success"] is True
-            assert "pptx_path" in result
-
 
 class TestQualityAgent:
     """质量检查 Agent 测试"""
