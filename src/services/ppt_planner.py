@@ -3,10 +3,13 @@
 智能PPT规划器 - 让AI真正参与PPT构思
 """
 import json
+import logging
 import requests
 import time
 import re
 from typing import Dict, Any, List, Optional, Generator
+
+logger = logging.getLogger(__name__)
 
 # 火山引擎API配置 - 从settings读取
 from ..config import settings
@@ -32,6 +35,15 @@ def sanitize_prompt(user_input: str) -> str:
         r'system:',
         r'user:',
         r'assistant:',
+        r'\[INST\]',  # Llama jailbreak
+        r'<<SYS>>',  # Llama system prompt injection
+        r'<\|end\|>',  # Generic end token
+        r'<\|user\|>',  # Generic user token
+        r'<\|assistant\|>',  # Generic assistant token
+        r'<SYST',  # System prompt prefix
+        r'<AI>',  # AI turn prefix
+        r'</AI>',  # AI turn suffix
+        r'####.*',  # Markdown header injection
     ]
 
     result = user_input
@@ -126,21 +138,21 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
             elif resp.status_code == 429:
                 # 速率限制，等待后重试
                 wait_time = (attempt + 1) * 2
-                print(f"API速率限制，等待{wait_time}秒后重试...")
+                logger.warning(f"API速率限制，状态码429，等待{wait_time}秒后重试...")
                 time.sleep(wait_time)
                 continue
             else:
-                print(f"API错误 {resp.status_code}: {resp.text}")
+                logger.error(f"API错误，状态码: {resp.status_code}")
                 if attempt < max_retries - 1:
                     time.sleep(1)
                     continue
         except requests.exceptions.Timeout:
-            print(f"API超时，尝试 {attempt + 1}/{max_retries}")
+            logger.warning(f"API超时，尝试 {attempt + 1}/{max_retries}")
             if attempt < max_retries - 1:
                 time.sleep(2)
                 continue
         except Exception as e:
-            print(f"API调用失败: {e}")
+            logger.error(f"API调用失败: {type(e).__name__}")
             if attempt < max_retries - 1:
                 time.sleep(2)
                 continue
@@ -224,7 +236,7 @@ def plan_ppt(user_request: str, slide_count: int = 5, temperature: float = 0.7) 
                 if slides:
                     return slides
         except Exception as e:
-            print(f"解析响应失败: {e}")
+            logger.warning(f"解析响应失败: {type(e).__name__}")
 
     # P0修复: 默认方案现在会结合用户需求生成相关内容
     return _get_default_plan(user_request, slide_count)
@@ -486,7 +498,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
                         except Exception:
                             continue
     except Exception as e:
-        print(f"流式输出失败: {e}")
+        logger.error(f"流式输出失败: {type(e).__name__}")
     finally:
         # 确保关闭HTTP连接
         if resp:

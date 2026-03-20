@@ -703,13 +703,15 @@ class PPTGenerator:
         return svg_code
     
     def _escape_html(self, text: str) -> str:
-        """转义HTML特殊字符"""
+        """转义HTML特殊字符，防止XSS"""
         return (text
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;")
-            .replace("'", "&#39;"))
+            .replace("'", "&#39;")
+            .replace("`", "&#96;")
+            .replace("\\", "&#92;"))
 
     def _escape_url(self, url: str) -> str:
         """转义URL中的特殊字符，防止XSS"""
@@ -717,7 +719,9 @@ class PPTGenerator:
         return (url
             .replace("&", "&amp;")
             .replace('"', "&quot;")
-            .replace("'", "&#39;"))
+            .replace("'", "&#39;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;"))
 
     def _validate_url(self, url: str) -> bool:
         """验证URL是否安全，防止SSRF攻击（含DNS Rebinding防护）"""

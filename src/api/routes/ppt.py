@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 import asyncio
+import threading
 import time
 
 from ...models import (
@@ -42,29 +43,31 @@ router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
 _rate_limit_storage: Dict[str, List[float]] = {}
 _RATE_LIMIT_MAX = 20  # 每分钟最大请求数
 _RATE_LIMIT_WINDOW = 60  # 时间窗口秒
+_rate_limit_lock = threading.Lock()  # 线程安全锁
 
 
 def _check_rate_limit(client_id: str = "default") -> bool:
-    """简单速率限制检查"""
+    """简单速率限制检查（线程安全）"""
     import time
     now = time.time()
 
-    if client_id not in _rate_limit_storage:
-        _rate_limit_storage[client_id] = []
+    with _rate_limit_lock:
+        if client_id not in _rate_limit_storage:
+            _rate_limit_storage[client_id] = []
 
-    # 清理过期记录
-    _rate_limit_storage[client_id] = [
-        t for t in _rate_limit_storage[client_id]
-        if now - t < _RATE_LIMIT_WINDOW
-    ]
+        # 清理过期记录
+        _rate_limit_storage[client_id] = [
+            t for t in _rate_limit_storage[client_id]
+            if now - t < _RATE_LIMIT_WINDOW
+        ]
 
-    # 检查限制
-    if len(_rate_limit_storage[client_id]) >= _RATE_LIMIT_MAX:
-        return False
+        # 检查限制
+        if len(_rate_limit_storage[client_id]) >= _RATE_LIMIT_MAX:
+            return False
 
-    # 记录请求
-    _rate_limit_storage[client_id].append(now)
-    return True
+        # 记录请求
+        _rate_limit_storage[client_id].append(now)
+        return True
 
 
 # ==================== 健康检查 ====================
