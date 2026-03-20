@@ -93,32 +93,39 @@ class PPTGenerator:
         try:
             from .task_manager import get_task_manager
             task_manager = get_task_manager()
-            
-            # 更新状态
-            task_manager.update_progress(task_id, 5, "AI构思布局中", "processing")
 
-            # 1. AI规划PPT内容
+            # 更新状态 - 0%
+            task_manager.update_progress(task_id, 0, "开始生成PPT...", "processing")
+
+            # 1. AI规划PPT内容 - 5%~20%
             logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
+            task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
             slides_content = await asyncio.to_thread(
                 self._plan_ppt, user_request, slide_count
             )
             logger.info(f"AI规划了 {len(slides_content)} 页")
-            task_manager.update_progress(task_id, 20, "规划完成", "processing")
+            task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
 
-            # 2. 为每页生成AI图片
-            task_manager.update_progress(task_id, 40, "生成AI图片中", "processing")
+            # 2. 为每页生成AI图片 - 20%~45%
+            task_manager.update_progress(task_id, 22, f"开始生成{slide_count}张配图...", "processing")
             logger.info("开始生成AI图片...")
-            
+
             for i, slide in enumerate(slides_content):
                 slide_num = i + 1
+                progress = 22 + int((i / slide_count) * 23)
+                task_manager.update_progress(
+                    task_id, progress,
+                    f"正在生成第{slide_num}/{slide_count}张配图...",
+                    "processing"
+                )
                 image_url = self._generate_image(slide, slide_num)
                 slide["image_url"] = image_url
                 logger.info(f"slide {slide_num} 图片生成完成")
-            
-            task_manager.update_progress(task_id, 60, "图片生成完成", "processing")
 
-            # 3. AI生成SVG代码 (同步)
-            task_manager.update_progress(task_id, 70, "AI设计SVG中", "processing")
+            task_manager.update_progress(task_id, 45, "配图生成完成", "processing")
+
+            # 3. AI生成SVG代码 - 45%~80%
+            task_manager.update_progress(task_id, 48, "AI设计中...", "processing")
             logger.info("开始生成SVG代码...")
 
             # 使用多线程并行生成SVG
@@ -149,8 +156,11 @@ class PPTGenerator:
                     svg_code = self._generate_svg(slide, slide_num)
                 return slide_num, svg_code
 
-            # 并行生成SVG
+            # 并行生成SVG，带进度更新
             svg_files = []
+            completed = 0
+            total = len(slides_content)
+
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
@@ -159,25 +169,37 @@ class PPTGenerator:
                     with open(svg_path, 'w', encoding='utf-8') as f:
                         f.write(svg_code)
                     svg_files.append(svg_path)
+
+                    completed += 1
+                    progress = 48 + int((completed / total) * 32)
+                    task_manager.update_progress(
+                        task_id, progress,
+                        f"正在渲染第{completed}/{total}页...",
+                        "processing"
+                    )
                     logger.info(f"slide {slide_num} SVG生成完成")
 
             # 按页码排序
             svg_files.sort(key=lambda x: int(x.split('_')[-2]))
-            
-            task_manager.update_progress(task_id, 85, "SVG生成完成", "processing")
 
-            # 4. SVG转PPT (同步)
+            task_manager.update_progress(task_id, 80, f"渲染完成，共{len(slides_content)}页", "processing")
+
+            # 4. SVG转PPT - 80%~95%
+            task_manager.update_progress(task_id, 85, "正在生成PPTX文件...", "processing")
             output_path = os.path.join(
-                settings.OUTPUT_DIR, 
+                settings.OUTPUT_DIR,
                 f"presentation_{task_id}.pptx"
             )
-            
+
             logger.info(f"SVG转PPT: {output_path}")
             # 同步调用
             self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency, use_smart_layout, slide_backgrounds)
-            
+
             logger.info(f"PPT生成完成: {output_path}")
-            task_manager.update_progress(task_id, 100, "完成", "completed")
+            task_manager.update_progress(task_id, 95, "文件处理中...", "processing")
+
+            # 5. 完成
+            task_manager.update_progress(task_id, 100, "生成完成!", "completed")
             
             # 完成任务
             task_manager.complete_task(
@@ -671,7 +693,13 @@ class PPTGenerator:
 </svg>'''
 
     def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None) -> bool:
-        """SVG转PPT - 支持三种文字样式方案和智能布局模式"""
+        """SVG转PPT - 支持三种文字样式方案和智能布局模式
+
+        兼容性说明:
+        - Office 2007+ 要求: OOXML格式 (pptx)
+        - WPS 2019+ 支持: 标准OOXML格式
+        - 确保使用兼容的命名空间和元素
+        """
         try:
             from pptx import Presentation
             from pptx.util import Inches, Pt
@@ -685,6 +713,9 @@ class PPTGenerator:
             prs = Presentation()
             prs.slide_width = Inches(16)
             prs.slide_height = Inches(9)
+
+            # 设置兼容模式 - 确保Office 2007和WPS兼容
+            # python-pptx默认已使用OOXML兼容格式
 
             for idx, svg_file in enumerate(svg_files):
                 if not os.path.exists(svg_file):
