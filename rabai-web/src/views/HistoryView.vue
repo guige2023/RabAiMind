@@ -119,8 +119,8 @@
           />
         </div>
         <div class="history-info">
-          <h3 class="history-title">{{ item.title || '未命名PPT' }}</h3>
-          <p class="history-desc">{{ item.request }}</p>
+          <h3 class="history-title" v-html="highlightText(item.title || '未命名PPT')"></h3>
+          <p class="history-desc" v-html="highlightText(item.request)"></p>
           <div class="history-meta">
             <span class="meta-item">
               <span class="meta-icon">📄</span>
@@ -197,6 +197,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportBackup, importBackup } from '../composables/useCloudBackup'
+import { useSearch } from '../composables/useSearch'
 
 const router = useRouter()
 
@@ -213,8 +214,18 @@ interface HistoryItem {
 
 const historyList = ref<HistoryItem[]>([])
 const filterType = ref<'all' | 'favorites' | 'tags'>('all')
-const searchQuery = ref('')
 const activeTag = ref<string | null>(null)
+
+// 增强搜索功能
+const {
+  query: searchQuery,
+  results: searchResults,
+  highlightText
+} = useSearch<HistoryItem>(
+  () => historyList.value,
+  ['title', 'request', 'style', 'tags'],
+  { maxHistory: 10 }
+)
 
 // 批量选择
 const selectedItems = ref<Set<string>>(new Set())
@@ -321,7 +332,10 @@ const handleImport = async (e: Event) => {
 }
 
 const filteredList = computed(() => {
-  let list = historyList.value
+  // 使用增强搜索结果
+  let list = searchResults.value.length > 0 || searchQuery.value.trim()
+    ? [...searchResults.value]
+    : [...historyList.value]
 
   // Filter by favorites
   if (filterType.value === 'favorites') {
@@ -331,17 +345,6 @@ const filteredList = computed(() => {
   // Filter by tag
   if (filterType.value === 'tags' && activeTag.value) {
     list = list.filter(item => item.tags?.includes(activeTag.value!))
-  }
-
-  // Filter by search query
-  if (searchQuery.value.trim()) {
-    const query = searchQuery.value.toLowerCase()
-    list = list.filter(item =>
-      item.title?.toLowerCase().includes(query) ||
-      item.request?.toLowerCase().includes(query) ||
-      item.style?.toLowerCase().includes(query) ||
-      item.tags?.some(tag => tag.toLowerCase().includes(query))
-    )
   }
 
   return list
@@ -959,5 +962,13 @@ onMounted(() => {
 :global(.dark) .skeleton-btn {
   background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
   background-size: 200% 100%;
+}
+
+/* Highlighted text */
+:deep(mark) {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 </style>

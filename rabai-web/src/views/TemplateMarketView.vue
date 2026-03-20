@@ -17,12 +17,39 @@
             type="text"
             placeholder="搜索模板名称、描述或标签..."
             class="search-input"
+            @focus="showSearchHistory = true"
+            @blur="hideSearchHistory"
           />
-          <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
+          <button v-if="searchQuery" class="clear-btn" @click="clear()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
+          <!-- Search History Dropdown -->
+          <div v-if="showSearchHistory && searchHistory.length > 0 && !searchQuery" class="search-history-dropdown">
+            <div class="history-header">
+              <span>最近搜索</span>
+              <button class="clear-history-btn" @click="clearHistory">清除</button>
+            </div>
+            <div
+              v-for="item in searchHistory"
+              :key="item.query"
+              class="history-item"
+              @mousedown="setQuery(item.query)"
+            >
+              <svg class="history-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+              </svg>
+              <span>{{ item.query }}</span>
+              <span class="history-results">{{ item.resultsCount }}个结果</span>
+              <button class="remove-history-btn" @click.stop="removeFromHistory(item.query)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -149,8 +176,8 @@
 
             <!-- Info -->
             <div class="template-info">
-              <h3 class="template-name">{{ template.name }}</h3>
-              <p class="template-desc">{{ template.description }}</p>
+              <h3 class="template-name" v-html="highlightText(template.name)"></h3>
+              <p class="template-desc" v-html="highlightText(template.description)"></p>
 
               <!-- Tags -->
               <div class="template-tags">
@@ -291,7 +318,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   useTemplateStore,
@@ -299,36 +326,53 @@ import {
   templateStyles,
   type Template
 } from '../composables/useTemplateStore'
+import { useSearch } from '../composables/useSearch'
 
 const router = useRouter()
 const store = useTemplateStore()
 
 // Reactive state from store
-const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const selectedStyle = ref<string | null>(null)
 const sortBy = ref<'popularity' | 'newest' | 'name'>('popularity')
 const showFavorites = ref(false)
 const selectedTemplate = ref<Template | null>(null)
+const showSearchHistory = ref(false)
+
+// 隐藏搜索历史
+const hideSearchHistory = () => {
+  setTimeout(() => {
+    showSearchHistory.value = false
+  }, 200)
+}
+
+// 增强搜索功能 - 使用getter函数保持响应式
+const {
+  query: searchQuery,
+  results: searchResults,
+  searchHistory,
+  setQuery,
+  clear,
+  highlightText,
+  removeFromHistory,
+  clearHistory
+} = useSearch<Template>(
+  () => store.templates.value,
+  ['name', 'description', 'tags', 'category', 'style', 'author'],
+  { maxHistory: 10 }
+)
 
 // Sync with store
 onMounted(() => {
   store.loadFavorites()
 })
 
-// Computed
+// Computed - 使用增强搜索结果
 const filteredTemplates = computed(() => {
-  let result = [...store.templates.value]
-
-  // Search filter
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(t =>
-      t.name.toLowerCase().includes(query) ||
-      t.description.toLowerCase().includes(query) ||
-      t.tags.some(tag => tag.toLowerCase().includes(query))
-    )
-  }
+  // 使用useSearch的模糊搜索结果（已按相关性排序）
+  let result = searchResults.value.length > 0 || searchQuery.value.trim()
+    ? [...searchResults.value]
+    : [...store.templates.value]
 
   // Category filter
   if (selectedCategory.value) {
@@ -340,17 +384,19 @@ const filteredTemplates = computed(() => {
     result = result.filter(t => t.style === selectedStyle.value)
   }
 
-  // Sort
-  switch (sortBy.value) {
-    case 'popularity':
-      result.sort((a, b) => b.popularity - a.popularity)
-      break
-    case 'newest':
-      result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      break
-    case 'name':
-      result.sort((a, b) => a.name.localeCompare(b.name))
-      break
+  // Sort - 如果没有搜索关键词则按排序，否则保持相关性排序
+  if (!searchQuery.value.trim()) {
+    switch (sortBy.value) {
+      case 'popularity':
+        result.sort((a, b) => b.popularity - a.popularity)
+        break
+      case 'newest':
+        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        break
+      case 'name':
+        result.sort((a, b) => a.name.localeCompare(b.name))
+        break
+    }
   }
 
   return result
@@ -478,6 +524,98 @@ const resetFilters = () => {
   width: 14px;
   height: 14px;
   color: #666;
+}
+
+/* Search History Dropdown */
+.search-history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+  color: #666;
+}
+
+.clear-history-btn {
+  border: none;
+  background: none;
+  color: #e74c3c;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.clear-history-btn:hover {
+  text-decoration: underline;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.history-item:hover {
+  background: #f5f5f5;
+}
+
+.history-icon {
+  width: 16px;
+  height: 16px;
+  color: #999;
+}
+
+.history-results {
+  margin-left: auto;
+  font-size: 12px;
+  color: #999;
+}
+
+.remove-history-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.history-item:hover .remove-history-btn {
+  opacity: 1;
+}
+
+.remove-history-btn svg {
+  width: 14px;
+  height: 14px;
+  color: #999;
+}
+
+.remove-history-btn:hover svg {
+  color: #e74c3c;
+}
+
+/* Highlighted text */
+:deep(mark) {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 /* Main Layout */
