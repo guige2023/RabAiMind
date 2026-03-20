@@ -176,11 +176,15 @@ class VolcEngineAPI:
             response.raise_for_status()
             result = response.json()
             
-            images = result.get("data", [{}])[0].get("url", "") if result.get("data") else ""
-            
+            # 获取所有生成的图片
+            images = []
+            for item in result.get("data", []):
+                if item.get("url"):
+                    images.append(item["url"])
+
             return {
                 "success": True,
-                "images": [images] if images else [],
+                "images": images,
                 "model": model
             }
         except requests.exceptions.RequestException as e:

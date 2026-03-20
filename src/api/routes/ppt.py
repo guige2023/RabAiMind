@@ -451,3 +451,52 @@ async def generate_image(request: ImageGenerationRequest):
             images=[],
             message=str(e)
         )
+
+
+# ==================== PPT 大纲规划 ====================
+
+class PlanRequest(BaseModel):
+    """PPT规划请求"""
+    user_request: str
+    slide_count: int = 5
+    scene: str = "business"
+    style: str = "professional"
+
+
+class PlanResponse(BaseModel):
+    """PPT规划响应"""
+    success: bool
+    slides: List[Dict[str, Any]]
+    message: str = ""
+
+
+@router.post("/plan", response_model=PlanResponse)
+async def plan_ppt(request: PlanRequest):
+    """生成PPT大纲"""
+    try:
+        from src.services.ppt_planner import plan_ppt
+
+        result = plan_ppt(
+            user_request=request.user_request,
+            slide_count=request.slide_count,
+            temperature=0.7
+        )
+
+        if result:
+            return PlanResponse(
+                success=True,
+                slides=result,
+                message="PPT大纲生成成功"
+            )
+        else:
+            return PlanResponse(
+                success=False,
+                slides=[],
+                message="大纲生成失败"
+            )
+    except Exception as e:
+        return PlanResponse(
+            success=False,
+            slides=[],
+            message=str(e)
+        )

@@ -111,6 +111,31 @@ export const api = {
       return apiClient.get(`/ppt/export/pdf/${taskId}`, {
         responseType: 'blob'
       })
+    },
+
+    // Get templates
+    getTemplates: (): Promise<AxiosResponse> => {
+      return apiClient.get('/ppt/templates')
+    },
+
+    // Get scenes
+    getScenes: (): Promise<AxiosResponse> => {
+      return apiClient.get('/ppt/scenes')
+    },
+
+    // Get styles
+    getStyles: (): Promise<AxiosResponse> => {
+      return apiClient.get('/ppt/styles')
+    },
+
+    // Plan PPT outline
+    plan: (request: string, slideCount = 5): Promise<AxiosResponse> => {
+      return apiClient.post('/ppt/plan', {
+        user_request: request,
+        slide_count: slideCount,
+        scene: 'business',
+        style: 'professional'
+      })
     }
   },
 

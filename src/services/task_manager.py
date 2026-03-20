@@ -36,6 +36,9 @@ class TaskManager:
         self.tasks: Dict[str, Dict] = {}
         self._task_lock = threading.Lock()
         self._async_tasks: Dict[str, asyncio.Task] = {}  # 保存异步任务引用
+        self._cleanup_counter: int = 0  # 懒清理计数器
+        self._cleanup_interval: int = 10  # 每10次操作清理一次
+        self._max_task_age_minutes: int = 30  # 任务最大存活时间(分钟)
         ensure_dir(settings.OUTPUT_DIR)
 
     def create_task(
@@ -69,6 +72,11 @@ class TaskManager:
 
         with self._task_lock:
             self.tasks[task_id] = task
+            # 懒清理：每N次操作清理一次过期任务
+            self._cleanup_counter += 1
+            if self._cleanup_counter >= self._cleanup_interval:
+                self._cleanup_counter = 0
+                self._lazy_cleanup_unlocked()
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Dict]:
@@ -196,6 +204,35 @@ class TaskManager:
                 removed += 1
 
         return removed
+
+    def _lazy_cleanup_unlocked(self) -> None:
+        """懒清理：已持有锁时调用，清理超过30分钟的已完成任务"""
+        import logging
+        logger = logging.getLogger(__name__)
+        from datetime import datetime
+
+        max_age_minutes = self._max_task_age_minutes
+        tasks_to_remove = []
+
+        for task_id, task in self.tasks.items():
+            status = task.get("status", "")
+            updated_at = task.get("updated_at", "")
+
+            if status in ["completed", "failed", "cancelled"]:
+                if "T" in updated_at:
+                    try:
+                        task_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                        age_minutes = (datetime.now() - task_time.replace(tzinfo=None)).total_seconds() / 60
+                        if age_minutes > max_age_minutes:
+                            tasks_to_remove.append(task_id)
+                    except:
+                        pass
+
+        for task_id in tasks_to_remove:
+            del self.tasks[task_id]
+
+        if tasks_to_remove:
+            logger.info(f"自动清理 {len(tasks_to_remove)} 个过期任务")
 
 
 # 全局实例
