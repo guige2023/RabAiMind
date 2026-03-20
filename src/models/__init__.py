@@ -6,10 +6,23 @@
 日期: 2026-03-17
 """
 
+import re
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 from datetime import datetime
+
+
+# ==================== 验证器 ====================
+
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9A-Fa-f]{6}$')
+
+
+def validate_hex_color(v: str, field_name: str) -> str:
+    """验证hex颜色格式"""
+    if not HEX_COLOR_PATTERN.match(v):
+        raise ValueError(f'{field_name}必须是有效的hex颜色格式，如#FF5500')
+    return v
 
 
 # ==================== 枚举类型 ====================
@@ -96,12 +109,26 @@ class LayoutType(str, Enum):
 
 class SlideBackground(BaseModel):
     """单页背景设置"""
-    slide_index: int = Field(..., description="页码索引 (0-based)")
+    slide_index: int = Field(..., ge=0, description="页码索引 (0-based)")
     background_type: str = Field(default="color", description="背景类型: color(颜色), image(图片), gradient(渐变)")
     background_color: Optional[str] = Field(default=None, description="背景颜色 (hex)")
     background_image: Optional[str] = Field(default=None, description="背景图片URL")
     gradient_start: Optional[str] = Field(default=None, description="渐变起始颜色")
     gradient_end: Optional[str] = Field(default=None, description="渐变结束颜色")
+
+    @field_validator('background_color', 'gradient_start', 'gradient_end')
+    @classmethod
+    def validate_hex_color_optional(cls, v):
+        if v is not None:
+            if not HEX_COLOR_PATTERN.match(v):
+                raise ValueError('颜色必须是有效的hex格式，如#FF5500')
+        return v
+
+
+class SlideLayout(BaseModel):
+    """单页布局设置"""
+    slide_index: int = Field(..., ge=0, description="页码索引 (0-based)")
+    layout_type: LayoutType = Field(default=LayoutType.CONTENT_CARD, description="布局类型")
 
 
 class SlideLayout(BaseModel):
@@ -120,6 +147,11 @@ class GenerateRequest(BaseModel):
     theme_color: str = Field(default="#165DFF", description="主题色")
     text_style: TextStyleType = Field(default=TextStyleType.TRANSPARENT_OVERLAY, description="文字样式方案")
     shadow_color: str = Field(default="#000000", description="阴影颜色")
+
+    @field_validator('theme_color', 'shadow_color')
+    @classmethod
+    def validate_hex_color(cls, v):
+        return validate_hex_color(v, '颜色')
     overlay_transparency: int = Field(default=30, ge=0, le=100, description="遮罩透明度百分比")
     use_smart_layout: bool = Field(default=False, description="是否使用智能布局模式")
     slide_backgrounds: Optional[List[SlideBackground]] = Field(default=None, description="每页背景设置")
