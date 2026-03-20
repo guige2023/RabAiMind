@@ -193,8 +193,8 @@ class PPTGenerator:
             )
 
             logger.info(f"SVG转PPT: {output_path}")
-            # 同步调用
-            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency, use_smart_layout, slide_backgrounds)
+            # 同步调用 - 传递字体参数
+            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency, use_smart_layout, slide_backgrounds, font_title, font_subtitle, font_content, font_caption)
 
             logger.info(f"PPT生成完成: {output_path}")
             task_manager.update_progress(task_id, 95, "文件处理中...", "processing")
@@ -769,7 +769,7 @@ class PPTGenerator:
   <text x="800" y="520" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">第 {slide_num} 页</text>
 </svg>'''
 
-    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None) -> bool:
+    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None, font_title: str = "微软雅黑", font_subtitle: str = "微软雅黑", font_content: str = "微软雅黑", font_caption: str = "微软雅黑") -> bool:
         """SVG转PPT - 支持三种文字样式方案和智能布局模式
 
         兼容性说明:
@@ -790,6 +790,20 @@ class PPTGenerator:
             prs = Presentation()
             prs.slide_width = Inches(16)
             prs.slide_height = Inches(9)
+
+            # 字体映射 - 转换为PPT兼容的字体名
+            font_map = {
+                "思源黑体": "Microsoft YaHei",
+                "思源宋体": "SimSun",
+                "思源黑体 Heavy": "Microsoft YaHei",
+                "思源黑体 Bold": "Microsoft YaHei",
+                "Noto Sans": "Microsoft YaHei",
+                "Source Han Sans": "Microsoft YaHei",
+                "Source Han Serif": "SimSun",
+            }
+            title_font = font_map.get(font_title, font_title)
+            subtitle_font = font_map.get(font_subtitle, font_subtitle)
+            content_font = font_map.get(font_content, font_content)
 
             # 设置兼容模式 - 确保Office 2007和WPS兼容
             # python-pptx默认已使用OOXML兼容格式
@@ -858,6 +872,7 @@ class PPTGenerator:
                         p.font.size = Pt(48)
                         p.font.bold = True
                         p.font.color.rgb = text_color
+                        p.font.name = title_font
                         p.alignment = 1  # 居中
                         logger.info(f"已添加标题: {title}")
 
@@ -888,6 +903,7 @@ class PPTGenerator:
                                 p.text = f"• {content}"
                                 p.font.size = Pt(24)
                                 p.font.color.rgb = text_color
+                                p.font.name = content_font
                                 p.space_before = Pt(12)
                         logger.info(f"已添加 {len(contents)} 条内容")
 
