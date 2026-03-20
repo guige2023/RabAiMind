@@ -223,9 +223,15 @@ async def get_svg_file(task_id: str, slide_num: int):
 @router.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """取消任务"""
-    success = get_task_manager().cancel_task(task_id)
+    task_manager = get_task_manager()
 
-    if not success:
+    # 取消数据库状态
+    db_success = task_manager.cancel_task(task_id)
+
+    # 取消异步任务
+    task_manager.cancel_async_task(task_id)
+
+    if not db_success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"任务 {task_id} 不存在或无法取消"

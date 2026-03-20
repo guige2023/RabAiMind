@@ -214,10 +214,8 @@ class CoordinatorAgent:
 
         # 解析返回的内容
         content = result["content"]
-        print(f"[DEBUG] LLM返回内容长度: {len(content)}")
-        print(f"[DEBUG] LLM返回内容前800字:\n{content[:800]}")
         slides = self._parse_slides_from_response(content, ppt_request.user_request, ppt_request.slide_count)
-        print(f"[DEBUG] 解析后的slides数量: {len(slides)}")
+        # DEBUG removed
 
         self._context["slides"] = slides
         return slides
@@ -225,7 +223,7 @@ class CoordinatorAgent:
     def _parse_slides_from_response(self, content: str, user_request: str = "", slide_count: int = 7) -> List[Dict]:
         """从 API 响应中解析幻灯片结构"""
 
-        print(f"[DEBUG] 开始解析 LLM 响应，requested slides: {slide_count}")
+        # DEBUG removed
 
         # 尝试提取 JSON
         json_match = None
@@ -246,23 +244,23 @@ class CoordinatorAgent:
                 data = json.loads("\n".join(json_match))
                 slides = data.get("slides", [])
                 if slides:
-                    print(f"[DEBUG] 成功解析 JSON，slides: {len(slides)}")
+                    # DEBUG removed
                     return slides[:slide_count]  # 限制数量
             except json.JSONDecodeError as e:
-                print(f"[DEBUG] JSON解析失败: {e}")
+                # DEBUG removed
 
         # 尝试直接解析整个响应为JSON
         try:
             data = json.loads(content)
             slides = data.get("slides", [])
             if slides:
-                print(f"[DEBUG] 直接解析 JSON 成功，slides: {len(slides)}")
+                # DEBUG removed
                 return slides[:slide_count]
         except json.JSONDecodeError:
             pass
 
         # 如果无法解析 JSON，打印原始响应供调试
-        print(f"[DEBUG] 无法解析 JSON，原始响应前500字:\n{content[:500]}")
+        # DEBUG removed
 
         # 尝试按行解析标题
         lines = [l.strip() for l in content.split("\n") if l.strip()]
@@ -282,11 +280,11 @@ class CoordinatorAgent:
             slides.append(current_slide)
 
         if slides:
-            print(f"[DEBUG] 按行解析成功，slides: {len(slides)}")
+            # DEBUG removed
             return slides[:slide_count]
 
         # 如果仍然无法解析，使用 LLM 响应内容作为基础
-        print(f"[DEBUG] 完全无法解析，使用响应内容作为标题")
+        # DEBUG removed
         # 提取前几行作为标题
         key_lines = [l.strip() for l in content.split("\n") if len(l.strip()) > 10][:slide_count]
         slides = []
@@ -305,7 +303,7 @@ class CoordinatorAgent:
                 "content": ["继续完善中..."]
             })
 
-        print(f"[DEBUG] 最终生成 slides: {len(slides)}")
+        # DEBUG removed
         return slides
 
     def _generate_content(self, slides: List[Dict]) -> List[Dict]:

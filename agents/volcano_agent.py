@@ -394,7 +394,6 @@ class VolcanoAgent:
 
         # 如果无法解析，返回基于用户请求的默认结构
         # 使用 slide_count 参数来生成正确数量的幻灯片
-        print(f"[DEBUG] volcano_agent: JSON解析失败，使用备用解析")
 
         # 尝试直接解析整个响应
         try:
@@ -402,7 +401,7 @@ class VolcanoAgent:
             slides = data.get("slides", [])
             if slides:
                 return slides
-        except:
+        except Exception:
             pass
 
         # 尝试按行解析
@@ -427,7 +426,6 @@ class VolcanoAgent:
         # 最终备用方案：生成请求数量的幻灯片
         # 这需要 slide_count，但当前方法没有这个参数
         # 返回一个有内容的默认结构
-        print(f"[DEBUG] volcano_agent: 完全无法解析，使用用户请求生成内容")
         return [
             {"type": "title_slide", "title": "演示文稿", "content": ["根据用户需求生成的演示文稿"]},
             {"type": "content", "title": "目录", "content": ["第一部分", "第二部分", "第三部分", "第四部分", "第五部分"]},

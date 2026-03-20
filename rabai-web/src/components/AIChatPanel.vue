@@ -154,8 +154,18 @@ const handleClear = () => {
   clearHistory()
 }
 
+// HTML转义防XSS
+const escapeHtml = (text: string): string => {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
 const formatMessage = (content: string): string => {
-  return content
+  if (!content) return ''
+  // 先转义HTML
+  let escaped = escapeHtml(content)
+  return escaped
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
     .replace(/• /g, '<br>• ')

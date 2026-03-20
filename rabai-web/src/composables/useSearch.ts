@@ -173,12 +173,22 @@ export function useSearch<T extends Record<string, any>>(
     saveHistory()
   }
 
-  // 高亮文本
+  // HTML转义防XSS
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div')
+    div.textContent = text
+    return div.innerHTML
+  }
+
+  // 高亮文本（先转义再高亮，防止XSS）
   const highlightText = (text: string): string => {
-    if (!query.value.trim() || !text) return text
+    if (!text) return ''
+    // 先转义HTML
+    let escaped = escapeHtml(text)
+    if (!query.value.trim()) return escaped
 
     const regex = new RegExp(`(${query.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
-    return text.replace(regex, '<mark>$1</mark>')
+    return escaped.replace(regex, '<mark>$1</mark>')
   }
 
   // 设置查询

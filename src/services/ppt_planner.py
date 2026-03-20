@@ -432,6 +432,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
         "stream": True
     }
 
+    resp = None
     try:
         resp = requests.post(
             f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
@@ -459,3 +460,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
     except Exception as e:
         print(f"流式输出失败: {e}")
         yield ""
+    finally:
+        # 确保关闭HTTP连接
+        if resp:
+            resp.close()

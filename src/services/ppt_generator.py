@@ -1103,9 +1103,17 @@ class PPTGenerator:
                         p.font.color.rgb = text_color
                         p.space_before = Pt(18)
 
-            # 保存
-            prs.save(output_path)
-            logger.info(f"PPT保存成功: {output_path}")
+            # 保存（原子写入：先写临时文件再rename）
+            import tempfile
+            temp_path = output_path + '.tmp'
+            try:
+                prs.save(temp_path)
+                os.replace(temp_path, output_path)  # 原子重命名
+                logger.info(f"PPT保存成功: {output_path}")
+            except Exception as e:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise e
 
             # 文件压缩优化
             self._compress_pptx(output_path)

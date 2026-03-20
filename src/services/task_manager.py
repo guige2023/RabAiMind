@@ -158,8 +158,16 @@ class TaskManager:
             async_task = self._async_tasks[task_id]
             if not async_task.done():
                 async_task.cancel()
-                return True
+            # 无论是否取消成功，都清理引用防止内存泄漏
+            del self._async_tasks[task_id]
+            return True
         return False
+
+    def _cleanup_finished_async_tasks(self) -> None:
+        """清理已完成的异步任务引用，防止内存泄漏"""
+        finished = [tid for tid, task in self._async_tasks.items() if task.done()]
+        for tid in finished:
+            del self._async_tasks[tid]
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
@@ -202,6 +210,12 @@ class TaskManager:
             for task_id in tasks_to_remove:
                 del self.tasks[task_id]
                 removed += 1
+                # 同时清理对应的异步任务引用
+                if task_id in self._async_tasks:
+                    del self._async_tasks[task_id]
+
+        # 清理已完成的异步任务引用
+        self._cleanup_finished_async_tasks()
 
         return removed
 
