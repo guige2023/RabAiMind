@@ -149,7 +149,9 @@ async def generate_ppt(request: GenerateRequest):
                     font_caption=request.font_caption,
                     generation_mode=request.generation_mode,
                     output_format=request.output_format,
-                    quality=request.quality
+                    quality=request.quality,
+                    layout_mode=request.layout_mode,
+                    unified_layout=request.unified_layout
                 )
             except Exception as e:
                 # 任务失败处理

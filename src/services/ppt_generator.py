@@ -70,7 +70,9 @@ class PPTGenerator:
         font_caption: str = "思源黑体",
         generation_mode: str = "standard",  # standard/fast/quality/stream
         output_format: str = "pptx",  # pptx/pdf/svg/png
-        quality: str = "standard"  # standard/high/ultra
+        quality: str = "standard",  # standard/high/ultra
+        layout_mode: str = "auto",  # auto/manual
+        unified_layout: bool = True  # 是否统一布局
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式
 
