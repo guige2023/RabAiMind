@@ -556,6 +556,7 @@ async def generate_image(request: ImageGenerationRequest):
             )
 
     except Exception as e:
+        logger.error(f"AI图片生成失败: {type(e).__name__}")
         return ImageGenerationResponse(
             success=False,
             images=[],
@@ -584,10 +585,11 @@ class PlanResponse(BaseModel):
 async def plan_ppt(request: PlanRequest):
     """生成PPT大纲"""
     try:
-        from src.services.ppt_planner import plan_ppt
+        from src.services.ppt_planner import plan_ppt, sanitize_prompt
+        safe_request = sanitize_prompt(request.user_request)
 
         result = plan_ppt(
-            user_request=request.user_request,
+            user_request=safe_request,
             slide_count=request.slide_count,
             temperature=0.7
         )
@@ -605,6 +607,7 @@ async def plan_ppt(request: PlanRequest):
                 message="大纲生成失败"
             )
     except Exception as e:
+        logger.error(f"PPT大纲生成失败: {type(e).__name__}")
         return PlanResponse(
             success=False,
             slides=[],
