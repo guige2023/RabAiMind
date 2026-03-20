@@ -1198,7 +1198,7 @@ onMounted(() => {
   loadPptImages()
 
   // 自动保存草稿
-  const { loadDraft, setupAutoSave, saveDraft: doSaveDraft } = useAutoSave({
+  const { loadDraft, setupAutoSave, saveDraft: doSaveDraft, cleanup: cleanupAutoSave } = useAutoSave({
     key: 'create',
     data: formData,
     debounceMs: 2000,
@@ -1242,6 +1242,13 @@ onMounted(() => {
       showRecommendation.value = false
     }
   })
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  cleanupAutoSave()
+  // 离开前保存草稿
+  doSaveDraft()
 })
 
 // 键盘快捷键

@@ -132,8 +132,10 @@ export function useAutoSave({ key, data, debounceMs = 2000, excludeKeys = [], ma
 
   // Watch for changes and auto-save with debounce
   let debounceTimer: number | null = null
+  let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null
 
   const setupAutoSave = () => {
+    // Watch for data changes
     watch(data, () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer)
@@ -142,12 +144,38 @@ export function useAutoSave({ key, data, debounceMs = 2000, excludeKeys = [], ma
         saveDraft()
       }, debounceMs)
     }, { deep: true })
+
+    // Save on page leave
+    beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      // Save immediately before leaving
+      saveDraft()
+      // Show warning if there's unsaved data
+      const hasData = Object.keys(data.value).some(k => {
+        const val = data.value[k]
+        return val !== '' && val !== null && val !== false
+      })
+      if (hasData) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnloadHandler)
   }
 
   const cleanup = () => {
     if (debounceTimer) {
       clearTimeout(debounceTimer)
     }
+    if (beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', beforeUnloadHandler)
+    }
+  }
+
+  // Auto cleanup on import
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      cleanup()
+    })
   }
 
   return {
