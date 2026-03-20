@@ -533,11 +533,13 @@ async def generate_image(request: ImageGenerationRequest):
     """AI生成图片"""
     try:
         from src.services.volc_api import get_volc_api
+        from src.services.ppt_planner import sanitize_prompt
         volc = get_volc_api()
+        safe_prompt = sanitize_prompt(request.prompt)
 
         # 调用AI生图
         result = volc.image_generation(
-            prompt=request.prompt,
+            prompt=safe_prompt,
             size=request.size,
             n=request.n
         )
