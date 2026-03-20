@@ -688,6 +688,41 @@ class PPTGenerator:
             .replace('"', "&quot;")
             .replace("'", "&#39;"))
 
+    def _validate_url(self, url: str) -> bool:
+        """验证URL是否安全，防止SSRF攻击"""
+        from urllib.parse import urlparse
+        import ipaddress
+
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+
+            # 必须是http或https
+            if parsed.scheme not in ('http', 'https'):
+                return False
+
+            # 解析IP地址
+            try:
+                ip = ipaddress.ip_address(hostname)
+                # 阻止内网IP
+                if ip.is_private or ip.is_loopback or ip.is_link_local:
+                    return False
+            except ValueError:
+                # hostname不是IP，可能是域名
+                pass
+
+            # 阻止常见内网域名
+            internal_domains = ('localhost', '127.', '10.', '192.168.', '172.16.',
+                              '172.17.', '172.18.', '172.19.', '172.2',
+                              '169.254.', '::1', 'fe80:', '.local', '.intranet.')
+            for domain in internal_domains:
+                if hostname.startswith(domain) or hostname.endswith(domain + '.local'):
+                    return False
+
+            return True
+        except Exception:
+            return False
+
     def _build_svg_prompt(self, slide: Dict, slide_num: int) -> str:
         """构建SVG生成提示词"""
         title = slide.get("title", "")
@@ -932,6 +967,10 @@ class PPTGenerator:
                 # ===== 原有模式：添加背景图片（铺满整个页面）=====
                 image_brightness = 128  # 默认中等亮度
                 if img_url:
+                    # SSRF防护：验证URL
+                    if not self._validate_url(img_url):
+                        logger.warning(f"URL验证失败，跳过图片: {img_url[:50]}...")
+                        continue
                     try:
                         response = requests.get(img_url, timeout=60)
                         if response.status_code == 200:

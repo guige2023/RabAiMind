@@ -126,9 +126,10 @@ async def generate_ppt(request: GenerateRequest):
         )
 
     except Exception as e:
+        # 错误信息脱敏，不泄露内部细节
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail="服务器内部错误，请稍后重试"
         )
 
 
@@ -305,7 +306,25 @@ async def export_pdf(task_id: str):
     pptx_path = result.get("pptx_path")
 
     import os
-    if not pptx_path or not os.path.exists(pptx_path):
+    # 路径安全验证：防止路径遍历攻击
+    if not pptx_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件路径无效"
+        )
+
+    # 规范化路径并验证
+    output_dir = os.path.abspath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.abspath(pptx_path)
+
+    # 确保路径在允许的目录内
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件路径不安全"
+        )
+
+    if not os.path.exists(pptx_path_abs):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="PPTX文件不存在"
@@ -351,9 +370,10 @@ async def export_pdf(task_id: str):
     except HTTPException:
         raise
     except Exception as e:
+        # 错误信息脱敏
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"PDF转换失败: {str(e)}"
+            detail="PDF转换失败，请稍后重试"
         )
 
 
