@@ -129,7 +129,7 @@ async def generate_ppt(request: GenerateRequest):
             try:
                 await get_ppt_generator().generate(
                     task_id=task_id,
-                    user_request=request.user_request,
+                    user_request=safe_request,  # 使用过滤后的安全输入
                     slide_count=request.slide_count,
                     scene=request.scene.value,
                     style=request.style.value,

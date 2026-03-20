@@ -99,6 +99,10 @@ class PPTGenerator:
         """
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}, mode={generation_mode}, format={output_format}, quality={quality}")
 
+        # 重置跨任务状态，防止污染
+        self._first_page_layout = None
+        self._image_failure_count = 0
+
         try:
             from .task_manager import get_task_manager
             task_manager = get_task_manager()
