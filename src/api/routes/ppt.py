@@ -11,8 +11,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field, field_validator
 import asyncio
+import logging
 import threading
 import time
+
+logger = logging.getLogger(__name__)
 
 from ...models import (
     GenerateRequest,
@@ -188,6 +191,13 @@ async def generate_ppt(request: GenerateRequest):
 @router.get("/task/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
     """获取任务状态"""
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
+
     task = get_task_manager().get_task(task_id)
 
     if not task:
@@ -297,6 +307,13 @@ async def get_svg_file(task_id: str, slide_num: int):
 @router.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """取消任务"""
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
+
     task_manager = get_task_manager()
 
     # 取消数据库状态
@@ -534,6 +551,10 @@ class ImageGenerationRequest(BaseModel):
         import re
         if not re.match(r'^\d+x\d+$', v):
             raise ValueError('尺寸格式无效，请使用如"1024x1024"格式')
+        # 验证尺寸范围 (256-4096)
+        width, height = map(int, v.split('x'))
+        if width < 256 or width > 4096 or height < 256 or height > 4096:
+            raise ValueError('尺寸必须在256x256到4096x4096之间')
         return v
 
 
