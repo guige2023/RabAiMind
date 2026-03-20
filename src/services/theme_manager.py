@@ -12,8 +12,12 @@
 日期: 2026-03-20
 """
 
+import logging
+import threading
 from typing import Dict, Any, List, Optional
 import re
+
+logger = logging.getLogger(__name__)
 
 
 class ThemeManager:
@@ -286,8 +290,11 @@ class ThemeManager:
         return styles.get(text_style, styles['transparent_overlay'])
 
     def _hex_to_rgb(self, hex_color: str) -> tuple:
-        """Hex颜色转RGB"""
+        """Hex颜色转RGB（验证输入）"""
         hex_color = hex_color.lstrip('#')
+        # 验证格式：必须是6个十六进制字符
+        if not re.match(r'^[0-9A-Fa-f]{6}$', hex_color):
+            raise ValueError(f"无效的十六进制颜色: #{hex_color}")
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
     def _rgb_to_hex(self, rgb: tuple) -> str:
@@ -327,11 +334,15 @@ class ThemeManager:
 
 # 全局实例
 _theme_manager: Optional[ThemeManager] = None
+_manager_lock = threading.Lock()  # 保护单例创建
 
 
 def get_theme_manager() -> ThemeManager:
-    """获取主题管理器实例"""
+    """获取主题管理器实例（线程安全）"""
     global _theme_manager
     if _theme_manager is None:
-        _theme_manager = ThemeManager()
+        with _manager_lock:
+            # 双重检查
+            if _theme_manager is None:
+                _theme_manager = ThemeManager()
     return _theme_manager
