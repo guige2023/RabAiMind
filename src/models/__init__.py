@@ -133,6 +133,9 @@ class GenerateRequest(BaseModel):
     generation_mode: Optional[str] = Field(default="standard", description="生成模式: standard/fast/quality/stream")
     output_format: Optional[str] = Field(default="pptx", description="输出格式: pptx/pdf/svg/png")
     quality: Optional[str] = Field(default="standard", description="输出质量: standard/high/ultra")
+    # 布局设置
+    layout_mode: Optional[str] = Field(default="auto", description="布局模式: auto/manual")
+    unified_layout: Optional[bool] = Field(default=True, description="是否统一布局")
 
 
 # ==================== 响应模型 ====================

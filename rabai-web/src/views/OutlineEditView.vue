@@ -225,7 +225,7 @@ const generateOutline = async () => {
           id: generateId(),
           title: s.title || `第${i + 1}页`,
           content: Array.isArray(s.content) ? s.content.join('\n') : (s.content || ''),
-          layout: mapLayoutType(s.layout || 'content')
+          layout: mapLayoutType(s.layout || s.slide_type || 'content')
         }))
         isLoading.value = false
         return

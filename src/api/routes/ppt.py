@@ -539,7 +539,7 @@ async def generate_image(request: ImageGenerationRequest):
             return ImageGenerationResponse(
                 success=False,
                 images=[],
-                message=result.get("error", "生成失败")
+                message="图片生成失败，请稍后重试"
             )
 
     except Exception as e:
