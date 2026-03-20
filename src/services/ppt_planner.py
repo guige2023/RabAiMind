@@ -196,7 +196,7 @@ def plan_ppt(user_request: str, slide_count: int = 5, temperature: float = 0.7) 
             "slide_type": "title",
             "title": "人工智能",
             "subtitle": "驱动未来的核心技术",
-            "layout": "title_full"
+            "layout": "title_slide"
         }},
         {{
             "slide_type": "toc",
@@ -440,7 +440,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
 返回JSON格式：
 {{
     "slides": [
-        {{"slide_type": "title", "title": "...", "layout": "title_full"}},
+        {{"slide_type": "title", "title": "...", "layout": "title_slide"}},
         ...
     ]
 }}

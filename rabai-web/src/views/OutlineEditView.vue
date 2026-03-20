@@ -201,10 +201,19 @@ const mapLayoutType = (layout: string) => {
   const map: Record<string, string> = {
     'title_slide': 'title',
     'content': 'content',
+    'content_card': 'content',
     'two_column': 'two-column',
     'left_text_right_image': 'image-right',
     'left_image_right_text': 'image-left',
-    'center': 'centered'
+    'three_column': 'three-column',
+    'center': 'centered',
+    'center_radiation': 'centered',
+    'toc': 'toc',
+    'timeline': 'timeline',
+    'data_visualization': 'chart',
+    'quote': 'quote',
+    'comparison': 'comparison',
+    'thank_you': 'end'
   }
   return map[layout] || 'content'
 }
