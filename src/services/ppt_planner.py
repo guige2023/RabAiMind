@@ -60,7 +60,7 @@ def _parse_json_response(content: str) -> Optional[Dict]:
             # 尝试逐个解析slide
             try:
                 return {"slides": json.loads(slides_content)}
-            except:
+            except Exception:
                 pass
 
     return None
@@ -454,7 +454,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
                             content = data_obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
                             if content:
                                 yield content
-                        except:
+                        except Exception:
                             continue
     except Exception as e:
         print(f"流式输出失败: {e}")

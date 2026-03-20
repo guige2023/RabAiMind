@@ -11,6 +11,7 @@ import asyncio
 import os
 import re
 import json
+import numpy as np
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from io import BytesIO
@@ -39,6 +40,8 @@ class PPTGenerator:
     def __init__(self):
         ensure_dir(settings.OUTPUT_DIR)
         ensure_dir(settings.TEMPLATE_DIR)
+        self._image_failure_count: int = 0  # AI图片生成失败计数
+        self._image_failure_threshold: int = 3  # 失败阈值，超过后停止尝试
 
     async def generate(
         self,
@@ -261,6 +264,11 @@ class PPTGenerator:
         """生成AI图片，如果失败则返回备用图片URL"""
         from .content_generator import get_content_generator
 
+        # 检查失败次数是否超过阈值
+        if self._image_failure_count >= self._image_failure_threshold:
+            logger.warning(f"AI图片生成失败次数({self._image_failure_count})超过阈值，直接使用备用图片")
+            return self._get_fallback_image_url(slide, slide_num)
+
         content_gen = get_content_generator()
 
         # 构建更好的提示词
@@ -282,9 +290,11 @@ class PPTGenerator:
             )
             if image_url:
                 logger.info(f"AI生成图片成功: {image_url[:50]}...")
+                self._image_failure_count = 0  # 成功后重置计数器
                 return image_url
         except Exception as e:
-            logger.warning(f"AI图片生成失败: {e}")
+            self._image_failure_count += 1
+            logger.warning(f"AI图片生成失败({self._image_failure_count}/{self._image_failure_threshold}): {e}")
 
         # 返回备用图片URL
         logger.info("使用备用图片")
@@ -444,7 +454,7 @@ class PPTGenerator:
         try:
             response = volc.text_generation("test")
             return response.get("success", False)
-        except:
+        except Exception:
             return False
     
     def _generate_svg_with_ai(self, slide: Dict, slide_num: int, volc) -> str:

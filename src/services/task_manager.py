@@ -196,7 +196,7 @@ class TaskManager:
                             age_hours = (datetime.now() - task_time.replace(tzinfo=None)).total_seconds() / 3600
                             if age_hours > max_age_hours:
                                 tasks_to_remove.append(task_id)
-                        except:
+                        except Exception:
                             pass
 
             for task_id in tasks_to_remove:
@@ -225,7 +225,7 @@ class TaskManager:
                         age_minutes = (datetime.now() - task_time.replace(tzinfo=None)).total_seconds() / 60
                         if age_minutes > max_age_minutes:
                             tasks_to_remove.append(task_id)
-                    except:
+                    except Exception:
                         pass
 
         for task_id in tasks_to_remove:
