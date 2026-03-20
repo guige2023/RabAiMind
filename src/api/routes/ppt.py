@@ -213,7 +213,15 @@ async def get_task_status(task_id: str):
 async def get_task_preview(task_id: str):
     """获取任务预览图列表 - 用于实时预览"""
     import os
+    import re
     from ...config import settings
+
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
 
     task = get_task_manager().get_task(task_id)
 

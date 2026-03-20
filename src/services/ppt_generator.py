@@ -258,12 +258,10 @@ class PPTGenerator:
             }
 
         except Exception as e:
-            logger.error(f"PPT 生成失败: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("PPT 生成失败")
             return {
                 "success": False,
-                "error": str(e)
+                "error": "PPT生成失败，请稍后重试"
             }
 
     def _plan_ppt(self, user_request: str, slide_count: int) -> List[Dict]:
@@ -1261,9 +1259,7 @@ class PPTGenerator:
             return True
 
         except Exception as e:
-            logger.error(f"SVG转PPT失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("SVG转PPT失败")
             return False
 
     def _compress_pptx(self, file_path: str) -> bool:
