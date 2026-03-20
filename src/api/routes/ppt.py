@@ -161,9 +161,7 @@ async def generate_ppt(request: GenerateRequest):
                 )
             except Exception as e:
                 # 任务失败处理
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"任务 {task_id} 生成失败: {str(e)}")
+                logger.error(f"任务 {task_id} 生成失败")
                 get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
 
         # 创建 task 并保存引用
@@ -282,7 +280,7 @@ async def get_svg_file(task_id: str, slide_num: int):
         )
 
     # 验证slide_num是正整数
-    if not isinstance(slide_num, int) or slide_num < 1:
+    if slide_num < 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="无效的页码"
@@ -449,6 +447,14 @@ async def export_pdf(task_id: str):
                 capture_output=True,
                 timeout=120
             )
+
+            # 检查转换是否成功
+            if result.returncode != 0:
+                logger.error(f"LibreOffice PDF转换失败: {result.stderr.decode('utf-8', errors='ignore') if result.stderr else '未知错误'}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="PDF转换失败"
+                )
 
             # LibreOffice 会自动命名输出文件
             expected_name = os.path.splitext(os.path.basename(pptx_path))[0] + ".pdf"
