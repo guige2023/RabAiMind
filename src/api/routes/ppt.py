@@ -338,9 +338,9 @@ async def download_ppt(task_id: str):
             detail="文件路径无效"
         )
 
-    # 规范化路径并验证
-    output_dir = os.path.abspath(settings.OUTPUT_DIR)
-    file_path_abs = os.path.abspath(file_path)
+    # 规范化路径并验证（使用realpath防止符号链接绕过）
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    file_path_abs = os.path.realpath(file_path)
 
     # 确保路径在允许的目录内
     if not file_path_abs.startswith(output_dir):
@@ -390,9 +390,9 @@ async def export_pdf(task_id: str):
             detail="文件路径无效"
         )
 
-    # 规范化路径并验证
-    output_dir = os.path.abspath(settings.OUTPUT_DIR)
-    pptx_path_abs = os.path.abspath(pptx_path)
+    # 规范化路径并验证（使用realpath防止符号链接绕过）
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
 
     # 确保路径在允许的目录内
     if not pptx_path_abs.startswith(output_dir):

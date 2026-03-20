@@ -1056,8 +1056,10 @@ class PPTGenerator:
                     try:
                         response = requests.get(img_url, timeout=60)
                         if response.status_code == 200:
-                            # 保存临时文件
-                            temp_img = f"/tmp/temp_{uuid.uuid4().hex}.jpg"
+                            # 保存临时文件（使用安全临时目录）
+                            import tempfile
+                            temp_dir = tempfile.gettempdir()
+                            temp_img = os.path.join(temp_dir, f"rabai_temp_{uuid.uuid4().hex}.jpg")
 
                             # 图片压缩 - 优化文件大小
                             try:
@@ -1086,13 +1088,17 @@ class PPTGenerator:
                                 logger.warning(f"图片亮度分析失败: {e}")
 
                             # 添加图片铺满页面 (16:9)
-                            slide.shapes.add_picture(
-                                temp_img,
-                                Inches(0), Inches(0),
-                                width=Inches(16), height=Inches(9)
-                            )
-                            os.remove(temp_img)
-                            logger.info(f"已添加背景图片: {img_url[:50]}..., 亮度: {image_brightness}")
+                            try:
+                                slide.shapes.add_picture(
+                                    temp_img,
+                                    Inches(0), Inches(0),
+                                    width=Inches(16), height=Inches(9)
+                                )
+                                logger.info(f"已添加背景图片: {img_url[:50]}..., 亮度: {image_brightness}")
+                            finally:
+                                # 确保临时文件被清理
+                                if os.path.exists(temp_img):
+                                    os.remove(temp_img)
                         else:
                             logger.warning(f"图片下载失败: {response.status_code}")
                     except Exception as e:

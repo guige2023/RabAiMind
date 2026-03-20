@@ -258,11 +258,15 @@ class TaskManager:
 
 # 全局实例
 _task_manager: TaskManager = None
+_manager_lock = threading.Lock()  # 保护单例创建
 
 
 def get_task_manager() -> TaskManager:
-    """获取任务管理器实例"""
+    """获取任务管理器实例（线程安全）"""
     global _task_manager
     if _task_manager is None:
-        _task_manager = TaskManager()
+        with _manager_lock:
+            # 双重检查
+            if _task_manager is None:
+                _task_manager = TaskManager()
     return _task_manager
