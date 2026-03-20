@@ -144,6 +144,39 @@ class TaskManager:
                     return True
         return False
 
+    def cleanup_old_tasks(self, max_age_hours: int = 24) -> int:
+        """清理过期任务，防止OOM"""
+        import time
+        current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
+        removed = 0
+
+        with self._task_lock:
+            tasks_to_remove = []
+            for task_id, task in self.tasks.items():
+                status = task.get("status", "")
+                updated_at = task.get("updated_at", "")
+
+                # 只清理已完成/失败/取消的任务
+                if status in ["completed", "failed", "cancelled"]:
+                    # 简单时间检查
+                    if "T" in updated_at:
+                        # ISO格式时间
+                        from datetime import datetime
+                        try:
+                            task_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                            age_hours = (datetime.now() - task_time.replace(tzinfo=None)).total_seconds() / 3600
+                            if age_hours > max_age_hours:
+                                tasks_to_remove.append(task_id)
+                        except:
+                            pass
+
+            for task_id in tasks_to_remove:
+                del self.tasks[task_id]
+                removed += 1
+
+        return removed
+
 
 # 全局实例
 _task_manager: TaskManager = None

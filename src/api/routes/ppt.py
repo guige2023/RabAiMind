@@ -77,37 +77,42 @@ async def generate_ppt(request: GenerateRequest):
         )
 
         # 异步执行生成任务 - 使用 asyncio.create_task 在后台运行
-        asyncio.create_task(
-            get_ppt_generator().generate(
-                task_id=task_id,
-                user_request=request.user_request,
-                slide_count=request.slide_count,
-                scene=request.scene.value,
-                style=request.style.value,
-                template=request.template.value,
-                theme_color=request.theme_color,
-                text_style=request.text_style.value,
-                shadow_color=request.shadow_color,
-                overlay_transparency=request.overlay_transparency,
-                use_smart_layout=request.use_smart_layout,
-                slide_backgrounds=request.slide_backgrounds,
-                slide_layouts=request.slide_layouts,
-                include_charts=request.include_charts,
-                include_pie_chart=request.include_pie_chart,
-                include_bar_chart=request.include_bar_chart,
-                include_line_chart=request.include_line_chart,
-                add_watermark=request.add_watermark,
-                # 新增参数：字体系统
-                font_title=request.font_title,
-                font_subtitle=request.font_subtitle,
-                font_content=request.font_content,
-                font_caption=request.font_caption,
-                # 新增参数：生成模式
-                generation_mode=request.generation_mode,
-                output_format=request.output_format,
-                quality=request.quality
-            )
-        )
+        async def run_task():
+            try:
+                await get_ppt_generator().generate(
+                    task_id=task_id,
+                    user_request=request.user_request,
+                    slide_count=request.slide_count,
+                    scene=request.scene.value,
+                    style=request.style.value,
+                    template=request.template.value,
+                    theme_color=request.theme_color,
+                    text_style=request.text_style.value,
+                    shadow_color=request.shadow_color,
+                    overlay_transparency=request.overlay_transparency,
+                    use_smart_layout=request.use_smart_layout,
+                    slide_backgrounds=request.slide_backgrounds,
+                    slide_layouts=request.slide_layouts,
+                    include_charts=request.include_charts,
+                    include_pie_chart=request.include_pie_chart,
+                    include_bar_chart=request.include_bar_chart,
+                    include_line_chart=request.include_line_chart,
+                    add_watermark=request.add_watermark,
+                    font_title=request.font_title,
+                    font_subtitle=request.font_subtitle,
+                    font_content=request.font_content,
+                    font_caption=request.font_caption,
+                    generation_mode=request.generation_mode,
+                    output_format=request.output_format,
+                    quality=request.quality
+                )
+            except Exception as e:
+                # 任务失败处理
+                from .task_manager import get_task_manager
+                task_manager = get_task_manager()
+                task_manager.fail_task(task_id, "GENERATION_ERROR", str(e))
+
+        asyncio.create_task(run_task())
 
         return GenerateResponse(
             success=True,
@@ -291,21 +296,44 @@ async def export_pdf(task_id: str):
         )
 
     try:
-        # 使用python-pptx转换
-        from pptx import Presentation
-        from io import BytesIO
+        import subprocess
+        import shutil
 
-        prs = Presentation(pptx_path)
-
-        # 保存为PDF
         pdf_path = pptx_path.replace('.pptx', '.pdf')
-        prs.save(pdf_path)
 
-        return FileResponse(
-            path=pdf_path,
-            filename=f"presentation_{task_id}.pdf",
-            media_type="application/pdf"
+        # 方法1: 尝试使用 LibreOffice 转换
+        libreoffice_path = shutil.which('libreoffice') or shutil.which('soffice')
+
+        if libreoffice_path:
+            # 使用 LibreOffice 转换为 PDF
+            result = subprocess.run(
+                [libreoffice_path, "--headless", "--convert-to", "pdf", "--outdir",
+                 os.path.dirname(pptx_path), pptx_path],
+                capture_output=True,
+                timeout=120
+            )
+
+            # LibreOffice 会自动命名输出文件
+            expected_name = os.path.splitext(os.path.basename(pptx_path))[0] + ".pdf"
+            expected_path = os.path.join(os.path.dirname(pptx_path), expected_name)
+
+            if os.path.exists(expected_path) and expected_path != pdf_path:
+                shutil.move(expected_path, pdf_path)
+
+            if os.path.exists(pdf_path):
+                return FileResponse(
+                    path=pdf_path,
+                    filename=f"presentation_{task_id}.pdf",
+                    media_type="application/pdf"
+                )
+
+        # 方法2: 如果没有 LibreOffice，返回错误提示
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDF转换服务不可用，请安装 LibreOffice: sudo apt-get install libreoffice"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

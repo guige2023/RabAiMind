@@ -16,7 +16,7 @@ class VolcEngineAPI:
         self.api_key = api_key or os.getenv("VOLCANO_API_KEY", os.getenv("VOLCENGINE_API_KEY", ""))
         self.endpoint = endpoint or os.getenv("VOLCENGINE_ENDPOINT", "https://ark.cn-beijing.volces.com")
         self.project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
-        self.timeout = 120
+        self.timeout = (5, 120)
         
     def _get_headers(self) -> Dict[str, str]:
         """获取请求头"""

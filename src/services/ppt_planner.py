@@ -90,7 +90,7 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
                 f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=90
+                timeout=(5, 90)
             )
 
             if resp.status_code == 200:
@@ -437,7 +437,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
             f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
             headers=headers,
             json=data,
-            timeout=90,
+            timeout=(5, 90),
             stream=True
         )
 
