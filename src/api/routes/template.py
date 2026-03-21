@@ -61,6 +61,40 @@ async def get_styles():
     return {"styles": manager.get_styles()}
 
 
+@router.get("/search", response_model=List[TemplateResponse])
+async def search_templates(
+    q: str = "",
+    category: Optional[str] = None,
+    style: Optional[str] = None,
+    limit: int = 20
+):
+    """
+    搜索模板
+
+    Args:
+        q: 搜索关键词（匹配名称和描述）
+        category: 可选，按分类筛选
+        style: 可选，按风格筛选
+        limit: 返回数量限制，默认20
+    """
+    manager = get_template_manager()
+    templates = manager.search_templates(query=q, category=category, style=style, limit=limit)
+
+    return [
+        TemplateResponse(
+            id=t.id,
+            name=t.name,
+            description=t.description,
+            category=t.category,
+            style=t.style,
+            thumbnail=t.thumbnail,
+            colors=t.colors,
+            fonts=t.fonts
+        )
+        for t in templates
+    ]
+
+
 @router.get("/{template_id}", response_model=TemplateResponse)
 async def get_template(template_id: str):
     """获取指定模板"""

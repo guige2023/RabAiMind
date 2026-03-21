@@ -144,15 +144,54 @@ class TemplateManager:
     ) -> List[Template]:
         """列出模板"""
         result = list(self._templates.values())
-        
+
         if category:
             result = [t for t in result if t.category == category]
-            
+
         if style:
             result = [t for t in result if t.style == style]
-            
+
         return result
-    
+
+    def search_templates(
+        self,
+        query: str = "",
+        category: Optional[str] = None,
+        style: Optional[str] = None,
+        limit: int = 20
+    ) -> List[Template]:
+        """搜索模板
+
+        Args:
+            query: 搜索关键词（匹配名称和描述）
+            category: 可选，按分类筛选
+            style: 可选，按风格筛选
+            limit: 返回数量限制
+
+        Returns:
+            匹配的模板列表
+        """
+        result = list(self._templates.values())
+
+        # 关键词搜索（不区分大小写）
+        if query:
+            query_lower = query.lower()
+            result = [
+                t for t in result
+                if query_lower in t.name.lower() or query_lower in t.description.lower()
+            ]
+
+        # 分类筛选
+        if category:
+            result = [t for t in result if t.category == category]
+
+        # 风格筛选
+        if style:
+            result = [t for t in result if t.style == style]
+
+        # 限制返回数量
+        return result[:limit]
+
     def get_categories(self) -> List[str]:
         """获取所有分类"""
         return list(set(t.category for t in self._templates.values()))
