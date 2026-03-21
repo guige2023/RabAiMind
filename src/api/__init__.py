@@ -9,6 +9,7 @@ API 路由初始化
 from fastapi import APIRouter
 from .routes.ppt import router as ppt_router
 from .routes.template import router as template_router
+from .routes.favorites import router as favorites_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -16,3 +17,4 @@ api_router = APIRouter()
 # 注册子路由
 api_router.include_router(ppt_router)
 api_router.include_router(template_router)
+api_router.include_router(favorites_router)
