@@ -1558,15 +1558,23 @@ class PPTGenerator:
 
                 # 创建临时PPTX
                 import tempfile
-                with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
-                    tmp_path = tmp.name
+                tmp_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp:
+                        tmp_path = tmp.name
 
-                self._svg_to_ppt(svg_files, tmp_path)
-                logger.info(f"临时PPTX已生成: {tmp_path}")
-
-                # 注意：实际PDF转换需要安装libreoffice或其他工具
-                # 这里只是标记需要后续处理
-                logger.warning("请使用PPTX导出或安装libreoffice进行PDF转换")
+                    self._svg_to_ppt(svg_files, tmp_path)
+                    logger.info(f"临时PPTX已生成: {tmp_path}")
+                    # 注意：实际PDF转换需要安装libreoffice或其他工具
+                    # 这里只是标记需要后续处理
+                    logger.warning("请使用PPTX导出或安装libreoffice进行PDF转换")
+                finally:
+                    # Clean up temp PPTX file
+                    if tmp_path:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
 
                 return False
 
