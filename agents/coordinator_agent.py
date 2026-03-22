@@ -250,7 +250,7 @@ class CoordinatorAgent:
                     # DEBUG removed
                     return slides[:slide_count]  # 限制数量
             except json.JSONDecodeError as e:
-                # DEBUG removed
+                pass
 
         # 尝试直接解析整个响应为JSON
         try:
