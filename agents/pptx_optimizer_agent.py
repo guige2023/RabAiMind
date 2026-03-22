@@ -317,26 +317,26 @@ class PPTXOptimizerAgent:
             import subprocess
 
             temp_dir = tempfile.mkdtemp()
-            result = subprocess.run(
-                ["libreoffice", "--headless", "--convert-to",
-                 "png", "--outdir", temp_dir, input_path],
-                capture_output=True,
-                timeout=120
-            )
+            try:
+                result = subprocess.run(
+                    ["libreoffice", "--headless", "--convert-to",
+                     "png", "--outdir", temp_dir, input_path],
+                    capture_output=True,
+                    timeout=120
+                )
 
-            if result.returncode == 0:
-                # 移动文件
-                for file in os.listdir(temp_dir):
-                    if file.endswith(".png"):
-                        src = os.path.join(temp_dir, file)
-                        dst = os.path.join(output_dir, f"{base_name}_{file}")
-                        shutil.move(src, dst)
+                if result.returncode == 0:
+                    # 移动文件
+                    for file in os.listdir(temp_dir):
+                        if file.endswith(".png"):
+                            src = os.path.join(temp_dir, file)
+                            dst = os.path.join(output_dir, f"{base_name}_{file}")
+                            shutil.move(src, dst)
+                    return True
 
+                return False
+            finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)
-                return True
-
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            return False
 
         except Exception as e:
             print(f"图片转换失败: {e}")
