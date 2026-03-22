@@ -101,32 +101,33 @@ class OkPPTClient:
                 output_pptx = output_path or os.path.join(temp_dir, "output.pptx")
 
                 if os.path.exists(output_pptx):
+                    # Clean up temp dir before returning (don't leak path to caller)
+                    shutil.rmtree(temp_dir, ignore_errors=True)
                     return ConversionResult(
                         status=ConversionStatus.COMPLETED,
                         pptx_path=output_pptx,
-                        slide_count=len(temp_svg_paths),
-                        metadata={"temp_dir": temp_dir}
+                        slide_count=len(temp_svg_paths)
                     )
 
+            # Clean up temp dir on failure
+            shutil.rmtree(temp_dir, ignore_errors=True)
             return ConversionResult(
                 status=ConversionStatus.FAILED,
                 error=result.stderr or "转换失败"
             )
 
         except subprocess.TimeoutExpired:
+            shutil.rmtree(temp_dir, ignore_errors=True)
             return ConversionResult(
                 status=ConversionStatus.FAILED,
                 error="转换超时"
             )
         except Exception as e:
+            shutil.rmtree(temp_dir, ignore_errors=True)
             return ConversionResult(
                 status=ConversionStatus.FAILED,
                 error=str(e)
             )
-        finally:
-            # 清理临时目录（可选，保留用于调试）
-            # shutil.rmtree(temp_dir, ignore_errors=True)
-            pass
 
 
 class OkPPTAgent:
