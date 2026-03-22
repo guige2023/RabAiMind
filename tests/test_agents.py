@@ -172,7 +172,7 @@ class TestIntegration:
             response = requests.get(f"{api_base_url}/health", timeout=5)
             if response.status_code != 200:
                 pytest.skip("API 服务未运行")
-        except:
+        except Exception:
             pytest.skip("API 服务未运行")
 
         # 提交任务

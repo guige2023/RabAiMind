@@ -45,7 +45,7 @@ def format_response(response: requests.Response) -> str:
     try:
         data = response.json()
         return json.dumps(data, ensure_ascii=False, indent=2)
-    except:
+    except Exception:
         return response.text
 
 
