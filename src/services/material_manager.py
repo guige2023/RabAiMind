@@ -166,13 +166,28 @@ class MaterialManager:
         return sorted(materials, key=lambda m: m.upload_time, reverse=True)
     
     def extract_text_from_image(self, material_id: str) -> str:
-        """从图片提取文本（OCR）"""
-        # 这里可以集成OCR服务
-        # 目前返回空字符串
+        """从图片提取文本（OCR）
+        
+        集成方式:
+        1. 使用百度 OCR API - pip install baidu-aip
+        2. 使用 Tesseract - pip install pytesseract
+        3. 使用 EasyOCR - pip install easyocr
+        
+        推荐实现:
+        ```python
+        import easyocr
+        reader = easyocr.Reader(['ch_sim', 'en'])
+        results = reader.readtext(image_path)
+        return ' '.join([text for _, text, _ in results])
+        ```
+        """
         material = self.get_material(material_id)
-        if material and material.type == "image":
-            # TODO: 集成OCR服务
-            pass
+        if not material or material.type != "image":
+            return ""
+        
+        # OCR 功能待集成，当前返回空字符串
+        # 可通过 material.file_path 读取图片文件进行 OCR
+        logger.debug("OCR extraction called for material %s (not implemented)", material_id)
         return ""
     
     def _get_extension_by_type(self, material_type: str) -> str:
