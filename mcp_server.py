@@ -9,9 +9,12 @@ import os
 import sys
 import json
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import uuid
+
+logger = logging.getLogger(__name__)
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -242,8 +245,8 @@ async def main():
     app = web.Application()
     app.router.add_post("/", handle_jsonrpc)
 
-    print(f"🚀 MCP Server 启动: http://{args.host}:{args.port}")
-    print(f"📋 可用工具: {list(mcp.tools.keys())}")
+    logger.info(f"MCP Server 启动: http://{args.host}:{args.port}")
+    logger.info(f"可用工具: {list(mcp.tools.keys())}")
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -258,4 +261,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n👋 MCP Server 已停止")
+        logger.info("MCP Server 已停止")
