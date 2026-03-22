@@ -6,10 +6,13 @@ PPT 优化 Agent (PPTX Optimizer Agent)
 
 import os
 import shutil
+import logging
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import tempfile
+
+logger = logging.getLogger(__name__)
 
 
 class OptimizationLevel(Enum):
@@ -254,7 +257,7 @@ class PPTXOptimizerAgent:
             return False
 
         except Exception as e:
-            print(f"导出失败: {e}")
+            logger.error(f"导出失败: {e}")
             return False
 
     def _convert_to_pdf(self, input_path: str, output_path: str) -> bool:
@@ -282,7 +285,7 @@ class PPTXOptimizerAgent:
             return result.returncode == 0
 
         except Exception as e:
-            print(f"PDF 转换失败: {e}")
+            logger.error(f"PDF 转换失败: {e}")
             return False
 
     def _convert_to_images(
@@ -311,7 +314,7 @@ class PPTXOptimizerAgent:
             # 这里需要一个外部工具，如 LibreOffice
             # 这是一个简化实现
 
-            print(f"提示: 导出 {len(prs.slides)} 张幻灯片为图片")
+            logger.info(f"提示: 导出 {len(prs.slides)} 张幻灯片为图片")
 
             # 尝试使用 LibreOffice
             import subprocess
@@ -339,7 +342,7 @@ class PPTXOptimizerAgent:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
         except Exception as e:
-            print(f"图片转换失败: {e}")
+            logger.error(f"图片转换失败: {e}")
             return False
 
     def check_compatibility(self, pptx_path: str) -> CompatibilityReport:

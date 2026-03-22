@@ -7,11 +7,14 @@
 import json
 import time
 import uuid
+import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from enum import Enum
 
 from volc_okppt_tools import PromptOptimizer, get_volcano_client
+
+logger = logging.getLogger(__name__)
 
 
 class TaskStatus(Enum):
@@ -194,7 +197,7 @@ class CoordinatorAgent:
     def _parse_requirement(self, ppt_request: PPTRequest) -> List[Dict]:
         """解析用户需求，生成幻灯片结构"""
         self._current_step += 1
-        print(f"[Step {self._current_step}] 解析需求: {ppt_request.user_request}")
+        logger.info(f"[Step {self._current_step}] 解析需求: {ppt_request.user_request}")
 
         # 使用提示词优化器生成结构
         optimized_prompt = PromptOptimizer.optimize_for_ppt(
@@ -309,14 +312,14 @@ class CoordinatorAgent:
     def _generate_content(self, slides: List[Dict]) -> List[Dict]:
         """生成每页的详细内容"""
         self._current_step += 1
-        print(f"[Step {self._current_step}] 生成内容，共 {len(slides)} 页")
+        logger.info(f"[Step {self._current_step}] 生成内容，共 {len(slides)} 页")
 
         for i, slide in enumerate(slides):
             self._current_step += 1
             if self._current_step > self.max_steps:
                 raise Exception(f"超过最大步骤数 {self.max_steps}")
 
-            print(f"[Step {self._current_step}] 生成第 {i+1} 页内容: {slide.get('title', 'untitled')}")
+            logger.info(f"[Step {self._current_step}] 生成第 {i+1} 页内容: {slide.get('title', 'untitled')}")
 
             # 为每一页生成更详细的内容
             prompt = f"""为 PPT 页面生成详细内容。
@@ -340,7 +343,7 @@ class CoordinatorAgent:
     def _render_svgs(self, slides: List[Dict]) -> List[Dict]:
         """渲染 SVG"""
         self._current_step += 1
-        print(f"[Step {self._current_step}] 渲染 SVG，共 {len(slides)} 页")
+        logger.info(f"[Step {self._current_step}] 渲染 SVG，共 {len(slides)} 页")
 
         # 这里会调用 SVG Agent
         for i, slide in enumerate(slides):
@@ -348,7 +351,7 @@ class CoordinatorAgent:
             if self._current_step > self.max_steps:
                 raise Exception(f"超过最大步骤数 {self.max_steps}")
 
-            print(f"[Step {self._current_step}] 渲染第 {i+1} 页 SVG")
+            logger.info(f"[Step {self._current_step}] 渲染第 {i+1} 页 SVG")
 
             # 模拟 SVG 渲染结果
             slide["svg_path"] = f"./output/slide_{i+1}.svg"
@@ -358,7 +361,7 @@ class CoordinatorAgent:
     def _convert_to_pptx(self, slides: List[Dict]) -> str:
         """转换为 PPTX"""
         self._current_step += 1
-        print(f"[Step {self._current_step}] 转换为 PPTX")
+        logger.info(f"[Step {self._current_step}] 转换为 PPTX")
 
         # 这里会调用 OkPPT Agent
         pptx_path = "./output/presentation.pptx"
@@ -369,7 +372,7 @@ class CoordinatorAgent:
     def _optimize_pptx(self, pptx_path: str) -> str:
         """优化 PPTX"""
         self._current_step += 1
-        print(f"[Step {self._current_step}] 优化 PPTX")
+        logger.info(f"[Step {self._current_step}] 优化 PPTX")
 
         # 这里会调用 PPTX Optimizer Agent
         optimized_path = pptx_path.replace(".pptx", "_optimized.pptx")

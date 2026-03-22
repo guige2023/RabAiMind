@@ -7,9 +7,12 @@
 import os
 import json
 import shutil
+import logging
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class DeployMode(str, Enum):
@@ -58,14 +61,14 @@ class DockerManager:
             )
 
             if result.returncode == 0:
-                print(f"镜像构建成功: {tag}")
+                logger.info(f"镜像构建成功: {tag}")
                 return True
             else:
-                print(f"镜像构建失败: {result.stderr}")
+                logger.error(f"镜像构建失败: {result.stderr}")
                 return False
 
         except FileNotFoundError:
-            print("Docker 未安装或不在 PATH 中")
+            logger.warning("Docker 未安装或不在 PATH 中")
             return False
 
     def run_container(
@@ -109,14 +112,14 @@ class DockerManager:
             result = subprocess.run(cmd, capture_output=True, text=True)
 
             if result.returncode == 0:
-                print(f"容器启动成功")
+                logger.info(f"容器启动成功")
                 return True
             else:
-                print(f"容器启动失败: {result.stderr}")
+                logger.error(f"容器启动失败: {result.stderr}")
                 return False
 
         except FileNotFoundError:
-            print("Docker 未安装或不在 PATH 中")
+            logger.warning("Docker 未安装或不在 PATH 中")
             return False
 
 
@@ -294,9 +297,9 @@ CMD ["python", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"
                 capture_output=True,
                 text=True
             )
-            print(f"Docker 版本: {result.stdout.strip()}")
+            logger.info(f"Docker 版本: {result.stdout.strip()}")
         except FileNotFoundError:
-            print("Docker 未安装")
+            logger.warning("Docker 未安装")
             return False
 
         # 构建镜像
@@ -344,14 +347,14 @@ CMD ["python", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"
             )
 
             if result.returncode == 0:
-                print("部署成功")
+                logger.info("部署成功")
                 return True
             else:
-                print(f"部署失败: {result.stderr}")
+                logger.error(f"部署失败: {result.stderr}")
                 return False
 
         except FileNotFoundError:
-            print("docker-compose 未安装")
+            logger.warning("docker-compose 未安装")
             return False
 
     def stop(self) -> bool:

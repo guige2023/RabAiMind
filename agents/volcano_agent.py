@@ -7,6 +7,7 @@
 import json
 import os
 import time
+import logging
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 from enum import Enum
@@ -18,6 +19,8 @@ from volc_okppt_tools import (
     get_volcano_client,
     VolcanoAPIError
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ContentType(Enum):
@@ -257,7 +260,7 @@ class VolcanoAgent:
                 if attempt == max_retries - 1:
                     raise
                 wait_time = self.retry_delay * (2 ** attempt)
-                print(f"生成失败，{wait_time} 秒后重试... ({attempt + 1}/{max_retries})")
+                logger.warning(f"生成失败，{wait_time} 秒后重试... ({attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
 
         raise Exception("达到最大重试次数")
