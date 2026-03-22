@@ -7,11 +7,14 @@ OkPPT 转换 Agent (OkPPT Agent)
 import os
 import json
 import subprocess
+import logging
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from enum import Enum
 import tempfile
 import shutil
+
+logger = logging.getLogger(__name__)
 
 
 class ConversionStatus(Enum):
@@ -194,7 +197,7 @@ class OkPPTAgent:
             )
         else:
             # 使用 python-pptx 后备方案
-            print("mcp-server-okppt 不可用，使用 python-pptx 后备方案...")
+            logger.warning("mcp-server-okppt 不可用，使用 python-pptx 后备方案...")
             return self._convert_with_python_pptx(slides, output_path)
 
     def _convert_with_python_pptx(
@@ -363,7 +366,7 @@ class FallbackPPTXGenerator:
     ) -> bool:
         """生成 PPTX"""
         if not self.pptx_available:
-            print("警告: python-pptx 不可用，使用简化输出")
+            logger.warning("python-pptx 不可用，使用简化输出")
             return False
 
         try:
@@ -420,7 +423,7 @@ class FallbackPPTXGenerator:
             return True
 
         except Exception as e:
-            print(f"生成 PPTX 失败: {e}")
+            logger.error(f"生成 PPTX 失败: {e}")
             return False
 
 
