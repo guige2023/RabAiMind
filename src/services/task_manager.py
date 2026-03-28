@@ -18,6 +18,7 @@ from pathlib import Path
 
 from ..utils import generate_task_id, get_timestamp, ensure_dir
 from ..config import settings
+from .history_sync_service import get_history_sync_service, HistorySyncService
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,12 @@ class TaskManager:
         self._cleanup_counter: int = 0  # 懒清理计数器
         self._cleanup_interval: int = 10  # 每10次操作清理一次
         self._max_task_age_minutes: int = 30  # 任务最大存活时间(分钟)
+        self._sync_service: HistorySyncService = get_history_sync_service()
+        self._sync_initialized: bool = False  # 是否已完成首次同步
         ensure_dir(settings.OUTPUT_DIR)
+
+        # 启动时尝试从云端拉取历史记录
+        self._try_cloud_restore()
 
     def create_task(
         self,
