@@ -97,7 +97,7 @@ const errorCodeMap: Record<string, {
     category: 'auth',
     severity: 'error',
     title: '权限不足',
-    getMessage: () = > '您没有执行此操作的权限',
+    getMessage: () => '您没有执行此操作的权限',
     getSuggestion: () => '请联系管理员获取相应权限'
   },
 

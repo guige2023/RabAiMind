@@ -92,8 +92,8 @@ export function useAIGenerationSpeedAdvanced() {
 
   // 排序队列(优先级)
   const sortQueue = () => {
-    taskQueue.value.sort((a,.priority - a.priority)
-  b) => b }
+    taskQueue.value.sort((a, b) => b.priority - a.priority)
+  }
 
   // 开始任务
   const startTask = async (id: string, generator: () => Promise<any>) => {
@@ -227,7 +227,7 @@ export function useAIGenerationSpeedAdvanced() {
     }
   }
 
-  const getCache = (key: string): any | null {
+  const getCache = (key: string): any | null => {
     const cached = cache.value.get(key)
     if (!cached) return null
 

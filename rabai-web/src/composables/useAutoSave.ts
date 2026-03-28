@@ -133,18 +133,19 @@ export function useAutoSave({ key, data, debounceMs = 2000, excludeKeys = [], ma
   // Watch for changes and auto-save with debounce
   let debounceTimer: number | null = null
   let beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null
+  let stopWatch: (() => void) | null = null
+
+  // Watch must be called synchronously during setup, not inside onMounted
+  stopWatch = watch(data, () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer)
+    }
+    debounceTimer = window.setTimeout(() => {
+      saveDraft()
+    }, debounceMs)
+  }, { deep: true })
 
   const setupAutoSave = () => {
-    // Watch for data changes
-    watch(data, () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-      }
-      debounceTimer = window.setTimeout(() => {
-        saveDraft()
-      }, debounceMs)
-    }, { deep: true })
-
     // Save on page leave
     beforeUnloadHandler = (e: BeforeUnloadEvent) => {
       // Save immediately before leaving
@@ -168,6 +169,9 @@ export function useAutoSave({ key, data, debounceMs = 2000, excludeKeys = [], ma
     }
     if (beforeUnloadHandler) {
       window.removeEventListener('beforeunload', beforeUnloadHandler)
+    }
+    if (stopWatch) {
+      stopWatch()
     }
   }
 

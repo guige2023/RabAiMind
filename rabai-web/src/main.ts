@@ -3,9 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './styles/main.css'
 import './styles/mobile.css'
-import { trackPageLoad, reportWebVitals } from './utils/performance'
 
-// 路由配置
 const routes = [
   { path: '/', name: 'home', component: () => import('./views/HomeView.vue') },
   { path: '/create', name: 'create', component: () => import('./views/CreateView.vue') },
@@ -27,14 +25,7 @@ const app = createApp(App)
 app.use(router)
 app.mount('#app')
 
-// Track performance
-trackPageLoad()
-reportWebVitals((metric) => {
-  console.log('Web Vitals:', metric)
-})
-
-// Register service worker for PWA
-if ('serviceWorker' in navigator) {
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
       console.log('SW registered:', registration.scope)

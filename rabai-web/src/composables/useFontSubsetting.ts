@@ -18,7 +18,7 @@ export interface SubsetResult {
   subsetSize: number
   savings: number
   charsCount: number
- 覆盖率: number
+  coverage: number
 }
 
 export interface SubsetPreset {
@@ -114,15 +114,15 @@ export function useFontSubsetting() {
 
     // 估算覆盖率
     const totalCJK = 10000 // 常用汉字数量
-    const覆盖率 = (charsCount / totalCJK * 100).toFixed(1)
+    const coverage = (charsCount / totalCJK * 100).toFixed(1)
 
     const result: SubsetResult = {
       fontId: config.fontId,
       originalSize,
       subsetSize,
-      parseFloat(savings),
+      savings: parseFloat(savings),
       charsCount,
-      parseFloat(覆盖率)
+      coverage: parseFloat(coverage)
     }
 
     results.value.push(result)
@@ -149,7 +149,7 @@ export function useFontSubsetting() {
       sampleText += '0123456789'
     }
     if (config.includePunctuation) {
-      sampleText += '，。、；：？！""''（）【】《》—…·'
+      sampleText += '，。、；：？！（）【】《》—…·'
     }
     if (config.customChars) {
       sampleText += config.customChars
@@ -220,7 +220,7 @@ export function useFontSubsetting() {
       }
     }
 
-    return (covered / requiredChars.size * 100).toFixed(1)
+    return parseFloat((covered / requiredChars.size * 100).toFixed(1))
   }
 
   // 导出子集配置

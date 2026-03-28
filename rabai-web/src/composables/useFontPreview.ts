@@ -38,7 +38,7 @@ export function useFontPreview() {
   const previewTexts = ref<PreviewText[]>([
     { id: 'text_1', label: '中文示例', labelEn: 'Chinese Sample', text: '永和九年岁在癸丑暮春之初会于会稽山阴之兰亭' },
     { id: 'text_2', label: '数字字母', labelEn: 'Numbers & Letters', text: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789' },
-    { id: 'text_3', label: '标点符号', labelEn: 'Punctuation', text: '，。、；：？！""''（）【】《》—…·' },
+    { id: 'text_3', label: '标点符号', labelEn: 'Punctuation', text: '，。、；：？！（）【】《》—…·' },
     { id: 'text_4', label: '诗词', labelEn: 'Poetry', text: '床前明月光，疑是地上霜。举头望明月，低头思故乡。' },
     { id: 'text_5', label: '常用短语', labelEn: 'Common Phrases', text: '人工智能 机器学习 深度学习 神经网络' },
     { id: 'text_6', label: '长文本', labelEn: 'Long Text', text: '这是一个比较长的段落，包含了中文和English混合的内容，用于测试字体在长文本情况下的渲染效果和阅读体验。' }
@@ -64,7 +64,7 @@ export function useFontPreview() {
   const samples = ref<PreviewSample[]>([
     { id: 'sample_1', name: '标题', nameEn: 'Heading', category: 'title', texts: ['演示标题', '这是大标题', '第二段内容'] },
     { id: 'sample_2', name: '正文', nameEn: 'Body', category: 'body', texts: ['这是一段正文内容，用于展示字体在正文阅读中的效果。', '第二行正文'] },
-    { id: 'sample_3', name: '引用', nameEn: 'Quote', category: quote, texts: ['这是一段引用文字，可以展示特殊排版的视觉效果。'] }
+    { id: 'sample_3', name: '引用', nameEn: 'Quote', category: 'quote', texts: ['这是一段引用文字，可以展示特殊排版的视觉效果。'] }
   ])
 
   // 当前配置
@@ -140,8 +140,8 @@ export function useFontPreview() {
     return fonts.map(font => ({
       name: font.name,
       style: {
-        fontFamily: font.family,
-        ...previewStyle.value
+        ...previewStyle.value,
+        fontFamily: font.family
       },
       text
     }))

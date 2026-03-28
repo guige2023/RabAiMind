@@ -2,6 +2,9 @@
 """
 RabAi Mind API 主入口
 
+所有配置通过 Settings 类读取，Settings 是唯一配置来源。
+CORS 配置从环境变量 CORS_ORIGINS 读取（逗号分隔）。
+
 作者: Claude
 日期: 2026-03-17
 """
@@ -9,7 +12,7 @@ RabAi Mind API 主入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
-from .config import settings
+from .config import settings, get_cors_origins
 from .utils import setup_logger
 
 # 配置日志
@@ -24,15 +27,10 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# 配置 CORS - 限制允许的源
+# 配置 CORS — 从环境变量读取
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,6 +46,7 @@ async def startup_event():
     """启动事件"""
     logger.info("RabAi Mind API 启动中...")
     logger.info(f"配置: 端口={settings.API_PORT}, 日志级别={settings.LOG_LEVEL}")
+    logger.info(f"CORS 允许源: {settings.CORS_ORIGINS}")
 
 
 @app.on_event("shutdown")

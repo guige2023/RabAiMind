@@ -79,7 +79,7 @@ export function useImageProcessorPro() {
   })
 
   // 历史记录
-  const history = ref<ImageAdjustment[]>[]
+  const history = ref<ImageAdjustment[]>([])
   const historyIndex = ref(-1)
 
   // 调整值
@@ -123,15 +123,15 @@ export function useImageProcessorPro() {
   }
 
   // 预设滤镜
-  const filterPresets = {
+  const filterPresets: Record<string, Partial<ImageAdjustment> & { grayscale?: number; sepia?: number }> = {
     none: { brightness: 100, contrast: 100, saturation: 100, grayscale: 0, sepia: 0 },
     vintage: { brightness: 110, contrast: 90, saturation: 80, grayscale: 0, sepia: 30 },
     noir: { brightness: 100, contrast: 120, saturation: 0, grayscale: 100, sepia: 0 },
     vivid: { brightness: 105, contrast: 110, saturation: 130, grayscale: 0, sepia: 0 },
-    warm: { brightness: 100, contrast: 100, saturation: 110, temperature: 15, sepia: 0 },
-    cool: { brightness: 100, contrast: 100, saturation: 90, temperature: -15, sepia: 0 },
+    warm: { brightness: 100, contrast: 100, saturation: 110, grayscale: 0, sepia: 0 },
+    cool: { brightness: 100, contrast: 100, saturation: 90, grayscale: 0, sepia: 0 },
     dramatic: { brightness: 90, contrast: 130, saturation: 110, grayscale: 0, sepia: 0 },
-    soft: { brightness: 105, contrast: 85, saturation: 90, blur: 1, sepia: 0 }
+    soft: { brightness: 105, contrast: 85, saturation: 90, blur: 1, grayscale: 0, sepia: 0 }
   }
 
   // 应用预设

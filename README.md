@@ -21,7 +21,7 @@ AI 驱动的 PPT 智能生成平台，用户输入需求和素材，AI 自动生
 
 | 层级 | 技术栈 |
 |------|--------|
-| 前端 | React + TypeScript + Tailwind |
+| 前端 | Vue 3 + TypeScript + Vite |
 | 移动端 | React Native / Tauri |
 | 后端 | FastAPI + Python |
 | 数据库 | PostgreSQL + Redis |
@@ -102,7 +102,7 @@ RabAiMind/
 │   │   ├── ppt_generator.py      # PPT生成
 │   │   └── task_manager.py      # 任务管理
 │   └── utils/            # 工具函数
-├── rabai-web/           # Vue3 前端
+├── rabai-web/           # Vue 3 前端
 ├── templates/           # PPT 模板
 ├── output/             # 生成文件
 └── docs/               # 文档
@@ -114,7 +114,7 @@ RabAiMind/
 - [x] Phase 2.3: PPT 组装（OKPPT MCP）
 - [x] Phase 3: 前端框架
 - [ ] Phase 2.1: AI 分析层
-- [ ] Phase 2.2: 内容生成
+- [x] Phase 2.2: 内容生成
 - [ ] Phase 4: 多端适配
 - [ ] Phase 5: 测试与优化
 

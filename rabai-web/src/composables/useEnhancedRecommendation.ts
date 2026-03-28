@@ -1,4 +1,3 @@
-// Enhanced Smart Recommendation - 增强智能推荐系统
 import { ref, computed } from 'vue'
 
 export type RecommendationType = 'template' | 'content' | 'style' | 'audience' | 'keyword'
@@ -63,7 +62,6 @@ export function useEnhancedRecommendation() {
   const recommendations = ref<RecommendationItem[]>([])
   const recentRecommendations = ref<RecommendationItem[]>([])
 
-  // 追踪用户行为
   const trackView = (templateId: string) => {
     if (!userBehavior.value.viewedTemplates.includes(templateId)) {
       userBehavior.value.viewedTemplates.push(templateId)
@@ -96,7 +94,6 @@ export function useEnhancedRecommendation() {
     }
   }
 
-  // 标签相似度计算
   const calculateSimilarity = (tags1: string[], tags2: string[]): number => {
     if (!tags1.length || !tags2.length) return 0
     const set1 = new Set(tags1)
@@ -105,42 +102,53 @@ export function useEnhancedRecommendation() {
     return intersection / Math.max(set1.size, set2.size)
   }
 
-  // 基于历史的推荐
   const getHistoryBased = (items: RecommendationItem[]): RecommendationItem[] => {
     if (!config.value.enablePersonalization) return []
 
-    return items
-      .filter(item => !userBehavior.value.usedTemplates.includes(item.id))
-      .map(item => {
-        let score = 0
-        const lowerTags = item.tags.map(t => t.toLowerCase())
+    const results: RecommendationItem[] = []
+    for (const item of items) {
+      if (userBehavior.value.usedTemplates.includes(item.id)) continue
+      let score = 0
+      const lowerTags = item.tags.map(t => t.toLowerCase())
 
-        userBehavior.value.searchedKeywords.forEach(kw => {
-          if (item.title.toLowerCase().includes(kw.toLowerCase())) score += 3
-          lowerTags.forEach(tag => { if (tag.includes(kw.toLowerCase())) score += 2 })
+      for (const kw of userBehavior.value.searchedKeywords) {
+        if (item.title.toLowerCase().includes(kw.toLowerCase())) score += 3
+        for (const tag of lowerTags) {
+          if (tag.includes(kw.toLowerCase())) score += 2
+        }
+      }
+
+      for (const topic of userBehavior.value.createdTopics) {
+        if (item.title.toLowerCase().includes(topic.toLowerCase())) score += 4
+      }
+
+      if (score > 0) {
+        results.push({
+          ...item,
+          score: Math.min(score / 10, 1),
+          source: 'history' as RecommendationSource,
+          reason: '基于您的搜索历史'
         })
+      }
+    }
 
-        userBehavior.value.createdTopics.forEach(topic => {
-          if (item.title.toLowerCase().includes(topic.toLowerCase())) score += 4
-        })
-
-        return score > 0 ? { ...item, score: Math.min(score / 10, 1), source: 'history' as RecommendationSource, reason: '基于您的搜索历史' } : null
-      })
-      .filter(Boolean) as RecommendationItem[]
-      .sort((a, b) => b.score - a.score)
+    return results.sort((a, b) => b.score - a.score)
   }
 
-  // 热门推荐
   const getPopular = (items: RecommendationItem[]): RecommendationItem[] => {
     if (!config.value.enableTrending) return []
 
     return items
-      .map(item => ({ ...item, score: Math.random() * 0.4 + 0.6, source: 'popular' as RecommendationSource, reason: '热门推荐' }))
+      .map(item => ({
+        ...item,
+        score: Math.random() * 0.4 + 0.6,
+        source: 'popular' as RecommendationSource,
+        reason: '热门推荐'
+      }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
   }
 
-  // 相似推荐
   const getSimilar = (items: RecommendationItem[], current: RecommendationItem): RecommendationItem[] => {
     if (!config.value.enableSimilar) return []
 
@@ -157,66 +165,76 @@ export function useEnhancedRecommendation() {
       .slice(0, 5)
   }
 
-  // 个性化推荐
   const getPersonalized = (items: RecommendationItem[]): RecommendationItem[] => {
     if (!config.value.enablePersonalization) return []
 
-    return items
-      .map(item => {
-        let score = 0
+    const results: RecommendationItem[] = []
 
-        const prefScore = userBehavior.value.preferences[item.id] || 0
-        score += prefScore * 0.3
+    for (const item of items) {
+      let score = 0
+      const prefScore = userBehavior.value.preferences[item.id] || 0
+      score += prefScore * 0.3
 
-        const usageCount = userBehavior.value.usedTemplates.filter(id => id === item.id).length
-        score += Math.min(usageCount * 0.2, 1)
+      const usageCount = userBehavior.value.usedTemplates.filter(id => id === item.id).length
+      score += Math.min(usageCount * 0.2, 1)
 
-        item.tags.forEach(tag => {
-          if (userBehavior.value.searchedKeywords.includes(tag)) score += 0.3
+      for (const tag of item.tags) {
+        if (userBehavior.value.searchedKeywords.includes(tag)) score += 0.3
+      }
+
+      if (score > config.value.minScore) {
+        results.push({
+          ...item,
+          score,
+          source: 'personalized' as RecommendationSource,
+          reason: '根据您的使用习惯'
         })
+      }
+    }
 
-        return score > config.value.minScore ? { ...item, score, source: 'personalized' as RecommendationSource, reason: '根据您的使用习惯' } : null
-      })
-      .filter(Boolean) as RecommendationItem[]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, config.value.maxItems)
+    return results.sort((a, b) => b.score - a.score).slice(0, config.value.maxItems)
   }
 
-  // AI智能推荐
   const getAIRecommendations = (items: RecommendationItem[], context?: string): RecommendationItem[] => {
     if (!config.value.enableAI) return []
 
-    // 基于上下文和用户偏好生成推荐
     const userPrefs = userBehavior.value.preferences
-    const topPref = Object.entries(userPrefs).sort((a, b) => b[1] - a[1])[0]
+    const prefEntries = Object.entries(userPrefs)
+    prefEntries.sort((a, b) => b[1] - a[1])
+    const topPref = prefEntries[0]
 
-    return items
-      .map(item => {
-        let score = 0.3 // 基础分数
+    const results: RecommendationItem[] = []
 
-        // 匹配用户偏好
-        if (topPref && item.tags.includes(topPref[0])) {
-          score += 0.4
-        }
+    for (const item of items) {
+      let score = 0.3
 
-        // 匹配搜索关键词
-        userBehavior.value.searchedKeywords.slice(-3).forEach(kw => {
-          if (item.title.toLowerCase().includes(kw.toLowerCase())) score += 0.2
+      if (topPref && item.tags.includes(topPref[0])) {
+        score += 0.4
+      }
+
+      const recentKeywords = userBehavior.value.searchedKeywords.slice(-3)
+      for (const kw of recentKeywords) {
+        if (item.title.toLowerCase().includes(kw.toLowerCase())) score += 0.2
+      }
+
+      const recentTopics = userBehavior.value.createdTopics.slice(-2)
+      for (const topic of recentTopics) {
+        if (item.title.toLowerCase().includes(topic.toLowerCase())) score += 0.3
+      }
+
+      if (score > 0.4) {
+        results.push({
+          ...item,
+          score,
+          source: 'ai' as RecommendationSource,
+          reason: 'AI智能推荐'
         })
+      }
+    }
 
-        // 匹配最近创建的主题
-        userBehavior.value.createdTopics.slice(-2).forEach(topic => {
-          if (item.title.toLowerCase().includes(topic.toLowerCase())) score += 0.3
-        })
-
-        return { ...item, score, source: 'ai' as RecommendationSource, reason: 'AI智能推荐' }
-      })
-      .filter(item => item.score > 0.4)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
+    return results.sort((a, b) => b.score - a.score).slice(0, 5)
   }
 
-  // 生成综合推荐
   const generateRecommendations = (items: RecommendationItem[], context?: string): RecommendationItem[] => {
     const results: RecommendationItem[] = []
 
@@ -228,28 +246,26 @@ export function useEnhancedRecommendation() {
       results.push(...getAIRecommendations(items, context))
     }
 
-    // 去重合并
-    const seen = new Set()
-    const merged = results.filter(item => {
-      if (seen.has(item.id)) return false
-      seen.add(item.id)
-      return true
-    })
+    const seen = new Set<string>()
+    const merged: RecommendationItem[] = []
 
-    recommendations.value = merged
-      .sort((a, b) => b.score - a.score)
-      .slice(0, config.value.maxItems)
+    for (const item of results) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id)
+        merged.push(item)
+      }
+    }
 
+    recommendations.value = merged.sort((a, b) => b.score - a.score).slice(0, config.value.maxItems)
     recentRecommendations.value = [...recommendations.value]
+
     return recommendations.value
   }
 
-  // 相似推荐
   const recommendSimilar = (items: RecommendationItem[], current: RecommendationItem): RecommendationItem[] => {
     return getSimilar(items, current)
   }
 
-  // 关键词推荐
   const recommendByKeyword = (items: RecommendationItem[], keyword: string): RecommendationItem[] => {
     const lower = keyword.toLowerCase()
     return items
@@ -257,24 +273,45 @@ export function useEnhancedRecommendation() {
         item.title.toLowerCase().includes(lower) ||
         item.tags.some(t => t.toLowerCase().includes(lower))
       )
-      .map(item => ({ ...item, score: 1, source: 'trending' as RecommendationSource, reason: `匹配"${keyword}"` }))
+      .map(item => ({
+        ...item,
+        score: 1,
+        source: 'trending' as RecommendationSource,
+        reason: '匹配"' + keyword + '"'
+      }))
       .slice(0, config.value.maxItems)
   }
 
-  // 保存/加载
   const saveBehavior = () => {
-    try { localStorage.setItem('user_behavior', JSON.stringify(userBehavior.value)) } catch {}
+    try {
+      localStorage.setItem('user_behavior', JSON.stringify(userBehavior.value))
+    } catch {
+      // ignore
+    }
   }
 
   const loadBehavior = () => {
     try {
       const stored = localStorage.getItem('user_behavior')
-      if (stored) userBehavior.value = JSON.parse(stored)
-    } catch {}
+      if (stored) {
+        userBehavior.value = JSON.parse(stored)
+      }
+    } catch {
+      // ignore
+    }
   }
 
   const clearBehavior = () => {
-    userBehavior.value = { viewedTemplates: [], usedTemplates: [], searchedKeywords: [], createdTopics: [], exportedFormats: [], preferences: {}, sessionCount: 0, totalCreations: 0 }
+    userBehavior.value = {
+      viewedTemplates: [],
+      usedTemplates: [],
+      searchedKeywords: [],
+      createdTopics: [],
+      exportedFormats: [],
+      preferences: {},
+      sessionCount: 0,
+      totalCreations: 0
+    }
     saveBehavior()
   }
 
@@ -287,10 +324,23 @@ export function useEnhancedRecommendation() {
   }))
 
   return {
-    config, userBehavior, recommendations, recentRecommendations,
-    trackView, trackUse, trackSearch, trackTopic, trackExport,
-    generateRecommendations, recommendSimilar, recommendByKeyword,
-    calculateSimilarity, clearBehavior, loadBehavior, saveBehavior, stats
+    config,
+    userBehavior,
+    recommendations,
+    recentRecommendations,
+    trackView,
+    trackUse,
+    trackSearch,
+    trackTopic,
+    trackExport,
+    generateRecommendations,
+    recommendSimilar,
+    recommendByKeyword,
+    calculateSimilarity,
+    clearBehavior,
+    loadBehavior,
+    saveBehavior,
+    stats
   }
 }
 

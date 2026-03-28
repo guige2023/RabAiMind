@@ -12,7 +12,7 @@ export function useReactiveSet<T>(initial?: T[]) {
     return set.has(value)
   }
 
-  const delete = (value: T): boolean => {
+  const remove = (value: T): boolean => {
     return set.delete(value)
   }
 
@@ -38,7 +38,7 @@ export function useReactiveSet<T>(initial?: T[]) {
     set,
     add,
     has,
-    delete,
+    remove,
     clear,
     values,
     size,

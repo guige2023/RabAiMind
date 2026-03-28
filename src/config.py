@@ -2,62 +2,101 @@
 """
 RabAi Mind 配置文件
 
+所有配置通过环境变量读取，Settings 类是唯一配置来源。
+config.yaml 仅作文档参考。
+
 作者: Claude
 日期: 2026-03-17
 """
 
 import os
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """应用配置类"""
+    """应用配置类 — 唯一配置来源，所有值从环境变量读取"""
 
-    # API 配置
+    # ========== API 服务配置 ==========
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
+    API_AUTH_ENABLED: bool = False
+    API_KEY: Optional[str] = None
+    JWT_SECRET: str = "your-secret-key-change-in-production"
+    MAX_UPLOAD_SIZE: int = 52428800  # 50MB
 
-    # MCP 配置
+    # ========== MCP 服务配置 ==========
     MCP_HOST: str = "0.0.0.0"
     MCP_PORT: int = 8080
+    MCP_OKPPT_SERVER_PATH: str = "/usr/local/bin/mcp-server-okppt"
+    MCP_MAX_REQUEST_SIZE: int = 10485760  # 10MB
+    MCP_HEARTBEAT_INTERVAL: int = 30
 
-    # 火山引擎配置
+    # ========== 火山引擎配置 ==========
     VOLCANO_API_KEY: str = ""
     VOLCANO_SECRET: str = ""
     VOLCANO_ENDPOINT: str = "https://ark.cn-beijing.volces.com/api/v3"
     VOLCANO_PROJECT_ID: str = ""
     VOLCANO_TEXT_MODEL: str = "ep-20260303221115-dk4rt"
     VOLCANO_IMAGE_MODEL: str = "ep-20260314123401-jwqhn"
+    VOLCANO_TIMEOUT: int = 120
 
-    # Redis 配置
+    # ========== Redis 配置 ==========
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: Optional[str] = None
     REDIS_URL: Optional[str] = None
+    REDIS_DB: int = 0
 
-    # OSS 配置
+    # ========== OSS 配置 ==========
     OSS_ENABLED: bool = False
     OSS_ENDPOINT: Optional[str] = None
     OSS_BUCKET: Optional[str] = None
     OSS_ACCESS_KEY: Optional[str] = None
     OSS_SECRET_KEY: Optional[str] = None
 
-    # PPT 配置
+    # ========== PPT 生成配置 ==========
     PPT_WIDTH: int = 1600
     PPT_HEIGHT: int = 900
     PPT_DEFAULT_SLIDES: int = 10
     PPT_MAX_SLIDES: int = 30
+    PPT_ASPECT_RATIO: str = "16:9"
+    PPT_OUTPUT_FORMATS: str = "pptx,pdf,images"  # comma-separated
+    PPT_TEMPLATE_DEFAULT: str = "default"
+    PPT_TEMPLATE_DIR: str = "./templates"
+    PPT_SVG_VIEWBOX: str = "0 0 1600 900"
+    PPT_SVG_EMBED_IMAGES: bool = True
+    PPT_SVG_OPTIMIZE_PATHS: bool = True
 
-    # 日志配置
+    # ========== Agent 配置 ==========
+    AGENT_COORDINATOR_MAX_STEPS: int = 30
+    AGENT_COORDINATOR_TIMEOUT: int = 600
+    AGENT_QUALITY_SVG_SCHEMA_PATH: str = "./schemas/svg_schema.json"
+    AGENT_QUALITY_PPTX_VALIDATOR: str = "libreoffice"
+    AGENT_VOLCANO_TEXT_MAX_TOKENS: int = 32000
+    AGENT_VOLCANO_IMAGE_MAX_SIZE: int = 2048
+    AGENT_OPTIMIZER_COMPRESSION_ENABLED: bool = True
+    AGENT_OPTIMIZER_COMPRESS_QUALITY: int = 80
+
+    # ========== 日志配置 ==========
     LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_FILE: str = "./logs/rabai_mind.log"
+    LOG_MAX_BYTES: int = 10485760  # 10MB
+    LOG_BACKUP_COUNT: int = 5
 
-    # 路径配置
+    # ========== 任务队列配置 ==========
+    TASK_QUEUE_BACKEND: str = "memory"  # memory / redis
+
+    # ========== CORS 配置 ==========
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+
+    # ========== 路径配置 ==========
     OUTPUT_DIR: str = "./output"
     TEMPLATE_DIR: str = "./templates"
     WORKSPACE_DIR: str = "./workspace"
+    SCHEMA_DIR: str = "./schemas"
 
     class Config:
         env_file = ".env"
@@ -74,5 +113,15 @@ def get_redis_url() -> str:
     if settings.REDIS_URL:
         return settings.REDIS_URL
     if settings.REDIS_PASSWORD:
-        return f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}/0"
-    return f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0"
+        return f"redis://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+    return f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
+
+
+def get_cors_origins() -> List[str]:
+    """解析 CORS_ORIGINS 环境变量（逗号分隔）"""
+    return [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+
+
+def get_ppt_output_formats() -> List[str]:
+    """解析 PPT_OUTPUT_FORMATS 环境变量（逗号分隔）"""
+    return [fmt.strip() for fmt in settings.PPT_OUTPUT_FORMATS.split(",") if fmt.strip()]

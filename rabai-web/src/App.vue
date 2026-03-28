@@ -66,11 +66,7 @@
         </div>
       </header>
       <main class="main" id="main-content" tabindex="-1">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <router-view />
       </main>
       <footer class="footer">
         <p>© 2026 RabAi Mind · AI PPT 生成平台</p>

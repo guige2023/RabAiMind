@@ -1,29 +1,37 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
+import axios, { AxiosInstance, AxiosResponse } from 'axios'
 import apiErrors from '../utils/apiErrors'
+import type {
+  GeneratePPTRequest,
+  GeneratePPTResponse,
+  TaskStatusResponse,
+  TaskPreviewResponse,
+  PlanPPTResponse,
+  ImageSearchResponse,
+  Template,
+  Scene,
+  Style,
+  APIClient
+} from '../utils/types'
 
 const { classifyError } = apiErrors
 
-// Create axios instance with optimized defaults
 const createApiClient = (): AxiosInstance => {
   const client = axios.create({
     baseURL: '/api/v1',
-    timeout: 60000, // 60 seconds timeout
+    timeout: 120000,
     headers: {
       'Content-Type': 'application/json'
     }
   })
 
-  // Request interceptor
   client.interceptors.request.use(
     (config) => {
-      // Add timestamp to prevent caching GET requests
       if (config.method === 'get') {
         config.params = {
           ...config.params,
           _t: Date.now()
         }
       }
-      // Add loading state
       document.body.classList.add('api-loading')
       return config
     },
@@ -33,7 +41,6 @@ const createApiClient = (): AxiosInstance => {
     }
   )
 
-  // Response interceptor with retry logic and error handling
   client.interceptors.response.use(
     (response) => {
       document.body.classList.remove('api-loading')
@@ -43,12 +50,10 @@ const createApiClient = (): AxiosInstance => {
       document.body.classList.remove('api-loading')
       const config = error.config
 
-      // Retry logic for network errors
       if (!config || !config.__retryCount) {
         config.__retryCount = 0
       }
 
-      // Only retry on network errors, not on 4xx/5xx
       if (
         !error.response &&
         config.__retryCount < 3 &&
@@ -61,7 +66,6 @@ const createApiClient = (): AxiosInstance => {
         return client(config)
       }
 
-      // Classify and enhance error
       const classifiedError = classifyError(error)
       error.classified = classifiedError
 
@@ -74,31 +78,24 @@ const createApiClient = (): AxiosInstance => {
 
 export const apiClient = createApiClient()
 
-// API methods
-export const api = {
-  // PPT APIs
+export const api: APIClient = {
   ppt: {
-    // Create PPT generation task
-    createTask: (data: any): Promise<AxiosResponse> => {
+    createTask: (data: GeneratePPTRequest): Promise<AxiosResponse<GeneratePPTResponse>> => {
       return apiClient.post('/ppt/generate', data)
     },
 
-    // Get task status
-    getTask: (taskId: string): Promise<AxiosResponse> => {
+    getTask: (taskId: string): Promise<AxiosResponse<TaskStatusResponse>> => {
       return apiClient.get(`/ppt/task/${taskId}`)
     },
 
-    // Get task preview (SVG slides)
-    getTaskPreview: (taskId: string): Promise<AxiosResponse> => {
+    getTaskPreview: (taskId: string): Promise<AxiosResponse<TaskPreviewResponse>> => {
       return apiClient.get(`/ppt/preview/${taskId}`)
     },
 
-    // Cancel task
-    cancelTask: (taskId: string): Promise<AxiosResponse> => {
+    cancelTask: (taskId: string): Promise<AxiosResponse<{ success: boolean; task_id: string; status: string }>> => {
       return apiClient.delete(`/ppt/task/${taskId}`)
     },
 
-    // Download PPT
     downloadPpt: (taskId: string, options?: { quality?: string; dpi?: number }): Promise<Blob> => {
       return apiClient.get(`/ppt/download/${taskId}`, {
         responseType: 'blob',
@@ -106,30 +103,25 @@ export const api = {
       })
     },
 
-    // Export to PDF
     exportPdf: (taskId: string): Promise<Blob> => {
       return apiClient.get(`/ppt/export/pdf/${taskId}`, {
         responseType: 'blob'
       })
     },
 
-    // Get templates
-    getTemplates: (): Promise<AxiosResponse> => {
+    getTemplates: (): Promise<AxiosResponse<Template[]>> => {
       return apiClient.get('/ppt/templates')
     },
 
-    // Get scenes
-    getScenes: (): Promise<AxiosResponse> => {
+    getScenes: (): Promise<AxiosResponse<Scene[]>> => {
       return apiClient.get('/ppt/scenes')
     },
 
-    // Get styles
-    getStyles: (): Promise<AxiosResponse> => {
+    getStyles: (): Promise<AxiosResponse<Style[]>> => {
       return apiClient.get('/ppt/styles')
     },
 
-    // Plan PPT outline
-    plan: (request: string, slideCount = 5): Promise<AxiosResponse> => {
+    plan: (request: string, slideCount = 5): Promise<AxiosResponse<PlanPPTResponse>> => {
       return apiClient.post('/ppt/plan', {
         user_request: request,
         slide_count: slideCount,
@@ -139,13 +131,21 @@ export const api = {
     }
   },
 
-  // Image APIs
   images: {
-    // Search images
-    search: (query: string, page = 1): Promise<AxiosResponse> => {
+    search: (query: string, page = 1): Promise<AxiosResponse<ImageSearchResponse>> => {
       return apiClient.get('/images/search', {
         params: { q: query, page, limit: 20 }
       })
+    },
+
+    random: (count = 10, orientation = 'landscape'): Promise<AxiosResponse<ImageSearchResponse>> => {
+      return apiClient.get('/images/random', {
+        params: { count, orientation }
+      })
+    },
+
+    categories: (): Promise<AxiosResponse<{ success: boolean; categories: Array<{ id: string; name: string; icon: string; keywords: string[] }> }>> => {
+      return apiClient.get('/images/categories')
     }
   }
 }

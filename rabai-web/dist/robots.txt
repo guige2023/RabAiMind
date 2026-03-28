@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://rabai-mind.com/sitemap.xml

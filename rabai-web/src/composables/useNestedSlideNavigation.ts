@@ -241,7 +241,8 @@ export function useNestedSlideNavigation() {
     totalNodes: flatNodes.value.length,
     sections: flatNodes.value.filter(n => n.type === 'section').length,
     slides: flatNodes.value.filter(n => n.type === 'slide').length,
-    depth: Math.max(...flatNodes.value.map(n => n.depth), collapsed: collapsedNodes.value.size,
+    depth: Math.max(...flatNodes.value.map(n => n.depth)),
+    collapsed: collapsedNodes.value.size,
     historyLength: navigation.value.history.length,
     currentIndex: navigation.value.historyIndex
   }))

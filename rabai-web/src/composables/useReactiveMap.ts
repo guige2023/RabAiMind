@@ -16,7 +16,7 @@ export function useReactiveMap<K, V>(initial?: Map<K, V>) {
     return map.has(key)
   }
 
-  const delete = (key: K): boolean => {
+  const remove = (key: K): boolean => {
     return map.delete(key)
   }
 
@@ -39,7 +39,7 @@ export function useReactiveMap<K, V>(initial?: Map<K, V>) {
     set,
     get,
     has,
-    delete,
+    remove,
     clear,
     keys,
     values,

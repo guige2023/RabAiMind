@@ -634,7 +634,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useStatistics } from '../composables/useStatistics'
 import { useAutoSave } from '../composables/useAutoSave'
@@ -1141,8 +1141,8 @@ const handleSubmit = async () => {
       font_content: formData.value.fontContent,
       font_caption: formData.value.fontCaption,
       // 布局模式
-      layout_mode: formData.value.layoutMode,
-      unified_layout: formData.value.unifiedLayout,
+      layout_mode: formData.value.layoutMode === '统一' ? 'auto' : 'manual',
+      unified_layout: formData.value.layoutMode === '统一',
       // 生成模式
       generation_mode: formData.value.generationMode,
       output_format: formData.value.outputFormat,
@@ -1185,6 +1185,14 @@ const handleSubmit = async () => {
   }
 }
 
+// 自动保存草稿 - 必须在 setup 顶层调用
+const { loadDraft, setupAutoSave, saveDraft: doSaveDraft, cleanup: cleanupAutoSave } = useAutoSave({
+  key: 'create',
+  data: formData,
+  debounceMs: 2000,
+  excludeKeys: ['userRequest']
+})
+
 // 页面加载时检查是否有场景参数
 onMounted(() => {
   if (route.query.scene) {
@@ -1192,14 +1200,6 @@ onMounted(() => {
   }
   // 加载PPT素材
   loadPptImages()
-
-  // 自动保存草稿
-  const { loadDraft, setupAutoSave, saveDraft: doSaveDraft, cleanup: cleanupAutoSave } = useAutoSave({
-    key: 'create',
-    data: formData,
-    debounceMs: 2000,
-    excludeKeys: ['userRequest'] // 不保存用户输入内容
-  })
 
   // 加载草稿（如果有）
   const draft = loadDraft()

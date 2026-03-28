@@ -119,23 +119,23 @@ const isDev = import.meta.env.DEV
 export const trackPageLoad = (): void => {
   if (!window.performance) return
 
-  const timing = window.performance.timing
   const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
 
+  if (!navigation) return
+
   const metrics = {
-    pageLoad: navigation ? navigation.loadEventEnd - navigation.fetchStart : 0,
+    pageLoad: navigation.loadEventEnd - navigation.fetchStart,
     firstPaint: window.performance.getEntriesByType('paint')[0]?.startTime || 0,
-    domContentLoaded: timing.domContentLoadedEventEnd - timing.fetchStart,
-    fetchStart: timing.fetchStart,
-    domInteractive: timing.domInteractive - timing.fetchStart,
-    loadEventEnd: timing.loadEventEnd - timing.fetchStart
+    domContentLoaded: navigation.domContentLoadedEventEnd - navigation.fetchStart,
+    fetchStart: navigation.fetchStart,
+    domInteractive: navigation.domInteractive - navigation.fetchStart,
+    loadEventEnd: navigation.loadEventEnd - navigation.fetchStart
   }
 
   if (isDev) {
     console.log('📊 Performance Metrics:', metrics)
   }
 
-  // Store in localStorage for analytics
   try {
     const reports = JSON.parse(localStorage.getItem('perf_reports') || '[]')
     reports.push({
@@ -143,7 +143,6 @@ export const trackPageLoad = (): void => {
       url: window.location.pathname,
       timestamp: Date.now()
     })
-    // Keep last 10 reports
     localStorage.setItem('perf_reports', JSON.stringify(reports.slice(-10)))
   } catch (e) {
     // Ignore storage errors
@@ -209,15 +208,20 @@ export const reportWebVitals = (onPerfEntry?: (metric: any) => void): void => {
     })
   }
 
-  // Largest Contentful Paint
-  const lcpEntry = window.performance.getEntriesByType('largest-contentful-paint')[0]
-
-  if (lcpEntry) {
-    onPerfEntry({
-      name: 'LCP',
-      value: lcpEntry.startTime,
-      delta: lcpEntry.startTime
+  // Largest Contentful Paint - use PerformanceObserver for better compatibility
+  try {
+    const lcpObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries()
+      const lastEntry = entries[entries.length - 1]
+      onPerfEntry({
+        name: 'LCP',
+        value: lastEntry.startTime,
+        delta: lastEntry.startTime
+      })
     })
+    lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })
+  } catch (e) {
+    // LCP not supported, ignore
   }
 }
 
@@ -225,8 +229,8 @@ export const reportWebVitals = (onPerfEntry?: (metric: any) => void): void => {
 export const getPerformanceSummary = (): PerformanceReport | null => {
   if (!window.performance) return null
 
-  const timing = window.performance.timing
   const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+  if (!navigation) return null
 
   // Get LCP
   const lcpEntry = window.performance.getEntriesByType('largest-contentful-paint')[0] as any
@@ -242,15 +246,15 @@ export const getPerformanceSummary = (): PerformanceReport | null => {
   }
 
   return {
-    pageLoad: navigation ? navigation.loadEventEnd - navigation.fetchStart : 0,
+    pageLoad: navigation.loadEventEnd - navigation.fetchStart,
     firstPaint: window.performance.getEntriesByType('paint')[0]?.startTime || 0,
     firstContentfulPaint: window.performance.getEntriesByType('paint')
       .find((e) => e.name === 'first-contentful-paint')?.startTime || 0,
     largestContentfulPaint: lcpEntry?.startTime || 0,
     firstInputDelay: fidEntry?.processingStart - fidEntry?.startTime || 0,
     cumulativeLayoutShift: clsValue,
-    timeToInteractive: navigation?.interactive ? navigation.loadEventEnd - navigation.fetchStart : 0,
-    domContentLoaded: timing.domContentLoadedEventEnd - timing.fetchStart,
+    timeToInteractive: navigation.loadEventEnd - navigation.fetchStart,
+    domContentLoaded: navigation.domContentLoadedEventEnd - navigation.fetchStart,
     resourceTiming: window.performance.getEntriesByType('resource').map((r) => ({
       name: r.name,
       value: r.duration,

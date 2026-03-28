@@ -1,101 +1,152 @@
-# RabAi Mind AI PPT 生成平台配置文件
-# ⚠️ 重要：不要在此文件中存储真实API密钥，请使用环境变量
+# =============================================================================
+# RabAi Mind AI PPT 生成平台 — 配置参考文档
+# =============================================================================
+#
+# ⚠️  重要声明：
+#    此文件仅作文档参考！所有配置已迁移至 src/config.py (Settings 类)。
+#    请通过环境变量配置，不要直接修改此文件。
+#
+#    唯一配置来源：src/config.py (Settings 类，Pydantic BaseSettings)
+#    环境变量文件：.env（复制自 .env.example）
+#
+#    启动服务前，请确保 .env 文件中已填写所有必需的环境变量。
+#
+# =============================================================================
 
 ## 火山引擎 API 配置 (Volcengine)
-volcano:
-  # 请通过环境变量 VOLCANO_API_KEY 设置
-  api_key: "${VOLCANO_API_KEY}"
-  # 文本生成模型 - 火山引擎方舟
-  text_model: "ep-20260303221115-dk4rt"
-  # 图片生成模型 - 火山引擎方舟
-  image_model: "ep-20260314123401-jwqhn"
-  # API 端点 - 火山引擎方舟 (北京区域)
-  endpoint: "https://ark.cn-beijing.volces.com/api/v3"
-  # 超时配置
-  timeout: 120
+## 对应环境变量：
+##   VOLCANO_API_KEY       — API 密钥（必填）
+##   VOLCANO_SECRET        — 备用密钥
+##   VOLCANO_ENDPOINT      — API 端点，默认 https://ark.cn-beijing.volces.com/api/v3
+##   VOLCANO_PROJECT_ID    — 项目 ID
+##   VOLCANO_TEXT_MODEL    — 文本模型 ID，默认 ep-20260303221115-dk4rt
+##   VOLCANO_IMAGE_MODEL   — 图片模型 ID，默认 ep-20260314123401-jwqhn
+##   VOLCANO_TIMEOUT       — 请求超时（秒），默认 120
+# volcano:
+#   api_key: "${VOLCANO_API_KEY}"
+#   text_model: "ep-20260303221115-dk4rt"
+#   image_model: "ep-20260314123401-jwqhn"
+#   endpoint: "https://ark.cn-beijing.volces.com/api/v3"
+#   timeout: 120
 
 ## MCP 服务配置
-mcp:
-  host: "0.0.0.0"
-  port: 8080
-  # mcp-server-okppt 路径
-  okppt_server_path: "/usr/local/bin/mcp-server-okppt"
-  # 允许的请求大小
-  max_request_size: 10485760  # 10MB
-  # 心跳间隔
-  heartbeat_interval: 30
+## 对应环境变量：
+##   MCP_HOST               — 监听地址，默认 0.0.0.0
+##   MCP_PORT               — 端口，默认 8080
+##   MCP_OKPPT_SERVER_PATH  — mcp-server-okppt 路径
+##   MCP_MAX_REQUEST_SIZE   — 最大请求大小，默认 10485760 (10MB)
+##   MCP_HEARTBEAT_INTERVAL — 心跳间隔（秒），默认 30
+# mcp:
+#   host: "0.0.0.0"
+#   port: 8080
+#   okppt_server_path: "/usr/local/bin/mcp-server-okppt"
+#   max_request_size: 10485760  # 10MB
+#   heartbeat_interval: 30
 
 ## Web 服务配置
-web:
-  host: "0.0.0.0"
-  port: 8000
-  # CORS 允许的源
-  cors_origins:
-    - "*"
-  # 文件上传大小限制
-  max_upload_size: 52428800  # 50MB
-  # 异步任务队列
-  task_queue_backend: "memory"  # memory/redis
-  # Redis 配置 (可选)
-  redis:
-    host: "localhost"
-    port: 6379
-    db: 0
+## 对应环境变量：
+##   API_HOST           — API 监听地址，默认 0.0.0.0
+##   API_PORT           — API 端口，默认 8000
+##   API_AUTH_ENABLED   — 是否启用认证，默认 false
+##   JWT_SECRET         — JWT 密钥（生产环境必须设置）
+##   API_KEY            — API Key 认证（可选）
+##   MAX_UPLOAD_SIZE    — 文件上传大小限制，默认 52428800 (50MB)
+##   CORS_ORIGINS       — CORS 允许的源（逗号分隔）
+##   TASK_QUEUE_BACKEND — 任务队列后端，memory 或 redis
+# web:
+#   host: "0.0.0.0"
+#   port: 8000
+#   cors_origins:
+#     - "http://localhost:3000"
+#     - "http://localhost:5173"
+#   auth:
+#     enabled: false
+#     jwt_secret: "${JWT_SECRET:-your-secret-key-change-in-production}"
+#   max_upload_size: 52428800  # 50MB
+#   task_queue_backend: "memory"
+#   redis:
+#     host: "localhost"
+#     port: 6379
+#     db: 0
 
 ## PPT 生成参数配置
-ppt:
-  # 默认页面尺寸 (宽 x 高, 单位: 像素)
-  default_size:
-    width: 1600
-    height: 900
-  # 默认页面比例
-  default_aspect_ratio: "16:9"
-  # 输出格式
-  output_formats:
-    - pptx
-    - pdf
-    - images
-  # 模板配置
-  template:
-    default: "default"
-    path: "./templates"
-  # SVG 配置
-  svg:
-    default_viewbox: "0 0 1600 900"
-    embed_images: true
-    optimize_paths: true
+## 对应环境变量：
+##   PPT_WIDTH                   — 幻灯片宽度（像素），默认 1600
+##   PPT_HEIGHT                  — 幻灯片高度（像素），默认 900
+##   PPT_ASPECT_RATIO            — 页面比例，默认 16:9
+##   PPT_DEFAULT_SLIDES          — 默认幻灯片数量，默认 10
+##   PPT_MAX_SLIDES              — 最大幻灯片数量，默认 30
+##   PPT_OUTPUT_FORMATS          — 输出格式（逗号分隔），默认 pptx,pdf,images
+##   PPT_TEMPLATE_DEFAULT        — 默认模板名称
+##   PPT_TEMPLATE_DIR            — 模板目录，默认 ./templates
+##   PPT_SVG_VIEWBOX             — SVG 默认视口
+##   PPT_SVG_EMBED_IMAGES        — 是否嵌入图片到 SVG
+##   PPT_SVG_OPTIMIZE_PATHS      — 是否优化 SVG 路径
+# ppt:
+#   default_size:
+#     width: 1600
+#     height: 900
+#   default_aspect_ratio: "16:9"
+#   output_formats:
+#     - pptx
+#     - pdf
+#     - images
+#   template:
+#     default: "default"
+#     path: "./templates"
+#   svg:
+#     default_viewbox: "0 0 1600 900"
+#     embed_images: true
+#     optimize_paths: true
 
 ## Agent 配置
-agents:
-  # 总调度 Agent
-  coordinator:
-    max_steps: 30
-    timeout: 600
-  # 质量管控 Agent
-  quality:
-    svg_schema_path: "./schemas/svg_schema.json"
-    pptx_validator: "libreoffice"
-  # 火山云内容 Agent
-  volcano:
-    text_max_tokens: 32000
-    image_max_size: 2048
-  # PPT 优化 Agent
-  optimizer:
-    compression_enabled: true
-    compress_quality: 80
+## 对应环境变量：
+##   AGENT_COORDINATOR_MAX_STEPS          — 调度 Agent 最大步数，默认 30
+##   AGENT_COORDINATOR_TIMEOUT            — 调度 Agent 超时（秒），默认 600
+##   AGENT_QUALITY_SVG_SCHEMA_PATH        — SVG 校验 schema 路径
+##   AGENT_QUALITY_PPTX_VALIDATOR         — PPTX 校验器，默认 libreoffice
+##   AGENT_VOLCANO_TEXT_MAX_TOKENS        — 文本生成最大 token 数，默认 32000
+##   AGENT_VOLCANO_IMAGE_MAX_SIZE         — 图片最大尺寸，默认 2048
+##   AGENT_OPTIMIZER_COMPRESSION_ENABLED  — 是否启用压缩，默认 true
+##   AGENT_OPTIMIZER_COMPRESS_QUALITY    — 压缩质量，默认 80
+# agents:
+#   coordinator:
+#     max_steps: 30
+#     timeout: 600
+#   quality:
+#     svg_schema_path: "./schemas/svg_schema.json"
+#     pptx_validator: "libreoffice"
+#   volcano:
+#     text_max_tokens: 32000
+#     image_max_size: 2048
+#   optimizer:
+#     compression_enabled: true
+#     compress_quality: 80
 
 ## 日志配置
-logging:
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "./logs/rabai_mind.log"
-  max_bytes: 10485760  # 10MB
-  backup_count: 5
+## 对应环境变量：
+##   LOG_LEVEL       — 日志级别，默认 INFO
+##   LOG_FORMAT      — 日志格式
+##   LOG_FILE        — 日志文件路径
+##   LOG_MAX_BYTES   — 单个日志文件最大大小，默认 10485760 (10MB)
+##   LOG_BACKUP_COUNT — 保留的日志备份数量，默认 5
+# logging:
+#   level: "INFO"
+#   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+#   file: "./logs/rabai_mind.log"
+#   max_bytes: 10485760  # 10MB
+#   backup_count: 5
 
-## OSS 配置 (可选)
-oss:
-  enabled: false
-  endpoint: "https://oss-cn-beijing.aliyuncs.com"
-  bucket: "rabai-mind-ppt"
-  access_key: "${OSS_ACCESS_KEY}"
-  secret_key: "${OSS_SECRET_KEY}"
+## OSS 配置（可选）
+## 对应环境变量：
+##   OSS_ENABLED    — 是否启用 OSS，默认 false
+##   OSS_ENDPOINT   — OSS 端点
+##   OSS_BUCKET     — Bucket 名称
+##   OSS_ACCESS_KEY — Access Key
+##   OSS_SECRET_KEY — Secret Key
+# oss:
+#   enabled: false
+#   endpoint: "https://oss-cn-beijing.aliyuncs.com"
+#   bucket: "rabai-mind-ppt"
+#   access_key: "${OSS_ACCESS_KEY}"
+#   secret_key: "${OSS_SECRET_KEY}"

@@ -33,6 +33,7 @@ from ...models import (
 )
 from ...services.task_manager import get_task_manager
 from ...services.ppt_generator import get_ppt_generator
+from ...config import settings
 
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
@@ -160,9 +161,18 @@ async def generate_ppt(request: GenerateRequest):
                     layout_mode=request.layout_mode,
                     unified_layout=request.unified_layout
                 )
+            except asyncio.CancelledError:
+                # 任务被取消：更新状态为 cancelled
+                logger.info(f"任务 {task_id} 已被取消")
+                task_mgr = get_task_manager()
+                with task_mgr._task_lock:
+                    if task_id in task_mgr.tasks:
+                        task_mgr.tasks[task_id]["status"] = "cancelled"
+                        task_mgr.tasks[task_id]["updated_at"] = task_mgr.tasks[task_id].get("updated_at", "")
+                # 不再向上传播 CancelledError，让 task 正常结束
             except Exception as e:
                 # 任务失败处理
-                logger.error(f"任务 {task_id} 生成失败")
+                logger.error(f"任务 {task_id} 生成失败: {e}")
                 get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
 
         # 创建 task 并保存引用
@@ -330,8 +340,12 @@ async def cancel_task(task_id: str):
     # 取消数据库状态
     db_success = task_manager.cancel_task(task_id)
 
-    # 取消异步任务
-    task_manager.cancel_async_task(task_id)
+    # 取消异步任务（等待其真正停止，确保 CancelledError 传播）
+    try:
+        await task_manager.cancel_async_task_and_wait(task_id, timeout=5.0)
+    except Exception:
+        # 即使等待出错也要清理引用
+        task_manager.cancel_async_task(task_id)
 
     if not db_success:
         raise HTTPException(

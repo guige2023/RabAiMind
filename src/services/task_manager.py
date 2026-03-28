@@ -156,16 +156,46 @@ class TaskManager:
             self._async_tasks[task_id] = async_task
 
     def cancel_async_task(self, task_id: str) -> bool:
-        """取消异步任务（线程安全）"""
+        """取消异步任务（线程安全）
+        
+        注意：此方法只发起取消。任务的 CancelledError 传播和状态更新由
+        run_task() 中的 CancelledError 处理器完成。
+        """
         with self._async_tasks_lock:
-            if task_id in self._async_tasks:
-                async_task = self._async_tasks[task_id]
-                if not async_task.done():
-                    async_task.cancel()
-                # 无论是否取消成功，都清理引用防止内存泄漏
+            if task_id not in self._async_tasks:
+                return False
+            async_task = self._async_tasks[task_id]
+            if async_task.done():
                 del self._async_tasks[task_id]
                 return True
-            return False
+            # 发起取消，CancelledError 会在 run_task 中被捕获并处理
+            async_task.cancel()
+            return True
+
+    async def cancel_async_task_and_wait(self, task_id: str, timeout: float = 5.0) -> bool:
+        """异步取消并等待任务结束（用于需要确保任务真正停止的场景）"""
+        with self._async_tasks_lock:
+            if task_id not in self._async_tasks:
+                return False
+            async_task = self._async_tasks[task_id]
+            if async_task.done():
+                del self._async_tasks[task_id]
+                return True
+            async_task.cancel()
+
+        # 等待任务真正结束（带超时保护）
+        try:
+            await asyncio.wait_for(asyncio.shield(async_task), timeout)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+        except Exception:
+            pass
+
+        # 清理引用
+        with self._async_tasks_lock:
+            if task_id in self._async_tasks and self._async_tasks[task_id].done():
+                del self._async_tasks[task_id]
+        return True
 
     def _cleanup_finished_async_tasks(self) -> None:
         """清理已完成的异步任务引用，防止内存泄漏（线程安全）"""

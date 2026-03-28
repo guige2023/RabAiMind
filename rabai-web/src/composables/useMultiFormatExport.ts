@@ -246,7 +246,7 @@ export function useMultiFormatExport() {
   }
 
   // 统一导出接口
-  const export = async (data: any): Promise<ExportResult> => {
+  const doExport = async (data: any): Promise<ExportResult> => {
     switch (options.value.format) {
       case 'pdf':
         return exportPDF(data)
@@ -323,7 +323,7 @@ export function useMultiFormatExport() {
     updateOptions,
     progress,
     history,
-    export,
+    doExport,
     exportPDF,
     exportHTML,
     exportImages,

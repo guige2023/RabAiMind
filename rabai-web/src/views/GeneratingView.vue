@@ -282,9 +282,9 @@ const goHome = () => {
 // 页面加载时开始轮询
 onMounted(() => {
   pollStatus()
-  pollPreview() // 立即获取一次预览
-  pollTimer = window.setInterval(pollStatus, 2000)
-  previewPollTimer = window.setInterval(pollPreview, 1500) // 更频繁地获取预览
+  pollPreview()
+  pollTimer = window.setInterval(pollStatus, 3000)
+  previewPollTimer = window.setInterval(pollPreview, 3000)
 })
 
 // 键盘快捷键

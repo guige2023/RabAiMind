@@ -10,18 +10,16 @@
    - API 服务封装
    - 前后端联调
 
-2. **Phase 2.1: AI分析层（需求理解与任务分解）** ✅
-   - ✅ 创建 `src/core/ai_analyzer.py` - AI分析核心模块
-     - `AIAnalyzer` 类：需求分析器
-     - `ContentGenerator` 类：内容生成器
-     - `RequirementAnalysis` 数据类：需求分析结果
-     - `SlideTask` 数据类：幻灯片任务
-   - ✅ 封装火山云 API（已存在于 `volc_okppt_tools.py`）
-   - ✅ 优化需求理解 Prompt（`PromptOptimizer` 类）
-   - ✅ 更新 `ppt_generator.py` 集成 AI 分析层
+2. **Phase 2.1: AI分析层（需求理解与任务分解）** ⚠️ 部分完成
+   - ⚠️ `src/core/ai_analyzer.py` — **文件不存在**，声称已创建但实际未找到
+   - ✅ `src/services/ai_analyzer.py` — AI分析核心模块（AIAnalyzer、PromptTemplate、AnalysisResult）
+   - ⚠️ 火山云 API 封装存在于 `src/services/volc_api.py`，但 `volc_okppt_tools.py` **不存在**（被 coordinator_agent 引用但缺失）
+   - ⚠️ `agents/coordinator_agent.py` — 存在但 import volc_okppt_tools 失败，**无法独立运行**
+   - ✅ `src/services/ppt_generator.py` — 已集成 AI 分析服务
 
 3. **Phase 2.2: 内容生成（文本生成服务）** ✅
-   - ✅ AI分析层支持文本内容生成
+   - ✅ `src/services/content_generator.py` — 完整实现（generate_slide_content、generate_image_prompt 等）
+   - ✅ `src/services/ppt_planner.py` — 完整实现（plan_ppt、sanitize_prompt、plan_ppt_stream 等）
    - ✅ 幻灯片结构自动生成
    - ✅ 每页详细内容生成
 
@@ -35,15 +33,29 @@
    - 页面路由
    - TailwindCSS
 
-### 文件变更 📝
+### 文件变更 📝（修正版）
 
-| 文件 | 变更 |
-|------|------|
-| `src/core/ai_analyzer.py` | **新建** - AI分析核心模块 |
-| `src/core/__init__.py` | **新建** - 模块初始化 |
-| `src/services/ppt_generator.py` | **更新** - 集成AI分析层 |
-| `volc_okppt_tools.py` | **已存在** - 火山云API封装 |
-| `agents/volcano_agent.py` | **已存在** - 内容生成Agent |
+| 文件 | 变更 | 备注 |
+|------|------|------|
+| `src/services/ai_analyzer.py` | **存在** | AIAnalyzer、PromptTemplate、AnalysisResult ✅ |
+| `src/services/volc_api.py` | **存在** | VolcEngineAPI 封装 ✅ |
+| `src/services/content_generator.py` | **存在** | 内容生成器 ✅ |
+| `src/services/ppt_planner.py` | **存在** | PPT 规划器 ✅ |
+| `src/core/ai_analyzer.py` | **不存在** ❌ | 声称创建但文件不存在 |
+| `volc_okppt_tools.py` | **不存在** ❌ | 被 Agent 层引用但缺失（P0 阻断）|
+| `agents/coordinator_agent.py` | **存在但 broken** | import volc_okppt_tools 失败 |
+
+### 🚨 P0 阻断问题
+
+**`volc_okppt_tools.py` 文件缺失**
+- 被 `agents/coordinator_agent.py:15` import
+- 被 `agents/volcano_agent.py` import
+- 被 `agents/svg_agent.py` import
+- 导致整个 Agent 层无法运行
+
+**修复方案：** 创建 `volc_okppt_tools.py`，提供：
+- `PromptOptimizer` 类
+- `get_volcano_client()` 函数
 
 ### 待测试 🔧
 
@@ -65,3 +77,7 @@ curl http://localhost:8001/health
 # 前端
 cd web && npm run dev
 ```
+
+---
+
+> ⚠️ 本文档于 2026-03-29 00:15 CST 由 Subagent (fix-rm-phase) 修正，移除了不实声称。

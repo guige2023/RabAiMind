@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rabai-mind-v2';
+const CACHE_NAME = 'rabai-mind-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -8,7 +8,28 @@ const STATIC_ASSETS = [
   '/sitemap.xml'
 ];
 
-// Install event - cache static assets
+const isValidRequest = (request) => {
+  try {
+    const url = new URL(request.url);
+    const validProtocols = ['http:', 'https:'];
+    return validProtocols.includes(url.protocol);
+  } catch {
+    return false;
+  }
+};
+
+const isCacheableResponse = (response, request) => {
+  if (!response || response.status !== 200) return false;
+  if (!isValidRequest(request)) return false;
+  try {
+    const url = new URL(request.url);
+    if (url.protocol === 'chrome-extension:') return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -18,7 +39,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -32,20 +52,17 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Skip API requests
+  if (!isValidRequest(request)) return;
+
   if (url.pathname.startsWith('/api/')) return;
 
-  // For same-origin requests
   if (url.origin === location.origin) {
-    // Static assets - cache first
     if (
       request.destination === 'style' ||
       request.destination === 'script' ||
@@ -58,7 +75,7 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           return fetch(request).then((response) => {
-            if (response.status === 200) {
+            if (isCacheableResponse(response, request)) {
               const responseClone = response.clone();
               caches.open(CACHE_NAME).then((cache) => {
                 cache.put(request, responseClone);
@@ -71,15 +88,16 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // HTML pages - network first
     if (request.mode === 'navigate') {
       event.respondWith(
         fetch(request)
           .then((response) => {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+            if (isCacheableResponse(response, request)) {
+              const responseClone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
             return response;
           })
           .catch(() => {
@@ -92,11 +110,15 @@ self.addEventListener('fetch', (event) => {
     }
   }
 
-  // Default - network first, fallback to cache
+  if (!isValidRequest(request)) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.status === 200) {
+        if (isCacheableResponse(response, request)) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseClone);
