@@ -103,6 +103,27 @@ async def get_api_info():
     )
 
 
+# ==================== 大纲持久化 ====================
+
+@router.post("/outline/save")
+async def save_outline(task_id: str, outline: dict):
+    """
+    保存大纲到任务（支持跨设备继续编辑）
+    outline: {slides: [{title, content, layout, slide_type}], style, scene}
+    """
+    tm = get_task_manager()
+    tm.save_outline(task_id, outline)
+    return {"success": True}
+
+
+@router.get("/outline/{task_id}")
+async def get_outline(task_id: str):
+    """获取大纲"""
+    tm = get_task_manager()
+    outline = tm.get_outline(task_id)
+    return {"success": True, "outline": outline}
+
+
 # ==================== 历史记录（云端同步） ====================
 
 class HistoryResponse(BaseModel):

@@ -1,0 +1,42 @@
+{
+  "task_id": "8851fb4d-178f-4882-b138-ae7abe965c01",
+  "user_request": "测试两阶段生成",
+  "slide_count": 2,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF",
+  "status": "completed",
+  "progress": 100,
+  "current_step": "完成",
+  "created_at": "2026-03-29T14:51:10.511056",
+  "updated_at": "2026-03-29T14:51:14.977470",
+  "result": {
+    "pptx_path": "./output/presentation_8851fb4d-178f-4882-b138-ae7abe965c01.pptx",
+    "slide_count": 2,
+    "file_size": 509362,
+    "compression_ratio": 1.0,
+    "quality": "standard",
+    "output_format": "pptx",
+    "compatibility": {
+      "wps": true,
+      "office": true,
+      "mobile": true
+    },
+    "slides_summary": [
+      {
+        "title": "第一页：AI简介",
+        "content": "人工智能的定义\n发展历史\n应用领域"
+      },
+      {
+        "title": "第二页：核心功能",
+        "content": "智能问答\n内容生成\n数据分析"
+      }
+    ],
+    "svg_paths": [
+      "./output/slide_1_8851fb4d-178f-4882-b138-ae7abe965c01.svg",
+      "./output/slide_2_8851fb4d-178f-4882-b138-ae7abe965c01.svg"
+    ]
+  },
+  "error": null
+}

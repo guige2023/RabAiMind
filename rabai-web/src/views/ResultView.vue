@@ -310,7 +310,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
-import { getContrastColor, parseGradient, generatePrintHTML } from '../utils/exportGenerator'
 
 const router = useRouter()
 const route = useRoute()
@@ -452,6 +451,10 @@ const handleExport = () => {
       break
     case 'png':
     case 'jpg':
+      if (previewSlides.value.length === 0) {
+        alert('请等待预览加载完成')
+        return
+      }
       handleExportImages()
       break
   }
@@ -459,13 +462,17 @@ const handleExport = () => {
 
 
 
-// Mock slides for presentation mode
+// 演示模式使用的幻灯片数据（从真实预览数据获取）
 const presentationSlides = computed(() => {
-  return Array.from({ length: slideCount.value }, (_, i) => ({
-    title: `幻灯片 ${i + 1}`,
-    content: '点击"演示模式"预览PPT效果',
-    background: `linear-gradient(${['135deg, #667eea, #764ba2', '11998e, #38ef7d', '0f0c29, #302b63', '232526, #414345'][i % 4]})`
-  }))
+  if (previewSlides.value && previewSlides.value.length > 0) {
+    return previewSlides.value.map(s => ({
+      title: `第 ${s.slideNum} 页`,
+      content: '',
+      background: '#ffffff',
+      svgUrl: s.url  // 真实 SVG URL
+    }))
+  }
+  return []
 })
 
 // 检查并加载收藏状态
@@ -631,7 +638,7 @@ const handleExportPDF = async () => {
 
 // 通过浏览器打印导出PDF
 const exportViaPrint = () => {
-  const slides = presentationSlides.value
+  const slides = previewSlides.value
 
   // 创建打印窗口
   const printWindow = window.open('', '_blank')
@@ -640,18 +647,37 @@ const exportViaPrint = () => {
     return
   }
 
-  // 使用工具函数生成打印HTML
-  const printHtml = generatePrintHTML(slides)
+  // 生成打印HTML，使用真实SVG图片
+  const slidesHtml = slides.map((slide, i) => `
+    <div class="slide-page" style="page-break-after: always;">
+      <img src="${slide.url}" alt="Slide ${i + 1}" style="width: 100%; height: auto;" />
+    </div>
+  `).join('')
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>PPT导出 - ${taskId.value}</title>
+      <style>
+        body { margin: 0; padding: 20px; font-family: sans-serif; }
+        .slide-page { width: 100%; max-width: 960px; margin: 0 auto 20px; }
+        img { width: 100%; height: auto; display: block; }
+        @media print {
+          .slide-page { page-break-after: always; margin: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      ${slidesHtml}
+      <script>window.onload = () => { window.print(); };<\/script>
+    </body>
+    </html>
+  `
 
   printWindow.document.write(printHtml)
   printWindow.document.close()
-
-  // 等待内容加载后打印
-  printWindow.onload = () => {
-    printWindow.print()
-  }
-
-  alert('已打开打印对话框，请选择"另存为PDF"保存')
 }
 
 // 批量导出
@@ -660,58 +686,61 @@ const handleBatchExport = async () => {
   alert('批量导出功能开发中，将同时导出PDF和图片格式')
 }
 
-// 导出图片 - 客户端实现
+// 导出图片 - 使用真实SVG预览图
 const handleExportImages = async () => {
   if (isExporting.value) return
+  if (previewSlides.value.length === 0) {
+    alert('请等待预览加载完成')
+    return
+  }
 
   isExporting.value = true
   showExportMenu.value = false
 
   try {
     const format = selectedFormat.value // 'png' or 'jpg'
-    const slides = presentationSlides.value
+    const slides = previewSlides.value
     const ext = format === 'jpg' ? 'jpg' : 'png'
 
     // 为每张幻灯片生成图片并下载
     for (let i = 0; i < slides.length; i++) {
-      const slide = slides[i]
+      const slideUrl = slides[i].url
 
-      // 创建canvas
-      const canvas = document.createElement('canvas')
-      canvas.width = 1920
-      canvas.height = 1080
-      const ctx = canvas.getContext('2d')
+      // 创建图片元素
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
 
-      if (!ctx) continue
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          // 创建canvas
+          const canvas = document.createElement('canvas')
+          canvas.width = img.naturalWidth || 1920
+          canvas.height = img.naturalHeight || 1080
+          const ctx = canvas.getContext('2d')
 
-      // 绘制背景
-      const bg = slide.background || '#ffffff'
-      if (bg.includes('gradient')) {
-        const gradient = parseGradient(bg, ctx, canvas.width, canvas.height)
-        ctx.fillStyle = gradient
-      } else {
-        ctx.fillStyle = bg
-      }
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+          if (!ctx) {
+            reject(new Error('无法创建canvas上下文'))
+            return
+          }
 
-      // 绘制标题
-      ctx.fillStyle = getContrastColor(bg)
-      ctx.font = 'bold 56px "思源黑体", sans-serif'
-      ctx.textAlign = 'center'
-      ctx.fillText(slide.title || `第${i + 1}页`, canvas.width / 2, canvas.height / 2 - 30)
+          // 绘制图片
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
-      // 绘制内容
-      ctx.font = '28px "思源宋体", sans-serif'
-      ctx.fillText(slide.content || '', canvas.width / 2, canvas.height / 2 + 40)
+          // 下载
+          const link = document.createElement('a')
+          link.download = `slide_${i + 1}.${ext}`
+          link.href = canvas.toDataURL(`image/${ext}`, 0.92)
+          link.click()
 
-      // 下载
-      const link = document.createElement('a')
-      link.download = `slide_${i + 1}.${ext}`
-      link.href = canvas.toDataURL(`image/${ext}`, 0.92)
-      link.click()
-
-      // 避免同时触发多个下载
-      await new Promise(r => setTimeout(r, 300))
+          // 避免同时触发多个下载
+          setTimeout(resolve, 300)
+        }
+        img.onerror = () => {
+          console.error(`幻灯片 ${i + 1} 图片加载失败`)
+          resolve() // 继续处理下一张
+        }
+        img.src = slideUrl
+      })
     }
 
     alert(`已成功导出 ${slides.length} 张图片！`)

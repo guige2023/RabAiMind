@@ -11,7 +11,7 @@ import json
 import logging
 import threading
 import asyncio
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 import os
 from pathlib import Path
@@ -93,6 +93,19 @@ class TaskManager:
         """获取任务"""
         return self.tasks.get(task_id)
 
+    def save_outline(self, task_id: str, outline: Dict) -> None:
+        """保存大纲到任务（支持跨设备继续编辑）"""
+        with self._task_lock:
+            if task_id in self.tasks:
+                self.tasks[task_id]["outline"] = outline
+                self.tasks[task_id]["updated_at"] = get_timestamp()
+
+    def get_outline(self, task_id: str) -> Optional[Dict]:
+        """获取大纲"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            return task.get("outline") if task else None
+
     def get_history(self, status_filter: Optional[str] = None) -> Dict[str, Dict]:
         """
         获取历史任务列表（包含云端同步的历史）
@@ -155,7 +168,9 @@ class TaskManager:
         file_size: int = 0,
         compression_ratio: float = 0.0,
         quality: str = "standard",
-        output_format: str = "pptx"
+        output_format: str = "pptx",
+        slides_summary: Optional[List[Dict]] = None,
+        svg_paths: Optional[List[str]] = None
     ) -> None:
         """完成任务，并同步到云端"""
         task_copy = None
@@ -180,7 +195,9 @@ class TaskManager:
                             "wps": True,
                             "office": True,
                             "mobile": True
-                        }
+                        },
+                        "slides_summary": slides_summary or [],
+                        "svg_paths": svg_paths or []
                     }
                 })
                 # 保存一份用于云端推送（避免锁竞争）
@@ -211,6 +228,18 @@ class TaskManager:
         # 云端同步
         if task_copy:
             self._sync_service.push_task(task_id, task_copy)
+
+    def save_outline(self, task_id: str, outline: dict) -> None:
+        """保存大纲到任务"""
+        with self._task_lock:
+            if task_id in self.tasks:
+                self.tasks[task_id]["outline"] = outline
+
+    def get_outline(self, task_id: str) -> Optional[dict]:
+        """获取大纲"""
+        with self._task_lock:
+            task = self.tasks.get(task_id, {})
+            return task.get("outline")
 
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
         """注册异步任务引用（线程安全）"""

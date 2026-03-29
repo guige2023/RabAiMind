@@ -270,7 +270,9 @@ class PPTGenerator:
                 slide_count=len(slides_content),
                 compression_ratio=1.0,
                 quality=quality,
-                output_format=output_format
+                output_format=output_format,
+                slides_summary=[{"title": s.get("title",""), "content": s.get("content","")[:100]} for s in slides_content],
+                svg_paths=[str(p) for p in svg_files]
             )
 
             # 根据输出格式生成不同文件
