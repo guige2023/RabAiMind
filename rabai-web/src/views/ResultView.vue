@@ -259,6 +259,7 @@
                   <span class="quality-size">{{ quality.size }}</span>
                 </label>
               </div>
+              <p class="quality-note">（当前版本基于同一源文件，quality 仅影响文件名后缀）</p>
             </div>
 
             <!-- 图表配置 -->
@@ -2007,6 +2008,13 @@ onMounted(() => {
 .quality-size {
   font-size: 11px;
   color: #999;
+}
+
+.quality-note {
+  font-size: 11px;
+  color: #999;
+  margin-top: 6px;
+  text-align: center;
 }
 
 .export-theme-toggle {

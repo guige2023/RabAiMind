@@ -22,11 +22,21 @@
           :style="{ background: slide.background || 'linear-gradient(135deg, #667eea, #764ba2)' }"
         >
           <div class="slide-content">
+          <!-- SVG 模式：显示真实幻灯片 -->
+          <img
+            v-if="slide.svgUrl"
+            :src="slide.svgUrl"
+            :alt="slide.title"
+            class="slide-svg"
+          />
+          <!-- 文本模式：显示文字内容（降级） -->
+          <template v-else>
             <h2 class="slide-title">{{ slide.title }}</h2>
             <p class="slide-text" v-if="slide.content">{{ slide.content }}</p>
             <div class="slide-bullets" v-if="slide.bullets && slide.bullets.length">
               <li v-for="(bullet, i) in slide.bullets" :key="i">{{ bullet }}</li>
             </div>
+          </template>
           </div>
         </div>
       </div>
@@ -61,6 +71,7 @@ interface Slide {
   content?: string
   bullets?: string[]
   background?: string
+  svgUrl?: string  // 真实 SVG URL
 }
 
 const props = defineProps<{
@@ -264,6 +275,23 @@ onUnmounted(() => {
   padding: 40px;
   color: #fff;
   max-width: 80%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* SVG 幻灯片：填充整个 slide 区域 */
+.slide-svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .slide-title {
