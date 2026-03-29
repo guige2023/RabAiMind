@@ -116,6 +116,31 @@ async def save_outline(task_id: str, outline: dict):
     return {"success": True}
 
 
+@router.post("/outline/commit")
+async def commit_outline_and_generate(request: GenerateRequest):
+    """
+    两步式生成第一步：先保存大纲（不生成），返回 taskId
+    前端在 OutlineEditView 保存后调用此端点，拿到 taskId
+    """
+    tm = get_task_manager()
+    outline = {
+        "slides": request.pre_generated_slides,
+        "scene": request.scene.value if request.scene else "business",
+        "style": request.style.value if request.style else "professional",
+        "user_request": request.user_request,
+    }
+    task_id = tm.create_task(
+        user_request=request.user_request,
+        slide_count=request.slide_count,
+        scene=request.scene.value if request.scene else "business",
+        style=request.style.value if request.style else "professional",
+        layout_mode=request.layout_mode or "auto",
+        color_scheme=request.color_scheme or "#165DFF",
+    )
+    tm.save_outline(task_id, outline)
+    return {"success": True, "task_id": task_id}
+
+
 @router.get("/outline/{task_id}")
 async def get_outline(task_id: str):
     """获取大纲"""

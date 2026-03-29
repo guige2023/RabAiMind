@@ -128,6 +128,18 @@ export const api: APIClient = {
         scene: 'business',
         style: 'professional'
       })
+    },
+
+    saveOutline: (taskId: string, outline: any): Promise<AxiosResponse<any>> => {
+      return apiClient.post(`/ppt/outline/save?task_id=${taskId}`, outline)
+    },
+
+    commitOutline: (data: any): Promise<AxiosResponse<any>> => {
+      return apiClient.post('/ppt/outline/commit', data)
+    },
+
+    getOutline: (taskId: string): Promise<AxiosResponse<any>> => {
+      return apiClient.get(`/ppt/outline/${taskId}`)
     }
   },
 

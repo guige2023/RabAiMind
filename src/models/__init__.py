@@ -8,7 +8,7 @@
 
 import re
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, AliasChoices
 from enum import Enum
 from datetime import datetime
 
@@ -199,8 +199,29 @@ class GenerateRequest(BaseModel):
     # 两阶段生成：预生成的内容（来自 OutlineEditView 用户确认后的大纲）
     pre_generated_slides: Optional[List[Dict[str, Any]]] = Field(
         default=None,
-        description="预生成的大纲内容，用于两阶段模式跳过 AI 内容规划步骤"
+        description="预生成的大纲内容，用于两阶段模式跳过 AI 内容规划步骤",
+        validation_alias=AliasChoices("pre_generated_slides", "pre-generated-slides")
     )
+
+    @field_validator('pre_generated_slides', mode='before')
+    @classmethod
+    def validate_pre_generated_slides(cls, v):
+        """拒绝字符串输入，确保 pre_generated_slides 是 list[dict] 且每项有 title"""
+        if v is None:
+            return v
+        if isinstance(v, str):
+            raise ValueError(
+                "pre_generated_slides must be a list of dicts, not a string. "
+                "Outline editor is sending plain text - fix OutlineEditView to send structured slides."
+            )
+        if not isinstance(v, list):
+            raise ValueError(f"pre_generated_slides must be a list, got {type(v).__name__}")
+        for i, item in enumerate(v):
+            if not isinstance(item, dict):
+                raise ValueError(f"pre_generated_slides[{i}] must be a dict, got {type(item).__name__}")
+            if "title" not in item:
+                raise ValueError(f"pre_generated_slides[{i}] missing required field 'title'")
+        return v
 
 
 # ==================== 响应模型 ====================

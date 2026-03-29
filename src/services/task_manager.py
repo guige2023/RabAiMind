@@ -58,7 +58,9 @@ class TaskManager:
         scene: str = "business",
         style: str = "professional",
         template: str = "default",
-        theme_color: str = "#165DFF"
+        theme_color: str = "#165DFF",
+        layout_mode: str = "auto",
+        color_scheme: str = "#165DFF",
     ) -> str:
         """创建新任务"""
         task_id = generate_task_id()
@@ -71,6 +73,8 @@ class TaskManager:
             "style": style,
             "template": template,
             "theme_color": theme_color,
+            "layout_mode": layout_mode,
+            "color_scheme": color_scheme,
             "status": "pending",
             "progress": 0,
             "current_step": "初始化",

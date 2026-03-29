@@ -383,12 +383,20 @@ const regenerateWithEdits = async () => {
   isRegenerating.value = true
 
   try {
-    // 保存编辑后的大纲到 localStorage（备份）
-    localStorage.setItem('ppt_outline', JSON.stringify({
-      slides: editableSlides.value,
+    // 构建大纲数据
+    const outlineData = {
+      slides: editableSlides.value.map(slide => ({
+        title: slide.title,
+        content: slide.content,
+        layout: slide.layout,
+        slide_type: slide.layout === 'title' ? 'title' : 'content',
+      })),
       style: 'professional',
       theme: 'blue'
-    }))
+    }
+
+    // 保存编辑后的大纲到 localStorage（备份）
+    localStorage.setItem('ppt_outline', JSON.stringify(outlineData))
 
     // 构建 pre_generated_slides
     const preGeneratedSlides = editableSlides.value.map(slide => ({
@@ -398,9 +406,15 @@ const regenerateWithEdits = async () => {
       layout: slide.layout,
     }))
 
-    // 调用后端API创建新任务
+    // Step 1: 先保存大纲到服务器
+    if (taskId.value) {
+      await api.ppt.saveOutline(taskId.value, outlineData)
+      console.log('✅ 大纲已保存到服务器')
+    }
+
+    // Step 2: 调用后端API创建新任务
     const response = await api.ppt.createTask({
-      user_request: 'PPT生成',
+      user_request: 'PPT生成（重新编辑）',
       slide_count: preGeneratedSlides.length,
       pre_generated_slides: preGeneratedSlides,
     })

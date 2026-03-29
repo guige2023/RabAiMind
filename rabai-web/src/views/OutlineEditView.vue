@@ -428,8 +428,12 @@ const generatePPT = async () => {
       layout: slide.layout,
     }))
 
-    // Step 1: 调用 /generate API，将预生成内容传入，跳过 AI 内容规划
     const { api } = await import('../api/client')
+
+    // Step 0: 先保存大纲到服务器（支持跨设备）
+    await saveOutline()
+
+    // Step 1: 调用 /generate API，将预生成内容传入，跳过 AI 内容规划
     const response = await api.ppt.createTask({
       user_request: route.query.request as string || 'PPT 生成',
       slide_count: outline.slides.length,
@@ -454,9 +458,69 @@ const generatePPT = async () => {
   }
 }
 
+// 保存大纲到服务器（支持跨设备）
+const saveOutline = async () => {
+  try {
+    const { api } = await import('../api/client')
+    const outlineData = {
+      slides: outline.slides.map(s => ({
+        title: s.title,
+        content: s.content,
+        layout: s.layout,
+        slide_type: s.layout === 'title' ? 'title' : 'content',
+      })),
+      style: outline.style,
+      scene: (route.query.scene as any) || 'business',
+    }
+
+    // 如果已有 taskId，更新大纲
+    if ((window as any).__currentTaskId) {
+      await api.ppt.saveOutline((window as any).__currentTaskId, outlineData)
+      console.log('✅ 大纲已保存到服务器')
+    } else {
+      // 新建并保存
+      const response = await api.ppt.commitOutline({
+        user_request: route.query.request as string || 'PPT生成',
+        slide_count: outlineData.slides.length,
+        scene: outlineData.scene,
+        style: outlineData.style,
+        pre_generated_slides: outlineData.slides,
+      })
+      const taskId = response.data.task_id
+      ;(window as any).__currentTaskId = taskId
+      console.log('✅ 大纲已创建，taskId:', taskId)
+    }
+
+    // 同时保留 localStorage 备份
+    localStorage.setItem('ppt_outline', JSON.stringify(outlineData))
+  } catch (e) {
+    console.warn('保存失败（仅本地）:', e)
+  }
+}
+
 // 页面加载时初始化
-onMounted(() => {
-  // 检查是否有保存的大纲
+onMounted(async () => {
+  // 如果 URL 有 taskId，从服务器加载大纲
+  const taskIdFromUrl = route.query.taskId as string
+  if (taskIdFromUrl) {
+    ;(window as any).__currentTaskId = taskIdFromUrl
+    try {
+      const { api } = await import('../api/client')
+      const resp = await api.ppt.getOutline(taskIdFromUrl)
+      if (resp.data && resp.data.outline) {
+        // 用服务器大纲覆盖本地
+        outline.slides = resp.data.outline.slides || []
+        outline.style = resp.data.outline.style || 'professional'
+        outline.theme = resp.data.outline.theme || 'blue'
+        console.log('✅ 大纲已从服务器加载')
+        return
+      }
+    } catch (e) {
+      console.warn('从服务器加载大纲失败:', e)
+    }
+  }
+
+  // 检查是否有保存的大纲（localStorage 兜底）
   const savedOutline = localStorage.getItem('ppt_outline_temp')
   if (savedOutline) {
     const parsed = JSON.parse(savedOutline)
