@@ -866,7 +866,9 @@ async def plan_ppt(request: PlanRequest):
         from src.services.ppt_planner import plan_ppt, sanitize_prompt
         safe_request = sanitize_prompt(request.user_request)
 
-        result = plan_ppt(
+        # 用线程池执行同步阻塞调用，避免卡死事件循环
+        result = await asyncio.to_thread(
+            plan_ppt,
             user_request=safe_request,
             slide_count=request.slide_count,
             temperature=0.7

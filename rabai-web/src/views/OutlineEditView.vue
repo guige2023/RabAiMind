@@ -1,5 +1,14 @@
 <template>
   <div class="outline-edit-page">
+    <!-- DEBUG BAR -->
+    <div :style="{position:'fixed',top:0,left:0,right:0,background:'#111',color:'#0f0',zIndex:9999,padding:'6px 12px',fontFamily:'monospace',fontSize:12,maxHeight:100,overflowY:'auto',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}">
+      <span>🔍 slides={{ outline.slides.length }}</span>
+      <span>src=<b>{{ debugSrc }}</b></span>
+      <span v-if="outline.slides[0]" style="color:#fa0">s0="<b>{{ outline.slides[0].title }}</b>" content="{{ outline.slides[0].content?.substring(0,20) }}"</span>
+      <button @click="debugSrc='btn'; generateOutline()" style="padding:1px 6px;cursor:pointer;">🔄AI生成</button>
+      <button @click="debugSrc='test'; testAPI()" style="padding:1px 6px;cursor:pointer;">🌐testAPI</button>
+      <span id="dbg-res" style="color:#f44;margin-left:8px;"></span>
+    </div>
     <div class="outline-header">
       <div class="header-left">
         <button class="btn-back" @click="goBack">
@@ -199,6 +208,7 @@ interface OutlineData {
 
 const activeSlide = ref(0)
 const isLoading = ref(false)
+const debugSrc = ref('init')
 const isGenerating = ref(false)
 
 // 图表上传相关
@@ -391,6 +401,33 @@ const generateChartFromData = async () => {
   } catch (err) {
     console.error('图表生成失败', err)
     alert('图表生成失败，请重试')
+  }
+}
+
+// 直接调用API生成大纲（跳过mock）
+const testAPI = async () => {
+  const r = document.getElementById('dbg-res')
+  if (r) r.textContent = '⏳...'
+  try {
+    const resp = await fetch('http://localhost:8003/api/v1/ppt/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_request: route.query.request || '商务演示', slide_count: 6, scene: 'business', style: 'professional' })
+    })
+    const data = await resp.json()
+    const ok = data.success && data.slides?.length > 0
+    if (r) r.textContent = ok ? `✅ HTTP${resp.status} slides=${data.slides.length} s0="${data.slides[0]?.title}"` : `⚠️ success=${data.success} slides=${data.slides?.length||0}`
+    if (ok) {
+      outline.slides = data.slides.map((s: any, i: number) => ({
+        id: generateId(),
+        title: s.title || `第${i+1}页`,
+        content: Array.isArray(s.content) ? s.content.join('\n') : (s.content || ''),
+        layout: mapLayoutType(s.layout || s.slide_type || 'content')
+      }))
+      debugSrc.value = 'testAPI'
+    }
+  } catch(e: any) {
+    if (r) r.textContent = `❌ ${e.message}`
   }
 }
 
@@ -626,9 +663,12 @@ const generatePPT = async () => {
 
   try {
     // 将大纲数据转换为预生成内容格式
+    // content 在前端是字符串（\n 分隔），发到后端要转成数组
     const preGeneratedSlides = outline.slides.map(slide => ({
       title: slide.title,
-      content: slide.content,
+      content: typeof slide.content === 'string'
+        ? slide.content.split('\n').filter(line => line.trim())
+        : slide.content,
       slide_type: slide.layout === 'title' ? 'title' : 'content',
       layout: slide.layout,
     }))
@@ -642,8 +682,10 @@ const generatePPT = async () => {
     const response = await api.ppt.createTask({
       user_request: route.query.request as string || 'PPT 生成',
       slide_count: outline.slides.length,
-      scene: (route.query.scene as any) || 'business',
-      style: (outline.style as any) || 'professional',
+      scene: (route.query.scene as any) || outline.style || 'business',
+      style: (route.query.style as any) || outline.style || 'professional',
+      template: (route.query.template as any) || 'default',
+      theme_color: (route.query.themeColor as string) || outline.theme || '#165DFF',
       pre_generated_slides: preGeneratedSlides,
     })
     const taskId = response.data.task_id
@@ -705,6 +747,15 @@ const saveOutline = async () => {
 
 // 页面加载时初始化
 onMounted(async () => {
+  // 读取 CreateView 传来的参数
+  const passedStyle = route.query.style as string
+  const passedScene = route.query.scene as string
+  const passedTemplate = route.query.template as string
+  const passedThemeColor = route.query.themeColor as string
+  
+  if (passedStyle) outline.style = passedStyle
+  if (passedThemeColor) outline.theme = passedThemeColor
+
   // 如果 URL 有 taskId，从服务器加载大纲
   const taskIdFromUrl = route.query.taskId as string
   if (taskIdFromUrl) {
@@ -715,8 +766,8 @@ onMounted(async () => {
       if (resp.data && resp.data.outline) {
         // 用服务器大纲覆盖本地
         outline.slides = resp.data.outline.slides || []
-        outline.style = resp.data.outline.style || 'professional'
-        outline.theme = resp.data.outline.theme || 'blue'
+        outline.style = resp.data.outline.style || outline.style
+        outline.theme = resp.data.outline.theme || outline.theme
         console.log('✅ 大纲已从服务器加载')
         return
       }
@@ -729,11 +780,17 @@ onMounted(async () => {
   const savedOutline = localStorage.getItem('ppt_outline_temp')
   if (savedOutline) {
     const parsed = JSON.parse(savedOutline)
-    Object.assign(outline, parsed)
+    // 优先用 URL 参数，兜底用 localStorage
+    if (!passedStyle && parsed.style) outline.style = parsed.style
+    if (!passedThemeColor && parsed.theme) outline.theme = parsed.theme
     localStorage.removeItem('ppt_outline_temp')
-  } else if (outline.slides.length === 0) {
-    // 生成初始大纲
-    generateOutline()
+    debugSrc.value = 'localStorage'
+  }
+
+  // 没有大纲时，直接调用 API 生成
+  if (outline.slides.length === 0) {
+    debugSrc.value = 'onMounted'
+    await testAPI()
   }
 })
 </script>

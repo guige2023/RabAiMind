@@ -1039,18 +1039,23 @@ const editOutline = () => {
   validateRequest()
   if (!isValid.value) return
 
-  // 保存当前表单数据
+  // 保存完整参数到 localStorage（备用）
   localStorage.setItem('ppt_outline_temp', JSON.stringify({
     style: formData.value.style,
-    theme: formData.value.themeColor
+    theme: formData.value.themeColor,
+    template: formData.value.template,
+    scene: formData.value.scene
   }))
 
-  // 跳转到大纲编辑页面
+  // 跳转到大纲编辑页面，传递所有参数
   router.push({
     path: '/outline',
     query: {
       request: formData.value.userRequest,
-      style: formData.value.style
+      style: formData.value.style,
+      scene: formData.value.scene,
+      template: formData.value.template,
+      themeColor: formData.value.themeColor
     }
   })
 }

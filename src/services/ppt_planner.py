@@ -210,10 +210,10 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     for attempt in range(max_retries):
         try:
             resp = requests.post(
-                f"{cfg['endpoint']}/chat/completions" if not cfg['project_id'] else f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
+                (cfg['endpoint'].rstrip('/') + "/chat/completions") if not cfg['project_id'] else (cfg['endpoint'].rstrip('/') + f"/projects/{cfg['project_id']}/chat/completions"),
                 headers=headers,
                 json=data,
-                timeout=(5, 90)
+                timeout=(30, 120)
             )
 
             if resp.status_code == 200:
@@ -264,7 +264,14 @@ def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
 
     # 构建完整 Prompt
     system_prompt = scene_config["system"] + "\n" + style_config["extra"]
+
+    # 【关键修复】把用户需求展开成具体内容方向，引导AI生成有深度的真实内容
+    # 而不是空洞的"行业概述、市场分析"泛泛而谈
     user_prompt = scene_config["content_template"].format(user_request=user_request)
+
+    # 分析用户请求，提取关键词，决定内容方向
+    request_lower = user_request.lower()
+    topic_context = _get_topic_context(user_request)
 
     # 加入布局指导
     layout_guide = "优先使用的布局类型：" + "、".join(scene_config["layout_priority"])
@@ -273,7 +280,9 @@ def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
 
 {user_prompt}
 
-请设计{slide_count}页PPT的完整方案。
+{topic_context}
+
+请根据以上背景，设计{slide_count}页PPT的完整方案。
 
 **【布局类型说明】**
 - title_full: 全屏标题页，适合封面
@@ -289,28 +298,29 @@ def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
 **【重要要求】**
 1. 内容必须专业、实用、有深度
 2. 标题要简洁有力，能吸引注意力
-3. 内容要点要具体，避免空泛表述
-4. 每页内容要有实质信息，不要泛泛而谈
+3. 内容要点要具体、真实、贴合用户需求，不要泛泛而谈
+4. 每页内容要有实质信息，具体到可执行、可操作
 5. 合理选择布局类型，让内容呈现更专业
+6. content数组中每项应该是完整的句子或短语，而不是标题
 
 **【绝对禁止】**
-- 不要包含或重复用户原始需求文本
-- 不要使用"根据用户需求"、"按照要求"这类表述
-- 不要生成空洞的套话
+- 不要使用"根据用户需求"、"按照要求"这类套话
+- 不要生成空洞的万能模板内容（如"行业概述"、"市场分析"）
+- 不要编造具体数据，如需列举请用"XX"占位
 
 返回JSON格式：
 {{
     "slides": [
         {{
             "slide_type": "title",
-            "title": "人工智能",
-            "subtitle": "驱动未来的核心技术",
+            "title": "主标题",
+            "subtitle": "副标题",
             "layout": "title_slide"
         }},
         {{
             "slide_type": "toc",
             "title": "目录",
-            "content": ["行业概述", "市场分析", "技术应用", "发展趋势"],
+            "content": ["具体内容项1", "具体内容项2", "具体内容项3", "具体内容项4"],
             "layout": "center"
         }},
         ...
@@ -446,6 +456,74 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
     })
 
     return slides[:slide_count]
+
+
+def _get_topic_context(user_request: str) -> str:
+    """
+    根据用户请求，生成具体的背景上下文，让AI能生成真实、有深度的内容，
+    而不是泛泛的"行业概述、市场分析"万能模板。
+    """
+    req = user_request.lower()
+
+    # OpenClaw 相关
+    if 'openclaw' in req or 'ai assistant' in req or 'agent' in req:
+        return """【背景上下文】
+OpenClaw 是一款 AI Agent 开发与运行平台，主要功能：
+- 允许用户创建 AI Agent，配置 Skills（技能）和 Tools（工具）
+- 支持多种 LLM 后端：Claude、GPT、MiniMax、火山引擎等
+- 支持插件扩展：浏览器自动化、文件系统、代码执行、即时通讯（飞书/Telegram/Discord）等
+- 可在本地 Mac/服务器 7×24 小时运行，支持心跳任务
+- 社区技能市场 clawhub.ai 提供第三方技能可一键安装
+- 核心使用场景：个人效率工具、自动化工作流、AI助手定制
+
+请围绕以上特性，生成贴合 OpenClaw 的具体内容（如安装配置、核心功能、插件使用、实战案例）。"""
+
+    # 商业计划 / 融资
+    if any(k in req for k in ['商业计划', '融资', '创业', '商业', 'bp', 'pitch']):
+        return """【背景上下文】
+这是一份创业融资商业计划书/路演PPT。请围绕：
+- 核心产品与商业模式（解决什么痛点）
+- 市场规模与增长潜力（具体数字）
+- 竞争优势与护城河
+- 团队背景与牛人
+- 融资计划与估值逻辑
+生成真实、具体的商业分析，不要空泛概念。"""
+
+    # 教育 / 培训 / 课程
+    if any(k in req for k in ['教育', '培训', '课程', '教学', '学习', '课件']):
+        return """【背景上下文】
+这是一份教育培训类演示文稿。请围绕：
+- 核心知识点与教学目标
+- 适合目标学员的接收水平
+- 具体案例与实践操作
+- 互动环节与思考题设计
+生成有教学价值、能让学员真正学到东西的内容。"""
+
+    # 政府 / 政务 / 公文
+    if any(k in req for k in ['政府', '政务', '党建', '机关', '汇报', '公文']):
+        return """【背景上下文】
+这是一份政务工作汇报/政策解读类PPT。请围绕：
+- 政策背景与出台意义
+- 核心内容与工作部署
+- 落实举措与责任分工
+- 成效指标与时间节点
+生成严谨、专业、符合政务规范的内容。"""
+
+    # 产品发布 / 介绍
+    if any(k in req for k in ['产品发布', '新品', '产品介绍', '功能介绍']):
+        return """【背景上下文】
+这是一份产品介绍/发布PPT。请围绕：
+- 产品的核心卖点与差异化优势
+- 目标用户与使用场景
+- 主要功能与使用方法
+- 价格策略与上市时间
+生成能打动用户、突出产品亮点的高质量内容。"""
+
+    # 通用泛需求
+    return f"""【背景上下文】
+用户需求是："{user_request}"
+请围绕这个主题，生成深度、有见地、具体的内容。
+避免"行业概述、市场分析"这类万能空洞标题，要具体到这个主题的核心知识、关键方法、真实案例。"""
 
 
 def _extract_keywords(user_request: str) -> Dict:
