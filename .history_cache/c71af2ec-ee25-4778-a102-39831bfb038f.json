@@ -1,0 +1,26 @@
+{
+  "task_id": "c71af2ec-ee25-4778-a102-39831bfb038f",
+  "user_request": "测试",
+  "slide_count": 3,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF",
+  "status": "completed",
+  "progress": 100,
+  "current_step": "完成",
+  "created_at": "2026-03-29T13:58:45.658549",
+  "updated_at": "2026-03-29T13:58:53.661536",
+  "result": {
+    "pptx_path": "./output/presentation_c71af2ec-ee25-4778-a102-39831bfb038f.pptx",
+    "slide_count": 2,
+    "file_size": 618271,
+    "compression_ratio": 1.0,
+    "compatibility": {
+      "wps": true,
+      "office": true,
+      "mobile": true
+    }
+  },
+  "error": null
+}

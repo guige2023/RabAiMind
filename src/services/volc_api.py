@@ -61,7 +61,8 @@ class VolcEngineAPI:
         Returns:
             生成结果字典
         """
-        url = f"{self.endpoint}/api/v3/projects/{self.project_id}/chat/completions"
+        base = f"{self.endpoint}/api/v3"
+        url = f"{base}/chat/completions" if not self.project_id else f"{base}/projects/{self.project_id}/chat/completions"
         
         payload = {
             "model": model,
@@ -113,7 +114,8 @@ class VolcEngineAPI:
         Returns:
             理解结果
         """
-        url = f"{self.endpoint}/api/v3/projects/{self.project_id}/chat/completions"
+        base = f"{self.endpoint}/api/v3"
+        url = f"{base}/chat/completions" if not self.project_id else f"{base}/projects/{self.project_id}/chat/completions"
         
         payload = {
             "model": model,
@@ -158,7 +160,7 @@ class VolcEngineAPI:
         self,
         prompt: str,
         model: str = "stable-diffusion-xl-2600",
-        size: str = "1024x1024",
+        size: str = "2048x2048",  # 最小 1920x1920 (3686400px)，火山引擎要求至少 3686400 像素
         quality: str = "standard",
         n: int = 1
     ) -> Dict[str, Any]:
@@ -175,7 +177,8 @@ class VolcEngineAPI:
         Returns:
             生成结果
         """
-        url = f"{self.endpoint}/api/v3/projects/{self.project_id}/images/generations"
+        base = f"{self.endpoint}/api/v3"
+        url = f"{base}/images/generations" if not self.project_id else f"{base}/projects/{self.project_id}/images/generations"
         
         payload = {
             "model": model,

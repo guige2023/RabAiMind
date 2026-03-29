@@ -1,0 +1,26 @@
+{
+  "task_id": "ca170509-174c-4268-aa74-eceb872e8e63",
+  "user_request": "AI商业应用",
+  "slide_count": 2,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF",
+  "status": "completed",
+  "progress": 100,
+  "current_step": "完成",
+  "created_at": "2026-03-29T13:58:49.989755",
+  "updated_at": "2026-03-29T13:59:18.320829",
+  "result": {
+    "pptx_path": "./output/presentation_ca170509-174c-4268-aa74-eceb872e8e63.pptx",
+    "slide_count": 2,
+    "file_size": 610288,
+    "compression_ratio": 1.0,
+    "compatibility": {
+      "wps": true,
+      "office": true,
+      "mobile": true
+    }
+  },
+  "error": null
+}

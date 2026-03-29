@@ -1,0 +1,26 @@
+{
+  "task_id": "77488c39-5b8c-46ca-8b3a-4d97e023a943",
+  "user_request": "AI助手介绍",
+  "slide_count": 2,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF",
+  "status": "completed",
+  "progress": 100,
+  "current_step": "完成",
+  "created_at": "2026-03-29T14:11:07.661365",
+  "updated_at": "2026-03-29T14:11:23.142035",
+  "result": {
+    "pptx_path": "./output/presentation_77488c39-5b8c-46ca-8b3a-4d97e023a943.pptx",
+    "slide_count": 2,
+    "file_size": 414105,
+    "compression_ratio": 1.0,
+    "compatibility": {
+      "wps": true,
+      "office": true,
+      "mobile": true
+    }
+  },
+  "error": null
+}
