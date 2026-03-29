@@ -30,15 +30,67 @@ class ImageSVGBuilder(SVGBuilder):
         """
         if style:
             self.set_style(style)
-            
+
         colors = self.get_colors()
         width, height = self.config.width, self.config.height
-        
+
         if layout == "right":
             return self._build_layout_right(title, content, colors, width, height)
         else:
             return self._build_layout_bottom(title, content, colors, width, height)
-    
+
+    async def build_content_with_image(self, slide_data: dict) -> dict:
+        """生成图文内容并校验（异步方法）
+
+        Args:
+            slide_data: 包含 title, content, image_url, layout 等字段的字典
+        Returns:
+            包含 svg_content, image_url, warnings 的字典
+        """
+        # 从 slide_data 提取参数
+        title = slide_data.get("title", "")
+        content = slide_data.get("content", [])
+        if isinstance(content, str):
+            content = content.split("\n")
+        image_url = slide_data.get("image_url")
+        image_prompt = slide_data.get("image_prompt")
+        layout = slide_data.get("layout", "right")
+        style = slide_data.get("style")
+
+        # 调用现有的同步方法生成 SVG
+        svg_content = self.build_content_with_image(
+            title=title,
+            content=content,
+            image_url=image_url,
+            image_prompt=image_prompt,
+            layout=layout,
+            style=style
+        )
+
+        # 构建结果
+        result = {
+            "svg_content": svg_content,
+            "image_url": image_url or "",
+            "warnings": []
+        }
+
+        # 质量校验 - 校验图片 URL 可访问性（异步）
+        if image_url:
+            try:
+                import httpx
+                response = await httpx.AsyncClient().get(image_url, timeout=5.0)
+                if response.status_code != 200:
+                    logger.warning(f"图片 URL 不可访问: {image_url}")
+                    result["warnings"].append(f"图片加载失败: {response.status_code}")
+            except Exception as e:
+                logger.warning(f"图片 URL 校验异常: {e}")
+
+        # 质量校验 - 校验 SVG 兼容性
+        if svg_content and len(svg_content) < 100:
+            result["warnings"].append("SVG 内容异常短，可能渲染失败")
+
+        return result
+
     def _build_layout_right(
         self,
         title: str,

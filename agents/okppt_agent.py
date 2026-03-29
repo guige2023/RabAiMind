@@ -344,87 +344,121 @@ class OkPPTAgent:
         return templates
 
 
+"""
+PPTX Fallback 生成器
+
+当 OKPPT 服务不可用时，使用 python-pptx 生成备份 PPTX
+"""
+import logging
+from typing import List, Dict, Any
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    HAS_PPTX = True
+except ImportError:
+    HAS_PPTX = False
+    logger.warning("python-pptx 未安装，FallbackPPTXGenerator 不可用")
+
+
 class FallbackPPTXGenerator:
-    """后备 PPTX 生成器（使用 python-pptx）"""
+    """
+    使用 python-pptx 生成备份 PPTX
 
-    def __init__(self):
-        try:
-            from pptx import Presentation
-            from pptx.util import Inches, Pt
-            self.pptx_available = True
-            self.Presentation = Presentation
-            self.Inches = Inches
-            self.Pt = Pt
-        except ImportError:
-            self.pptx_available = False
+    当 OKPPT MCP 服务不可用时使用此生成器
+    """
 
-    def generate(
-        self,
-        slides: List[Dict[str, Any]],
-        output_path: str,
-        title: str = "Presentation"
-    ) -> bool:
-        """生成 PPTX"""
-        if not self.pptx_available:
-            logger.warning("python-pptx 不可用，使用简化输出")
-            return False
+    def __init__(self, template: str = "blank"):
+        self.template = template
+        self.prs = None
+        if not HAS_PPTX:
+            raise RuntimeError("python-pptx 未安装，请运行: pip install python-pptx")
 
-        try:
-            prs = self.Presentation()
+    def create_slide(self, title: str, content: str, layout_idx: int = 1) -> None:
+        """添加一页幻灯片"""
+        if self.prs is None:
+            self.prs = Presentation()
+            # 设置 16:9
+            self.prs.slide_width = Inches(13.33)
+            self.prs.slide_height = Inches(7.5)
 
-            # 设置幻灯片大小为 16:9
-            prs.slide_width = self.Inches(13.333)
-            prs.slide_height = self.Inches(7.5)
+        # 添加幻灯片
+        slide_layout = self.prs.slide_layouts[min(layout_idx, len(self.prs.slide_layouts)-1)]
+        slide = self.prs.slides.add_slide(slide_layout)
 
-            for slide_data in slides:
-                # 添加空白幻灯片
-                slide_layout = prs.slide_layouts[6]  # 空白布局
-                slide = prs.slides.add_slide(slide_layout)
+        # 设置标题
+        if title:
+            title_shape = slide.shapes.title
+            if title_shape:
+                title_shape.text = title
+                for paragraph in title_shape.text_frame.paragraphs:
+                    paragraph.font.size = Pt(36)
+                    paragraph.font.bold = True
+                    paragraph.font.color.rgb = RGBColor(0x1F, 0x1F, 0x1F)
 
-                # 添加标题
-                title_text = slide_data.get("title", "")
-                if title_text:
-                    title_box = slide.shapes.add_textbox(
-                        self.Inches(0.5),
-                        self.Inches(0.3),
-                        self.Inches(12),
-                        self.Inches(1)
-                    )
-                    text_frame = title_box.text_frame
-                    text_frame.text = title_text
-                    for paragraph in text_frame.paragraphs:
-                        paragraph.font.size = self.Pt(44)
-                        paragraph.font.bold = True
+        # 设置内容
+        if content:
+            content_box = None
+            for shape in slide.shapes:
+                if shape.has_text_frame and shape != slide.shapes.title:
+                    content_box = shape
+                    break
 
-                # 添加内容
-                content = slide_data.get("content", [])
-                if isinstance(content, str):
-                    content = content.split("\n")
+            if content_box is None:
+                # 如果没有内容框，自定义一个
+                left = Inches(0.5)
+                top = Inches(2)
+                width = Inches(12.33)
+                height = Inches(4.5)
+                content_box = slide.shapes.add_textbox(left, top, width, height)
 
-                if content:
-                    content_box = slide.shapes.add_textbox(
-                        self.Inches(0.5),
-                        self.Inches(1.5),
-                        self.Inches(12),
-                        self.Inches(5)
-                    )
-                    text_frame = content_box.text_frame
-                    text_frame.word_wrap = True
+            tf = content_box.text_frame
+            tf.clear()
+            for i, line in enumerate(content.split('\n')):
+                if i == 0:
+                    p = tf.paragraphs[0]
+                else:
+                    p = tf.add_paragraph()
+                p.text = line
+                p.font.size = Pt(18)
+                p.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+                p.space_after = Pt(8)
 
-                    for i, item in enumerate(content[:6]):
-                        if i == 0:
-                            p = text_frame.paragraphs[0]
-                        else:
-                            p = text_frame.add_paragraph()
-                        p.text = f"• {item}"
-                        p.font.size = self.Pt(24)
+    def save(self, output_path: str) -> str:
+        """保存 PPTX 文件"""
+        if self.prs is None:
+            raise ValueError("没有生成任何幻灯片")
 
-            prs.save(output_path)
-            return True
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.prs.save(str(path))
+        logger.info(f"FallbackPPTX 已保存: {path}")
+        return str(path)
 
-        except Exception as e:
-            logger.error(f"生成 PPTX 失败: {e}")
-            return False
+
+def generate_fallback_pptx(slides: List[Dict[str, Any]], output_path: str) -> str:
+    """
+    生成 fallback PPTX
+
+    Args:
+        slides: [{"title": "标题", "content": "内容", "layout": 1}, ...]
+        output_path: 输出路径
+    Returns:
+        生成的文件路径
+    """
+    generator = FallbackPPTXGenerator()
+    for slide in slides:
+        generator.create_slide(
+            title=slide.get("title", ""),
+            content=slide.get("content", ""),
+            layout_idx=slide.get("layout", 1)
+        )
+    return generator.save(output_path)
 
 
 def create_okppt_agent(config: Optional[Dict] = None) -> OkPPTAgent:
