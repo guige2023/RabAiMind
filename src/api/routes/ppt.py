@@ -6,7 +6,7 @@ API 路由定义
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -33,6 +33,7 @@ from ...models import (
 )
 from ...services.task_manager import get_task_manager
 from ...services.ppt_generator import get_ppt_generator
+from ...services.chart_generator import ChartGenerator
 from ...services.history_sync_service import get_history_sync_service
 from ...services.template_manager import get_template_manager
 from ...config import settings
@@ -75,6 +76,66 @@ def _check_rate_limit(client_id: str = "default") -> bool:
         # 记录请求
         _rate_limit_storage[client_id].append(now)
         return True
+
+
+# ==================== 图表上传与生成 ====================
+
+@router.post("/chart/upload/{task_id}")
+async def upload_chart_file(
+    task_id: str,
+    file: UploadFile = File(...),
+    chart_type: str = Form("bar"),
+    label_col: str = Form(""),
+    value_col: str = Form(""),
+):
+    """上传 CSV/Excel 文件，生成图表 SVG"""
+    try:
+        content = await file.read()
+        cg = ChartGenerator()
+        result = cg.process_upload(
+            content, file.filename, chart_type,
+            label_col, value_col, task_id
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"图表生成失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"图表生成失败: {str(e)}"
+        )
+
+
+@router.get("/chart/preview/{task_id}")
+async def preview_chart_columns(
+    task_id: str,
+    file: UploadFile = File(...),
+):
+    """上传 CSV/Excel，预览列信息（不生成图表）"""
+    try:
+        content = await file.read()
+        cg = ChartGenerator()
+        df = cg.parse_file(content, file.filename)
+        cols = cg.extract_columns(df)
+        return {
+            "success": True,
+            "columns": cols
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"文件解析失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"文件解析失败: {str(e)}"
+        )
 
 
 # ==================== 健康检查 ====================
@@ -902,10 +963,51 @@ async def get_task_version(task_id: str, version_id: str):
     from ...services.task_manager import get_task_manager
 
     tm = get_task_manager()
-    version = tm.get_version(task_id, version_id)
-    if not version:
-        raise HTTPException(status_code=404, detail="版本不存在")
-    return {"success": True, "version": version}
+    try:
+        result = tm.get_version(task_id, version_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/versions/{task_id}/{version_id}/rollback")
+async def rollback_task_version(task_id: str, version_id: str):
+    """回滚到指定版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.rollback_version(task_id, version_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/versions/{task_id}/diff")
+async def diff_task_versions(
+    task_id: str,
+    version_a: str = Query(..., description="版本A的version_id"),
+    version_b: str = Query(..., description="版本B的version_id"),
+):
+    """对比两个版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.diff_versions(task_id, version_a, version_b)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/versions/{task_id}/snapshot")
+async def create_task_snapshot(task_id: str, name: str = None):
+    """手动创建快照"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.create_version(task_id, name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/regenerate/{task_id}/{slide_index}")

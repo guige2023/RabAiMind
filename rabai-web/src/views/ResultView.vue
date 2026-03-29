@@ -90,6 +90,60 @@
             <button class="btn btn-secondary btn-lg" @click="handleNew">
               <span>✨</span> 创建新的
             </button>
+            <button class="btn btn-version btn-lg" @click="showVersionPanel = true">
+              <span>📜</span> 版本历史
+            </button>
+            <button class="btn btn-secondary btn-lg" @click="showSaveTemplateModal = true">
+              <span>📁</span> 存为模板
+            </button>
+          </div>
+
+          <!-- 存为模板弹窗 -->
+          <div v-if="showSaveTemplateModal" class="modal-mask" @click.self="showSaveTemplateModal = false">
+            <div class="save-template-modal">
+              <div class="modal-title">📁 存为私人模板</div>
+
+              <div class="form-item">
+                <text class="form-label">模板名称</text>
+                <input v-model="newTemplate.name" class="form-input" placeholder="给模板起个名字" />
+              </div>
+
+              <div class="form-item">
+                <text class="form-label">模板描述</text>
+                <textarea v-model="newTemplate.description" class="form-textarea" placeholder="模板用途/场景" />
+              </div>
+
+              <div class="form-item">
+                <text class="form-label">适用场景</text>
+                <select v-model="newTemplate.sceneIndex" class="form-select">
+                  <option v-for="(s, i) in scenes" :key="i" :value="i">{{ s }}</option>
+                </select>
+              </div>
+
+              <div class="form-item">
+                <text class="form-label">风格</text>
+                <select v-model="newTemplate.styleIndex" class="form-select">
+                  <option v-for="(s, i) in styles" :key="i" :value="i">{{ s }}</option>
+                </select>
+              </div>
+
+              <div class="form-item">
+                <text class="form-label">可见性</text>
+                <div class="radio-group">
+                  <label class="radio-item">
+                    <input type="radio" v-model="newTemplate.visibility" value="private" /> 私人（仅自己可见）
+                  </label>
+                  <label class="radio-item">
+                    <input type="radio" v-model="newTemplate.visibility" value="public" /> 公开（其他用户可用）
+                  </label>
+                </div>
+              </div>
+
+              <div class="modal-actions">
+                <button class="btn btn-outline" @click="showSaveTemplateModal = false">取消</button>
+                <button class="btn btn-primary" @click="saveAsTemplate">保存</button>
+              </div>
+            </div>
           </div>
 
           <!-- 内容编辑面板 -->
@@ -348,6 +402,61 @@
       :slides="presentationSlides"
     />
 
+    <!-- 版本历史侧边面板 -->
+    <div v-if="showVersionPanel" class="version-panel-overlay" @click="showVersionPanel = false">
+      <div class="version-panel" @click.stop>
+        <view class="panel-header">
+          <text class="panel-title">📜 版本历史</text>
+          <view class="panel-actions">
+            <button class="btn btn-sm btn-snapshot" @click="createSnapshot">💾 快照</button>
+            <button class="btn btn-sm btn-close-panel" @click="showVersionPanel = false">✕</button>
+          </view>
+        </view>
+        
+        <view class="version-list">
+          <view v-for="v in versionList" 
+                :key="v.version_id"
+                :class="['version-item', v.version_id === currentVersionId ? 'current' : '']">
+            <view class="version-info" @click="loadVersion(v.version_id)">
+              <text class="version-name">{{ v.name }}</text>
+              <text class="version-time">{{ formatTime(v.created_at) }}</text>
+              <text class="version-slides">{{ v.slide_count }} 页</text>
+            </view>
+            <view class="version-actions">
+              <button class="btn btn-mini" @click="compareVersion(v.version_id)">对比</button>
+              <button class="btn btn-mini btn-rollback" @click="rollbackToVersion(v.version_id)">回滚</button>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 版本对比视图 -->
+        <view v-if="showDiffView" class="diff-view">
+          <view class="diff-header">
+            <text class="diff-title">{{ diffData.version_a }} vs {{ diffData.version_b }}</text>
+            <text class="diff-count">{{ diffData.total_changes }} 处变更</text>
+          </view>
+          <view class="diff-slides">
+            <view v-for="d in diffData.diff" :key="d.slide_index" class="diff-item">
+              <view class="diff-slide-title">第 {{ d.slide_index }} 页</view>
+              <view class="diff-content">
+                <view class="diff-before" v-if="d.before">
+                  <text class="label">变更前</text>
+                  <text class="diff-slide-text">{{ d.before.title || '(无)' }}</text>
+                </view>
+                <view class="diff-after" v-if="d.after">
+                  <text class="label">变更后</text>
+                  <text class="diff-slide-text">{{ d.after.title || '(无)' }}</text>
+                </view>
+              </view>
+            </view>
+          </view>
+          <view class="diff-footer">
+            <button class="btn btn-sm" @click="showDiffView = false">关闭对比</button>
+          </view>
+        </view>
+      </div>
+    </div>
+
     <!-- 元素微调编辑器 -->
     <SlideElementEditor
       v-if="showElementEditor"
@@ -465,10 +574,65 @@ const showElementEditor = ref(false)
 
 // 快速调优侧边栏
 const showLayoutPanel = ref(false)
+
+// 版本历史相关
+const showVersionPanel = ref(false)
+const versionList = ref<Array<{version_id: string; name: string; created_at: string; slide_count: number}>>([])
+const currentVersionId = ref('')
+const showDiffView = ref(false)
+const diffData = ref<{
+  version_a: string
+  version_b: string
+  diff: Array<{
+    slide_index: number
+    before: any
+    after: any
+  }>
+  total_changes: number
+}>({
+  version_a: '',
+  version_b: '',
+  diff: [],
+  total_changes: 0
+})
 const selectedLayout = ref('左图右文')
 const selectedColorScheme = ref(0)
 const selectedStyle = ref('professional')
 const regeneratingSlideIndex = ref<number | null>(null)
+
+// 存为模板相关
+const showSaveTemplateModal = ref(false)
+const newTemplate = ref({
+  name: '',
+  description: '',
+  sceneIndex: 0,
+  styleIndex: 0,
+  visibility: 'private'
+})
+const scenes = ['business', 'education', 'government', 'creative', 'investment']
+const styles = ['professional', 'creative', 'minimalist', 'classic']
+
+async function saveAsTemplate() {
+  if (!newTemplate.value.name.trim()) {
+    alert('请填写模板名称')
+    return
+  }
+  try {
+    const res = await api.template.uploadTemplate({
+      name: newTemplate.value.name,
+      description: newTemplate.value.description,
+      scene: scenes[newTemplate.value.sceneIndex],
+      style: styles[newTemplate.value.styleIndex],
+      visibility: newTemplate.value.visibility
+    })
+    if (res.data.success) {
+      alert('模板已保存')
+      showSaveTemplateModal.value = false
+    }
+  } catch (e) {
+    alert('保存失败')
+  }
+}
 
 const layoutOptions = [
   { value: '左图右文', icon: '🖼️', name: '左图右文' },
@@ -623,6 +787,15 @@ const regenerateWithEdits = async () => {
   isRegenerating.value = true
 
   try {
+    // 自动创建快照（重新生成前）
+    if (taskId.value) {
+      try {
+        await api.ppt.createSnapshot(taskId.value, '重新生成前快照')
+        await loadVersionHistory()
+      } catch (e) {
+        console.warn('自动创建快照失败:', e)
+      }
+    }
     // 构建大纲数据
     const outlineData = {
       slides: editableSlides.value.map(slide => ({
@@ -1121,10 +1294,123 @@ const handleShare = async (type: string) => {
   }
 }
 
+// 格式化时间
+const formatTime = (isoString: string): string => {
+  if (!isoString) return ''
+  try {
+    const date = new Date(isoString)
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return isoString
+  }
+}
+
+// 加载版本历史
+const loadVersionHistory = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.listVersions(taskId.value)
+    if (res.data && res.data.success) {
+      versionList.value = res.data.versions || []
+      // 设置当前版本为最新
+      if (versionList.value.length > 0) {
+        currentVersionId.value = versionList.value[versionList.value.length - 1].version_id
+      }
+    }
+  } catch (e) {
+    console.warn('加载版本历史失败:', e)
+  }
+}
+
+// 加载指定版本
+const loadVersion = async (versionId: string) => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getVersion(taskId.value, versionId)
+    if (res.data && res.data.success) {
+      const version = res.data.version
+      // 加载该版本的 slides 到预览
+      const slides = version.config?.slides || []
+      previewSlides.value = slides.map((s: any, idx: number) => ({
+        ...s,
+        url: s.image_url || `/api/v1/ppt/svg/${taskId.value}/${idx + 1}`,
+        slideNum: idx + 1
+      }))
+      currentVersionId.value = versionId
+      // 可选：显示提示
+      console.log(`已加载: ${version.name}`)
+    }
+  } catch (e) {
+    console.error('加载版本失败:', e)
+  }
+}
+
+// 回滚到指定版本
+const rollbackToVersion = async (versionId: string) => {
+  if (!taskId.value) return
+  if (!confirm('确认回滚？回滚将生成新版本，当前内容会作为快照保留')) return
+  
+  try {
+    const res = await api.ppt.rollbackVersion(taskId.value, versionId)
+    if (res.data && res.data.success) {
+      alert(res.data.message || '回滚成功')
+      // 重新加载版本历史和当前版本
+      await loadVersionHistory()
+      await loadVersion(versionId)
+      // 重新加载任务状态
+      await loadStatus()
+    }
+  } catch (e) {
+    console.error('回滚失败:', e)
+    alert('回滚失败，请稍后重试')
+  }
+}
+
+// 对比版本
+const compareVersion = async (versionId: string) => {
+  if (!taskId.value || !currentVersionId.value) return
+  if (versionId === currentVersionId.value) {
+    alert('请先加载不同版本进行对比')
+    return
+  }
+  
+  try {
+    const res = await api.ppt.diffVersions(taskId.value, currentVersionId.value, versionId)
+    if (res.data && res.data.success) {
+      diffData.value = res.data
+      showDiffView.value = true
+    }
+  } catch (e) {
+    console.error('版本对比失败:', e)
+    alert('版本对比失败，请稍后重试')
+  }
+}
+
+// 手动创建快照
+const createSnapshot = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.createSnapshot(taskId.value)
+    if (res.data && res.data.success) {
+      alert('快照已创建')
+      await loadVersionHistory()
+    }
+  } catch (e) {
+    console.error('创建快照失败:', e)
+    alert('创建快照失败，请稍后重试')
+  }
+}
+
 onMounted(() => {
   loadStatus()
   loadPreview()
   checkFavorite()
+  loadVersionHistory()
 })
 </script>
 
@@ -1974,6 +2260,264 @@ onMounted(() => {
   .edit-actions .btn {
     width: 100%;
   }
+}
+
+/* 版本历史面板样式 */
+.btn-version {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #e5e5e5;
+}
+
+.btn-version:hover {
+  background: #fff3e0;
+  color: #e65100;
+  border-color: #ff9800;
+}
+
+.version-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.version-panel {
+  width: 400px;
+  max-width: 90vw;
+  height: 100%;
+  background: #fff;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease;
+  overflow: hidden;
+}
+
+.version-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+
+.version-panel .panel-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.version-panel .panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-snapshot {
+  background: #165DFF;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-snapshot:hover {
+  background: #0D47A1;
+}
+
+.btn-close-panel {
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-close-panel:hover {
+  background: #e0e0e0;
+}
+
+.version-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.version-item {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f9f9f9;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.version-item:hover {
+  background: #f0f7ff;
+  border-color: #e6f0ff;
+}
+
+.version-item.current {
+  border-color: #165DFF;
+  background: #e6f0ff;
+}
+
+.version-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.version-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.version-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.version-slides {
+  font-size: 11px;
+  color: #666;
+  background: #e5e5e5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.version-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-mini {
+  padding: 4px 10px;
+  font-size: 11px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+}
+
+.btn-mini:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.btn-rollback {
+  color: #e65100;
+}
+
+.btn-rollback:hover {
+  background: #fff3e0;
+  border-color: #ff9800;
+  color: #e65100;
+}
+
+/* 版本对比视图 */
+.diff-view {
+  border-top: 1px solid #eee;
+  padding: 12px;
+  background: #fafafa;
+  max-height: 50%;
+  overflow-y: auto;
+}
+
+.diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.diff-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.diff-count {
+  font-size: 12px;
+  color: #e65100;
+  background: #fff3e0;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.diff-slides {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.diff-item {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.diff-slide-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #165DFF;
+  margin-bottom: 8px;
+}
+
+.diff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diff-before, .diff-after {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diff-before .label {
+  font-size: 10px;
+  color: #999;
+}
+
+.diff-after .label {
+  font-size: 10px;
+  color: #4caf50;
+}
+
+.diff-slide-text {
+  font-size: 13px;
+  color: #333;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.diff-footer {
+  margin-top: 12px;
+  text-align: center;
 }
 
 /* 快速调优侧边栏样式 */

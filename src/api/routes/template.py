@@ -2,11 +2,17 @@
 """
 模板API路由
 """
-from fastapi import APIRouter, HTTPException, status
+import time
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from typing import List, Optional
 from pydantic import BaseModel
+from pathlib import Path
 
 from ...services.template_manager import get_template_manager, Template
+
+TMPLATES_DIR = Path("static/templates")
+TMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 router = APIRouter(prefix="/api/v1/templates", tags=["templates"])
@@ -117,3 +123,62 @@ async def get_template(template_id: str):
         colors=template.colors,
         fonts=template.fonts
     )
+
+
+# ─── UGC 用户模板接口 ────────────────────────────────────────────────
+
+@router.post("/upload")
+async def upload_template(
+    name: str,
+    description: str,
+    scene: str = "business",
+    style: str = "professional",
+    visibility: str = "private",
+    file: UploadFile = File(None),
+):
+    """用户上传自己的模板"""
+    manager = get_template_manager()
+    template_id = f"user_{int(time.time())}"
+
+    thumbnail_path = ""
+    if file:
+        ext = Path(file.filename).suffix.lower() if file.filename else ".pptx"
+        saved_path = TMPLATES_DIR / f"{template_id}{ext}"
+        content = await file.read()
+        saved_path.write_bytes(content)
+        thumbnail_path = f"/static/templates/{template_id}_thumb.png"
+
+    user_template = {
+        "id": template_id,
+        "name": name,
+        "description": description,
+        "scene": scene,
+        "style": style,
+        "visibility": visibility,
+        "author": "current_user",
+        "thumbnail": thumbnail_path,
+        "applicable_scenes": [scene],
+        "example": description,
+        "colors": ["#165DFF", "#FFFFFF", "#F5F5F5"],
+        "is_ugc": True,
+        "created_at": datetime.now().isoformat()
+    }
+
+    manager.add_user_template(user_template)
+
+    return {"success": True, "template_id": template_id, "template": user_template}
+
+
+@router.get("/my")
+async def list_my_templates():
+    """列出当前用户的私人模板"""
+    manager = get_template_manager()
+    return {"success": True, "templates": manager.get_user_templates()}
+
+
+@router.delete("/{template_id}")
+async def delete_template(template_id: str):
+    """删除私人模板"""
+    manager = get_template_manager()
+    manager.remove_user_template(template_id)
+    return {"success": True}

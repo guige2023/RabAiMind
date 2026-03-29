@@ -605,6 +605,89 @@ class PPTGenerator:
         b64 = base64.b64encode(inner.encode('utf-8')).decode('ascii')
         return f"data:image/svg+xml;base64,{b64}"
 
+    def add_chart_slide(self, task_id: str, chart_svg_path: str,
+                        slide_title: str, chart_description: str = "",
+                        scene: str = "business", style: str = "professional") -> str:
+        """生成包含图表的幻灯片 SVG
+        
+        Args:
+            task_id: 任务ID
+            chart_svg_path: 图表SVG文件路径（相对路径，如 static/charts/xxx.svg）
+            slide_title: 幻灯片标题
+            chart_description: 图表描述文字
+            scene: 场景风格
+            style: 样式风格
+        
+        Returns:
+            生成的SVG文件路径
+        """
+        from pathlib import Path
+        import os
+        
+        chart_filename = Path(chart_svg_path).name
+        
+        # 根据场景获取主题色
+        theme_colors = {
+            "business": ("#1e3a5f", "#60a5fa", "#165DFF"),
+            "academic": ("#2d3748", "#63b3ed", "#3182ce"),
+            "creative": ("#553c9a", "#b794f4", "#805ad5"),
+            "minimal": ("#2d3748", "#718096", "#4a5568"),
+        }
+        bg_color, accent_color, primary_color = theme_colors.get(scene, ("#1e3a5f", "#60a5fa", "#165DFF"))
+        
+        # 标题最多 30 字符
+        display_title = (slide_title[:30] + "…") if len(slide_title) > 30 else slide_title
+        safe_title = self._escape_html(display_title)
+        safe_desc = self._escape_html(chart_description[:100] if chart_description else "")
+        
+        W, H = 1600, 900
+        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:{bg_color}"/>
+      <stop offset="100%" style="stop-color:{bg_color}dd"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#00000055"/>
+    </filter>
+  </defs>
+  <!-- 背景 -->
+  <rect width="{W}" height="{H}" fill="url(#bgGrad)"/>
+  <!-- 顶部装饰条 -->
+  <rect x="0" y="0" width="{W}" height="6" fill="{primary_color}"/>
+  <!-- 标题区域 -->
+  <text x="80" y="80" font-family="Microsoft YaHei, Arial, sans-serif" font-size="36" font-weight="bold" fill="white">{safe_title}</text>
+  <!-- 图表描述 -->
+  <text x="80" y="120" font-family="Microsoft YaHei, Arial, sans-serif" font-size="18" fill="{accent_color}">{safe_desc}</text>
+  <!-- 图表区域 -->
+  <image href="/{chart_svg_path}" x="80" y="160" width="900" height="600" preserveAspectRatio="xMidYMid meet"/>
+  <!-- 右下角装饰 -->
+  <circle cx="{W-100}" cy="{H-100}" r="80" fill="{primary_color}" opacity="0.1"/>
+  <circle cx="{W-60}" cy="{H-60}" r="40" fill="{accent_color}" opacity="0.15"/>
+</svg>'''
+        
+        # 生成 slide index
+        slide_index = self._get_next_slide_index(task_id)
+        
+        # 保存 SVG 文件
+        svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_index}_{task_id}.svg")
+        with open(svg_path, 'w', encoding='utf-8') as f:
+            f.write(svg_content)
+        
+        return svg_path
+    
+    def _get_next_slide_index(self, task_id: str) -> int:
+        """获取下一个幻灯片序号（递增）"""
+        import threading
+        with self._layout_lock:
+            key = f"_slide_index_{task_id}"
+            if not hasattr(self, '_slide_index_cache'):
+                self._slide_index_cache = {}
+            current = self._slide_index_cache.get(key, 0) + 1
+            self._slide_index_cache[key] = current
+            return current
+
     def _generate_svg(self, slide: Dict, slide_num: int) -> str:
         """AI生成SVG代码"""
         from .volc_api import get_volc_api

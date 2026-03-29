@@ -114,6 +114,66 @@
       <div class="loading-spinner"></div>
       <p>正在生成大纲...</p>
     </div>
+
+    <!-- 图表上传入口按钮 -->
+    <button class="quick-action chart-upload-btn" @click="showChartUploadPanel = true">
+      <span class="action-icon">📊</span>
+      <span>上传数据生成图表</span>
+    </button>
+
+    <!-- 图表上传面板 -->
+    <div v-if="showChartUploadPanel" class="chart-upload-panel">
+      <view class="panel-header">
+        <text class="panel-title">📊 数据可视化</text>
+        <span class="close-btn" @click="showChartUploadPanel = false">✕</span>
+      </view>
+      
+      <view class="upload-area" @click="chooseChartFile">
+        <text>{{ chartFileName || '点击选择 CSV/Excel 文件' }}</text>
+      </view>
+      
+      <view class="chart-type-selector">
+        <view 
+          v-for="type in chartTypes" 
+          :class="['type-btn', selectedChartType === type ? 'active' : '']"
+          @click="selectedChartType = type"
+        >
+          {{ type === 'bar' ? '柱状图' : type === 'pie' ? '饼图' : type === 'line' ? '折线图' : type === 'horizontal_bar' ? '横向柱图' : '堆叠柱图' }}
+        </view>
+      </view>
+      
+      <view class="column-selector" v-if="chartColumns.label_columns && chartColumns.label_columns.length">
+        <text class="selector-label">标签列：</text>
+        <select v-model="selectedLabelColIndex" class="column-select">
+          <option v-for="(col, idx) in chartColumns.label_columns" :key="idx" :value="idx">{{ col }}</option>
+        </select>
+      </view>
+      
+      <view class="column-selector" v-if="chartColumns.numeric_columns && chartColumns.numeric_columns.length">
+        <text class="selector-label">数值列：</text>
+        <select v-model="selectedValueColIndex" class="column-select">
+          <option v-for="(col, idx) in chartColumns.numeric_columns" :key="idx" :value="idx">{{ col }}</option>
+        </select>
+      </view>
+
+      <view class="preview-table" v-if="chartColumns.preview && chartColumns.preview.length">
+        <text class="preview-title">数据预览（前5行）</text>
+        <table>
+          <thead>
+            <tr>
+              <th v-for="col in chartColumns.all_columns" :key="col">{{ col }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, idx) in chartColumns.preview" :key="idx">
+              <td v-for="col in chartColumns.all_columns" :key="col">{{ row[col] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </view>
+      
+      <button class="generate-btn" type="primary" @click="generateChartFromData">生成图表</button>
+    </div>
   </div>
 </template>
 
@@ -140,6 +200,22 @@ interface OutlineData {
 const activeSlide = ref(0)
 const isLoading = ref(false)
 const isGenerating = ref(false)
+
+// 图表上传相关
+const chartTypes = ['bar', 'pie', 'line', 'horizontal_bar', 'stacked_bar']
+const showChartUploadPanel = ref(false)
+const chartFileName = ref('')
+const selectedChartType = ref('bar')
+const chartColumns = ref<{ all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: Record<string, any>[] }>({
+  all_columns: [],
+  label_columns: [],
+  numeric_columns: [],
+  preview: []
+})
+const selectedLabelColIndex = ref(0)
+const selectedValueColIndex = ref(0)
+const chartSvgUrls = ref<string[]>([])
+const chartSelectedFile = ref<File | null>(null)
 
 const outline = reactive<OutlineData>({
   slides: [],
@@ -216,6 +292,106 @@ const mapLayoutType = (layout: string) => {
     'thank_you': 'end'
   }
   return map[layout] || 'content'
+}
+
+// 选择图表文件
+const chooseChartFile = async () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.csv,.xlsx,.xls'
+  input.onchange = async (e: Event) => {
+    const target = e.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (!file) return
+    chartFileName.value = file.name
+    chartSelectedFile.value = file
+    
+    // 预览列信息
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { api } = await import('../api/client')
+      // 先预览文件列信息
+      const response = await fetch(`/api/v1/ppt/chart/preview/${route.query.taskId || 'temp'}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'multipart/form-data' },
+        body: formData
+      })
+      // 简单解析：使用表单上传获取列信息
+      // 由于 GET 不支持 body，改用 FormData 上传
+      const previewRes = await fetch(`/api/v1/ppt/chart/preview/${route.query.taskId || 'temp'}`, {
+        method: 'POST',
+        body: formData
+      })
+      if (previewRes.ok) {
+        const result = await previewRes.json()
+        if (result.success) {
+          chartColumns.value = result.columns
+          selectedLabelColIndex.value = 0
+          selectedValueColIndex.value = 0
+        }
+      }
+    } catch (err) {
+      console.error('文件解析失败', err)
+      alert('文件解析失败，请检查文件格式')
+    }
+  }
+  input.click()
+}
+
+// 生成图表
+const generateChartFromData = async () => {
+  if (!chartSelectedFile.value) {
+    alert('请先选择文件')
+    return
+  }
+  
+  const labelCol = chartColumns.value.label_columns?.[selectedLabelColIndex.value] || ''
+  const valueCol = chartColumns.value.numeric_columns?.[selectedValueColIndex.value] || ''
+  
+  if (!labelCol || !valueCol) {
+    alert('请选择标签列和数值列')
+    return
+  }
+  
+  const taskId = route.query.taskId as string || 'temp_chart_task'
+  
+  try {
+    const formData = new FormData()
+    formData.append('file', chartSelectedFile.value)
+    formData.append('chart_type', selectedChartType.value)
+    formData.append('label_col', labelCol)
+    formData.append('value_col', valueCol)
+    
+    const response = await fetch(`/api/v1/ppt/chart/upload/${taskId}`, {
+      method: 'POST',
+      body: formData
+    })
+    
+    if (!response.ok) {
+      throw new Error('图表生成失败')
+    }
+    
+    const result = await response.json()
+    if (result.success) {
+      chartSvgUrls.value = result.svg_urls
+      showChartUploadPanel.value = false
+      
+      // 可以选择在这里将图表插入到PPT大纲中
+      // 添加一个新的图表页面
+      outline.slides.push({
+        id: generateId(),
+        title: `${labelCol} - ${valueCol}`,
+        content: `图表类型: ${selectedChartType.value}`,
+        layout: 'content'
+      })
+      
+      alert(`图表已生成！共 ${result.charts.length} 个图表。\n文件: ${result.svg_urls.join(', ')}`)
+    }
+  } catch (err) {
+    console.error('图表生成失败', err)
+    alert('图表生成失败，请重试')
+  }
 }
 
 // AI重新生成大纲
@@ -898,5 +1074,194 @@ onMounted(async () => {
   .slides-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* 图表上传按钮 */
+.chart-upload-btn {
+  position: fixed;
+  right: 20px;
+  bottom: 100px;
+  z-index: 100;
+  background: linear-gradient(135deg, #165DFF, #4080FF);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.chart-upload-btn:hover {
+  background: linear-gradient(135deg, #4080FF, #50a0ff);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(22, 93, 255, 0.5);
+}
+
+/* 图表上传面板 */
+.chart-upload-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.close-btn {
+  cursor: pointer;
+  font-size: 20px;
+  color: #999;
+  padding: 4px 8px;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.upload-area {
+  border: 2px dashed #ddd;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+
+.upload-area:hover {
+  border-color: #165DFF;
+  background: #f8faff;
+  color: #165DFF;
+}
+
+.chart-type-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.type-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  background: #f5f5f5;
+  transition: all 0.2s;
+}
+
+.type-btn:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.type-btn.active {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
+.column-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.selector-label {
+  font-size: 14px;
+  color: #333;
+  min-width: 70px;
+}
+
+.column-select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+}
+
+.preview-table {
+  margin: 16px 0;
+}
+
+.preview-title {
+  font-size: 14px;
+  color: #666;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.preview-table th,
+.preview-table td {
+  border: 1px solid #eee;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.preview-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.preview-table td {
+  color: #666;
+}
+
+.generate-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #165DFF, #4080FF);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+  transition: all 0.2s;
+}
+
+.generate-btn:hover {
+  background: linear-gradient(135deg, #4080FF, #50a0ff);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
 }
 </style>

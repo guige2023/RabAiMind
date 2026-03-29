@@ -4,9 +4,12 @@ PPT模板管理和选择
 """
 import os
 import json
+import time
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
+
+USER_TEMPLATES_FILE = Path("data/user_templates.json")
 
 
 @dataclass
@@ -23,6 +26,10 @@ class Template:
     layout: Dict[str, Any]  # 布局配置
     applicable_scenes: List[str]  # 适用场景
     example: str  # 示例描述
+    is_ugc: bool = False
+    author: str = "system"
+    visibility: str = "public"
+    created_at: str = ""
 
 
 class TemplateManager:
@@ -31,6 +38,31 @@ class TemplateManager:
     def __init__(self):
         self.template_dir = Path(__file__).parent.parent / "templates"
         self._templates = self._load_templates()
+        self._load_user_templates()
+    
+    def _load_user_templates(self):
+        """加载用户模板"""
+        if USER_TEMPLATES_FILE.exists():
+            with open(USER_TEMPLATES_FILE, encoding="utf-8") as f:
+                self.user_templates: List[dict] = json.load(f)
+        else:
+            self.user_templates = []
+    
+    def _save_user_templates(self):
+        USER_TEMPLATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(USER_TEMPLATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.user_templates, f, indent=2, ensure_ascii=False)
+    
+    def add_user_template(self, template: dict):
+        self.user_templates.append(template)
+        self._save_user_templates()
+    
+    def remove_user_template(self, template_id: str):
+        self.user_templates = [t for t in self.user_templates if t["id"] != template_id]
+        self._save_user_templates()
+    
+    def get_user_templates(self, user_id: str = "current_user") -> list:
+        return [t for t in self.user_templates if t.get("author") == user_id or t.get("visibility") == "public"]
         
     def _load_templates(self) -> Dict[str, Template]:
         """加载模板"""

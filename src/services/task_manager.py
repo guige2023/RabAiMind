@@ -249,49 +249,154 @@ class TaskManager:
             task = self.tasks.get(task_id, {})
             return task.get("outline")
 
-    def create_version(self, task_id: str, label: str = "") -> Optional[str]:
-        """创建版本快照"""
+    def create_version(self, task_id: str, version_name: str = None) -> dict:
+        """创建任务快照版本"""
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
-                return None
+                raise ValueError(f"Task {task_id} not found")
 
-            version_id = f"v{len(task.get('versions', [])) + 1}_{task_id[:8]}"
-            version = {
+            version_id = f"v{int(time.time() * 1000)}"
+            version_data = {
                 "version_id": version_id,
-                "label": label or f"版本 {len(task.get('versions', [])) + 1}",
+                "task_id": task_id,
+                "name": version_name or f"版本 {len(task.get('versions', [])) + 1}",
                 "created_at": get_timestamp(),
-                "slides_summary": task.get("result", {}).get("slides_summary", []),
+                "config": {
+                    "scene": task.get("result", {}).get("scene", "business"),
+                    "style": task.get("result", {}).get("style", "professional"),
+                    "slides": task.get("result", {}).get("slides_summary", []),
+                },
+                "svg_paths": task.get("result", {}).get("svg_paths", []),
                 "pptx_path": task.get("result", {}).get("pptx_path", ""),
-                "style": task.get("style", ""),
-                "scene": task.get("scene", ""),
+                "outline": task.get("outline", ""),
             }
 
             if "versions" not in task:
                 task["versions"] = []
-            task["versions"].append(version)
+            task["versions"].append(version_data)
 
-            return version_id
+            return {"success": True, "version_id": version_id}
 
-    def list_versions(self, task_id: str) -> List[dict]:
-        """列出所有版本"""
+    def list_versions(self, task_id: str) -> list:
+        """列出任务所有版本"""
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
                 return []
-            return task.get("versions", [])
+            return [
+                {
+                    "version_id": v["version_id"],
+                    "name": v["name"],
+                    "created_at": v["created_at"],
+                    "slide_count": len(v.get("config", {}).get("slides", [])),
+                }
+                for v in sorted(task.get("versions", []), key=lambda x: x["created_at"])
+            ]
 
-    def get_version(self, task_id: str, version_id: str) -> Optional[dict]:
-        """获取指定版本"""
+    def get_version(self, task_id: str, version_id: str) -> dict:
+        """获取指定版本详情"""
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
-                return None
-            versions = task.get("versions", [])
-            for v in versions:
+                raise ValueError(f"Task {task_id} not found")
+
+            for v in task.get("versions", []):
                 if v["version_id"] == version_id:
-                    return v
-            return None
+                    return {"success": True, "version": v}
+
+            raise ValueError(f"Version {version_id} not found")
+
+    def rollback_version(self, task_id: str, version_id: str) -> dict:
+        """回滚到指定版本"""
+        version = self.get_version(task_id, version_id)
+        if not version.get("success"):
+            raise ValueError(f"Cannot rollback: version not found")
+
+        v = version["version"]
+
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            # 保存当前为新版本（回滚前的快照）
+            rollback_snapshot_id = f"v{int(time.time() * 1000)}"
+            rollback_snapshot = {
+                "version_id": rollback_snapshot_id,
+                "task_id": task_id,
+                "name": "回滚前快照",
+                "created_at": get_timestamp(),
+                "config": {
+                    "scene": task.get("result", {}).get("scene", "business"),
+                    "style": task.get("result", {}).get("style", "professional"),
+                    "slides": task.get("result", {}).get("slides_summary", []),
+                },
+                "svg_paths": task.get("result", {}).get("svg_paths", []),
+                "pptx_path": task.get("result", {}).get("pptx_path", ""),
+                "outline": task.get("outline", ""),
+            }
+            if "versions" not in task:
+                task["versions"] = []
+            task["versions"].append(rollback_snapshot)
+
+            # 恢复版本数据
+            if task.get("result"):
+                task["result"]["scene"] = v["config"]["scene"]
+                task["result"]["style"] = v["config"]["style"]
+                task["result"]["slides_summary"] = v["config"]["slides"]
+                task["result"]["svg_paths"] = v["svg_paths"]
+                task["result"]["pptx_path"] = v["pptx_path"]
+            task["outline"] = v.get("outline", "")
+
+            # 创建回滚后新版本标记
+            post_rollback_id = f"v{int(time.time() * 1000)}"
+            post_rollback_version = {
+                "version_id": post_rollback_id,
+                "task_id": task_id,
+                "name": f"回滚到: {v['name']}",
+                "created_at": get_timestamp(),
+                "config": v["config"],
+                "svg_paths": v["svg_paths"],
+                "pptx_path": v["pptx_path"],
+                "outline": v.get("outline", ""),
+            }
+            task["versions"].append(post_rollback_version)
+
+        return {"success": True, "message": f"已回滚到 {v['name']}"}
+
+    def diff_versions(self, task_id: str, version_id_a: str, version_id_b: str) -> dict:
+        """对比两个版本的差异"""
+        v_a = self.get_version(task_id, version_id_a)["version"]
+        v_b = self.get_version(task_id, version_id_b)["version"]
+
+        slides_a = v_a.get("config", {}).get("slides", [])
+        slides_b = v_b.get("config", {}).get("slides", [])
+
+        diff = []
+        max_len = max(len(slides_a), len(slides_b))
+
+        for i in range(max_len):
+            slide_a = slides_a[i] if i < len(slides_a) else None
+            slide_b = slides_b[i] if i < len(slides_b) else None
+
+            if slide_a != slide_b:
+                diff.append({
+                    "slide_index": i + 1,
+                    "before": slide_a,
+                    "after": slide_b,
+                    "changed": slide_a is None or slide_b is None or
+                               slide_a.get("title") != slide_b.get("title") or
+                               slide_a.get("content") != slide_b.get("content")
+                })
+
+        return {
+            "success": True,
+            "version_a": v_a["name"],
+            "version_b": v_b["name"],
+            "diff": diff,
+            "total_changes": len(diff)
+        }
 
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
         """注册异步任务引用（线程安全）"""
