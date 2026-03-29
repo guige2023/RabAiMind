@@ -17,7 +17,7 @@ const { classifyError } = apiErrors
 
 const createApiClient = (): AxiosInstance => {
   const client = axios.create({
-    baseURL: '/api/v1',
+    baseURL: 'http://localhost:8003/api/v1',
     timeout: 120000,
     headers: {
       'Content-Type': 'application/json'
