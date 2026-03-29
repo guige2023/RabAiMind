@@ -397,16 +397,28 @@ const generateChartFromData = async () => {
 // AI重新生成大纲
 const generateOutline = async () => {
   isLoading.value = true
-  try {
-    const request = route.query.request as string || '商务演示'
+  console.log('[generateOutline] 🚀 开始生成大纲')
+  console.log('[generateOutline] 请求内容:', route.query.request)
 
-    // 尝试调用后端API生成大纲
-    try {
-      const { api } = await import('../api/client')
-      const response = await api.ppt.plan(request)
-      if (response && response.data && response.data.slides) {
-        // 使用API返回的大纲
-        outline.slides = response.data.slides.map((s: any, i: number) => ({
+  const request = route.query.request as string || '商务演示'
+
+  // 尝试调用后端API生成大纲
+  try {
+    const { api } = await import('../api/client')
+    console.log('[generateOutline] 📡 调用 api.ppt.plan API...')
+
+    const response = await api.ppt.plan(request)
+    console.log('[generateOutline] ✅ API响应收到:', JSON.stringify(response?.data)?.substring(0, 500))
+
+    // 检查响应结构
+    if (response?.data) {
+      const data = response.data as any
+      console.log('[generateOutline] 响应 data.success:', data.success)
+      console.log('[generateOutline] 响应 data.slides:', data.slides?.length, '页')
+
+      if (data.success && data.slides && data.slides.length > 0) {
+        console.log('[generateOutline] ✅ 使用API返回的大纲，共', data.slides.length, '页')
+        outline.slides = data.slides.map((s: any, i: number) => ({
           id: generateId(),
           title: s.title || `第${i + 1}页`,
           content: Array.isArray(s.content) ? s.content.join('\n') : (s.content || ''),
@@ -414,18 +426,35 @@ const generateOutline = async () => {
         }))
         isLoading.value = false
         return
+      } else {
+        console.warn('[generateOutline] ⚠️ API返回但 success=false 或 slides 为空:', JSON.stringify(data)?.substring(0, 300))
       }
-    } catch (apiError) {
-      console.warn('API调用失败，使用本地智能生成:', apiError)
     }
+  } catch (apiError: any) {
+    console.error('[generateOutline] ❌ API调用异常:', apiError?.message || apiError?.code || 'unknown')
+    console.error('[generateOutline] 错误详情:', apiError?.response?.status, apiError?.response?.data)
 
-    // API不可用时使用本地智能生成
-    await new Promise(resolve => setTimeout(resolve, 800))
+    // 网络错误 - 后端可能没启动，显示友好提示
+    if (!apiError?.response || apiError?.code === 'ERR_NETWORK' || apiError?.message?.includes('Network')) {
+      console.warn('[generateOutline] 🌐 检测到网络错误，后端服务可能未启动')
+      isLoading.value = false
+      alert('⚠️ 无法连接到后端服务\n\n请确保后端服务已启动:\ncd /Users/guige/my_project/RabAiMind\nsource .venv/bin/activate\npython3 -m uvicorn src.main:app --host 127.0.0.1 --port 8003\n\n如果后端已启动，请检查浏览器控制台获取更多信息。')
+      return
+    }
+  }
 
-    // 智能生成基于用户请求
-    const requestLower = request.toLowerCase()
-    let slideData: any[]
+  // 只有API真正失败（网络/服务器错误）才走mock
+  // 如果API返回了但数据为空，业务逻辑不应走mock而是让用户重试
+  console.log('[generateOutline] 🔄 API不可用，走本地智能生成作为兜底')
 
+  // API不可用时使用本地智能生成
+  await new Promise(resolve => setTimeout(resolve, 800))
+
+  // 智能生成基于用户请求
+  const requestLower = request.toLowerCase()
+  let slideData: any[]
+
+  try {
     if (requestLower.includes('商务') || requestLower.includes('企业') || requestLower.includes('公司')) {
       slideData = [
         { title: request, content: '副标题\n演讲者：姓名', layout: 'title' },
@@ -483,12 +512,12 @@ const generateOutline = async () => {
       content: s.content,
       layout: s.layout
     }))
-  } catch (e) {
-    console.error('生成失败:', e)
-    alert('生成失败，请重试')
-  } finally {
-    isLoading.value = false
-  }
+    } catch (e) {
+      console.error('生成失败:', e)
+      alert('生成失败，请重试')
+    } finally {
+      isLoading.value = false
+    }
 }
 
 // 加载模板
