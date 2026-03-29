@@ -1,14 +1,5 @@
 <template>
   <div class="outline-edit-page">
-    <!-- DEBUG BAR -->
-    <div :style="{position:'fixed',top:0,left:0,right:0,background:'#111',color:'#0f0',zIndex:9999,padding:'6px 12px',fontFamily:'monospace',fontSize:12,maxHeight:100,overflowY:'auto',display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}">
-      <span>🔍 slides={{ outline.slides.length }}</span>
-      <span>src=<b>{{ debugSrc }}</b></span>
-      <span v-if="outline.slides[0]" style="color:#fa0">s0="<b>{{ outline.slides[0].title }}</b>" content="{{ outline.slides[0].content?.substring(0,20) }}"</span>
-      <button @click="debugSrc='btn'; generateOutline()" style="padding:1px 6px;cursor:pointer;">🔄AI生成</button>
-      <button @click="debugSrc='test'; testAPI()" style="padding:1px 6px;cursor:pointer;">🌐testAPI</button>
-      <span id="dbg-res" style="color:#f44;margin-left:8px;"></span>
-    </div>
     <div class="outline-header">
       <div class="header-left">
         <button class="btn-back" @click="goBack">

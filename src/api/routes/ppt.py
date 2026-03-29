@@ -110,7 +110,7 @@ async def upload_chart_file(
         )
 
 
-@router.get("/chart/preview/{task_id}")
+@router.post("/chart/preview/{task_id}")
 async def preview_chart_columns(
     task_id: str,
     file: UploadFile = File(...),

@@ -61,9 +61,18 @@ class VolcEngineAPI:
         Returns:
             生成结果字典
         """
+        # P0 修复: key 为空时快速失败
+        if not self.api_key:
+            logger.error("VOLCANO_API_KEY 未配置，请检查 .env 文件")
+            return {
+                "success": False,
+                "error": "VOLCANO_API_KEY 未配置，AI 功能不可用",
+                "model": model
+            }
+
         base = f"{self.endpoint}/api/v3"
         url = f"{base}/chat/completions" if not self.project_id else f"{base}/projects/{self.project_id}/chat/completions"
-        
+
         payload = {
             "model": model,
             "messages": [
@@ -72,10 +81,10 @@ class VolcEngineAPI:
             "temperature": temperature,
             "max_tokens": max_tokens
         }
-        
+
         try:
             response = requests.post(
-                url, 
+                url,
                 headers=self._get_headers(), 
                 json=payload,
                 timeout=self.timeout
@@ -114,9 +123,14 @@ class VolcEngineAPI:
         Returns:
             理解结果
         """
+        # P0 修复: key 为空时快速失败
+        if not self.api_key:
+            logger.error("VOLCANO_API_KEY 未配置，请检查 .env 文件")
+            return {"success": False, "error": "VOLCANO_API_KEY 未配置"}
+
         base = f"{self.endpoint}/api/v3"
         url = f"{base}/chat/completions" if not self.project_id else f"{base}/projects/{self.project_id}/chat/completions"
-        
+
         payload = {
             "model": model,
             "messages": [
@@ -177,9 +191,14 @@ class VolcEngineAPI:
         Returns:
             生成结果
         """
+        # P0 修复: key 为空时快速失败
+        if not self.api_key:
+            logger.error("VOLCANO_API_KEY 未配置，请检查 .env 文件")
+            return {"success": False, "error": "VOLCANO_API_KEY 未配置"}
+
         base = f"{self.endpoint}/api/v3"
         url = f"{base}/images/generations" if not self.project_id else f"{base}/projects/{self.project_id}/images/generations"
-        
+
         payload = {
             "model": model,
             "prompt": prompt,

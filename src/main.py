@@ -48,6 +48,19 @@ async def startup_event():
     logger.info(f"配置: 端口={settings.API_PORT}, 日志级别={settings.LOG_LEVEL}")
     logger.info(f"CORS 允许源: {settings.CORS_ORIGINS}")
 
+    # P0 修复: 校验 VOLCANO_API_KEY
+    if not settings.VOLCANO_API_KEY:
+        logger.warning("⚠️ VOLCANO_API_KEY 未配置，AI 生成功能将无法使用！")
+    else:
+        logger.info(f"✅ VOLCANO_API_KEY 已配置 (key前4位: {settings.VOLCANO_API_KEY[:4]}...)")
+
+    # P0 修复: 校验认证配置
+    if settings.API_AUTH_ENABLED:
+        if settings.JWT_SECRET == "your-secret-key-change-in-production":
+            logger.warning("⚠️ API_AUTH 已启用但使用了默认 JWT_SECRET，请在 .env 中设置强密钥！")
+        else:
+            logger.info("✅ API 认证已启用")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
