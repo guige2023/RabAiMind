@@ -6,7 +6,7 @@ API 路由定义
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -299,7 +299,7 @@ async def generate_ppt(request: GenerateRequest):
         # 异步执行生成任务 - 保存 task 引用以便跟踪和取消
         async def run_task():
             try:
-                await get_ppt_generator().generate(
+                result = await get_ppt_generator().generate(
                     task_id=task_id,
                     user_request=safe_request,  # 使用过滤后的安全输入
                     slide_count=request.slide_count,
@@ -329,6 +329,9 @@ async def generate_ppt(request: GenerateRequest):
                     unified_layout=request.unified_layout,
                     pre_generated_slides=request.pre_generated_slides
                 )
+                # 检查生成结果：generate()内部已调用fail_task标记失败
+                if isinstance(result, dict) and not result.get("success", True):
+                    logger.warning(f"任务 {task_id} 生成失败（generate返回success=False）")
             except asyncio.CancelledError:
                 # 任务被取消：更新状态为 cancelled
                 logger.info(f"任务 {task_id} 已被取消")
@@ -426,13 +429,13 @@ async def get_task_preview(request: Request, task_id: str):
 
     # 获取SVG文件列表
     svg_files = []
-    output_dir = settings.OUTPUT_DIR
+    task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
 
-    # 查找该任务的所有SVG文件
-    if os.path.exists(output_dir):
-        for filename in os.listdir(output_dir):
-            if filename.startswith(f"slide_") and filename.endswith(f"_{task_id}.svg"):
-                slide_num = int(filename.split("_")[1])
+    # 查找该任务目录中的SVG文件
+    if os.path.exists(task_output_dir):
+        for filename in os.listdir(task_output_dir):
+            if filename.startswith("slide_") and filename.endswith(".svg"):
+                slide_num = int(filename.replace("slide_", "").replace(".svg", ""))
                 svg_files.append({
                     "slide_num": slide_num,
                     "filename": filename,
@@ -477,8 +480,8 @@ async def get_svg_file(task_id: str, slide_num: int):
             detail="无效的页码"
         )
 
-    filename = f"slide_{slide_num}_{task_id}.svg"
-    filepath = os.path.join(settings.OUTPUT_DIR, filename)
+    filename = f"slide_{slide_num}.svg"
+    filepath = os.path.join(settings.OUTPUT_DIR, task_id, filename)
 
     if not os.path.exists(filepath):
         raise HTTPException(
@@ -1091,8 +1094,10 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         else:
             svg_code = gen._generate_svg(slide_data, slide_index)
         
-        # 保存SVG文件
-        svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_index}_{task_id}.svg")
+        # 保存SVG文件到任务目录
+        task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
+        os.makedirs(task_output_dir, exist_ok=True)
+        svg_path = os.path.join(task_output_dir, f"slide_{slide_index}.svg")
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_code)
         

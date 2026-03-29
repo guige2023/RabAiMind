@@ -229,12 +229,16 @@ class PPTGenerator:
             svg_files = []
             completed = 0
             total = len(slides_content)
+            
+            # 使用任务专属目录，避免多任务文件冲突
+            task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
+            os.makedirs(task_output_dir, exist_ok=True)
 
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
                     slide_num, svg_code = future.result()
-                    svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_{task_id}.svg")
+                    svg_path = os.path.join(task_output_dir, f"slide_{slide_num}.svg")
                     with open(svg_path, 'w', encoding='utf-8') as f:
                         f.write(svg_code)
                     svg_files.append(svg_path)
@@ -248,15 +252,16 @@ class PPTGenerator:
                     )
                     logger.info(f"slide {slide_num} SVG生成完成")
 
-            # 按页码排序
-            svg_files.sort(key=lambda x: int(x.split('_')[-2]))
+            # 按页码排序（从文件名中提取页码）
+            from pathlib import Path
+            svg_files.sort(key=lambda x: int(Path(x).stem.split('_')[-1]))
 
             task_manager.update_progress(task_id, 80, f"渲染完成，共{len(slides_content)}页", "processing")
 
             # 4. SVG转PPT - 80%~95%
             task_manager.update_progress(task_id, 85, "正在生成PPTX文件...", "processing")
             output_path = os.path.join(
-                settings.OUTPUT_DIR,
+                task_output_dir,
                 f"presentation_{task_id}.pptx"
             )
 
@@ -303,14 +308,13 @@ class PPTGenerator:
                 # 保留SVG文件路径
                 output_files["svg_paths"] = svg_files
             elif output_format == "png":
-                # 转换为PNG
-                png_dir = os.path.join(settings.OUTPUT_DIR, f"png_{task_id}")
-                os.makedirs(png_dir, exist_ok=True)
+                # 转换为PNG（使用任务目录）
+                png_dir = task_output_dir
                 png_paths = self._convert_svg_to_png(svg_files, png_dir, quality)
                 output_files["png_paths"] = png_paths
             elif output_format == "pdf":
-                # 转换为PDF
-                pdf_path = os.path.join(settings.OUTPUT_DIR, f"presentation_{task_id}.pdf")
+                # 转换为PDF（使用任务目录）
+                pdf_path = os.path.join(task_output_dir, f"presentation_{task_id}.pdf")
                 self._svg_to_pdf(svg_files, pdf_path)
                 output_files["pdf_path"] = pdf_path
 
@@ -670,8 +674,10 @@ class PPTGenerator:
         # 生成 slide index
         slide_index = self._get_next_slide_index(task_id)
         
-        # 保存 SVG 文件
-        svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_index}_{task_id}.svg")
+        # 保存 SVG 文件到任务目录
+        task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
+        os.makedirs(task_output_dir, exist_ok=True)
+        svg_path = os.path.join(task_output_dir, f"slide_{slide_index}.svg")
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_content)
         
