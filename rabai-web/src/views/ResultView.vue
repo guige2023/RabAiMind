@@ -663,6 +663,7 @@ const styleOptions = [
 // 保留原始生成配置（用于重新生成时保留 scene/style）
 const originalScene = ref('')
 const originalStyle = ref('professional')
+const originalRequest = ref('')
 const includeCharts = ref(false)
 
 // 图表配置
@@ -828,10 +829,10 @@ const regenerateWithEdits = async () => {
 
     // Step 2: 调用后端API创建新任务
     const response = await api.ppt.createTask({
-      user_request: 'PPT生成（重新编辑）',
+      user_request: originalRequest.value || '用户重新编辑大纲并生成PPT',
       slide_count: preGeneratedSlides.length,
-      scene: originalScene.value,
-      style: originalStyle.value,
+      scene: originalScene.value || 'business',
+      style: originalStyle.value || 'professional',
       pre_generated_slides: preGeneratedSlides,
       include_charts: includeCharts.value,
     })
@@ -974,6 +975,8 @@ const loadStatus = async () => {
       originalScene.value = data.result.scene || data.scene || 'business'
       originalStyle.value = data.result.style || data.style || 'professional'
       includeCharts.value = data.result.include_charts || false
+      // 保留原始用户需求（用于重新生成）
+      originalRequest.value = data.user_request || ''
       // 同步到图表配置
       chartConfig.value.include_charts = includeCharts.value
     } else if (data.status === 'failed') {

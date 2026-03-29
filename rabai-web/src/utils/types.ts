@@ -161,6 +161,7 @@ export interface TaskStatusResponse {
   updated_at: string
   result?: TaskResult
   error?: TaskError
+  user_request?: string
 }
 
 export interface SlidePreview {

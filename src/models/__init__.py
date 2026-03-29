@@ -276,6 +276,7 @@ class TaskStatusResponse(BaseModel):
     updated_at: str
     result: Optional[TaskResult] = None
     error: Optional[TaskError] = None
+    user_request: Optional[str] = Field(default=None, description="用户原始需求，用于重新生成时保留")
 
 
 # ==================== 数据模型 ====================

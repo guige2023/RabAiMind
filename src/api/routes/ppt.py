@@ -395,7 +395,8 @@ async def get_task_status(task_id: str):
         created_at=task["created_at"],
         updated_at=task.get("updated_at", task["created_at"]),
         result=TaskResult(**task["result"]) if task.get("result") else None,
-        error=TaskError(**task["error"]) if task.get("error") else None
+        error=TaskError(**task["error"]) if task.get("error") else None,
+        user_request=task.get("user_request"),
     )
 
 

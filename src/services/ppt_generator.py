@@ -430,12 +430,21 @@ class PPTGenerator:
         return self._get_fallback_image_url(slide, slide_num)
 
     def _build_image_prompt(self, title: str, content, slide_type: str) -> str:
-        """构建AI图片提示词"""
+        """构建AI图片提示词
+
+        Args:
+            title: 幻灯片标题
+            content: 幻灯片内容，支持两种格式：
+                - str: 换行分隔的字符串，会按换行分割取前3行
+                - list: 字符串列表，直接取前3项
+            slide_type: 幻灯片类型 (title/toc/content/chart/等)
+        """
         # 如果 content 是字符串，按换行分割
         if isinstance(content, str):
             content_lines = [c.strip() for c in content.split('\n') if c.strip()]
         elif isinstance(content, list):
-            content_lines = content
+            # 列表：过滤空项，保持原有顺序
+            content_lines = [c for c in content if c and isinstance(c, str) and c.strip()]
         else:
             content_lines = []
         
