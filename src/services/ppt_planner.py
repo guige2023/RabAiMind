@@ -16,6 +16,77 @@ from ..config import settings
 from ..models import LayoutType
 
 
+# ===== 场景化 Prompt 模板 =====
+SCENE_PROMPTS = {
+    "business": {
+        "system": """你是一位资深商务咨询顾问，擅长为企业管理培训、市场分析、投资汇报设计专业演示文稿。
+你的输出必须体现：
+- 逻辑清晰、数据驱动
+- 商业术语规范（OKR/KPI/ROI等）
+- 简洁有力的表达风格
+- 适合高管决策场景""",
+        "content_template": "用户需求是商业场景：{user_request}",
+        "layout_priority": ["title_full", "center", "left_text_right_image", "card"],
+    },
+    "education": {
+        "system": """你是一位优秀的教育工作者，擅长设计课程课件、教学PPT、培训教材。
+你的输出必须体现：
+- 知识由浅入深、循序渐进
+- 适合课堂讲解和学生理解
+- 包含思考题或互动环节设计
+- 视觉辅助丰富（图表、示意图）""",
+        "content_template": "用户需求是教育培训场景：{user_request}",
+        "layout_priority": ["title_full", "center", "left_text_right_image", "three_column", "card"],
+    },
+    "government": {
+        "system": """你是一位政府公文写作专家，擅长撰写政策解读、工作汇报、政务宣传类演示文稿。
+你的输出必须体现：
+- 严谨规范、符合党政机关公文格式
+- 政策依据明确
+- 层次分明（总-分-总结构）
+- 用词准确、不夸张""",
+        "content_template": "用户需求是政府政务场景：{user_request}",
+        "layout_priority": ["title_full", "center", "left_text_right_image"],
+    },
+    "creative": {
+        "system": """你是一位顶尖创意策划师，擅长品牌营销、活动宣传、创意提案类演示文稿。
+你的输出必须体现：
+- 创意新颖、视觉冲击力强
+- 品牌调性鲜明
+- 传播性高（适合分享和展示）
+- 设计感强烈""",
+        "content_template": "用户需求是创意营销场景：{user_request}",
+        "layout_priority": ["title_full", "left_image_right_text", "card", "three_column"],
+    },
+    "investment": {
+        "system": """你是一位资深投融资顾问，擅长为创业者、投资人设计商业计划书和融资路演PPT。
+你的输出必须体现：
+- 商业模式清晰（痛点-方案-市场-盈利）
+- 数据支撑充分
+- 竞争分析专业
+- 团队背景突出""",
+        "content_template": "用户需求是投融资路演场景：{user_request}",
+        "layout_priority": ["title_full", "center", "left_text_right_image", "card"],
+    },
+}
+
+# ===== 风格 Prompt 补充 =====
+STYLE_PROMPTS = {
+    "professional": {
+        "extra": "风格：专业商务，使用思源黑体/Arial，内容简洁有力，适合正式场合。"
+    },
+    "creative": {
+        "extra": "风格：创意活力，使用潮流字体，内容富有感染力和传播性。"
+    },
+    "minimalist": {
+        "extra": "风格：极简主义，大量留白，信息精炼，一目了然。"
+    },
+    "classic": {
+        "extra": "风格：经典传统，版式端正，字体正式，适合正式汇报。"
+    },
+}
+
+
 def _get_volc_config() -> dict:
     """延迟获取火山引擎配置，避免模块级读取 .env"""
     return {
@@ -172,12 +243,14 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     return None
 
 
-def plan_ppt(user_request: str, slide_count: int = 5, temperature: float = 0.7) -> List[Dict]:
+def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
+              style: str = "professional", temperature: float = 0.7) -> List[Dict]:
     """
     让AI规划PPT的完整结构
 
     P0修复: 默认方案现在会结合用户需求
     P2修复: temperature可配置
+    场景化: scene/style 参数支持不同场景定制
 
     包括：
     1. 每页的布局类型
@@ -185,10 +258,20 @@ def plan_ppt(user_request: str, slide_count: int = 5, temperature: float = 0.7) 
     3. 文字和图片的互补关系
     """
 
-    # P1修复: 在Prompt中添加布局说明
-    prompt = f"""你是一个顶级的PPT策划专家。请根据用户需求设计一个专业的演示文稿。
+    # 获取场景 Prompt
+    scene_config = SCENE_PROMPTS.get(scene, SCENE_PROMPTS["business"])
+    style_config = STYLE_PROMPTS.get(style, STYLE_PROMPTS["professional"])
 
-用户需求：{user_request}
+    # 构建完整 Prompt
+    system_prompt = scene_config["system"] + "\n" + style_config["extra"]
+    user_prompt = scene_config["content_template"].format(user_request=user_request)
+
+    # 加入布局指导
+    layout_guide = "优先使用的布局类型：" + "、".join(scene_config["layout_priority"])
+
+    prompt = f"""{system_prompt}
+
+{user_prompt}
 
 请设计{slide_count}页PPT的完整方案。
 
@@ -200,6 +283,8 @@ def plan_ppt(user_request: str, slide_count: int = 5, temperature: float = 0.7) 
 - three_column: 三栏布局，适合对比或特点展示
 - card: 卡片式布局，适合案例或团队介绍
 - thank_you: 结束页
+
+{layout_guide}
 
 **【重要要求】**
 1. 内容必须专业、实用、有深度
@@ -444,11 +529,24 @@ def _extract_keywords(user_request: str) -> Dict:
         }
 
 
-def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float = 0.7) -> Generator[str, None, None]:
-    """P2修复: 流式输出支持"""
-    prompt = f"""你是一个顶级的PPT策划专家。请根据用户需求设计一个专业的演示文稿。
+def plan_ppt_stream(user_request: str, slide_count: int = 5, scene: str = "business",
+                     style: str = "professional", temperature: float = 0.7) -> Generator[str, None, None]:
+    """P2修复: 流式输出支持，场景化"""
 
-用户需求：{user_request}
+    # 获取场景 Prompt
+    scene_config = SCENE_PROMPTS.get(scene, SCENE_PROMPTS["business"])
+    style_config = STYLE_PROMPTS.get(style, STYLE_PROMPTS["professional"])
+
+    # 构建完整 Prompt
+    system_prompt = scene_config["system"] + "\n" + style_config["extra"]
+    user_prompt = scene_config["content_template"].format(user_request=user_request)
+
+    # 加入布局指导
+    layout_guide = "优先使用的布局类型：" + "、".join(scene_config["layout_priority"])
+
+    prompt = f"""{system_prompt}
+
+{user_prompt}
 
 请设计{slide_count}页PPT的完整方案。
 
@@ -460,6 +558,8 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
 - three_column: 三栏布局
 - card: 卡片式布局
 - thank_you: 结束页
+
+{layout_guide}
 
 返回JSON格式：
 {{

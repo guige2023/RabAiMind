@@ -209,6 +209,8 @@ class TaskManager:
 
         # 云端同步（在锁外执行，避免阻塞）
         if task_copy:
+            # 自动创建第一个版本
+            self.create_version(task_id, "初始版本")
             self._sync_service.push_task(task_id, task_copy)
 
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
@@ -244,6 +246,50 @@ class TaskManager:
         with self._task_lock:
             task = self.tasks.get(task_id, {})
             return task.get("outline")
+
+    def create_version(self, task_id: str, label: str = "") -> Optional[str]:
+        """创建版本快照"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return None
+
+            version_id = f"v{len(task.get('versions', [])) + 1}_{task_id[:8]}"
+            version = {
+                "version_id": version_id,
+                "label": label or f"版本 {len(task.get('versions', [])) + 1}",
+                "created_at": get_timestamp(),
+                "slides_summary": task.get("result", {}).get("slides_summary", []),
+                "pptx_path": task.get("result", {}).get("pptx_path", ""),
+                "style": task.get("style", ""),
+                "scene": task.get("scene", ""),
+            }
+
+            if "versions" not in task:
+                task["versions"] = []
+            task["versions"].append(version)
+
+            return version_id
+
+    def list_versions(self, task_id: str) -> List[dict]:
+        """列出所有版本"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            return task.get("versions", [])
+
+    def get_version(self, task_id: str, version_id: str) -> Optional[dict]:
+        """获取指定版本"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return None
+            versions = task.get("versions", [])
+            for v in versions:
+                if v["version_id"] == version_id:
+                    return v
+            return None
 
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
         """注册异步任务引用（线程安全）"""

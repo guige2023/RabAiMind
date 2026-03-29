@@ -837,3 +837,83 @@ async def plan_ppt(request: PlanRequest):
             slides=[],
             message="大纲生成失败，请稍后重试"
         )
+
+
+@router.get("/outline/export/{task_id}")
+async def export_outline_json(task_id: str):
+    """导出大纲为 JSON（支持跨设备同步）"""
+    from ...services.task_manager import get_task_manager
+    from ...services.utils import get_timestamp
+
+    tm = get_task_manager()
+    outline = tm.get_outline(task_id)
+    task = tm.get_task(task_id)
+    versions = tm.list_versions(task_id)
+
+    return {
+        "success": True,
+        "outline": outline,
+        "metadata": {
+            "task_id": task_id,
+            "scene": task.get("scene") if task else None,
+            "style": task.get("style") if task else None,
+            "versions": versions,
+            "exported_at": get_timestamp(),
+        }
+    }
+
+
+@router.post("/outline/import")
+async def import_outline_json():
+    """导入大纲 JSON（跨设备同步）- 返回模板，实际导入由 /outline/save 处理"""
+    from ...services.utils import get_timestamp
+
+    template = {
+        "version": "1.0",
+        "slides": [
+            {"title": "封面标题", "content": "副标题", "layout": "title", "slide_type": "title"},
+            {"title": "目录", "content": "内容1\n内容2\n内容3", "layout": "center", "slide_type": "toc"},
+            {"title": "内容页", "content": "核心内容", "layout": "left_text_right_image", "slide_type": "content"},
+        ],
+        "scene": "business",
+        "style": "professional",
+    }
+    return {
+        "success": True,
+        "template": template,
+        "instructions": "填写 slides 数组后，调用 /outline/save 接口保存到任务"
+    }
+
+
+@router.post("/outline/save/{task_id}")
+async def save_outline_json(task_id: str, request: Dict[str, Any]):
+    """保存导入的大纲 JSON 到任务"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    outline = request.get("outline", request)
+    tm.save_outline(task_id, outline)
+
+    return {"success": True, "message": "大纲已保存"}
+
+
+@router.get("/versions/{task_id}")
+async def list_task_versions(task_id: str):
+    """列出任务的所有版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    versions = tm.list_versions(task_id)
+    return {"success": True, "versions": versions}
+
+
+@router.get("/versions/{task_id}/{version_id}")
+async def get_task_version(task_id: str, version_id: str):
+    """获取指定版本的详细信息"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    version = tm.get_version(task_id, version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="版本不存在")
+    return {"success": True, "version": version}

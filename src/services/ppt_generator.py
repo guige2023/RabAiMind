@@ -166,6 +166,13 @@ class PPTGenerator:
                 logger.info(f"AI规划了 {len(slides_content)} 页")
                 task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
 
+            # 1.5 如果用户启用了图表，增强每页内容
+            if include_charts and slides_content:
+                slides_content = self._enhance_with_charts(
+                    slides_content, include_pie_chart, include_bar_chart, include_line_chart
+                )
+                logger.info(f"图表增强完成，共 {len(slides_content)} 页（含图表页）")
+
             # 2. 为每页生成AI图片 - 20%~45%
             task_manager.update_progress(task_id, 22, f"开始生成{slide_count}张配图...", "processing")
             logger.info("开始生成AI图片...")
@@ -271,7 +278,15 @@ class PPTGenerator:
                 compression_ratio=1.0,
                 quality=quality,
                 output_format=output_format,
-                slides_summary=[{"title": s.get("title",""), "content": s.get("content","")[:100]} for s in slides_content],
+                slides_summary=[
+                    {
+                        "title": s.get("title", ""),
+                        "content": s.get("content", "")[:100],
+                        "has_chart": s.get("slide_type") == "chart",
+                        "chart_type": s.get("chart_data", {}).get("type") if s.get("slide_type") == "chart" else None,
+                    }
+                    for s in slides_content
+                ],
                 svg_paths=[str(p) for p in svg_files]
             )
 
@@ -321,6 +336,54 @@ class PPTGenerator:
         """AI规划PPT内容"""
         from .ppt_planner import plan_ppt
         return plan_ppt(user_request, slide_count)
+
+    def _enhance_with_charts(
+        self,
+        slides_content: List[Dict],
+        include_pie: bool = True,
+        include_bar: bool = True,
+        include_line: bool = False
+    ) -> List[Dict]:
+        """
+        根据场景自动在合适页面插入图表类型说明
+
+        Args:
+            slides_content: 原始幻灯片内容
+            include_pie: 是否包含饼图
+            include_bar: 是否包含柱状图
+            include_line: 是否包含折线图
+        Returns:
+            增强后的幻灯片内容
+        """
+        chart_types = []
+        if include_pie:
+            chart_types.append("饼图")
+        if include_bar:
+            chart_types.append("柱状图")
+        if include_line:
+            chart_types.append("折线图")
+
+        chart_hint = f"【图表】{', '.join(chart_types)}"
+
+        # 在第2-4页插入图表页（合适的位置）
+        insert_pos = min(2, len(slides_content) - 1)
+
+        # 在中间页插入图表页
+        chart_slide = {
+            "title": "数据分析",
+            "content": f"包含以下数据可视化图表：{chart_hint}",
+            "slide_type": "chart",
+            "chart_data": {
+                "type": "auto",
+                "pie": include_pie,
+                "bar": include_bar,
+                "line": include_line,
+            },
+            "layout": "content"
+        }
+
+        slides_content.insert(insert_pos, chart_slide)
+        return slides_content
 
     def _generate_image(self, slide: Dict, slide_num: int = 1) -> Optional[str]:
         """生成AI图片，如果失败则返回备用图片URL"""

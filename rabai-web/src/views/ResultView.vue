@@ -195,6 +195,48 @@
               </div>
             </div>
 
+            <!-- 图表配置 -->
+            <div class="chart-config-section">
+              <div class="export-section-title">图表配置</div>
+              <div class="chart-toggles">
+                <label class="chart-toggle-item">
+                  <span class="chart-toggle-label">包含数据图表</span>
+                  <switch
+                    :checked="chartConfig.include_charts"
+                    @change="chartConfig.include_charts = $event.detail.value"
+                    class="chart-switch"
+                  />
+                </label>
+                <label class="chart-toggle-item" :class="{ disabled: !chartConfig.include_charts }">
+                  <span class="chart-toggle-label">🥧 饼图</span>
+                  <switch
+                    :checked="chartConfig.include_pie_chart"
+                    @change="chartConfig.include_pie_chart = $event.detail.value"
+                    class="chart-switch"
+                    :disabled="!chartConfig.include_charts"
+                  />
+                </label>
+                <label class="chart-toggle-item" :class="{ disabled: !chartConfig.include_charts }">
+                  <span class="chart-toggle-label">📊 柱状图</span>
+                  <switch
+                    :checked="chartConfig.include_bar_chart"
+                    @change="chartConfig.include_bar_chart = $event.detail.value"
+                    class="chart-switch"
+                    :disabled="!chartConfig.include_charts"
+                  />
+                </label>
+                <label class="chart-toggle-item" :class="{ disabled: !chartConfig.include_charts }">
+                  <span class="chart-toggle-label">📈 折线图</span>
+                  <switch
+                    :checked="chartConfig.include_line_chart"
+                    @change="chartConfig.include_line_chart = $event.detail.value"
+                    class="chart-switch"
+                    :disabled="!chartConfig.include_charts"
+                  />
+                </label>
+              </div>
+            </div>
+
             <!-- 导出按钮 -->
             <button
               class="export-confirm-btn"
@@ -320,6 +362,7 @@ const slideCount = ref(0)
 const fileSize = ref('0 KB')
 const errorMessage = ref('')
 const showExportMenu = ref(false)
+const showChartConfig = ref(false)
 const previewLoaded = ref(false)
 const previewSlides = ref<Array<{url: string; slideNum: number}>>([])
 const isFavorite = ref(false)
@@ -332,6 +375,19 @@ const isRegenerating = ref(false)
 
 // 元素微调模式
 const showElementEditor = ref(false)
+
+// 保留原始生成配置（用于重新生成时保留 scene/style）
+const originalScene = ref('')
+const originalStyle = ref('professional')
+const includeCharts = ref(false)
+
+// 图表配置
+const chartConfig = ref({
+  include_charts: false,
+  include_pie_chart: true,
+  include_bar_chart: true,
+  include_line_chart: false,
+})
 
 const handleElementApply = (editedSlides: any) => {
   console.log('元素已更新:', editedSlides)
@@ -416,7 +472,10 @@ const regenerateWithEdits = async () => {
     const response = await api.ppt.createTask({
       user_request: 'PPT生成（重新编辑）',
       slide_count: preGeneratedSlides.length,
+      scene: originalScene.value,
+      style: originalStyle.value,
       pre_generated_slides: preGeneratedSlides,
+      include_charts: includeCharts.value,
     })
 
     // 跳转到生成页面，使用新任务ID
@@ -553,6 +612,12 @@ const loadStatus = async () => {
       // 显示实际文件大小
       const bytes = data.result.file_size || 0
       fileSize.value = formatSize(bytes)
+      // 保留原始生成配置
+      originalScene.value = data.result.scene || data.scene || 'business'
+      originalStyle.value = data.result.style || data.style || 'professional'
+      includeCharts.value = data.result.include_charts || false
+      // 同步到图表配置
+      chartConfig.value.include_charts = includeCharts.value
     } else if (data.status === 'failed') {
       errorMessage.value = data.error?.message || '未知错误'
     }
@@ -1336,6 +1401,44 @@ onMounted(() => {
   margin: 12px 0;
   padding-bottom: 12px;
   border-bottom: 1px solid #e5e5e5;
+}
+
+.chart-config-section {
+  margin: 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.chart-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chart-toggle-item.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.chart-toggle-label {
+  font-size: 26rpx;
+  color: #333;
+}
+
+.chart-switch {
+  transform: scale(0.8);
 }
 
 .quality-options {

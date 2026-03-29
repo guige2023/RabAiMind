@@ -11,6 +11,7 @@ from .routes.ppt import router as ppt_router
 from .routes.template import router as template_router
 from .routes.favorites import router as favorites_router
 from .routes.images import router as images_router
+from .routes.brand import router as brand_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -20,3 +21,4 @@ api_router.include_router(ppt_router)
 api_router.include_router(template_router)
 api_router.include_router(favorites_router)
 api_router.include_router(images_router)
+api_router.include_router(brand_router)
