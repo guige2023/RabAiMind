@@ -863,16 +863,23 @@ async def plan_ppt(request: PlanRequest):
         )
 
     try:
-        from src.services.ppt_planner import plan_ppt, sanitize_prompt
+        from src.services.ppt_planner import plan_ppt as plan_service, sanitize_prompt
         safe_request = sanitize_prompt(request.user_request)
 
-        # 用线程池执行同步阻塞调用，避免卡死事件循环
-        result = await asyncio.to_thread(
-            plan_ppt,
-            user_request=safe_request,
-            slide_count=request.slide_count,
-            temperature=0.7
+        # P2 修复: asyncio.to_thread 在 Python 3.14 + uvicorn 下有兼容性问题（挂住90秒无响应）
+        # 改用 loop.run_in_executor + ThreadPoolExecutor 显式管理
+        import concurrent.futures
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            executor,
+            lambda: plan_service(
+                user_request=safe_request,
+                slide_count=request.slide_count,
+                temperature=0.7
+            )
         )
+        executor.shutdown(wait=False)
 
         if result:
             return PlanResponse(
