@@ -147,6 +147,20 @@ class GenerateRequest(BaseModel):
     def validate_hex_color(cls, v):
         return validate_hex_color(v, '颜色')
 
+    @field_validator('scene', mode='before')
+    @classmethod
+    def validate_scene(cls, v):
+        if isinstance(v, str) and v not in [s.value for s in SceneType]:
+            raise ValueError(f'Invalid scene: {v}. Must be one of {[s.value for s in SceneType]}')
+        return v
+
+    @field_validator('style', mode='before')
+    @classmethod
+    def validate_style(cls, v):
+        if isinstance(v, str) and v not in [s.value for s in StyleType]:
+            raise ValueError(f'Invalid style: {v}. Must be one of {[s.value for s in StyleType]}')
+        return v
+
     @field_validator('generation_mode')
     @classmethod
     def validate_generation_mode(cls, v):

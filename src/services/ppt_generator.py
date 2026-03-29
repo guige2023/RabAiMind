@@ -161,7 +161,7 @@ class PPTGenerator:
                 logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
                 task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
                 slides_content = await asyncio.to_thread(
-                    self._plan_ppt, user_request, slide_count
+                    self._plan_ppt, user_request, slide_count, scene=scene, style=style
                 )
                 logger.info(f"AI规划了 {len(slides_content)} 页")
                 task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
@@ -332,10 +332,10 @@ class PPTGenerator:
                 "error": "PPT生成失败，请稍后重试"
             }
 
-    def _plan_ppt(self, user_request: str, slide_count: int) -> List[Dict]:
-        """AI规划PPT内容"""
+    def _plan_ppt(self, user_request: str, slide_count: int, scene: str = "business", style: str = "professional") -> List[Dict]:
+        """AI规划PPT内容，透传 scene/style"""
         from .ppt_planner import plan_ppt
-        return plan_ppt(user_request, slide_count)
+        return plan_ppt(user_request, slide_count, scene=scene, style=style)
 
     def _enhance_with_charts(
         self,

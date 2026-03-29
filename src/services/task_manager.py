@@ -201,7 +201,9 @@ class TaskManager:
                             "mobile": True
                         },
                         "slides_summary": slides_summary or [],
-                        "svg_paths": svg_paths or []
+                        "svg_paths": svg_paths or [],
+                        "scene": self.tasks[task_id].get("scene", "business"),
+                        "style": self.tasks[task_id].get("style", "professional"),
                     }
                 })
                 # 保存一份用于云端推送（避免锁竞争）

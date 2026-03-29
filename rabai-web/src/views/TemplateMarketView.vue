@@ -364,6 +364,7 @@ const {
 
 // Sync with store
 onMounted(() => {
+  store.loadTemplates()
   store.loadFavorites()
 })
 

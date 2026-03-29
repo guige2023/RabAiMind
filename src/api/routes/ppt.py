@@ -6,7 +6,7 @@ API 路由定义
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -34,6 +34,7 @@ from ...models import (
 from ...services.task_manager import get_task_manager
 from ...services.ppt_generator import get_ppt_generator
 from ...services.history_sync_service import get_history_sync_service
+from ...services.template_manager import get_template_manager
 from ...config import settings
 
 # 创建路由
@@ -335,7 +336,7 @@ async def get_task_status(task_id: str):
 
 
 @router.get("/preview/{task_id}")
-async def get_task_preview(task_id: str):
+async def get_task_preview(request: Request, task_id: str):
     """获取任务预览图列表 - 用于实时预览"""
     # 速率限制检查
     if not _check_rate_limit():
@@ -374,7 +375,7 @@ async def get_task_preview(task_id: str):
                 svg_files.append({
                     "slide_num": slide_num,
                     "filename": filename,
-                    "url": f"/api/v1/ppt/svg/{task_id}/{slide_num}"
+                    "url": f"{request.base_url}api/v1/ppt/svg/{task_id}/{slide_num}"
                 })
 
     # 按页码排序
@@ -644,34 +645,22 @@ async def export_pdf(task_id: str):
 
 @router.get("/templates")
 async def get_templates():
-    """获取模板列表"""
-    templates = [
+    """获取模板列表（重定向到真实 TemplateManager）"""
+    manager = get_template_manager()
+    templates = manager.list_templates()
+    return [
         {
-            "id": "default",
-            "name": "默认模板",
-            "description": "通用商务模板",
-            "thumbnail": "/templates/default.png"
-        },
-        {
-            "id": "modern",
-            "name": "现代模板",
-            "description": "简约现代设计",
-            "thumbnail": "/templates/modern.png"
-        },
-        {
-            "id": "tech",
-            "name": "科技模板",
-            "description": "科技感风格",
-            "thumbnail": "/templates/tech.png"
-        },
-        {
-            "id": "classic",
-            "name": "经典模板",
-            "description": "传统商务风格",
-            "thumbnail": "/templates/classic.png"
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "category": t.category,
+            "style": t.style,
+            "thumbnail": t.thumbnail,
+            "colors": t.colors,
+            "fonts": t.fonts,
         }
+        for t in templates
     ]
-    return templates
 
 
 # ==================== 场景和风格 ====================
@@ -917,3 +906,105 @@ async def get_task_version(task_id: str, version_id: str):
     if not version:
         raise HTTPException(status_code=404, detail="版本不存在")
     return {"success": True, "version": version}
+
+
+@router.post("/regenerate/{task_id}/{slide_index}")
+async def regenerate_single_slide(task_id: str, slide_index: int, request: Request):
+    """重新生成某一页幻灯片
+    
+    Args:
+        task_id: 任务ID
+        slide_index: 页码（1-based）
+        request: 包含 scene, style, content, layout 等参数
+    """
+    from ...services.task_manager import get_task_manager
+    from ...services.ppt_generator import PPTGenerator
+    from ...config import settings
+    import os
+
+    # 速率限制检查
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
+
+    tm = get_task_manager()
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    body = await request.json()
+    scene = body.get("scene", "business")
+    style = body.get("style", "professional")
+    content = body.get("content", "")
+    layout = body.get("layout", "content")
+    title = body.get("title", f"第 {slide_index} 页")
+
+    # 构建slide数据
+    slide_data = {
+        "title": title,
+        "content": content,
+        "slide_type": "title" if layout == "title" else "content",
+        "layout": layout,
+        "scene": scene,
+        "style": style
+    }
+
+    # 调用PPTGenerator生成单页SVG
+    gen = PPTGenerator()
+    
+    # 根据task中的配置获取主题色等参数
+    theme_color = task.get("result", {}).get("theme_color", "#165DFF") if task.get("result") else "#165DFF"
+    use_smart_layout = task.get("result", {}).get("use_smart_layout", True) if task.get("result") else True
+
+    try:
+        if use_smart_layout:
+            svg_code = gen._generate_svg_smart_layout(
+                slide_data, 
+                slide_index, 
+                theme_color, 
+                style,
+                layout,
+                text_style="transparent_overlay",
+                shadow_color="#000000",
+                overlay_transparency=30,
+                font_title="思源黑体",
+                font_subtitle="思源黑体",
+                font_content="思源宋体",
+                font_caption="思源黑体",
+                layout_mode="auto",
+                unified_layout=True
+            )
+        else:
+            svg_code = gen._generate_svg(slide_data, slide_index)
+        
+        # 保存SVG文件
+        svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_index}_{task_id}.svg")
+        with open(svg_path, 'w', encoding='utf-8') as f:
+            f.write(svg_code)
+        
+        return {
+            "success": True,
+            "data": {
+                "svg_url": f"/api/v1/ppt/svg/{task_id}/{slide_index}",
+                "slide_index": slide_index
+            },
+            "message": "单页重生成成功"
+        }
+    except Exception as e:
+        logger.error(f"单页重生成失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"重生成失败: {str(e)}"
+        )

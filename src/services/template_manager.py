@@ -21,6 +21,8 @@ class Template:
     colors: List[str]  # 主题色
     fonts: List[str]  # 字体
     layout: Dict[str, Any]  # 布局配置
+    applicable_scenes: List[str]  # 适用场景
+    example: str  # 示例描述
 
 
 class TemplateManager:
@@ -48,7 +50,9 @@ class TemplateManager:
                 "title_position": "center",
                 "content_width": 0.8,
                 "bullet_indent": 0.05
-            }
+            },
+            applicable_scenes=["商务汇报", "项目展示", "会议演讲"],
+            example="适用于日常商务汇报"
         )
         
         templates["modern"] = Template(
@@ -64,7 +68,9 @@ class TemplateManager:
                 "title_position": "left",
                 "content_width": 0.75,
                 "bullet_indent": 0.03
-            }
+            },
+            applicable_scenes=["项目提案", "产品介绍", "个人展示"],
+            example="适合现代感的产品发布和项目提案"
         )
         
         templates["tech"] = Template(
@@ -80,7 +86,9 @@ class TemplateManager:
                 "title_position": "left",
                 "content_width": 0.7,
                 "bullet_indent": 0.04
-            }
+            },
+            applicable_scenes=["技术分享", "AI演示", "科技大会"],
+            example="适合科技公司技术分享和产品演示"
         )
         
         templates["classic"] = Template(
@@ -96,7 +104,9 @@ class TemplateManager:
                 "title_position": "center",
                 "content_width": 0.85,
                 "bullet_indent": 0.06
-            }
+            },
+            applicable_scenes=["政府汇报", "学术答辩", "正式会议"],
+            example="适合正式场合的政务和学术汇报"
         )
         
         templates["creative"] = Template(
@@ -112,7 +122,9 @@ class TemplateManager:
                 "title_position": "center",
                 "content_width": 0.75,
                 "bullet_indent": 0.03
-            }
+            },
+            applicable_scenes=["创意提案", "品牌展示", "营销策划"],
+            example="适合创意行业提案和品牌展示"
         )
         
         templates["education"] = Template(
@@ -128,7 +140,9 @@ class TemplateManager:
                 "title_position": "left",
                 "content_width": 0.8,
                 "bullet_indent": 0.04
-            }
+            },
+            applicable_scenes=["教学课件", "培训演示", "学术报告"],
+            example="适合学校教学和培训课件"
         )
         
         return templates

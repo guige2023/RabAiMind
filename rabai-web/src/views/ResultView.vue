@@ -34,11 +34,20 @@
             <div class="preview-grid" v-else>
               <template v-if="previewSlides.length > 0">
                 <div
-                  v-for="slide in previewSlides.slice(0, 6)"
+                  v-for="(slide, index) in previewSlides.slice(0, 6)"
                   :key="slide.slideNum"
                   class="preview-slide"
                 >
                   <img :src="slide.url" :alt="`第 ${slide.slideNum} 页`" class="preview-image" />
+                  <div class="slide-actions">
+                    <button 
+                      class="btn btn-sm btn-regenerate" 
+                      @click="regenerateSingleSlide(index)"
+                      :disabled="regeneratingSlideIndex === index"
+                    >
+                      {{ regeneratingSlideIndex === index ? '重生成中...' : '🔄 重生成' }}
+                    </button>
+                  </div>
                 </div>
               </template>
               <div v-else class="preview-empty">
@@ -74,6 +83,9 @@
             </button>
             <button class="btn btn-share btn-lg" @click="showShareMenu = !showShareMenu">
               <span>📤</span> 分享
+            </button>
+            <button class="btn btn-tune btn-lg" @click="showLayoutPanel = true">
+              <span>🎨</span> 快速调优
             </button>
             <button class="btn btn-secondary btn-lg" @click="handleNew">
               <span>✨</span> 创建新的
@@ -343,6 +355,81 @@
       @close="showElementEditor = false"
       @apply="handleElementApply"
     />
+
+    <!-- 快速调优侧边栏 -->
+    <div v-if="showLayoutPanel" class="layout-panel-overlay" @click="showLayoutPanel = false">
+      <div class="layout-panel" @click.stop>
+        <div class="panel-header">
+          <h3>🎨 快速调优</h3>
+          <button class="panel-close" @click="showLayoutPanel = false">✕</button>
+        </div>
+        
+        <div class="panel-content">
+          <!-- 布局选择 -->
+          <div class="panel-section">
+            <h4 class="section-title">布局</h4>
+            <div class="layout-options">
+              <div 
+                v-for="layout in layoutOptions" 
+                :key="layout.value"
+                class="layout-item"
+                :class="{ active: selectedLayout === layout.value }"
+                @click="applyLayout(layout.value)"
+              >
+                <span class="layout-icon">{{ layout.icon }}</span>
+                <span class="layout-name">{{ layout.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 配色选择 -->
+          <div class="panel-section">
+            <h4 class="section-title">配色</h4>
+            <div class="color-options">
+              <div 
+                v-for="(scheme, index) in colorSchemes" 
+                :key="index"
+                class="color-item"
+                :class="{ active: selectedColorScheme === index }"
+                @click="applyColorScheme(index)"
+              >
+                <div class="color-swatches">
+                  <span 
+                    v-for="color in scheme.colors" 
+                    :key="color"
+                    class="color-swatch"
+                    :style="{ background: color }"
+                  ></span>
+                </div>
+                <span class="color-name">{{ scheme.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 风格选择 -->
+          <div class="panel-section">
+            <h4 class="section-title">风格</h4>
+            <div class="style-options">
+              <div 
+                v-for="style in styleOptions" 
+                :key="style.value"
+                class="style-item"
+                :class="{ active: selectedStyle === style.value }"
+                @click="applyStyle(style.value)"
+              >
+                <span class="style-icon">{{ style.icon }}</span>
+                <span class="style-name">{{ style.name }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <button class="btn btn-outline" @click="showLayoutPanel = false">关闭</button>
+          <button class="btn btn-primary" @click="applyTuning">应用并重新生成</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -376,6 +463,38 @@ const isRegenerating = ref(false)
 // 元素微调模式
 const showElementEditor = ref(false)
 
+// 快速调优侧边栏
+const showLayoutPanel = ref(false)
+const selectedLayout = ref('左图右文')
+const selectedColorScheme = ref(0)
+const selectedStyle = ref('professional')
+const regeneratingSlideIndex = ref<number | null>(null)
+
+const layoutOptions = [
+  { value: '左图右文', icon: '🖼️', name: '左图右文' },
+  { value: '上图下文', icon: '⬆️', name: '上图下文' },
+  { value: '全图背景', icon: '🎨', name: '全图背景' },
+  { value: '纯文字', icon: '📝', name: '纯文字' },
+  { value: '左文右图', icon: '📖', name: '左文右图' },
+  { value: '双栏', icon: '📊', name: '双栏' },
+]
+
+const colorSchemes = [
+  { name: '商务蓝', colors: ['#165DFF', '#FFFFFF', '#F5F5F5'] },
+  { name: '科技紫', colors: ['#667EEA', '#764BA2', '#F5F5F5'] },
+  { name: '清新绿', colors: ['#34C759', '#FFFFFF', '#F0F9F0'] },
+  { name: '活力橙', colors: ['#FF6B35', '#FFFFFF', '#FFF5F0'] },
+  { name: '经典红', colors: ['#E53935', '#FFFFFF', '#FFEBEE'] },
+  { name: '深空灰', colors: ['#1F2937', '#FFFFFF', '#F3F4F6'] },
+]
+
+const styleOptions = [
+  { value: 'professional', icon: '💼', name: '专业商务' },
+  { value: 'modern', icon: '🚀', name: '现代简约' },
+  { value: 'creative', icon: '🎯', name: '创意时尚' },
+  { value: 'academic', icon: '📚', name: '学术报告' },
+]
+
 // 保留原始生成配置（用于重新生成时保留 scene/style）
 const originalScene = ref('')
 const originalStyle = ref('professional')
@@ -393,6 +512,71 @@ const handleElementApply = (editedSlides: any) => {
   console.log('元素已更新:', editedSlides)
   alert('元素微调已保存！请下载更新后的PPT。')
 }
+
+// 单页重生成
+const regenerateSingleSlide = async (index: number) => {
+  const slide = previewSlides.value[index]
+  if (!slide) return
+  
+  regeneratingSlideIndex.value = index
+  
+  try {
+    // 获取当前页的编辑内容（如果有）
+    const editableSlide = editableSlides.value[index]
+    
+    const res = await api.ppt.regenerateSlide({
+      taskId: taskId.value,
+      slideIndex: slide.slideNum,
+      scene: originalScene.value || 'business',
+      style: originalStyle.value || 'professional',
+      content: editableSlide?.content || '',
+      layout: editableSlide?.layout || 'content',
+      title: editableSlide?.title || ''
+    })
+    
+    if (res.data.success) {
+      // 更新当前页的SVG URL
+      const newUrl = res.data.data?.svg_url
+      if (newUrl) {
+        previewSlides.value[index] = {
+          ...slide,
+          url: newUrl + '?t=' + Date.now() // 防止缓存
+        }
+        alert(`第 ${slide.slideNum} 页已更新`)
+      }
+    } else {
+      alert(res.data.message || '重生成失败')
+    }
+  } catch (e) {
+    console.error('单页重生成失败:', e)
+    alert('重生成失败，请稍后重试')
+  } finally {
+    regeneratingSlideIndex.value = null
+  }
+}
+
+// 应用布局选择
+const applyLayout = (layout: string) => {
+  selectedLayout.value = layout
+}
+
+// 应用配色选择
+const applyColorScheme = (index: number) => {
+  selectedColorScheme.value = index
+}
+
+// 应用风格选择
+const applyStyle = (style: string) => {
+  selectedStyle.value = style
+}
+
+// 应用调优并重新生成
+const applyTuning = async () => {
+  showLayoutPanel.value = false
+  alert('调优已保存，功能开发中...')
+  // TODO: 调用API应用调优配置并重新生成PPT
+}
+
 const editableSlides = ref<{
   title: string
   content: string
@@ -1061,6 +1245,45 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-slide .slide-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.preview-slide:hover .slide-actions {
+  opacity: 1;
+}
+
+.btn-regenerate {
+  background: #165DFF;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-regenerate:hover {
+  background: #0D47A1;
+}
+
+.btn-regenerate:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 
 .preview-empty {
@@ -1221,6 +1444,16 @@ onMounted(() => {
 
 .btn-element-edit:hover {
   background: #F5F3FF;
+}
+
+.btn-tune {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+}
+
+.btn-tune:hover {
+  background: linear-gradient(135deg, #5a71d6 0%, #6a4190 100%);
 }
 
 /* 内容编辑面板 */
@@ -1740,6 +1973,224 @@ onMounted(() => {
 
   .edit-actions .btn {
     width: 100%;
+  }
+}
+
+/* 快速调优侧边栏样式 */
+.layout-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.layout-panel {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  background: #fff;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+}
+
+.panel-close:hover {
+  color: #333;
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.panel-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px 0;
+}
+
+.layout-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.layout-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.layout-item:hover {
+  border-color: #165DFF;
+  background: #f0f9ff;
+}
+
+.layout-item.active {
+  border-color: #165DFF;
+  background: #e6f0ff;
+}
+
+.layout-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.layout-name {
+  font-size: 12px;
+  color: #333;
+  text-align: center;
+}
+
+.color-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.color-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.color-item:hover {
+  border-color: #165DFF;
+}
+
+.color-item.active {
+  border-color: #165DFF;
+  background: #f0f9ff;
+}
+
+.color-swatches {
+  display: flex;
+  gap: 4px;
+  margin-right: 12px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.color-name {
+  font-size: 13px;
+  color: #333;
+}
+
+.style-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.style-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.style-item:hover {
+  border-color: #165DFF;
+}
+
+.style-item.active {
+  border-color: #165DFF;
+  background: #e6f0ff;
+}
+
+.style-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.style-name {
+  font-size: 12px;
+  color: #333;
+  text-align: center;
+}
+
+.panel-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+}
+
+.panel-footer .btn {
+  flex: 1;
+  padding: 10px 16px;
+}
+
+@media (max-width: 480px) {
+  .layout-panel {
+    width: 100%;
+  }
+
+  .layout-options,
+  .style-options {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

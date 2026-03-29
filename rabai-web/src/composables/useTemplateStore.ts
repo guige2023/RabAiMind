@@ -1,5 +1,6 @@
 // Template store - 模板市场数据管理
 import { ref, computed } from 'vue'
+import { apiClient } from '../api/client'
 
 export interface Template {
   id: string
@@ -14,6 +15,29 @@ export interface Template {
   isPremium: boolean
   author: string
   createdAt: string
+  // 额外字段（来自真实API）
+  colors?: string[]
+  fonts?: string[]
+}
+
+// 真实API模板 → 前端模板的映射
+function mapApiTemplate(apiT: any): Template {
+  return {
+    id: apiT.id,
+    name: apiT.name,
+    description: apiT.description,
+    category: apiT.category,
+    style: apiT.style,
+    slides: 8,  // 默认值
+    thumbnail: apiT.thumbnail || '',
+    tags: [apiT.category, apiT.style],  // 派生
+    popularity: 80,  // 默认热度
+    isPremium: ['tech', 'creative'].includes(apiT.category),  // 简单判断
+    author: 'RabAi Mind',
+    createdAt: new Date().toISOString().split('T')[0],
+    colors: apiT.colors,
+    fonts: apiT.fonts,
+  }
 }
 
 // 模板分类
@@ -324,12 +348,37 @@ const sampleTemplates: Template[] = [
 ]
 
 export function useTemplateStore() {
-  const templates = ref<Template[]>(sampleTemplates)
+  const templates = ref<Template[]>([])
   const favorites = ref<Set<string>>(new Set())
   const searchQuery = ref('')
   const selectedCategory = ref<string | null>(null)
   const selectedStyle = ref<string | null>(null)
   const sortBy = ref<'popularity' | 'newest' | 'name'>('popularity')
+  const isLoading = ref(false)
+
+  // 从真实API加载模板列表
+  const loadTemplates = async () => {
+    isLoading.value = true
+    try {
+      // 调用后端 /api/v1/templates（TemplateManager 提供）
+      const res = await apiClient.get('/templates')
+      // 兼容两种响应格式：直接数组 或 {data: [...]} 或 {success: true, data: [...]}
+      const raw: any[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data.data || res.data.templates || [])
+      if (apiTemplates.length > 0) {
+        templates.value = apiTemplates.map(mapApiTemplate)
+      } else {
+        // API无数据时降级用本地假数据
+        templates.value = sampleTemplates
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载模板失败，降级使用本地数据', e)
+      templates.value = sampleTemplates
+    } finally {
+      isLoading.value = false
+    }
+  }
 
   // 从本地存储加载收藏
   const loadFavorites = () => {
@@ -452,6 +501,8 @@ export function useTemplateStore() {
     popularTemplates,
     newTemplates,
     categoryStats,
+    isLoading,
+    loadTemplates,
     loadFavorites,
     toggleFavorite,
     isFavorite,

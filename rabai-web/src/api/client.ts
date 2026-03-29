@@ -140,6 +140,24 @@ export const api: APIClient = {
 
     getOutline: (taskId: string): Promise<AxiosResponse<any>> => {
       return apiClient.get(`/ppt/outline/${taskId}`)
+    },
+
+    regenerateSlide: (params: {
+      taskId: string;
+      slideIndex: number;
+      scene?: string;
+      style?: string;
+      content?: string;
+      layout?: string;
+      title?: string;
+    }): Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>> => {
+      return apiClient.post(`/ppt/regenerate/${params.taskId}/${params.slideIndex}`, {
+        scene: params.scene || 'business',
+        style: params.style || 'professional',
+        content: params.content || '',
+        layout: params.layout || 'content',
+        title: params.title || ''
+      })
     }
   },
 
