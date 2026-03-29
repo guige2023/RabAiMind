@@ -210,7 +210,7 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     for attempt in range(max_retries):
         try:
             resp = requests.post(
-                f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
+                f"{cfg['endpoint']}/chat/completions" if not cfg['project_id'] else f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
                 headers=headers,
                 json=data,
                 timeout=(5, 90)
@@ -588,7 +588,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, scene: str = "busin
     resp = None
     try:
         resp = requests.post(
-            f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
+            f"{cfg['endpoint']}/chat/completions" if not cfg['project_id'] else f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
             headers=headers,
             json=data,
             timeout=(5, 90),
