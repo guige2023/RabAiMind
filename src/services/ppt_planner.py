@@ -11,14 +11,19 @@ from typing import Dict, Any, List, Optional, Generator
 
 logger = logging.getLogger(__name__)
 
-# 火山引擎API配置 - 从settings读取
+# 火山引擎API配置 - 延迟读取，避免模块加载时 .env 未就绪
 from ..config import settings
 from ..models import LayoutType
 
-VOLC_API_KEY = settings.VOLCANO_API_KEY
-VOLC_ENDPOINT = settings.VOLCANO_ENDPOINT
-VOLC_PROJECT_ID = settings.VOLCANO_PROJECT_ID
-VOLC_MODEL = settings.VOLCANO_TEXT_MODEL
+
+def _get_volc_config() -> dict:
+    """延迟获取火山引擎配置，避免模块级读取 .env"""
+    return {
+        "api_key": settings.VOLCANO_API_KEY,
+        "endpoint": settings.VOLCANO_ENDPOINT,
+        "project_id": settings.VOLCANO_PROJECT_ID,
+        "model": settings.VOLCANO_TEXT_MODEL,
+    }
 
 
 def sanitize_prompt(user_input: str) -> str:
@@ -115,13 +120,14 @@ def _parse_json_response(content: str) -> Optional[Dict]:
 def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int = 3000,
                          stream: bool = False, max_retries: int = 3) -> Optional[Dict]:
     """P1修复: 带重试机制的API调用"""
+    cfg = _get_volc_config()
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {VOLC_API_KEY}"
+        "Authorization": f"Bearer {cfg['api_key']}"
     }
 
     data = {
-        "model": VOLC_MODEL,
+        "model": cfg["model"],
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": max_tokens
@@ -133,7 +139,7 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     for attempt in range(max_retries):
         try:
             resp = requests.post(
-                f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
+                f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
                 headers=headers,
                 json=data,
                 timeout=(5, 90)
@@ -465,13 +471,14 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
 
 只返回JSON！"""
 
+    cfg = _get_volc_config()
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {VOLC_API_KEY}"
+        "Authorization": f"Bearer {cfg['api_key']}"
     }
 
     data = {
-        "model": VOLC_MODEL,
+        "model": cfg["model"],
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": 3000,
@@ -481,7 +488,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, temperature: float 
     resp = None
     try:
         resp = requests.post(
-            f"{VOLC_ENDPOINT}/projects/{VOLC_PROJECT_ID}/chat/completions",
+            f"{cfg['endpoint']}/projects/{cfg['project_id']}/chat/completions",
             headers=headers,
             json=data,
             timeout=(5, 90),

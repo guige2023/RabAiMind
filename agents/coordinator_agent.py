@@ -110,6 +110,7 @@ class CoordinatorAgent:
     MAX_SLIDE_COUNT = 50
 
     def __init__(self, config: Optional[Dict] = None):
+        self.name = "CoordinatorAgent"
         self.config = config or {}
         self.max_steps = self.config.get("max_steps", self.MAX_STEPS)
         self.volcano_client = get_volcano_client()

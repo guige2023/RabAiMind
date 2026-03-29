@@ -168,6 +168,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # 允许 .env 中存在未定义的字段
 
 
 # 全局配置实例
