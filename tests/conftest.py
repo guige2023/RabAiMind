@@ -10,9 +10,10 @@ import sys
 import pytest
 from typing import Generator
 
-# 添加项目根目录到 Python 路径
+# 添加项目根目录和 agents 目录到 Python 路径
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "agents"))
 
 
 # ==================== Fixtures ====================

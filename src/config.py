@@ -10,9 +10,64 @@ config.yaml 仅作文档参考。
 """
 
 import os
+import platform
+import shutil
 from typing import List, Optional
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+
+
+def _get_okppt_server_path_default() -> str:
+    """Get the default okppt server path based on OS.
+    
+    Priority:
+    1. If uvx is available (cross-platform, no install needed) -> use 'uvx'
+    2. Linux: /usr/local/bin/mcp-server-okppt
+    3. macOS (Darwin): check ~/local/bin and standard brew paths
+    4. Windows: check %LOCALAPPDATA%\\mcp-server-okppt\\bin
+    """
+    # uvx is the preferred cross-platform approach (no install needed)
+    if shutil.which("uvx"):
+        return "uvx"
+    
+    system = platform.system()
+    if system == "Darwin":
+        # macOS: check brew prefix first, then common paths
+        brew_prefix = shutil.which("brew", "/usr/local/bin/brew")
+        if brew_prefix:
+            # Try to find brew prefix
+            import subprocess
+            try:
+                prefix_result = subprocess.run(
+                    ["brew", "--prefix"], capture_output=True, text=True, timeout=5
+                )
+                if prefix_result.returncode == 0:
+                    prefix = prefix_result.stdout.strip()
+                    candidate = f"{prefix}/bin/mcp-server-okppt"
+                    if os.path.exists(candidate):
+                        return candidate
+            except Exception:
+                pass
+        # Fallback for macOS
+        for candidate in [
+            "/usr/local/bin/mcp-server-okppt",
+            "/opt/homebrew/bin/mcp-server-okppt",
+            os.path.expanduser("~/local/bin/mcp-server-okppt"),
+        ]:
+            if os.path.exists(candidate):
+                return candidate
+        return "mcp-server-okppt"  # rely on PATH on macOS
+    elif system == "Windows":
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        candidate = os.path.join(local_appdata, "mcp-server-okppt", "bin", "mcp-server-okppt.exe")
+        if os.path.exists(candidate):
+            return candidate
+        return "mcp-server-okppt"  # rely on PATH on Windows
+    else:
+        # Linux
+        if os.path.exists("/usr/local/bin/mcp-server-okppt"):
+            return "/usr/local/bin/mcp-server-okppt"
+        return "mcp-server-okppt"  # rely on PATH
 
 
 class Settings(BaseSettings):
@@ -29,7 +84,7 @@ class Settings(BaseSettings):
     # ========== MCP 服务配置 ==========
     MCP_HOST: str = "0.0.0.0"
     MCP_PORT: int = 8080
-    MCP_OKPPT_SERVER_PATH: str = "/usr/local/bin/mcp-server-okppt"
+    MCP_OKPPT_SERVER_PATH: str = ""
     MCP_MAX_REQUEST_SIZE: int = 10485760  # 10MB
     MCP_HEARTBEAT_INTERVAL: int = 30
 
@@ -68,6 +123,11 @@ class Settings(BaseSettings):
     PPT_SVG_VIEWBOX: str = "0 0 1600 900"
     PPT_SVG_EMBED_IMAGES: bool = True
     PPT_SVG_OPTIMIZE_PATHS: bool = True
+    # 图片生成 Fallback 策略
+    #   - "all"      : 第1级 Unsplash（验证后）+ 第2级本地 SVG（默认）
+    #   - "unsplash" : 仅 Unsplash（验证后），全部失败则无图
+    #   - "none"     : 跳过所有外部图片，直接使用本地 SVG
+    IMAGE_FALLBACK_STRATEGY: str = "all"
 
     # ========== Agent 配置 ==========
     AGENT_COORDINATOR_MAX_STEPS: int = 30
@@ -97,6 +157,12 @@ class Settings(BaseSettings):
     TEMPLATE_DIR: str = "./templates"
     WORKSPACE_DIR: str = "./workspace"
     SCHEMA_DIR: str = "./schemas"
+
+    def model_post_init(self, __context) -> None:
+        """Resolve OS-specific defaults after initialization."""
+        # Resolve MCP_OKPPT_SERVER_PATH - if empty, use OS-specific default
+        if not self.MCP_OKPPT_SERVER_PATH:
+            object.__setattr__(self, "MCP_OKPPT_SERVER_PATH", _get_okppt_server_path_default())
 
     class Config:
         env_file = ".env"

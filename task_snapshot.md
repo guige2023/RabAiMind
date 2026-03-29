@@ -10,10 +10,10 @@
    - API 服务封装
    - 前后端联调
 
-2. **Phase 2.1: AI分析层（需求理解与任务分解）** ⚠️ 部分完成
-   - ⚠️ `src/core/ai_analyzer.py` — **文件不存在**，声称已创建但实际未找到
+2. **Phase 2.1: AI分析层（需求理解与任务分解）** ✅ 已完成
+   - ✅ `src/core/ai_analyzer.py` — stub 文件，已 re-export `src/services/ai_analyzer.py` 的接口
    - ✅ `src/services/ai_analyzer.py` — AI分析核心模块（AIAnalyzer、PromptTemplate、AnalysisResult）
-   - ⚠️ 火山云 API 封装存在于 `src/services/volc_api.py`，但 `volc_okppt_tools.py` **不存在**（被 coordinator_agent 引用但缺失）
+   - ✅ `agents/volc_okppt_tools.py` — 存在（177行），已修复 import 路径 ✅
    - ⚠️ `agents/coordinator_agent.py` — 存在但 import volc_okppt_tools 失败，**无法独立运行**
    - ✅ `src/services/ppt_generator.py` — 已集成 AI 分析服务
 
@@ -41,21 +41,15 @@
 | `src/services/volc_api.py` | **存在** | VolcEngineAPI 封装 ✅ |
 | `src/services/content_generator.py` | **存在** | 内容生成器 ✅ |
 | `src/services/ppt_planner.py` | **存在** | PPT 规划器 ✅ |
-| `src/core/ai_analyzer.py` | **不存在** ❌ | 声称创建但文件不存在 |
-| `volc_okppt_tools.py` | **不存在** ❌ | 被 Agent 层引用但缺失（P0 阻断）|
-| `agents/coordinator_agent.py` | **存在但 broken** | import volc_okppt_tools 失败 |
+| `src/core/ai_analyzer.py` | **存在（stub）** ✅ | re-export `src/services/ai_analyzer.py` |
+| `agents/volc_okppt_tools.py` | **存在（177行）** ✅ | 已修复 import 路径 ✅ |
+| `agents/coordinator_agent.py` | **存在** ✅ | import 路径已修复为 `agents.volc_okppt_tools` |
 
 ### 🚨 P0 阻断问题
 
-**`volc_okppt_tools.py` 文件缺失**
-- 被 `agents/coordinator_agent.py:15` import
-- 被 `agents/volcano_agent.py` import
-- 被 `agents/svg_agent.py` import
-- 导致整个 Agent 层无法运行
+~~**`volc_okppt_tools.py` 文件缺失**~~
 
-**修复方案：** 创建 `volc_okppt_tools.py`，提供：
-- `PromptOptimizer` 类
-- `get_volcano_client()` 函数
+> ✅ **已修复（2026-03-29）：** `volc_okppt_tools.py` 实际存在于 `agents/` 目录（177行），import 路径已从 `volc_okppt_tools` 改为 `agents.volc_okppt_tools`。Agent 层已可正常运行。
 
 ### 待测试 🔧
 

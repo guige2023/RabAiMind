@@ -9,6 +9,8 @@ AI 核心分析模块
 
 from .ai_analyzer import (
     AIAnalyzer,
+    AnalysisResult,
+    PromptTemplate,
     ContentGenerator,
     RequirementAnalysis,
     SlideTask,
@@ -20,6 +22,8 @@ from .ai_analyzer import (
 
 __all__ = [
     "AIAnalyzer",
+    "AnalysisResult",
+    "PromptTemplate",
     "ContentGenerator", 
     "RequirementAnalysis",
     "SlideTask",

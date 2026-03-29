@@ -20,10 +20,10 @@ from .quality_agent import QualityAgent
 from .volcano_agent import VolcanoAgent
 from .svg_agent import SVGAgent
 from .okppt_agent import OkPPTAgent
-from .pptx_optimizer_agent import PPTXOptimizerAgent
-from .api_interface_agent import APIInterfaceAgent
-from .mcp_service_agent import MCPServiceAgent
-from .deploy_agent import DeployAgent
+# from .pptx_optimizer_agent import PPTXOptimizerAgent  # 待实现
+# from .api_interface_agent import APIInterfaceAgent      # 待实现
+# from .mcp_service_agent import MCPServiceAgent        # 待实现
+# from .deploy_agent import DeployAgent                  # 待实现
 
 __all__ = [
     "CoordinatorAgent",

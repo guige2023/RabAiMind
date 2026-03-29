@@ -28,7 +28,7 @@ class TestVolcanoAgent:
     @pytest.fixture
     def agent(self):
         """创建 Agent 实例"""
-        from agents.volcano_agent import VolcanoAgent
+        from agents._archive.volcano_agent import VolcanoAgent
         config = {
             "api_key": "test-key",
             "endpoint": "https://test.volces.com/api/v3",
@@ -71,7 +71,7 @@ class TestSVGAgent:
     @pytest.fixture
     def agent(self):
         """创建 Agent 实例"""
-        from agents.svg_agent import SVGAgent
+        from agents._archive.svg_agent import SVGAgent
         config = {
             "template_dir": "./templates",
             "output_dir": "./output"
@@ -102,7 +102,7 @@ class TestOkPPTAgent:
     @pytest.fixture
     def agent(self):
         """创建 Agent 实例"""
-        from agents.okppt_agent import OkPPTAgent
+        from agents._archive.okppt_agent import OkPPTAgent
         config = {
             "output_dir": "./output"
         }
@@ -120,7 +120,7 @@ class TestQualityAgent:
     @pytest.fixture
     def agent(self):
         """创建 Agent 实例"""
-        from agents.quality_agent import QualityAgent
+        from agents._archive.quality_agent import QualityAgent
         return QualityAgent()
 
     def test_agent_initialization(self, agent):
@@ -144,7 +144,7 @@ class TestCoordinatorAgent:
     @pytest.fixture
     def agent(self):
         """创建 Agent 实例"""
-        from agents.coordinator_agent import CoordinatorAgent
+        from agents._archive.coordinator_agent import CoordinatorAgent
         config = {
             "max_steps": 10,
             "workspace_dir": "./workspace"

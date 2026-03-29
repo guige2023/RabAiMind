@@ -8,7 +8,7 @@ API 路由定义
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 import asyncio
 import logging
@@ -33,6 +33,7 @@ from ...models import (
 )
 from ...services.task_manager import get_task_manager
 from ...services.ppt_generator import get_ppt_generator
+from ...services.history_sync_service import get_history_sync_service
 from ...config import settings
 
 # 创建路由
@@ -100,6 +101,64 @@ async def get_api_info():
             "MCP 协议支持"
         ]
     )
+
+
+# ==================== 历史记录（云端同步） ====================
+
+class HistoryResponse(BaseModel):
+    """历史记录响应"""
+    success: bool
+    total: int
+    tasks: List[Dict[str, Any]]
+    sync_enabled: bool
+
+
+@router.get("/history", response_model=HistoryResponse)
+async def get_task_history(status: Optional[str] = None):
+    """
+    获取任务历史记录（支持云端同步）
+    
+    换设备后可通过此接口获取历史任务。
+    
+    Args:
+        status: 可选，筛选状态 (pending/processing/completed/failed/cancelled)
+    """
+    manager = get_task_manager()
+    sync_service = get_history_sync_service()
+    
+    all_tasks = manager.get_history(status_filter=status)
+    
+    # 转换为列表
+    tasks_list = [
+        {**task, "task_id": tid}
+        for tid, task in all_tasks.items()
+    ]
+    
+    # 按 updated_at 降序排序
+    tasks_list.sort(
+        key=lambda x: x.get("updated_at", ""),
+        reverse=True
+    )
+
+    return HistoryResponse(
+        success=True,
+        total=len(tasks_list),
+        tasks=tasks_list,
+        sync_enabled=sync_service.is_enabled()
+    )
+
+
+@router.post("/history/sync", response_model=BaseModel)
+async def force_sync_history():
+    """强制同步所有任务到云端"""
+    manager = get_task_manager()
+    sync_service = get_history_sync_service()
+    
+    if not sync_service.is_enabled():
+        return {"success": False, "message": "OSS 未启用，无法同步"}
+    
+    count = manager.force_sync_all()
+    return {"success": True, "message": f"已同步 {count} 个任务到云端", "synced_count": count}
 
 
 # ==================== PPT 生成 ====================

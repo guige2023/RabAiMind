@@ -28,6 +28,47 @@ from pptx.dml.color import RGBColor
 logger = setup_logger("ppt_generator")
 
 
+# ─── 独立工具函数（类外定义，避免循环引用）───────────────────────────────────────
+
+def svg_placeholder_xml(
+    slide_num: int,
+    title: str,
+    bg_color: str = "#1e3a5f",
+    accent_color: str = "#60a5fa",
+    icon: str = "📄"
+) -> str:
+    """生成 SVG 占位图 XML 字符串（不依赖任何外部资源）"""
+    W, H = 1600, 900
+    # 标题最多显示 20 字符
+    display_title = (title[:20] + "…") if len(title) > 20 else title
+    return (
+        f'''<?xml version="1.0" encoding="UTF-8"?>'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:{bg_color}"/>
+      <stop offset="100%" style="stop-color:{bg_color}cc"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect width="{W}" height="{H}" fill="url(#bgGrad)"/>
+  <!-- 装饰圆 -->
+  <circle cx="1400" cy="100" r="300" fill="{accent_color}" opacity="0.08"/>
+  <circle cx="200"  cy="800" r="200" fill="{accent_color}" opacity="0.06"/>
+  <!-- 分隔线 -->
+  <line x1="100" y1="600" x2="1500" y2="600" stroke="{accent_color}" stroke-width="2" opacity="0.3"/>
+  <!-- 图标 -->
+  <text x="800" y="480" text-anchor="middle" font-size="120" opacity="0.6">{icon}</text>
+  <!-- 标题 -->
+  <text x="800" y="700" text-anchor="middle" fill="white" font-size="36" font-weight="bold"
+        font-family="Microsoft YaHei, PingFang SC, sans-serif">{display_title}</text>
+  <!-- 页码 -->
+  <text x="1500" y="860" text-anchor="end" fill="{accent_color}" font-size="20"
+        font-family="Arial, sans-serif" opacity="0.7">{slide_num} / N</text>
+</svg>'''
+    )
+
+
 class PPTGenerator:
     """PPT 生成器 - okppt方式"""
 
@@ -367,63 +408,112 @@ class PPTGenerator:
         return text
 
     def _get_fallback_image_url(self, slide: Dict, slide_num: int = 1) -> str:
-        """获取备用图片URL - 根据内容类型选择合适的背景图"""
+        """获取备用图片URL - 多级 Fallback 策略
+
+        Level 1: Unsplash（带可达性检查）
+        Level 2: 本地 SVG 占位图（纯色背景 + 图标）
+
+        所有外部 URL 均经过 _validate_url() 验证后才使用。
+        支持用户自定义 fallback 策略（通过 settings.image_fallback_strategy 配置）。
+        """
         import random
 
         title = slide.get("title", "").lower()
         slide_type = slide.get("slide_type", "content")
 
-        # 默认图片列表
-        fallback_images = [
-            "https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&q=80",
-            "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&q=80",
-            "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80",
-        ]
+        # ─── 用户自定义策略 ────────────────────────────────────────────
+        user_strategy = getattr(settings, 'IMAGE_FALLBACK_STRATEGY', 'all')
+        if user_strategy == 'none':
+            # 用户选择不使用任何外部图片，直接用本地 SVG
+            logger.info("用户配置跳过外部图片 fallback，使用本地 SVG")
+            return self._generate_svg_placeholder(slide, slide_num)
 
-        # 根据标题关键词选择合适的图片类别
-        if any(kw in title for kw in ["培训", "销售", "企业", "公司", "管理"]):
-            # 商务类
-            fallback_images = [
+        # ─── 分类候选 URL ─────────────────────────────────────────────
+        categories = {
+            "business": [  # 商务类
                 "https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80",
                 "https://images.unsplash.com/photo-1497215842964-222b430dc094?w=1600&q=80",
                 "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1600&q=80",
-            ]
-        elif any(kw in title for kw in ["科技", "技术", "AI", "创新", "发展"]):
-            # 科技类
-            fallback_images = [
+            ],
+            "tech": [  # 科技类
                 "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&q=80",
                 "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600&q=80",
                 "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&q=80",
-            ]
-        elif any(kw in title for kw in ["教育", "学习", "学校", "课程", "培训"]):
-            # 教育类
-            fallback_images = [
+            ],
+            "education": [  # 教育类
                 "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600&q=80",
                 "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1600&q=80",
                 "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1600&q=80",
-            ]
-        elif slide_type == "title" or slide_num == 1:
-            # 封面页
-            fallback_images = [
+            ],
+            "title": [  # 封面页
                 "https://images.unsplash.com/photo-1557804506-669a67965ba0?w=1600&q=80",
                 "https://images.unsplash.com/photo-1515187029135-18ee286d815b?w=1600&q=80",
                 "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=1600&q=80",
-            ]
-        elif slide_type == "thank_you":
-            # 尾页
-            fallback_images = [
+            ],
+            "thank_you": [  # 尾页
                 "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600&q=80",
                 "https://images.unsplash.com/photo-1552664730-d307ca884978?w=1600&q=80",
-            ]
-        else:
-            # 默认商务图片
-            fallback_images = [
+            ],
+            "default": [  # 默认商务
                 "https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&q=80",
                 "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&q=80",
                 "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=1600&q=80",
-            ]
+            ],
+        }
 
-        return random.choice(fallback_images)
+        # 根据内容分类选择候选池
+        if any(kw in title for kw in ["培训", "销售", "企业", "公司", "管理"]):
+            candidates = categories["business"]
+        elif any(kw in title for kw in ["科技", "技术", "AI", "创新", "发展"]):
+            candidates = categories["tech"]
+        elif any(kw in title for kw in ["教育", "学习", "学校", "课程", "培训"]):
+            candidates = categories["education"]
+        elif slide_type == "title" or slide_num == 1:
+            candidates = categories["title"]
+        elif slide_type == "thank_you":
+            candidates = categories["thank_you"]
+        else:
+            candidates = categories["default"]
+
+        # ─── Level 1: Unsplash 带可达性验证 ─────────────────────────
+        random.shuffle(candidates)
+        for url in candidates:
+            if self._validate_url(url):
+                logger.info(f"Unsplash fallback 可用: {url[:60]}...")
+                return url
+            else:
+                logger.warning(f"Unsplash URL 验证失败，跳过: {url[:60]}...")
+
+        # ─── Level 2: 本地 SVG 占位图 ───────────────────────────────
+        logger.info("所有 Unsplash URL 均不可达，使用本地 SVG 占位图")
+        return self._generate_svg_placeholder(slide, slide_num)
+
+    def _generate_svg_placeholder(self, slide: Dict, slide_num: int = 1) -> str:
+        """生成本地 SVG 占位图 - 纯色背景 + 类别图标
+
+        这是一个内嵌的 data URI，不依赖任何外部网络。
+        """
+        title = slide.get("title", "")
+        slide_type = slide.get("slide_type", "content")
+
+        # 根据 slide_type 选择配色和图标关键词
+        color_map = {
+            "title":      ("#1e40af", "#60a5fa", "📊"),   # 深蓝 + 图表图标
+            "thank_you":  ("#065f46", "#34d399", "🙏"),
+            "content":    ("#1e3a5f", "#60a5fa", "💡"),
+            "toc":        ("#4c1d95", "#a78bfa", "📋"),
+        }
+        bg_color, accent_color, icon = color_map.get(slide_type, ("#1e3a5f", "#60a5fa", "📄"))
+
+        # 转义标题（防 XSS）
+        safe_title = self._escape_html(title or "Slide")
+
+        # 序列化 SVG（不使用 data:image/svg+xml 前缀，内部以 <svg> 开头）
+        inner = svg_placeholder_xml(slide_num, safe_title, bg_color, accent_color, icon)
+        # Base64 编码以保证在所有上下文都安全
+        import base64
+        b64 = base64.b64encode(inner.encode('utf-8')).decode('ascii')
+        return f"data:image/svg+xml;base64,{b64}"
 
     def _generate_svg(self, slide: Dict, slide_num: int) -> str:
         """AI生成SVG代码"""
@@ -1251,10 +1341,13 @@ class PPTGenerator:
                 prs.save(temp_path)
                 os.replace(temp_path, output_path)  # 原子重命名
                 logger.info(f"PPT保存成功: {output_path}")
-            except Exception as e:
+            finally:
+                # 确保临时文件被清理（无论成功还是异常）
                 if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                raise e
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
             # 文件压缩优化
             self._compress_pptx(output_path)
