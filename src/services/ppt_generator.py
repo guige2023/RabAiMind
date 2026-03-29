@@ -109,9 +109,15 @@ class PPTGenerator:
         output_format: str = "pptx",  # pptx/pdf/svg/png
         quality: str = "standard",  # standard/high/ultra
         layout_mode: str = "auto",  # auto/manual
-        unified_layout: bool = True  # 是否统一布局
+        unified_layout: bool = True,  # 是否统一布局
+        # 两阶段生成：预生成的内容（跳过 AI 内容规划步骤）
+        pre_generated_slides: Optional[List[Dict]] = None  # [{title, content, slide_type, layout}, ...]
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式
+
+        两阶段模式:
+        - Step 1 (内容): AI 规划内容，用户在大纲编辑页确认
+        - Step 2 (排版): 传入预生成内容，直接进入排版渲染，跳过 AI 内容规划
 
         Args:
             generation_mode: 生成模式
@@ -144,14 +150,21 @@ class PPTGenerator:
             # 更新状态 - 0%
             task_manager.update_progress(task_id, 0, "开始生成PPT...", "processing")
 
-            # 1. AI规划PPT内容 - 5%~20%
-            logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
-            task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
-            slides_content = await asyncio.to_thread(
-                self._plan_ppt, user_request, slide_count
-            )
-            logger.info(f"AI规划了 {len(slides_content)} 页")
-            task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
+            # 1. PPT内容来源：两阶段 or 一次性
+            if pre_generated_slides:
+                # 两阶段模式：内容已由用户在 OutlineEditView 确认
+                slides_content = pre_generated_slides
+                logger.info(f"使用预生成内容，共 {len(slides_content)} 页（跳过 AI 内容规划）")
+                task_manager.update_progress(task_id, 20, f"内容已确认，开始渲染设计...", "processing")
+            else:
+                # 一次性模式：AI 内容规划 5%~20%
+                logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
+                task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
+                slides_content = await asyncio.to_thread(
+                    self._plan_ppt, user_request, slide_count
+                )
+                logger.info(f"AI规划了 {len(slides_content)} 页")
+                task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
 
             # 2. 为每页生成AI图片 - 20%~45%
             task_manager.update_progress(task_id, 22, f"开始生成{slide_count}张配图...", "processing")

@@ -244,8 +244,9 @@ const getStepKey = (progress: number): string => {
 const getStepKeyFromName = (stepName: string): string => {
   const name = stepName.toLowerCase()
   if (name.includes('初始化') || name.includes('解析') || name.includes('pending')) return 'init'
-  if (name.includes('内容') || name.includes('生成') || name.includes('processing')) return 'content'
+  // 两阶段模式：内容已确认后直接进入渲染，跳过纯"内容"关键词
   if (name.includes('SVG') || name.includes('渲染') || name.includes('design')) return 'svg'
+  if (name.includes('内容') || (name.includes('生成') && !name.includes('SVG'))) return 'content'
   if (name.includes('转换') || name.includes('PPTX') || name.includes('file')) return 'pptx'
   if (name.includes('完成') || name.includes('优化') || name.includes('completed')) return 'done'
   return 'content'

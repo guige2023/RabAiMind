@@ -196,6 +196,11 @@ class GenerateRequest(BaseModel):
     # 布局设置
     layout_mode: Optional[str] = Field(default="auto", description="布局模式: auto/manual")
     unified_layout: Optional[bool] = Field(default=True, description="是否统一布局")
+    # 两阶段生成：预生成的内容（来自 OutlineEditView 用户确认后的大纲）
+    pre_generated_slides: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="预生成的大纲内容，用于两阶段模式跳过 AI 内容规划步骤"
+    )
 
 
 # ==================== 响应模型 ====================

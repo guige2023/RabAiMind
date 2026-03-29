@@ -218,7 +218,8 @@ async def generate_ppt(request: GenerateRequest):
                     output_format=request.output_format,
                     quality=request.quality,
                     layout_mode=request.layout_mode,
-                    unified_layout=request.unified_layout
+                    unified_layout=request.unified_layout,
+                    pre_generated_slides=request.pre_generated_slides
                 )
             except asyncio.CancelledError:
                 # 任务被取消：更新状态为 cancelled

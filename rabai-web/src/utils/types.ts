@@ -102,6 +102,16 @@ export interface GeneratePPTRequest {
   quality?: 'standard' | 'high' | 'ultra'
   layout_mode?: 'auto' | 'manual'
   unified_layout?: boolean
+  // 两阶段模式：预生成的大纲内容（来自 OutlineEditView 用户确认后）
+  pre_generated_slides?: SlideOutlineItem[]
+}
+
+export interface SlideOutlineItem {
+  title: string
+  content: string
+  slide_type?: string
+  layout?: string
+  image_prompt?: string
 }
 
 export interface PlanPPTRequest {

@@ -408,7 +408,7 @@ const clearAll = () => {
   }
 }
 
-// 生成PPT
+// 生成PPT（两阶段模式）
 const generatePPT = async () => {
   // 验证
   const emptySlides = outline.slides.filter(s => !s.title.trim())
@@ -420,20 +420,36 @@ const generatePPT = async () => {
   isGenerating.value = true
 
   try {
-    // 保存大纲到本地存储
+    // 将大纲数据转换为预生成内容格式
+    const preGeneratedSlides = outline.slides.map(slide => ({
+      title: slide.title,
+      content: slide.content,
+      slide_type: slide.layout === 'title' ? 'title' : 'content',
+      layout: slide.layout,
+    }))
+
+    // Step 1: 调用 /generate API，将预生成内容传入，跳过 AI 内容规划
+    const { api } = await import('../api/client')
+    const response = await api.ppt.createTask({
+      user_request: route.query.request as string || 'PPT 生成',
+      slide_count: outline.slides.length,
+      scene: (route.query.scene as any) || 'business',
+      style: (outline.style as any) || 'professional',
+      pre_generated_slides: preGeneratedSlides,
+    })
+    const taskId = response.data.task_id
+
+    // 保存大纲到本地存储（备用）
     localStorage.setItem('ppt_outline', JSON.stringify(outline))
 
-    // 跳转到生成页面
+    // Step 2: 跳转到生成页面（显示"排版中"，内容阶段已跳过）
     router.push({
       path: '/generating',
-      query: {
-        request: route.query.request as string,
-        style: outline.style,
-        slideCount: outline.slides.length.toString()
-      }
+      query: { taskId }
     })
-  } catch (e) {
-    alert('生成失败，请重试')
+  } catch (e: any) {
+    console.error('生成失败:', e)
+    alert(`生成失败: ${e?.message || '请重试'}`)
     isGenerating.value = false
   }
 }
