@@ -227,7 +227,7 @@ class PPTGenerator:
                 futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
                     slide_num, svg_code = future.result()
-                    svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_okppt.svg")
+                    svg_path = os.path.join(settings.OUTPUT_DIR, f"slide_{slide_num}_{task_id}.svg")
                     with open(svg_path, 'w', encoding='utf-8') as f:
                         f.write(svg_code)
                     svg_files.append(svg_path)
@@ -268,7 +268,9 @@ class PPTGenerator:
                 task_id=task_id,
                 pptx_path=output_path,
                 slide_count=len(slides_content),
-                compression_ratio=1.0
+                compression_ratio=1.0,
+                quality=quality,
+                output_format=output_format
             )
 
             # 根据输出格式生成不同文件
@@ -306,6 +308,8 @@ class PPTGenerator:
 
         except Exception as e:
             logger.exception("PPT 生成失败")
+            task_manager = get_task_manager()
+            task_manager.fail_task(task_id, "GENERATION_ERROR", str(e))
             return {
                 "success": False,
                 "error": "PPT生成失败，请稍后重试"
@@ -356,8 +360,16 @@ class PPTGenerator:
         logger.info("使用备用图片")
         return self._get_fallback_image_url(slide, slide_num)
 
-    def _build_image_prompt(self, title: str, content: List, slide_type: str) -> str:
+    def _build_image_prompt(self, title: str, content, slide_type: str) -> str:
         """构建AI图片提示词"""
+        # 如果 content 是字符串，按换行分割
+        if isinstance(content, str):
+            content_lines = [c.strip() for c in content.split('\n') if c.strip()]
+        elif isinstance(content, list):
+            content_lines = content
+        else:
+            content_lines = []
+        
         # 中文标题转英文
         title_en = self._translate_to_english(title)
 
@@ -368,7 +380,7 @@ class PPTGenerator:
             prompt = f"Table of contents layout, {title_en}, organized list design, clean typography, business presentation style, high quality, 16:9"
         else:
             # 内容页 - 基于内容构建
-            content_desc = ", ".join(content[:3]) if content else "business content"
+            content_desc = ", ".join(content_lines[:3]) if content_lines else "business content"
             content_en = self._translate_to_english(content_desc)
             prompt = f"Professional business illustration for {title_en}, {content_en}, modern corporate style, clean design, high quality, 16:9 aspect ratio"
 
@@ -547,20 +559,28 @@ class PPTGenerator:
             return self._generate_svg_smart_text(slide, slide_num)
     
     def _check_volc_api_available(self, volc) -> bool:
-        """检查火山引擎API是否可用"""
+        """检查火山引擎API是否可用（带5分钟缓存）"""
+        # 缓存检测结果，5分钟内不重复调用真实API
+        if hasattr(self, '_api_check_cache') and (time.time() - self._api_check_cache['time']) < 300:
+            return self._api_check_cache['available']
+
         import os
         api_key = os.getenv("VOLCANO_API_KEY", os.getenv("VOLCENGINE_API_KEY", ""))
         project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
-        
+
         if not api_key or not project_id:
+            self._api_check_cache = {'available': False, 'time': time.time()}
             return False
-        
+
         # 尝试调用API检查连通性
         try:
             response = volc.text_generation("test")
-            return response.get("success", False)
+            available = response.get("success", False)
         except Exception:
-            return False
+            available = False
+
+        self._api_check_cache = {'available': available, 'time': time.time()}
+        return available
     
     def _generate_svg_with_ai(self, slide: Dict, slide_num: int, volc) -> str:
         """使用AI生成SVG代码"""

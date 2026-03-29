@@ -153,7 +153,9 @@ class TaskManager:
         pptx_path: str,
         slide_count: int,
         file_size: int = 0,
-        compression_ratio: float = 0.0
+        compression_ratio: float = 0.0,
+        quality: str = "standard",
+        output_format: str = "pptx"
     ) -> None:
         """完成任务，并同步到云端"""
         task_copy = None
@@ -172,6 +174,8 @@ class TaskManager:
                         "slide_count": slide_count,
                         "file_size": actual_size,
                         "compression_ratio": compression_ratio,
+                        "quality": quality,
+                        "output_format": output_format,
                         "compatibility": {
                             "wps": True,
                             "office": True,

@@ -41,17 +41,9 @@
                   <img :src="slide.url" :alt="`第 ${slide.slideNum} 页`" class="preview-image" />
                 </div>
               </template>
-              <template v-else>
-                <div
-                  v-for="i in Math.min(slideCount, 6)"
-                  :key="i"
-                  class="preview-slide"
-                >
-                  <div class="preview-placeholder">
-                    <span>第 {{ i }} 页</span>
-                  </div>
-                </div>
-              </template>
+              <div v-else class="preview-empty">
+                <p>暂无预览数据</p>
+              </div>
               <div v-if="slideCount > 6" class="preview-more">
                 +{{ slideCount - 6 }} 页
               </div>
@@ -318,7 +310,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
-import { getContrastColor, parseGradient, generateInteractiveHTML, generatePrintHTML } from '../utils/exportGenerator'
+import { getContrastColor, parseGradient, generatePrintHTML } from '../utils/exportGenerator'
 
 const router = useRouter()
 const route = useRoute()
@@ -392,19 +384,33 @@ const regenerateWithEdits = async () => {
   isRegenerating.value = true
 
   try {
-    // 保存编辑后的大纲
+    // 保存编辑后的大纲到 localStorage（备份）
     localStorage.setItem('ppt_outline', JSON.stringify({
       slides: editableSlides.value,
       style: 'professional',
       theme: 'blue'
     }))
 
-    // 跳转到生成页面
+    // 构建 pre_generated_slides
+    const preGeneratedSlides = editableSlides.value.map(slide => ({
+      title: slide.title,
+      content: slide.content,
+      slide_type: slide.layout === 'title' ? 'title' : 'content',
+      layout: slide.layout,
+    }))
+
+    // 调用后端API创建新任务
+    const response = await api.ppt.createTask({
+      user_request: 'PPT生成',
+      slide_count: preGeneratedSlides.length,
+      pre_generated_slides: preGeneratedSlides,
+    })
+
+    // 跳转到生成页面，使用新任务ID
     router.push({
       path: '/generating',
       query: {
-        taskId: taskId.value,
-        regenerate: 'true'
+        taskId: response.data.task_id
       }
     })
   } catch (error) {
@@ -427,11 +433,7 @@ const exportFormats = [
   { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx', quality: true },
   { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf', quality: true },
   { id: 'png', name: 'PNG', icon: '🖼️', desc: 'PNG高清图片', ext: '.png', quality: true },
-  { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true },
-  { id: 'html', name: 'HTML', icon: '🌐', desc: '网页版演示', ext: '.html', quality: false },
-  { id: 'md', name: 'Markdown', icon: '📝', desc: 'Markdown大纲', ext: '.md', quality: false },
-  { id: 'docx', name: 'Word', icon: '📃', desc: 'Word文档', ext: '.docx', quality: false },
-  { id: 'json', name: 'JSON', icon: '💾', desc: 'JSON数据', ext: '.json', quality: false }
+  { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true }
 ]
 
 const qualityOptions = [
@@ -452,98 +454,10 @@ const handleExport = () => {
     case 'jpg':
       handleExportImages()
       break
-    case 'html':
-      handleExportHTML()
-      break
-    case 'md':
-      handleExportMarkdown()
-      break
-    case 'docx':
-      handleExportDocx()
-      break
-    case 'json':
-      handleExportJSON()
-      break
   }
 }
 
-// 新增导出方法
-const handleExportMarkdown = () => {
-  const content = `# PPT大纲\n\n${presentationSlides.value.map((s: any, i: number) => `## 第${i+1}页: ${s.title}\n\n${s.content}`).join('\n\n')}`
-  downloadFile(content, 'ppt-outline', 'text/markdown')
-}
 
-const handleExportDocx = async () => {
-  if (isExporting.value) return
-
-  isExporting.value = true
-  showExportMenu.value = false
-
-  try {
-    const slides = presentationSlides.value
-
-    // 使用HTML格式创建Word文档（Word可以打开HTML）
-    const content = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head>
-<meta charset='utf-8'>
-<title>PPT大纲</title>
-<style>
-body { font-family: '微软雅黑', sans-serif; }
-h1 { color: #165DFF; }
-h2 { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-p { line-height: 1.6; }
-</style>
-</head>
-<body>
-<h1>PPT演示文稿大纲</h1>
-<p>共 ${slides.length} 页</p>
-<hr>
-${slides.map((slide: any, i: number) => `
-<h2>第${i + 1}页: ${slide.title || '无标题'}</h2>
-<p>${slide.content || ''}</p>
-`).join('')}
-<hr>
-<p><small>由 RabAiMind 生成</small></p>
-</body>
-</html>`
-
-    const blob = new Blob([content], { type: 'application/msword;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `presentation_${taskId.value || Date.now()}.doc`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    alert('Word文档导出成功！')
-  } catch (error) {
-    console.error('Word导出失败:', error)
-    alert('Word导出失败，请重试')
-  } finally {
-    isExporting.value = false
-  }
-}
-
-const handleExportJSON = () => {
-  const content = JSON.stringify({
-    title: 'PPT文档',
-    createdAt: new Date().toISOString(),
-    slides: presentationSlides.value
-  }, null, 2)
-  downloadFile(content, 'ppt-data', 'application/json')
-}
-
-const downloadFile = (content: string, filename: string, mimeType: string) => {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${filename}.${selectedFormat.value}`
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
 // Mock slides for presentation mode
 const presentationSlides = computed(() => {
@@ -809,40 +723,6 @@ const handleExportImages = async () => {
   }
 }
 
-// 导出 HTML - 生成可交互的HTML文件
-const handleExportHTML = async () => {
-  if (isExporting.value) return
-
-  isExporting.value = true
-  showExportMenu.value = false
-
-  try {
-    const slides = presentationSlides.value
-    const isDark = exportTheme.value === 'dark'
-
-    // 生成HTML内容
-    const html = generateInteractiveHTML(slides, isDark)
-
-    // 创建Blob并下载
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `presentation_${taskId.value || Date.now()}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    alert('HTML导出成功！')
-  } catch (error) {
-    console.error('HTML导出失败:', error)
-    alert('HTML导出失败，请重试')
-  } finally {
-    isExporting.value = false
-  }
-}
-
 // 打印
 const handlePrint = () => {
   showExportMenu.value = false
@@ -1075,8 +955,11 @@ onMounted(() => {
   justify-content: center;
 }
 
-.preview-placeholder {
-  color: rgba(255,255,255,0.8);
+.preview-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #999;
   font-size: 14px;
 }
 

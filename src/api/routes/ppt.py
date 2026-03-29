@@ -637,7 +637,11 @@ async def get_scenes():
         {"id": "business", "name": "商务", "description": "商业演示"},
         {"id": "education", "name": "教育", "description": "教学课件"},
         {"id": "tech", "name": "科技", "description": "技术分享"},
-        {"id": "creative", "name": "创意", "description": "创意展示"}
+        {"id": "creative", "name": "创意", "description": "创意展示"},
+        {"id": "marketing", "name": "营销", "description": "市场营销推广"},
+        {"id": "finance", "name": "金融", "description": "金融财务报告"},
+        {"id": "medical", "name": "医疗", "description": "医疗健康领域"},
+        {"id": "government", "name": "政府", "description": "政府公文演示"}
     ]
 
 
@@ -648,7 +652,13 @@ async def get_styles():
         {"id": "professional", "name": "专业", "description": "商务专业风格"},
         {"id": "simple", "name": "简约", "description": "简洁大方风格"},
         {"id": "energetic", "name": "活力", "description": "充满活力风格"},
-        {"id": "premium", "name": "高端", "description": "高端大气风格"}
+        {"id": "premium", "name": "高端", "description": "高端大气风格"},
+        {"id": "creative", "name": "创意", "description": "创意无限风格"},
+        {"id": "fresh", "name": "清新", "description": "小清新风格"},
+        {"id": "tech", "name": "科技", "description": "科技感风格"},
+        {"id": "elegant", "name": "优雅", "description": "优雅精致风格"},
+        {"id": "playful", "name": "活泼", "description": "活泼可爱风格"},
+        {"id": "minimalist", "name": "极简", "description": "极简主义风格"}
     ]
 
 
