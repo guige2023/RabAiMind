@@ -161,9 +161,7 @@ class PPTGenerator:
                 # 一次性模式：AI 内容规划 5%~20%
                 logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
                 task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
-                slides_content = await asyncio.to_thread(
-                    self._plan_ppt, user_request, slide_count, scene=scene, style=style
-                )
+                slides_content = self._plan_ppt(user_request, slide_count, scene=scene, style=style)
                 logger.info(f"AI规划了 {len(slides_content)} 页")
                 task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
 
