@@ -7,10 +7,13 @@
 """
 
 import re
+import logging
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, field_validator, AliasChoices
 from enum import Enum
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== 验证器 ====================
@@ -235,6 +238,15 @@ class GenerateRequest(BaseModel):
                 raise ValueError(f"pre_generated_slides[{i}] must be a dict, got {type(item).__name__}")
             if "title" not in item:
                 raise ValueError(f"pre_generated_slides[{i}] missing required field 'title'")
+            # BUG修复: 验证 content 字段必须是 list[str]，不是带换行的字符串
+            if "content" in item:
+                content = item["content"]
+                if isinstance(content, str):
+                    # 自动转换字符串为数组
+                    item["content"] = [line.strip() for line in content.split('\n') if line.strip()]
+                    logger.warning(f"pre_generated_slides[{i}] content 是字符串，已自动转换为数组")
+                elif not isinstance(content, list):
+                    raise ValueError(f"pre_generated_slides[{i}] content must be list or str, got {type(content).__name__}")
         return v
 
 

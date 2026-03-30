@@ -11,6 +11,9 @@
         </div>
       </div>
       <div class="header-actions">
+        <button class="btn btn-outline" @click="showConfigPanel = !showConfigPanel">
+          {{ showConfigPanel ? '收起参数' : '⚙️ 参数配置' }}
+        </button>
         <button class="btn btn-outline" @click="addSlide">
           + 添加页面
         </button>
@@ -73,12 +76,12 @@
             </div>
             <div class="slide-footer">
               <select v-model="slide.layout" class="layout-select" @click.stop>
-                <option value="title">标题页</option>
-                <option value="content">内容页</option>
-                <option value="two-column">双栏</option>
-                <option value="image-left">左图右文</option>
-                <option value="image-right">左文右图</option>
-                <option value="centered">居中</option>
+                <option value="title_slide">标题页</option>
+                <option value="content_card">内容页</option>
+                <option value="two_column">双栏</option>
+                <option value="left_image_right_text">左图右文</option>
+                <option value="left_text_right_image">左文右图</option>
+                <option value="center">居中</option>
               </select>
               <span class="word-count">{{ getWordCount(slide.content) }} 字</span>
             </div>
@@ -107,6 +110,165 @@
         <span class="action-icon">🗑️</span>
         <span>清空所有</span>
       </button>
+    </div>
+
+    <!-- 参数配置面板 -->
+    <div v-if="showConfigPanel" class="config-panel">
+      <div class="config-panel-header">
+        <h3>🎨 PPT 参数配置</h3>
+        <button class="close-btn" @click="showConfigPanel = false">✕</button>
+      </div>
+      <div class="config-panel-body">
+        <!-- 场景选择 -->
+        <div class="config-section">
+          <label class="config-label">场景类型</label>
+          <select v-model="genOptions.scene" class="config-select">
+            <option value="business">💼 商务</option>
+            <option value="education">📚 教育</option>
+            <option value="tech">🚀 科技</option>
+            <option value="creative">💡 创意</option>
+            <option value="marketing">📢 营销</option>
+            <option value="finance">💰 金融</option>
+            <option value="medical">🏥 医疗</option>
+            <option value="government">🏛️ 政府</option>
+          </select>
+        </div>
+
+        <!-- 风格选择 -->
+        <div class="config-section">
+          <label class="config-label">视觉风格</label>
+          <select v-model="genOptions.style" class="config-select">
+            <option value="professional">💼 专业商务</option>
+            <option value="simple">✨ 简约现代</option>
+            <option value="energetic">🔥 活力动感</option>
+            <option value="premium">👑 高端大气</option>
+            <option value="tech">🚀 科技未来</option>
+            <option value="creative">🎨 创意艺术</option>
+            <option value="elegant">🌸 优雅古典</option>
+            <option value="playful">🎮 卡通趣味</option>
+            <option value="nature">🌿 自然清新</option>
+            <option value="minimalist">⬜ 极简留白</option>
+          </select>
+        </div>
+
+        <!-- 模板选择 -->
+        <div class="config-section">
+          <label class="config-label">模板风格</label>
+          <div class="template-grid">
+            <div
+              v-for="tpl in templateOptions"
+              :key="tpl.value"
+              class="template-card"
+              :class="{ active: genOptions.template === tpl.value }"
+              @click="genOptions.template = tpl.value"
+            >
+              <div class="template-preview" :style="{ background: tpl.preview }">
+                <span class="template-icon">{{ tpl.icon }}</span>
+              </div>
+              <span class="template-name">{{ tpl.name }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主题色 -->
+        <div class="config-section">
+          <label class="config-label">主题色</label>
+          <div class="theme-colors">
+            <div
+              v-for="color in themeColors"
+              :key="color.value"
+              class="theme-color"
+              :class="{ active: genOptions.themeColor === color.value }"
+              :style="{ background: color.value }"
+              @click="genOptions.themeColor = color.value"
+            >
+              <span v-if="genOptions.themeColor === color.value" class="check">✓</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 文字样式 -->
+        <div class="config-section">
+          <label class="config-label">文字样式</label>
+          <select v-model="genOptions.textStyle" class="config-select">
+            <option value="transparent_overlay">半透明遮罩</option>
+            <option value="shadow">文字阴影</option>
+            <option value="glow">发光效果</option>
+            <option value="outline">描边效果</option>
+            <option value="gradient">渐变文字</option>
+            <option value="neon">霓虹灯效</option>
+          </select>
+        </div>
+
+        <!-- 字体系统 -->
+        <div class="config-section">
+          <label class="config-label">字体系统</label>
+          <div class="font-grid">
+            <div class="font-item">
+              <span class="font-label">标题字体</span>
+              <select v-model="genOptions.fontTitle" class="config-select">
+                <option value="思源黑体">思源黑体</option>
+                <option value="思源宋体">思源宋体</option>
+                <option value="Noto Sans SC">Noto Sans</option>
+                <option value="Noto Serif SC">Noto Serif</option>
+                <option value="阿里巴巴普惠体">阿里巴巴普惠体</option>
+                <option value="站酷高端黑">站酷高端黑</option>
+              </select>
+            </div>
+            <div class="font-item">
+              <span class="font-label">正文字体</span>
+              <select v-model="genOptions.fontContent" class="config-select">
+                <option value="思源黑体">思源黑体</option>
+                <option value="思源宋体">思源宋体</option>
+                <option value="Noto Sans SC">Noto Sans</option>
+                <option value="Noto Serif SC">Noto Serif</option>
+                <option value="阿里巴巴普惠体">阿里巴巴普惠体</option>
+                <option value="站酷快乐体">站酷快乐体</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 智能布局 -->
+        <div class="config-section">
+          <label class="config-label">
+            <input type="checkbox" v-model="genOptions.useSmartLayout" />
+            <span>启用智能布局</span>
+          </label>
+        </div>
+
+        <!-- 生成模式 -->
+        <div class="config-section">
+          <label class="config-label">生成模式</label>
+          <select v-model="genOptions.generationMode" class="config-select">
+            <option value="standard">标准模式</option>
+            <option value="fast">快速模式</option>
+            <option value="quality">高清模式</option>
+            <option value="stream">流式模式</option>
+          </select>
+        </div>
+
+        <!-- 输出格式 -->
+        <div class="config-section">
+          <label class="config-label">输出格式</label>
+          <select v-model="genOptions.outputFormat" class="config-select">
+            <option value="pptx">PPTX (PowerPoint)</option>
+            <option value="pdf">PDF</option>
+            <option value="svg">SVG</option>
+            <option value="png">PNG</option>
+          </select>
+        </div>
+
+        <!-- 质量选择 -->
+        <div class="config-section">
+          <label class="config-label">输出质量</label>
+          <select v-model="genOptions.quality" class="config-select">
+            <option value="standard">标准 (1080p)</option>
+            <option value="high">高清 (1440p)</option>
+            <option value="ultra">超清 (4K)</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <!-- 加载中 -->
@@ -202,6 +364,9 @@ const isLoading = ref(false)
 const debugSrc = ref('init')
 const isGenerating = ref(false)
 
+// 参数配置面板显示状态
+const showConfigPanel = ref(false)
+
 // 图表上传相关
 const chartTypes = ['bar', 'pie', 'line', 'horizontal_bar', 'stacked_bar']
 const showChartUploadPanel = ref(false)
@@ -223,6 +388,64 @@ const outline = reactive<OutlineData>({
   style: 'professional',
   theme: 'blue'
 })
+
+// 生成选项 - 从 CreateView 传递（通过 route.query）
+// 完整参数配置
+const genOptions = reactive({
+  // 基础参数
+  scene: (route.query.scene as string) || 'business',
+  style: (route.query.style as string) || 'professional',
+  template: (route.query.template as string) || 'default',
+  themeColor: (route.query.themeColor as string) || '#165DFF',
+  // 字体系统
+  fontTitle: (route.query.fontTitle as string) || '思源黑体',
+  fontSubtitle: (route.query.fontSubtitle as string) || '思源黑体',
+  fontContent: (route.query.fontContent as string) || '思源宋体',
+  fontCaption: (route.query.fontCaption as string) || '思源黑体',
+  // 文字样式
+  textStyle: (route.query.textStyle as string) || 'transparent_overlay',
+  shadowColor: (route.query.shadowColor as string) || '#000000',
+  overlayTransparency: Number(route.query.overlayTransparency) || 30,
+  // 布局设置
+  useSmartLayout: route.query.useSmartLayout === 'true',
+  layoutMode: (route.query.layoutMode as 'auto' | 'manual') || 'auto',
+  // 生成设置
+  generationMode: (route.query.generationMode as string) || 'standard',
+  outputFormat: (route.query.outputFormat as string) || 'pptx',
+  quality: (route.query.quality as string) || 'standard',
+})
+
+// 模板选项
+const templateOptions = [
+  { value: 'default', name: '默认商务', icon: '📊', preview: 'linear-gradient(135deg, #667eea, #764ba2)' },
+  { value: 'modern', name: '现代简约', icon: '✨', preview: 'linear-gradient(135deg, #11998e, #38ef7d)' },
+  { value: 'tech', name: '科技未来', icon: '🚀', preview: 'linear-gradient(135deg, #0f0c29, #302b63)' },
+  { value: 'classic', name: '经典大气', icon: '👔', preview: 'linear-gradient(135deg, #232526, #414345)' },
+  { value: 'nature', name: '自然清新', icon: '🌿', preview: 'linear-gradient(135deg, #56ab2f, #a8e063)' },
+  { value: 'ocean', name: '海洋商务', icon: '🌊', preview: 'linear-gradient(135deg, #2193b0, #6dd5ed)' },
+  { value: 'sunset', name: '日落暖阳', icon: '🌅', preview: 'linear-gradient(135deg, #f093fb, #f5576c)' },
+  { value: 'minimal', name: '极简黑白', icon: '⬛', preview: 'linear-gradient(135deg, #304352, #d7d2cc)' }
+]
+
+// 主题色选项
+const themeColors = [
+  { value: '#165DFF', name: '科技蓝' },
+  { value: '#34C759', name: '自然绿' },
+  { value: '#FF9500', name: '活力橙' },
+  { value: '#FF3B30', name: '热情红' },
+  { value: '#AF52DE', name: '神秘紫' },
+  { value: '#1A1A1A', name: '经典黑' },
+  { value: '#5856D6', name: '暗夜紫' },
+  { value: '#00B96B', name: '清新薄荷' },
+  { value: '#FF2D55', name: '玫瑰粉' },
+  { value: '#FFD60A', name: '阳光黄' },
+  { value: '#64D2FF', name: '天空蓝' },
+  { value: '#BF5AF2', name: '荧光紫' },
+  { value: '#FF6B6B', name: '珊瑚红' },
+  { value: '#4ECDC4', name: '海洋青' },
+  { value: '#45B7D1', name: '天际蓝' },
+  { value: '#96CEB4', name: '森林绿' }
+]
 
 // 生成唯一ID
 const generateId = () => Math.random().toString(36).substr(2, 9)
@@ -256,7 +479,7 @@ const addSlide = () => {
     id: generateId(),
     title: '',
     content: '',
-    layout: 'content'
+    layout: 'content_card'
   })
   activeSlide.value = outline.slides.length - 1
 }
@@ -273,26 +496,27 @@ const deleteSlide = (index: number) => {
   }
 }
 
-// 布局类型映射
+// 布局类型映射 - API返回的后端格式映射到前端选项值
 const mapLayoutType = (layout: string) => {
   const map: Record<string, string> = {
-    'title_slide': 'title',
-    'content': 'content',
-    'content_card': 'content',
-    'two_column': 'two-column',
-    'left_text_right_image': 'image-right',
-    'left_image_right_text': 'image-left',
-    'three_column': 'three-column',
-    'center': 'centered',
-    'center_radiation': 'centered',
+    'title_slide': 'title_slide',
+    'content': 'content_card',
+    'content_card': 'content_card',
+    'two_column': 'two_column',
+    'left_text_right_image': 'left_text_right_image',
+    'left_image_right_text': 'left_image_right_text',
+    'three_column': 'three_column',
+    'center': 'center',
+    'centered': 'center',
+    'center_radiation': 'center',
     'toc': 'toc',
     'timeline': 'timeline',
-    'data_visualization': 'chart',
+    'data_visualization': 'data_visualization',
     'quote': 'quote',
     'comparison': 'comparison',
-    'thank_you': 'end'
+    'thank_you': 'thank_you'
   }
-  return map[layout] || 'content'
+  return map[layout] || 'content_card'
 }
 
 // 选择图表文件
@@ -400,10 +624,12 @@ const testAPI = async () => {
   const r = document.getElementById('dbg-res')
   if (r) r.textContent = '⏳...'
   try {
+    const scene = route.query.scene as string || 'business'
+    const style = route.query.style as string || 'professional'
     const resp = await fetch('http://localhost:8003/api/v1/ppt/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_request: route.query.request || '商务演示', slide_count: 6, scene: 'business', style: 'professional' })
+      body: JSON.stringify({ user_request: route.query.request || '商务演示', slide_count: 6, scene: scene, style: style })
     })
     const data = await resp.json()
     const ok = data.success && data.slides?.length > 0
@@ -429,13 +655,16 @@ const generateOutline = async () => {
   console.log('[generateOutline] 请求内容:', route.query.request)
 
   const request = route.query.request as string || '商务演示'
+  const scene = route.query.scene as string || 'business'
+  const style = route.query.style as string || 'professional'
 
   // 尝试调用后端API生成大纲
   try {
     const { api } = await import('../api/client')
     console.log('[generateOutline] 📡 调用 api.ppt.plan API...')
+    console.log('[generateOutline] 参数:', { request, scene, style })
 
-    const response = await api.ppt.plan(request)
+    const response = await api.ppt.plan(request, 6, scene, style)
     console.log('[generateOutline] ✅ API响应收到:', JSON.stringify(response?.data)?.substring(0, 500))
 
     // 检查响应结构
@@ -670,14 +899,29 @@ const generatePPT = async () => {
     await saveOutline()
 
     // Step 1: 调用 /generate API，将预生成内容传入，跳过 AI 内容规划
+    // 使用 genOptions 中的完整参数配置
     const response = await api.ppt.createTask({
       user_request: route.query.request as string || 'PPT 生成',
       slide_count: outline.slides.length,
-      scene: (route.query.scene as any) || outline.style || 'business',
-      style: (route.query.style as any) || outline.style || 'professional',
-      template: (route.query.template as any) || 'default',
-      theme_color: (route.query.themeColor as string) || outline.theme || '#165DFF',
+      scene: genOptions.scene,
+      style: genOptions.style,
+      template: genOptions.template,
+      theme_color: genOptions.themeColor,
       pre_generated_slides: preGeneratedSlides,
+      text_style: genOptions.textStyle,
+      shadow_color: genOptions.shadowColor,
+      overlay_transparency: genOptions.overlayTransparency,
+      use_smart_layout: genOptions.useSmartLayout,
+      font_title: genOptions.fontTitle,
+      font_subtitle: genOptions.fontSubtitle,
+      font_content: genOptions.fontContent,
+      font_caption: genOptions.fontCaption,
+      layout_mode: genOptions.layoutMode === '统一' ? 'auto' : genOptions.layoutMode,
+      unified_layout: true,
+      include_charts: false,
+      generation_mode: genOptions.generationMode,
+      output_format: genOptions.outputFormat,
+      quality: genOptions.quality
     })
     const taskId = response.data.task_id
 
@@ -690,8 +934,9 @@ const generatePPT = async () => {
       query: { taskId }
     })
   } catch (e: any) {
-    console.error('生成失败:', e)
-    alert(`生成失败: ${e?.message || '请重试'}`)
+    console.error('生成PPT失败详情:', e?.response?.data || e)
+    const msg = e?.response?.data?.detail || e?.message || '请重试'
+    alert(`生成失败: ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`)
     isGenerating.value = false
   }
 }
@@ -774,6 +1019,24 @@ onMounted(async () => {
     // 优先用 URL 参数，兜底用 localStorage
     if (!passedStyle && parsed.style) outline.style = parsed.style
     if (!passedThemeColor && parsed.theme) outline.theme = parsed.theme
+    // 读取完整生成选项到 genOptions
+    if (parsed.scene) genOptions.scene = parsed.scene
+    if (parsed.style) genOptions.style = parsed.style
+    if (parsed.template) genOptions.template = parsed.template
+    if (parsed.themeColor) genOptions.themeColor = parsed.themeColor
+    if (parsed.fontTitle) genOptions.fontTitle = parsed.fontTitle
+    if (parsed.fontSubtitle) genOptions.fontSubtitle = parsed.fontSubtitle
+    if (parsed.fontContent) genOptions.fontContent = parsed.fontContent
+    if (parsed.fontCaption) genOptions.fontCaption = parsed.fontCaption
+    if (parsed.textStyle) genOptions.textStyle = parsed.textStyle
+    if (parsed.shadowColor) genOptions.shadowColor = parsed.shadowColor
+    if (parsed.overlayTransparency) genOptions.overlayTransparency = parsed.overlayTransparency
+    if (parsed.useSmartLayout !== undefined) genOptions.useSmartLayout = parsed.useSmartLayout
+    if (parsed.layoutMode) genOptions.layoutMode = parsed.layoutMode === '统一' ? 'auto' : parsed.layoutMode
+    if (parsed.generationMode) genOptions.generationMode = parsed.generationMode
+    if (parsed.outputFormat) genOptions.outputFormat = parsed.outputFormat
+    if (parsed.quality) genOptions.quality = parsed.quality
+    console.log('[OutlineEdit] 加载生成选项:', genOptions)
     localStorage.removeItem('ppt_outline_temp')
     debugSrc.value = 'localStorage'
   }
@@ -1340,5 +1603,193 @@ onMounted(async () => {
   background: linear-gradient(135deg, #4080FF, #50a0ff);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
+}
+
+/* 参数配置面板 */
+.config-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.config-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.config-panel-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.config-panel-header .close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.config-panel-header .close-btn:hover {
+  background: #e5e5e5;
+  color: #333;
+}
+
+.config-panel-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.config-section {
+  margin-bottom: 16px;
+}
+
+.config-section .config-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.config-section .config-label input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.config-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.config-select:hover {
+  border-color: #165DFF;
+}
+
+.config-select:focus {
+  outline: none;
+  border-color: #165DFF;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+}
+
+/* 模板选择 */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  border: 2px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  border-color: #ddd;
+}
+
+.template-card.active {
+  border-color: #165DFF;
+  background: #f0f7ff;
+}
+
+.template-preview {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.template-icon {
+  font-size: 20px;
+}
+
+.template-name {
+  font-size: 12px;
+  color: #333;
+}
+
+.template-card.active .template-name {
+  color: #165DFF;
+  font-weight: 500;
+}
+
+/* 主题色 */
+.theme-colors {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-color {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.theme-color:hover {
+  transform: scale(1.1);
+}
+
+.theme-color.active {
+  border-color: #333;
+}
+
+.theme-color .check {
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* 字体网格 */
+.font-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.font-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.font-label {
+  font-size: 12px;
+  color: #666;
 }
 </style>

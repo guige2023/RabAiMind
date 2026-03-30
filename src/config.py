@@ -150,7 +150,7 @@ class Settings(BaseSettings):
     TASK_QUEUE_BACKEND: str = "memory"  # memory / redis
 
     # ========== CORS 配置 ==========
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174"
 
     # ========== 路径配置 ==========
     OUTPUT_DIR: str = "./output"

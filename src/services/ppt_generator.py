@@ -144,6 +144,30 @@ class PPTGenerator:
         self._first_page_layout = None
         self._image_failure_count = 0
 
+        # BUG修复: 如果指定了 template（非default），解析模板并使用其配置覆盖参数
+        if template and template != "default":
+            try:
+                from .template_manager import get_template_manager
+                tm = get_template_manager()
+                tpl = tm.get_template(template)
+                if tpl:
+                    # 模板优先级：模板设置 > 用户传递的默认值
+                    if tpl.colors and len(tpl.colors) > 0:
+                        theme_color = tpl.colors[0]  # 使用模板的第一个颜色作为主题色
+                        logger.info(f"[Template] 应用模板 {template} 的主题色: {theme_color}")
+                    if tpl.fonts and len(tpl.fonts) >= 4:
+                        # 只有当用户未明确指定时才使用模板字体
+                        if font_title == "思源黑体":  # 默认值，说明用户没指定
+                            font_title = tpl.fonts[0]
+                            font_subtitle = tpl.fonts[1] if len(tpl.fonts) > 1 else tpl.fonts[0]
+                            font_content = tpl.fonts[2] if len(tpl.fonts) > 2 else tpl.fonts[0]
+                            font_caption = tpl.fonts[3] if len(tpl.fonts) > 3 else tpl.fonts[0]
+                            logger.info(f"[Template] 应用模板 {template} 的字体: {font_title}")
+                    # style 也会被模板影响，但保留用户显式传递的 style
+                    logger.info(f"[Template] 模板 {template} 配置已应用")
+            except Exception as e:
+                logger.warning(f"[Template] 解析模板失败: {e}")
+
         try:
             from .task_manager import get_task_manager
             task_manager = get_task_manager()
@@ -173,15 +197,17 @@ class PPTGenerator:
                 logger.info(f"图表增强完成，共 {len(slides_content)} 页（含图表页）")
 
             # 2. 为每页生成AI图片 - 20%~45%
-            task_manager.update_progress(task_id, 22, f"开始生成{slide_count}张配图...", "processing")
+            # BUG修复: 使用实际内容长度 len(slides_content) 而不是 slide_count
+            actual_slide_count = len(slides_content)
+            task_manager.update_progress(task_id, 22, f"开始生成{actual_slide_count}张配图...", "processing")
             logger.info("开始生成AI图片...")
 
             for i, slide in enumerate(slides_content):
                 slide_num = i + 1
-                progress = 22 + int((i / slide_count) * 23)
+                progress = 22 + int((i / actual_slide_count) * 23)
                 task_manager.update_progress(
                     task_id, progress,
-                    f"正在生成第{slide_num}/{slide_count}张配图...",
+                    f"正在生成第{slide_num}/{actual_slide_count}张配图...",
                     "processing"
                 )
                 image_url = self._generate_image(slide, slide_num)

@@ -365,6 +365,7 @@ const {
 // Sync with store
 onMounted(() => {
   store.loadTemplates()
+  store.loadCategoriesAndStyles()  // BUG修复: 从API加载分类/风格
   store.loadFavorites()
 })
 

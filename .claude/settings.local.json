@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:github.com)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(source .venv/bin/activate)",
+      "Bash(python3 -m py_compile src/api/routes/ppt.py src/services/task_manager.py src/services/ppt_generator.py)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(bash -c \"source .venv/bin/activate && python3 -c ''from src.api.routes.ppt import router; print\\(\"\"OK\"\"\\)''\")",
+      "Bash(python3 -m py_compile src/models/__init__.py src/services/ppt_generator.py)",
+      "Bash(python3:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:8003/api/v1/health)",
+      "Bash(curl:*)",
+      "Bash(xargs kill:*)",
+      "Bash(ls:*)"
     ]
   }
 }

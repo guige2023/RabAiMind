@@ -40,8 +40,8 @@ function mapApiTemplate(apiT: any): Template {
   }
 }
 
-// 模板分类
-export const templateCategories = [
+// 模板分类 - 硬编码兜底数据
+const defaultCategories = [
   { id: 'business', name: '商业', icon: '💼', count: 12 },
   { id: 'education', name: '教育', icon: '📚', count: 8 },
   { id: 'tech', name: '科技', icon: '🚀', count: 6 },
@@ -50,8 +50,8 @@ export const templateCategories = [
   { id: 'government', name: '政府', icon: '🏛️', count: 4 }
 ]
 
-// 模板风格
-export const templateStyles = [
+// 模板风格 - 硬编码兜底数据
+const defaultStyles = [
   { id: 'professional', name: '专业商务', icon: '💼' },
   { id: 'simple', name: '简约现代', icon: '✨' },
   { id: 'energetic', name: '活力动感', icon: '🔥' },
@@ -61,6 +61,10 @@ export const templateStyles = [
   { id: 'elegant', name: '优雅古典', icon: '🌸' },
   { id: 'playful', name: '卡通趣味', icon: '🎮' }
 ]
+
+// BUG修复: 从后端API加载分类/风格，而不是硬编码
+export const templateCategories = ref(defaultCategories)
+export const templateStyles = ref(defaultStyles)
 
 // 示例模板数据
 const sampleTemplates: Template[] = [
@@ -360,14 +364,16 @@ export function useTemplateStore() {
   const loadTemplates = async () => {
     isLoading.value = true
     try {
-      // 调用后端 /api/v1/templates（TemplateManager 提供）
-      const res = await apiClient.get('/templates')
+      // 调用后端 /api/v1/ppt/templates（TemplateManager 提供）
+      // BUG修复: 之前错误地调用 /templates，应该是 /ppt/templates
+      const res = await apiClient.get('/ppt/templates')
       // 兼容两种响应格式：直接数组 或 {data: [...]} 或 {success: true, data: [...]}
       const raw: any[] = Array.isArray(res.data)
         ? res.data
         : (res.data.data || res.data.templates || [])
-      if (apiTemplates.length > 0) {
-        templates.value = apiTemplates.map(mapApiTemplate)
+      // BUG修复: 使用正确的变量名 raw 而不是未定义的 apiTemplates
+      if (raw && raw.length > 0) {
+        templates.value = raw.map(mapApiTemplate)
       } else {
         // API无数据时降级用本地假数据
         templates.value = sampleTemplates
@@ -377,6 +383,38 @@ export function useTemplateStore() {
       templates.value = sampleTemplates
     } finally {
       isLoading.value = false
+    }
+  }
+
+  // BUG修复: 从API加载分类和风格
+  const loadCategoriesAndStyles = async () => {
+    try {
+      const [catsRes, stylesRes] = await Promise.all([
+        apiClient.get('/templates/categories').catch(() => null),
+        apiClient.get('/templates/styles').catch(() => null)
+      ])
+
+      // 合并API返回的分类（保留图标映射）
+      if (catsRes?.data?.categories) {
+        const apiCats: string[] = catsRes.data.categories
+        templateCategories.value = apiCats.map((id: string) => {
+          const found = defaultCategories.find(c => c.id === id)
+          return found || { id, name: id, icon: '📁', count: 0 }
+        })
+      }
+
+      // 合并API返回的风格（保留图标映射）
+      if (stylesRes?.data?.styles) {
+        const apiStyles: string[] = stylesRes.data.styles
+        templateStyles.value = apiStyles.map((id: string) => {
+          const found = defaultStyles.find(s => s.id === id)
+          return found || { id, name: id, icon: '🎨' }
+        })
+      }
+
+      console.log('[TemplateStore] 分类/风格已从API加载')
+    } catch (e) {
+      console.warn('[TemplateStore] 加载分类/风格失败，使用硬编码兜底:', e)
     }
   }
 
@@ -477,7 +515,7 @@ export function useTemplateStore() {
   // 获取分类统计
   const categoryStats = computed((): Record<string, number> => {
     const stats: Record<string, number> = {}
-    templateCategories.forEach((cat: { id: string }): void => {
+    templateCategories.value.forEach((cat: { id: string }): void => {
       stats[cat.id] = templates.value.filter((t: Template): boolean => t.category === cat.id).length
     })
     return stats
@@ -503,6 +541,7 @@ export function useTemplateStore() {
     categoryStats,
     isLoading,
     loadTemplates,
+    loadCategoriesAndStyles,
     loadFavorites,
     toggleFavorite,
     isFavorite,

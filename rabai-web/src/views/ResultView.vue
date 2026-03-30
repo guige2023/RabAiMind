@@ -38,10 +38,19 @@
                   :key="slide.slideNum"
                   class="preview-slide"
                 >
-                  <img :src="slide.url" :alt="`第 ${slide.slideNum} 页`" class="preview-image" />
+                  <img
+                    :src="slide.url"
+                    :alt="`第 ${slide.slideNum} 页`"
+                    class="preview-image"
+                    @error="onPreviewError($event, slide.slideNum)"
+                  />
+                  <!-- BUG修复: 图片加载失败时显示占位符 -->
+                  <div v-if="previewErrors.value.has(slide.slideNum)" class="preview-error">
+                    <span>加载失败</span>
+                  </div>
                   <div class="slide-actions">
-                    <button 
-                      class="btn btn-sm btn-regenerate" 
+                    <button
+                      class="btn btn-sm btn-regenerate"
                       @click="regenerateSingleSlide(index)"
                       :disabled="regeneratingSlideIndex === index"
                     >
@@ -116,14 +125,14 @@
               <div class="form-item">
                 <text class="form-label">适用场景</text>
                 <select v-model="newTemplate.sceneIndex" class="form-select">
-                  <option v-for="(s, i) in scenes" :key="i" :value="i">{{ s }}</option>
+                  <option v-for="(s, i) in scenes" :key="s.id" :value="i">{{ s.name }}</option>
                 </select>
               </div>
 
               <div class="form-item">
                 <text class="form-label">风格</text>
                 <select v-model="newTemplate.styleIndex" class="form-select">
-                  <option v-for="(s, i) in styles" :key="i" :value="i">{{ s }}</option>
+                  <option v-for="(s, i) in styles" :key="s.id" :value="i">{{ s.name }}</option>
                 </select>
               </div>
 
@@ -544,7 +553,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
@@ -562,6 +571,8 @@ const showExportMenu = ref(false)
 const showChartConfig = ref(false)
 const previewLoaded = ref(false)
 const previewSlides = ref<Array<{url: string; slideNum: number}>>([])
+// BUG修复: 跟踪预览图片加载错误 - 使用ref包装Set保证响应式
+const previewErrors = ref(new Set<number>())
 const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
@@ -610,8 +621,39 @@ const newTemplate = ref({
   styleIndex: 0,
   visibility: 'private'
 })
-const scenes = ['business', 'education', 'government', 'creative', 'investment']
-const styles = ['professional', 'creative', 'minimalist', 'classic']
+// BUG修复: 从后端API加载场景/风格，不再硬编码
+const scenes = ref<Array<{id: string; name: string}>>([
+  { id: 'business', name: '商务' },
+  { id: 'education', name: '教育' },
+  { id: 'government', name: '政府' },
+  { id: 'creative', name: '创意' },
+  { id: 'marketing', name: '营销' }
+])
+const styles = ref<Array<{id: string; name: string}>>([
+  { id: 'professional', name: '专业' },
+  { id: 'creative', name: '创意' },
+  { id: 'minimalist', name: '极简' },
+  { id: 'classic', name: '经典' }
+])
+
+// 加载场景和风格从API
+const loadScenesAndStyles = async () => {
+  try {
+    const [scenesRes, stylesRes] = await Promise.all([
+      api.ppt.getScenes().catch(() => null),
+      api.ppt.getStyles().catch(() => null)
+    ])
+    if (scenesRes?.data && Array.isArray(scenesRes.data)) {
+      scenes.value = scenesRes.data
+    }
+    if (stylesRes?.data && Array.isArray(stylesRes.data)) {
+      styles.value = stylesRes.data
+    }
+    console.log('[ResultView] 场景/风格已加载:', scenes.value.length, styles.value.length)
+  } catch (e) {
+    console.warn('[ResultView] 加载场景/风格失败，使用硬编码兜底:', e)
+  }
+}
 
 async function saveAsTemplate() {
   if (!newTemplate.value.name.trim()) {
@@ -622,8 +664,8 @@ async function saveAsTemplate() {
     const res = await api.template.uploadTemplate({
       name: newTemplate.value.name,
       description: newTemplate.value.description,
-      scene: scenes[newTemplate.value.sceneIndex],
-      style: styles[newTemplate.value.styleIndex],
+      scene: scenes.value[newTemplate.value.sceneIndex]?.id || 'business',
+      style: styles.value[newTemplate.value.styleIndex]?.id || 'professional',
       visibility: newTemplate.value.visibility
     })
     if (res.data.success) {
@@ -814,9 +856,12 @@ const regenerateWithEdits = async () => {
     localStorage.setItem('ppt_outline', JSON.stringify(outlineData))
 
     // 构建 pre_generated_slides
+    // BUG修复: content 应该是数组格式，不是带换行的字符串
     const preGeneratedSlides = editableSlides.value.map(slide => ({
       title: slide.title,
-      content: slide.content,
+      content: typeof slide.content === 'string'
+        ? slide.content.split('\n').filter(line => line.trim())
+        : slide.content,
       slide_type: slide.layout === 'title' ? 'title' : 'content',
       layout: slide.layout,
     }))
@@ -933,9 +978,19 @@ const toggleFavorite = () => {
   }
 }
 
+// BUG修复: 预览图片加载错误处理
+const onPreviewError = (event: Event, slideNum: number) => {
+  const img = event.target as HTMLImageElement
+  img.style.display = 'none'
+  previewErrors.value.add(slideNum)
+  console.warn(`Slide ${slideNum} 预览加载失败`)
+}
+
 // 加载预览（调用真实API获取SVG预览）
 const loadPreview = async () => {
   if (!taskId.value) return
+  // 清空之前的加载错误
+  previewErrors.value.clear()
 
   try {
     const response = await api.ppt.getTaskPreview(taskId.value)
@@ -1415,6 +1470,8 @@ onMounted(() => {
   loadPreview()
   checkFavorite()
   loadVersionHistory()
+  // BUG修复: 从API加载场景/风格配置
+  loadScenesAndStyles()
 })
 </script>
 
@@ -1582,6 +1639,22 @@ onMounted(() => {
   padding: 40px;
   color: #999;
   font-size: 14px;
+}
+
+/* BUG修复: 预览图片加载失败样式 */
+.preview-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+  color: #999;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 .preview-more {

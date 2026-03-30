@@ -121,12 +121,12 @@ export const api: APIClient = {
       return apiClient.get('/ppt/styles')
     },
 
-    plan: (request: string, slideCount = 5): Promise<AxiosResponse<PlanPPTResponse>> => {
+    plan: (request: string, slideCount = 5, scene = 'business', style = 'professional'): Promise<AxiosResponse<PlanPPTResponse>> => {
       return apiClient.post('/ppt/plan', {
         user_request: request,
         slide_count: slideCount,
-        scene: 'business',
-        style: 'professional'
+        scene: scene,
+        style: style
       })
     },
 
@@ -236,6 +236,22 @@ export const api: APIClient = {
 
     categories: (): Promise<AxiosResponse<{ success: boolean; categories: Array<{ id: string; name: string; icon: string; keywords: string[] }> }>> => {
       return apiClient.get('/images/categories')
+    }
+  },
+
+  // 收藏功能 - BUG修复: 后端已有API但前端未调用，添加user_id支持
+  favorites: {
+    add: (userId: string, data: { item_id: string; item_type: string; name: string; description?: string; thumbnail?: string }): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      return apiClient.post(`/favorites/add?user_id=${userId}`, data)
+    },
+    remove: (userId: string, itemId: string, itemType: string): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      return apiClient.delete('/favorites/remove', { params: { user_id: userId, item_id: itemId, item_type: itemType } })
+    },
+    check: (userId: string, itemId: string, itemType: string): Promise<AxiosResponse<{ is_favorite: boolean }>> => {
+      return apiClient.get('/favorites/check', { params: { user_id: userId, item_id: itemId, item_type: itemType } })
+    },
+    list: (userId: string, itemType?: string): Promise<AxiosResponse<{ success: boolean; items: any[]; total: number }>> => {
+      return apiClient.get(`/favorites/list/${userId}`, { params: { item_type: itemType } })
     }
   },
 

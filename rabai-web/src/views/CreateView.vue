@@ -4,7 +4,7 @@
       <div class="create-header">
         <div class="header-top">
           <div>
-            <h1 class="page-title">创建你的 PPT</h1>
+            <h1 class="page-title">创建 PPT - 输入需求</h1>
             <p class="page-subtitle">描述你想要的内容，AI 将为你生成专业演示文稿</p>
           </div>
           <div class="draft-status" v-if="draftSaved">
@@ -64,8 +64,15 @@
           </div>
         </div>
 
-        <!-- 参数配置 -->
-        <div class="form-row">
+        <!-- 高级参数（默认折叠，完整参数在 OutlineEditView 中配置）-->
+        <div class="form-section">
+          <button class="btn btn-outline" @click="showAdvancedParams = !showAdvancedParams">
+            {{ showAdvancedParams ? '▼ 收起高级参数' : '▶ 高级参数（场景/风格/模板等）' }}
+          </button>
+        </div>
+
+        <!-- 高级参数配置 -->
+        <div v-if="showAdvancedParams">
           <!-- 幻灯片数量 -->
           <div class="form-section">
             <label class="form-label">幻灯片数量</label>
@@ -121,7 +128,7 @@
             <label class="form-label">模板风格</label>
             <div class="template-grid">
               <div
-                v-for="tpl in templateOptions"
+                v-for="tpl in templateOptionsComputed"
                 :key="tpl.value"
                 class="template-card"
                 :class="{ active: formData.template === tpl.value }"
@@ -752,6 +759,9 @@ const isSubmitting = ref(false)
 // 草稿保存状态
 const draftSaved = ref(false)
 
+// 高级参数折叠状态
+const showAdvancedParams = ref(false)
+
 // AI 智能推荐
 const showRecommendation = ref(false)
 const { recommendations, analyzeRequest } = useSmartRecommendation()
@@ -818,6 +828,66 @@ const showErrorModal = ref(false)
 const errorMessage = ref('')
 const errorType = ref<'network' | 'validation' | 'server'>('network')
 
+// API加载的配置数据（模板/场景/风格）
+// BUG修复: 从后端API加载，而不是硬编码
+const apiTemplates = ref<Array<{value: string; name: string; icon: string; preview: string; desc: string}>>([])
+const apiScenes = ref<Array<{id: string; name: string}>>([])
+const apiStyles = ref<Array<{id: string; name: string}>>([])
+const configsLoaded = ref(false)
+
+// 加载配置从后端API
+const loadConfigsFromAPI = async () => {
+  try {
+    const [templatesRes, scenesRes, stylesRes] = await Promise.all([
+      api.ppt.getTemplates().catch(() => null),
+      api.ppt.getScenes().catch(() => null),
+      api.ppt.getStyles().catch(() => null)
+    ])
+
+    // 转换模板数据
+    if (templatesRes?.data && Array.isArray(templatesRes.data)) {
+      apiTemplates.value = templatesRes.data.map((t: any) => ({
+        value: t.id,
+        name: t.name,
+        icon: '📊',
+        preview: t.colors && t.colors[0] ? `linear-gradient(135deg, ${t.colors[0]}, ${t.colors[1] || t.colors[0]})` : 'linear-gradient(135deg, #667eea, #764ba2)',
+        desc: t.description || t.name
+      }))
+    }
+
+    // 转换场景数据
+    if (scenesRes?.data && Array.isArray(scenesRes.data)) {
+      apiScenes.value = scenesRes.data.map((s: any) => ({
+        id: s.id,
+        name: s.name
+      }))
+    }
+
+    // 转换风格数据
+    if (stylesRes?.data && Array.isArray(stylesRes.data)) {
+      apiStyles.value = stylesRes.data.map((s: any) => ({
+        id: s.id,
+        name: s.name
+      }))
+    }
+
+    configsLoaded.value = true
+    console.log('[CreateView] 配置已从API加载:', {
+      templates: apiTemplates.value.length,
+      scenes: apiScenes.value.length,
+      styles: apiStyles.value.length
+    })
+  } catch (e) {
+    console.warn('[CreateView] 从API加载配置失败，使用硬编码兜底:', e)
+    configsLoaded.value = true  // 标记已尝试加载，避免重复
+  }
+}
+
+// 使用API数据或硬编码兜底（computed确保响应式）
+const templateOptionsComputed = computed(() => {
+  return apiTemplates.value.length > 0 ? apiTemplates.value : templateOptions
+})
+
 // 友好的错误消息映射
 const getFriendlyError = (error: any): { message: string; type: 'network' | 'validation' | 'server' } => {
   const status = error.response?.status
@@ -833,6 +903,21 @@ const getFriendlyError = (error: any): { message: string; type: 'network' | 'val
   if (status === 400) {
     return {
       message: detail || '请求参数有误，请检查输入内容',
+      type: 'validation'
+    }
+  }
+
+  if (status === 422) {
+    // Pydantic 验证错误，提取关键字段信息
+    let errMsg = '参数验证失败'
+    if (Array.isArray(detail)) {
+      const msgs = detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('; ')
+      errMsg = msgs || '参数验证失败'
+    } else if (typeof detail === 'string') {
+      errMsg = detail
+    }
+    return {
+      message: errMsg,
       type: 'validation'
     }
   }
@@ -1039,15 +1124,33 @@ const editOutline = () => {
   validateRequest()
   if (!isValid.value) return
 
-  // 保存完整参数到 localStorage（备用）
+  // 保存完整参数到 localStorage（备用）- 包含所有生成选项
   localStorage.setItem('ppt_outline_temp', JSON.stringify({
+    // 基础参数
+    scene: formData.value.scene,
     style: formData.value.style,
-    theme: formData.value.themeColor,
     template: formData.value.template,
-    scene: formData.value.scene
+    themeColor: formData.value.themeColor,
+    // 字体系统
+    fontTitle: formData.value.fontTitle,
+    fontSubtitle: formData.value.fontSubtitle,
+    fontContent: formData.value.fontContent,
+    fontCaption: formData.value.fontCaption,
+    // 文字样式
+    textStyle: formData.value.textStyle,
+    shadowColor: formData.value.shadowColor,
+    overlayTransparency: formData.value.overlayTransparency,
+    // 布局设置
+    useSmartLayout: formData.value.useSmartLayout,
+    layoutMode: formData.value.layoutMode === '统一' ? 'auto' : 'manual',
+    // 生成设置
+    generationMode: formData.value.generationMode,
+    outputFormat: formData.value.outputFormat,
+    quality: formData.value.quality
   }))
 
   // 跳转到大纲编辑页面，传递所有参数
+  // BUG修复: 之前只传递了5个参数，现在传递完整生成选项
   router.push({
     path: '/outline',
     query: {
@@ -1055,7 +1158,24 @@ const editOutline = () => {
       style: formData.value.style,
       scene: formData.value.scene,
       template: formData.value.template,
-      themeColor: formData.value.themeColor
+      themeColor: formData.value.themeColor,
+      // 新增：字体参数
+      fontTitle: formData.value.fontTitle,
+      fontSubtitle: formData.value.fontSubtitle,
+      fontContent: formData.value.fontContent,
+      fontCaption: formData.value.fontCaption,
+      // 新增：样式参数
+      textStyle: formData.value.textStyle,
+      shadowColor: formData.value.shadowColor,
+      overlayTransparency: String(formData.value.overlayTransparency),
+      // 新增：布局参数
+      useSmartLayout: String(formData.value.useSmartLayout),
+      layoutMode: formData.value.layoutMode === '统一' ? 'auto' : 'manual',
+      // 新增：生成参数
+      generationMode: formData.value.generationMode,
+      outputFormat: formData.value.outputFormat,
+      quality: formData.value.quality,
+      slideCount: String(formData.value.slideCount)
     }
   })
 }
@@ -1181,6 +1301,7 @@ const handleSubmit = async () => {
     })
   } catch (error: any) {
     isSubmitting.value = false
+    console.error('生成PPT失败:', error?.response?.data || error)
     const friendlyError = getFriendlyError(error)
     errorMessage.value = friendlyError.message
     errorType.value = friendlyError.type
@@ -1205,6 +1326,8 @@ onMounted(() => {
   }
   // 加载PPT素材
   loadPptImages()
+  // BUG修复: 从后端API加载模板/场景/风格配置
+  loadConfigsFromAPI()
 
   // 加载草稿（如果有）
   const draft = loadDraft()

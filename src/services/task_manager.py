@@ -81,7 +81,8 @@ class TaskManager:
             "created_at": get_timestamp(),
             "updated_at": get_timestamp(),
             "result": None,
-            "error": None
+            "error": None,
+            "params": {}  # BUG修复: 存储完整生成参数，用于单页重生成等场景
         }
 
         with self._task_lock:
@@ -109,6 +110,13 @@ class TaskManager:
         with self._task_lock:
             task = self.tasks.get(task_id)
             return task.get("outline") if task else None
+
+    def update_task_params(self, task_id: str, params: Dict) -> None:
+        """更新任务参数（用于存储完整生成选项，支持后续重生成等操作）"""
+        with self._task_lock:
+            if task_id in self.tasks:
+                self.tasks[task_id]["params"] = params
+                self.tasks[task_id]["updated_at"] = get_timestamp()
 
     def get_history(self, status_filter: Optional[str] = None) -> Dict[str, Dict]:
         """

@@ -6,7 +6,7 @@ API 路由定义
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form, Query
+from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form, Query, Body
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
@@ -168,7 +168,7 @@ async def get_api_info():
 # ==================== 大纲持久化 ====================
 
 @router.post("/outline/save")
-async def save_outline(task_id: str, outline: dict):
+async def save_outline(task_id: str = Query(...), outline: dict = Body(...)):
     """
     保存大纲到任务（支持跨设备继续编辑）
     outline: {slides: [{title, content, layout, slide_type}], style, scene}
@@ -295,6 +295,27 @@ async def generate_ppt(request: GenerateRequest):
             template=request.template.value,
             theme_color=request.theme_color
         )
+
+        # BUG修复: 存储完整生成参数到 task["params"]，用于单页重生成等场景
+        get_task_manager().update_task_params(task_id, {
+            "scene": request.scene.value,
+            "style": request.style.value,
+            "template": request.template.value,
+            "theme_color": request.theme_color,
+            "text_style": request.text_style.value,
+            "shadow_color": request.shadow_color,
+            "overlay_transparency": request.overlay_transparency,
+            "use_smart_layout": request.use_smart_layout,
+            "font_title": request.font_title,
+            "font_subtitle": request.font_subtitle,
+            "font_content": request.font_content,
+            "font_caption": request.font_caption,
+            "layout_mode": request.layout_mode,
+            "unified_layout": request.unified_layout,
+            "generation_mode": request.generation_mode,
+            "output_format": request.output_format,
+            "quality": request.quality,
+        })
 
         # P2 修复: 使用 threading.Thread 替代 asyncio.create_task
         # asyncio.to_thread 在 create_task 内调用时与 Python 3.14 + uvicorn 不兼容，会永久挂住
@@ -862,13 +883,31 @@ async def plan_ppt(request: PlanRequest):
         from src.services.ppt_planner import plan_ppt as plan_service, sanitize_prompt
         safe_request = sanitize_prompt(request.user_request)
 
-        # P2 修复: 使用 asyncio.to_thread 运行同步阻塞的 plan_service
-        result = await asyncio.to_thread(
-            plan_service,
-            user_request=safe_request,
-            slide_count=request.slide_count,
-            temperature=0.7
-        )
+        # P2 修复: 使用 threading.Thread 替代 asyncio.to_thread
+        # asyncio.to_thread 在 Python 3.14 + uvicorn 下会永久挂住
+        # BUG修复: 传递 scene 和 style 参数，让 AI 根据场景/风格生成不同大纲
+        result_holder = {}
+        def run_plan():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result_holder["value"] = plan_service(
+                    user_request=safe_request,
+                    slide_count=request.slide_count,
+                    scene=request.scene.value,
+                    style=request.style.value,
+                    temperature=0.7
+                )
+            except Exception as e:
+                logger.error(f"PPT大纲生成失败: {e}")
+                result_holder["value"] = None
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_plan, daemon=True)
+        thread.start()
+        thread.join(timeout=120)
+        result = result_holder.get("value")
 
         if result:
             return PlanResponse(
@@ -1067,28 +1106,38 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
 
     # 调用PPTGenerator生成单页SVG
     gen = PPTGenerator()
-    
-    # 根据task中的配置获取主题色等参数
-    theme_color = task.get("result", {}).get("theme_color", "#165DFF") if task.get("result") else "#165DFF"
-    use_smart_layout = task.get("result", {}).get("use_smart_layout", True) if task.get("result") else True
+
+    # BUG修复: 从 task["params"] 获取完整生成参数，不再使用硬编码
+    task_params = task.get("params", {})
+    theme_color = task_params.get("theme_color", "#165DFF")
+    use_smart_layout = task_params.get("use_smart_layout", False)
+    text_style = task_params.get("text_style", "transparent_overlay")
+    shadow_color = task_params.get("shadow_color", "#000000")
+    overlay_transparency = task_params.get("overlay_transparency", 30)
+    font_title = task_params.get("font_title", "思源黑体")
+    font_subtitle = task_params.get("font_subtitle", "思源黑体")
+    font_content = task_params.get("font_content", "思源宋体")
+    font_caption = task_params.get("font_caption", "思源黑体")
+    layout_mode = task_params.get("layout_mode", "auto")
+    unified_layout = task_params.get("unified_layout", True)
 
     try:
         if use_smart_layout:
             svg_code = gen._generate_svg_smart_layout(
-                slide_data, 
-                slide_index, 
-                theme_color, 
+                slide_data,
+                slide_index,
+                theme_color,
                 style,
                 layout,
-                text_style="transparent_overlay",
-                shadow_color="#000000",
-                overlay_transparency=30,
-                font_title="思源黑体",
-                font_subtitle="思源黑体",
-                font_content="思源宋体",
-                font_caption="思源黑体",
-                layout_mode="auto",
-                unified_layout=True
+                text_style=text_style,
+                shadow_color=shadow_color,
+                overlay_transparency=overlay_transparency,
+                font_title=font_title,
+                font_subtitle=font_subtitle,
+                font_content=font_content,
+                font_caption=font_caption,
+                layout_mode=layout_mode,
+                unified_layout=unified_layout
             )
         else:
             svg_code = gen._generate_svg(slide_data, slide_index)
@@ -1103,7 +1152,8 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         return {
             "success": True,
             "data": {
-                "svg_url": f"/api/v1/ppt/svg/{task_id}/{slide_index}",
+                # BUG修复: 使用绝对URL而非相对路径，否则浏览器无法正确加载SVG
+                "svg_url": f"{request.base_url}api/v1/ppt/svg/{task_id}/{slide_index}",
                 "slide_index": slide_index
             },
             "message": "单页重生成成功"

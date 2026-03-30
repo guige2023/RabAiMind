@@ -180,9 +180,11 @@ export interface TaskPreviewResponse {
 export interface PlanPPTResponse {
   success: boolean
   slides: Array<{
-    type: string
+    slide_type?: string
     title: string
-    content: string[]
+    subtitle?: string
+    content?: string[]
+    layout?: string
   }>
   message: string
 }
@@ -252,7 +254,7 @@ export interface APIClient {
     getTemplates: () => Promise<AxiosResponse<Template[]>>
     getScenes: () => Promise<AxiosResponse<Scene[]>>
     getStyles: () => Promise<AxiosResponse<Style[]>>
-    plan: (request: string, slideCount?: number) => Promise<AxiosResponse<PlanPPTResponse>>
+    plan: (request: string, slideCount?: number, scene?: string, style?: string) => Promise<AxiosResponse<PlanPPTResponse>>
   }
   images: {
     search: (query: string, page?: number) => Promise<AxiosResponse<ImageSearchResponse>>
