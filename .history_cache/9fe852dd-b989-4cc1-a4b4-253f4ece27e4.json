@@ -1,0 +1,88 @@
+{
+  "task_id": "9fe852dd-b989-4cc1-a4b4-253f4ece27e4",
+  "user_request": "AI助手产品介绍PPT，5页商务风格",
+  "slide_count": 5,
+  "scene": "business",
+  "style": "professional",
+  "template": "default",
+  "theme_color": "#165DFF",
+  "layout_mode": "auto",
+  "color_scheme": "#165DFF",
+  "status": "completed",
+  "progress": 100,
+  "current_step": "完成",
+  "created_at": "2026-03-30T08:48:42.367135",
+  "updated_at": "2026-03-30T08:54:51.700172",
+  "result": {
+    "pptx_path": "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/presentation_9fe852dd-b989-4cc1-a4b4-253f4ece27e4.pptx",
+    "slide_count": 5,
+    "file_size": 944150,
+    "compression_ratio": 1.0,
+    "quality": "standard",
+    "output_format": "pptx",
+    "compatibility": {
+      "wps": true,
+      "office": true,
+      "mobile": true
+    },
+    "slides_summary": [
+      {
+        "title": "智领未来：AI助手产品发布会",
+        "content": "",
+        "has_chart": false,
+        "chart_type": null
+      },
+      {
+        "title": "三大核心优势构建竞争壁垒",
+        "content": [
+          "行业首个支持多模态交互的办公助手：语音/文字/图像混合输入处理",
+          "企业级数据深度集成能力：无缝对接SAP/Oracle等主流ERP系统",
+          "动态学习工作流引擎：每周自动优化操作路径，持续提升ROI"
+        ],
+        "has_chart": false,
+        "chart_type": null
+      },
+      {
+        "title": "精准匹配高价值用户场景",
+        "content": [
+          "高管决策层：实时生成战略简报，关键指标异动预警",
+          "销售团队：客户对话智能分析，预测成交概率提升30%",
+          "研发部门：技术文档自动生成，代码审查效率提升50%"
+        ],
+        "has_chart": false,
+        "chart_type": null
+      },
+      {
+        "title": "零学习曲线的智能工作流",
+        "content": [
+          "一键启动任务：语音指令直接创建会议纪要/项目计划",
+          "智能看板管理：自动归集跨平台任务，风险项目红色预警",
+          "数据驾驶舱：自定义KPI仪表盘，支持多维度下钻分析"
+        ],
+        "has_chart": false,
+        "chart_type": null
+      },
+      {
+        "title": "阶梯式价值定价策略",
+        "content": [
+          "基础版：免费开放核心对话功能（限20次/天）",
+          "专业版：$29/用户/月，包含高级分析模块",
+          "企业版：定制化部署，按年度服务收取费用",
+          "全球正式上市：2023年Q4，首批100家企业限时部署补贴"
+        ],
+        "has_chart": false,
+        "chart_type": null
+      }
+    ],
+    "svg_paths": [
+      "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/slide_1.svg",
+      "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/slide_2.svg",
+      "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/slide_3.svg",
+      "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/slide_4.svg",
+      "./output/9fe852dd-b989-4cc1-a4b4-253f4ece27e4/slide_5.svg"
+    ],
+    "scene": "business",
+    "style": "professional"
+  },
+  "error": null
+}

@@ -39,7 +39,7 @@ class TaskManager:
     def __init__(self):
         self.tasks: Dict[str, Dict] = {}
         self._task_lock = threading.Lock()
-        self._async_tasks: Dict[str, asyncio.Task] = {}  # 保存异步任务引用
+        self._async_tasks: Dict[str, Any] = {}  # 保存异步任务引用(asyncio.Task 或 threading.Thread)
         self._async_tasks_lock = threading.Lock()  # 保护_async_tasks的线程锁
         self._cleanup_counter: int = 0  # 懒清理计数器
         self._cleanup_interval: int = 10  # 每10次操作清理一次
@@ -406,18 +406,24 @@ class TaskManager:
     def cancel_async_task(self, task_id: str) -> bool:
         """取消异步任务（线程安全）
         
-        注意：此方法只发起取消。任务的 CancelledError 传播和状态更新由
-        run_task() 中的 CancelledError 处理器完成。
+        支持 asyncio.Task 和 threading.Thread 两种类型。
         """
         with self._async_tasks_lock:
             if task_id not in self._async_tasks:
                 return False
             async_task = self._async_tasks[task_id]
-            if async_task.done():
-                del self._async_tasks[task_id]
-                return True
-            # 发起取消，CancelledError 会在 run_task 中被捕获并处理
-            async_task.cancel()
+            # asyncio.Task 有 done() 方法，threading.Thread 有 is_alive() 方法
+            if hasattr(async_task, 'done'):
+                if async_task.done():
+                    del self._async_tasks[task_id]
+                    return True
+                async_task.cancel()
+            elif hasattr(async_task, 'is_alive'):
+                if not async_task.is_alive():
+                    del self._async_tasks[task_id]
+                    return True
+                # threading.Thread 不能强制取消，只能等待
+                async_task.join(timeout=1.0)
             return True
 
     async def cancel_async_task_and_wait(self, task_id: str, timeout: float = 5.0) -> bool:

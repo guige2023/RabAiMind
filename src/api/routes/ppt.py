@@ -296,59 +296,55 @@ async def generate_ppt(request: GenerateRequest):
             theme_color=request.theme_color
         )
 
-        # 异步执行生成任务 - 保存 task 引用以便跟踪和取消
-        async def run_task():
+        # P2 修复: 使用 threading.Thread 替代 asyncio.create_task
+        # asyncio.to_thread 在 create_task 内调用时与 Python 3.14 + uvicorn 不兼容，会永久挂住
+        import threading
+        def run_generation():
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                result = await get_ppt_generator().generate(
-                    task_id=task_id,
-                    user_request=safe_request,  # 使用过滤后的安全输入
-                    slide_count=request.slide_count,
-                    scene=request.scene.value,
-                    style=request.style.value,
-                    template=request.template.value,
-                    theme_color=request.theme_color,
-                    text_style=request.text_style.value,
-                    shadow_color=request.shadow_color,
-                    overlay_transparency=request.overlay_transparency,
-                    use_smart_layout=request.use_smart_layout,
-                    slide_backgrounds=request.slide_backgrounds,
-                    slide_layouts=request.slide_layouts,
-                    include_charts=request.include_charts,
-                    include_pie_chart=request.include_pie_chart,
-                    include_bar_chart=request.include_bar_chart,
-                    include_line_chart=request.include_line_chart,
-                    add_watermark=request.add_watermark,
-                    font_title=request.font_title,
-                    font_subtitle=request.font_subtitle,
-                    font_content=request.font_content,
-                    font_caption=request.font_caption,
-                    generation_mode=request.generation_mode,
-                    output_format=request.output_format,
-                    quality=request.quality,
-                    layout_mode=request.layout_mode,
-                    unified_layout=request.unified_layout,
-                    pre_generated_slides=request.pre_generated_slides
+                result = loop.run_until_complete(
+                    get_ppt_generator().generate(
+                        task_id=task_id,
+                        user_request=safe_request,
+                        slide_count=request.slide_count,
+                        scene=request.scene.value,
+                        style=request.style.value,
+                        template=request.template.value,
+                        theme_color=request.theme_color,
+                        text_style=request.text_style.value,
+                        shadow_color=request.shadow_color,
+                        overlay_transparency=request.overlay_transparency,
+                        use_smart_layout=request.use_smart_layout,
+                        slide_backgrounds=request.slide_backgrounds,
+                        slide_layouts=request.slide_layouts,
+                        include_charts=request.include_charts,
+                        include_pie_chart=request.include_pie_chart,
+                        include_bar_chart=request.include_bar_chart,
+                        include_line_chart=request.include_line_chart,
+                        add_watermark=request.add_watermark,
+                        font_title=request.font_title,
+                        font_subtitle=request.font_subtitle,
+                        font_content=request.font_content,
+                        font_caption=request.font_caption,
+                        generation_mode=request.generation_mode,
+                        output_format=request.output_format,
+                        quality=request.quality,
+                        layout_mode=request.layout_mode,
+                        unified_layout=request.unified_layout,
+                        pre_generated_slides=request.pre_generated_slides
+                    )
                 )
-                # 检查生成结果：generate()内部已调用fail_task标记失败
-                if isinstance(result, dict) and not result.get("success", True):
-                    logger.warning(f"任务 {task_id} 生成失败（generate返回success=False）")
-            except asyncio.CancelledError:
-                # 任务被取消：更新状态为 cancelled
-                logger.info(f"任务 {task_id} 已被取消")
-                task_mgr = get_task_manager()
-                with task_mgr._task_lock:
-                    if task_id in task_mgr.tasks:
-                        task_mgr.tasks[task_id]["status"] = "cancelled"
-                        task_mgr.tasks[task_id]["updated_at"] = task_mgr.tasks[task_id].get("updated_at", "")
-                # 不再向上传播 CancelledError，让 task 正常结束
             except Exception as e:
-                # 任务失败处理
                 logger.error(f"任务 {task_id} 生成失败: {e}")
                 get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
+            finally:
+                loop.close()
 
-        # 创建 task 并保存引用
-        task = asyncio.create_task(run_task())
-        get_task_manager().register_async_task(task_id, task)
+        thread = threading.Thread(target=run_generation, daemon=True)
+        thread.start()
+        get_task_manager().register_async_task(task_id, thread)
 
         return GenerateResponse(
             success=True,
@@ -866,20 +862,13 @@ async def plan_ppt(request: PlanRequest):
         from src.services.ppt_planner import plan_ppt as plan_service, sanitize_prompt
         safe_request = sanitize_prompt(request.user_request)
 
-        # P2 修复: asyncio.to_thread 在 Python 3.14 + uvicorn 下有兼容性问题（挂住90秒无响应）
-        # 改用 loop.run_in_executor + ThreadPoolExecutor 显式管理
-        import concurrent.futures
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            executor,
-            lambda: plan_service(
-                user_request=safe_request,
-                slide_count=request.slide_count,
-                temperature=0.7
-            )
+        # P2 修复: 使用 asyncio.to_thread 运行同步阻塞的 plan_service
+        result = await asyncio.to_thread(
+            plan_service,
+            user_request=safe_request,
+            slide_count=request.slide_count,
+            temperature=0.7
         )
-        executor.shutdown(wait=False)
 
         if result:
             return PlanResponse(
