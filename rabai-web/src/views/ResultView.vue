@@ -786,15 +786,17 @@ const applyTuning = async () => {
   
   // 为所有页面应用新的布局选择
   const newLayout = selectedLayout.value
-  // 将中文布局名转为英文
+  // 将中文布局名转为英文（只映射后端支持的布局）
   const layoutMap: Record<string, string> = {
     '左图右文': 'left_image_right_text',
     '左文右图': 'left_text_right_image',
-    '全图背景': 'image_full',
-    '上图下文': 'image_top_text_bottom',
     '卡片': 'card',
+    '双栏': 'two_column',
+    '居中': 'center_radiation',
+    '时间轴': 'timeline',
   }
-  const apiLayout = layoutMap[newLayout] || 'content'
+  // 全图背景/上图下文/纯文字等暂不支持，回退到卡片布局
+  const apiLayout = layoutMap[newLayout] || 'card'
   
   let updatedCount = 0
   let failedCount = 0
