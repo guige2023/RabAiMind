@@ -783,8 +783,72 @@ const applyStyle = (style: string) => {
 // 应用调优并重新生成
 const applyTuning = async () => {
   showLayoutPanel.value = false
-  alert('调优已保存，功能开发中...')
-  // TODO: 调用API应用调优配置并重新生成PPT
+  
+  // 为所有页面应用新的布局选择
+  const newLayout = selectedLayout.value
+  // 将中文布局名转为英文
+  const layoutMap: Record<string, string> = {
+    '左图右文': 'left_image_right_text',
+    '左文右图': 'left_text_right_image',
+    '全图背景': 'image_full',
+    '上图下文': 'image_top_text_bottom',
+    '卡片': 'card',
+  }
+  const apiLayout = layoutMap[newLayout] || 'content'
+  
+  let updatedCount = 0
+  let failedCount = 0
+  
+  // 更新每页的布局并重新生成
+  for (let i = 0; i < previewSlides.value.length; i++) {
+    const slide = previewSlides.value[i]
+    const slideNum = slide.slideNum
+    
+    // 更新editableSlides中的布局
+    if (editableSlides.value[i]) {
+      editableSlides.value[i].layout = apiLayout
+    }
+    
+    // 调用单页重生成API
+    try {
+      const res = await api.ppt.regenerateSlide({
+        taskId: taskId.value,
+        slideIndex: slideNum,
+        scene: originalScene.value || 'business',
+        style: originalStyle.value || 'professional',
+        content: editableSlides.value[i]?.content || '',
+        layout: apiLayout,
+        title: editableSlides.value[i]?.title || `第${slideNum}页`
+      })
+      
+      if (res.data.success) {
+        const newUrl = res.data.data?.svg_url
+        if (newUrl) {
+          previewSlides.value[i] = {
+            ...slide,
+            url: newUrl + '?t=' + Date.now()
+          }
+          updatedCount++
+        }
+      } else {
+        failedCount++
+      }
+    } catch (e) {
+      console.error(`第${slideNum}页重生成失败:`, e)
+      failedCount++
+    }
+    
+    // 每页之间稍作延迟，避免请求过于密集
+    if (i < previewSlides.value.length - 1) {
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
+  
+  if (failedCount === 0) {
+    alert(`✅ 布局已更新为「${newLayout}」，共更新${updatedCount}页`)
+  } else {
+    alert(`⚠️ 布局更新完成：成功${updatedCount}页，失败${failedCount}页`)
+  }
 }
 
 const editableSlides = ref<{
