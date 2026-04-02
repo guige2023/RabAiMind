@@ -1154,13 +1154,12 @@ const loadStatus = async () => {
       chartConfig.value.include_charts = includeCharts.value
 
       // 保存到历史记录（如果不在历史中则添加）
-      const taskId = taskId.value
       const saved = localStorage.getItem('ppt_history')
       const historyList: any[] = saved ? JSON.parse(saved) : []
-      const exists = historyList.some((h: any) => h.taskId === taskId)
+      const exists = historyList.some((h: any) => h.taskId === taskId.value)
       if (!exists) {
         historyList.unshift({
-          taskId,
+          taskId: taskId.value,
           title: data.user_request?.slice(0, 50) || '未命名PPT',
           request: data.user_request || '',
           slideCount: data.result.slide_count || 0,
