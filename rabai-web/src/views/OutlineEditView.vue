@@ -747,7 +747,7 @@ const generatePPT = async () => {
       font_content: genOptions.fontContent,
       font_caption: genOptions.fontCaption,
       layout_mode: genOptions.layoutMode === '统一' ? 'auto' : genOptions.layoutMode,
-      unified_layout: true,
+      unified_layout: genOptions.layoutMode !== '统一',
       include_charts: false,
       generation_mode: genOptions.generationMode,
       output_format: genOptions.outputFormat,
