@@ -104,6 +104,10 @@ class PPTCreativeEngine:
             return self.visual_generator.generate_content_slide(title, content, colors, layout="two_column")
         elif slide_type == "comparison":
             return self.visual_generator.generate_content_slide(title, content, colors, layout="two_column")
+        elif slide_type == "left_image_right_text":
+            return self.visual_generator.generate_content_slide(title, content, colors, layout="left_image_right_text")
+        elif slide_type == "left_text_right_image":
+            return self.visual_generator.generate_content_slide(title, content, colors, layout="left_text_right_image")
         else:
             return self.visual_generator.generate_content_slide(title, content, colors, layout="card")
 

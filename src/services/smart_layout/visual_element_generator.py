@@ -117,6 +117,10 @@ class VisualElementGenerator:
             return self._generate_timeline_layout(title, content_items, colors)
         elif layout == "center_radiation":
             return self._generate_radial_layout(title, content_items, colors)
+        elif layout == "left_image_right_text":
+            return self._generate_left_image_right_text_layout(title, content_items, colors)
+        elif layout == "left_text_right_image":
+            return self._generate_left_text_right_image_layout(title, content_items, colors)
         else:
             return self._generate_simple_layout(title, content_items, colors)
 
@@ -472,6 +476,134 @@ class VisualElementGenerator:
 
         </svg>'''
 
+        return svg
+
+    def _generate_left_image_right_text_layout(
+        self,
+        title: str,
+        content_items: List[Dict[str, Any]],
+        colors: Dict[str, str]
+    ) -> str:
+        """左图右文布局：左侧放图片占位，右侧放文字内容"""
+        # 左侧图片区域 (0 ~ 800)
+        left_x = 50
+        left_y = 100
+        left_width = 700
+        left_height = 750
+
+        # 右侧文字区域 (800 ~ 1550)
+        right_x = 850
+        right_y = 100
+        right_width = 700
+        right_height = 750
+
+        # 生成右侧文字内容
+        right_svg = self._generate_list_items(
+            right_x, right_y + 60,
+            right_width, right_height - 60,
+            content_items[:6], colors
+        )
+
+        svg = f'''<svg width="{self.CANVAS_WIDTH}" height="{self.CANVAS_HEIGHT}"
+           viewBox="0 0 {self.CANVAS_WIDTH} {self.CANVAS_HEIGHT}"
+           xmlns="http://www.w3.org/2000/svg">
+
+            <!-- 背景 -->
+            <rect width="{self.CANVAS_WIDTH}" height="{self.CANVAS_HEIGHT}" fill="{colors.get('background', '#FFFFFF')}"/>
+
+            <!-- 左侧图片区域 -->
+            <rect x="{left_x}" y="{left_y}" width="{left_width}" height="{left_height}"
+                  fill="{colors.get('surface', '#F2F3F5')}"
+                  stroke="{colors.get('border', '#E5E6EB')}" stroke-width="2" stroke-dasharray="8,4" rx="12"/>
+            <!-- 图片占位图标 -->
+            <text x="{left_x + left_width // 2}" y="{left_y + left_height // 2 - 30}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="28" fill="{colors.get('text_secondary', '#4E5969')}" text-anchor="middle">
+                🖼️
+            </text>
+            <text x="{left_x + left_width // 2}" y="{left_y + left_height // 2 + 20}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="18" fill="{colors.get('text_secondary', '#4E5969')}" text-anchor="middle">
+                图片区域
+            </text>
+
+            <!-- 右侧标题 -->
+            <text x="{right_x}" y="{right_y + 30}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="32" font-weight="bold" fill="{colors.get('text', '#1D2129')}">
+                {title}
+            </text>
+            <!-- 标题下划线 -->
+            <line x1="{right_x}" y1="{right_y + 50}" x2="{right_x + 150}" y2="{right_y + 50}"
+                  stroke="{colors.get('primary', '#165DFF')}" stroke-width="3"/>
+
+            <!-- 右侧内容列表 -->
+            {right_svg}
+        </svg>'''
+        return svg
+
+    def _generate_left_text_right_image_layout(
+        self,
+        title: str,
+        content_items: List[Dict[str, Any]],
+        colors: Dict[str, str]
+    ) -> str:
+        """左文右图布局：左侧放文字内容，右侧放图片占位"""
+        # 左侧文字区域 (50 ~ 850)
+        left_x = 50
+        left_y = 100
+        left_width = 700
+        left_height = 750
+
+        # 右侧图片区域 (850 ~ 1550)
+        right_x = 850
+        right_y = 100
+        right_width = 700
+        right_height = 750
+
+        # 生成左侧文字内容
+        left_svg = self._generate_list_items(
+            left_x, left_y + 60,
+            left_width, left_height - 60,
+            content_items[:6], colors
+        )
+
+        svg = f'''<svg width="{self.CANVAS_WIDTH}" height="{self.CANVAS_HEIGHT}"
+           viewBox="0 0 {self.CANVAS_WIDTH} {self.CANVAS_HEIGHT}"
+           xmlns="http://www.w3.org/2000/svg">
+
+            <!-- 背景 -->
+            <rect width="{self.CANVAS_WIDTH}" height="{self.CANVAS_HEIGHT}" fill="{colors.get('background', '#FFFFFF')}"/>
+
+            <!-- 左侧标题 -->
+            <text x="{left_x}" y="{left_y + 30}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="32" font-weight="bold" fill="{colors.get('text', '#1D2129')}">
+                {title}
+            </text>
+            <!-- 标题下划线 -->
+            <line x1="{left_x}" y1="{left_y + 50}" x2="{left_x + 150}" y2="{left_y + 50}"
+                  stroke="{colors.get('primary', '#165DFF')}" stroke-width="3"/>
+
+            <!-- 左侧内容列表 -->
+            {left_svg}
+
+            <!-- 右侧图片区域 -->
+            <rect x="{right_x}" y="{right_y}" width="{right_width}" height="{right_height}"
+                  fill="{colors.get('surface', '#F2F3F5')}"
+                  stroke="{colors.get('border', '#E5E6EB')}" stroke-width="2" stroke-dasharray="8,4" rx="12"/>
+            <!-- 图片占位图标 -->
+            <text x="{right_x + right_width // 2}" y="{right_y + right_height // 2 - 30}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="28" fill="{colors.get('text_secondary', '#4E5969')}" text-anchor="middle">
+                🖼️
+            </text>
+            <text x="{right_x + right_width // 2}" y="{right_y + right_height // 2 + 20}"
+                  font-family="Microsoft YaHei, Arial, sans-serif"
+                  font-size="18" fill="{colors.get('text_secondary', '#4E5969')}" text-anchor="middle">
+                图片区域
+            </text>
+        </svg>'''
         return svg
 
     def _generate_simple_layout(
