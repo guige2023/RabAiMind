@@ -102,6 +102,9 @@
             <button class="btn btn-tune btn-lg" @click="showLayoutPanel = true">
               <span>🎨</span> 快速调优
             </button>
+            <button class="btn btn-chart-editor btn-lg" @click="showChartEditor = true">
+              <span>📊</span> 图表编辑
+            </button>
             <button class="btn btn-secondary btn-lg" @click="handleNew">
               <span>✨</span> 创建新的
             </button>
@@ -481,6 +484,15 @@
       @apply="handleElementApply"
     />
 
+    <!-- 图表编辑器 -->
+    <ChartEditor
+      v-if="showChartEditor"
+      :task-id="taskId"
+      @close="showChartEditor = false"
+      @chart-generated="handleChartGenerated"
+      @insert-into-slide="handleInsertChartIntoSlide"
+    />
+
     <!-- 快速调优侧边栏 -->
     <div v-if="showLayoutPanel" class="layout-panel-overlay" @click="showLayoutPanel = false">
       <div class="layout-panel" @click.stop>
@@ -564,6 +576,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
+import ChartEditor from '../components/ChartEditor.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -594,6 +607,9 @@ const showElementEditor = ref(false)
 
 // 快速调优侧边栏
 const showLayoutPanel = ref(false)
+
+// 图表编辑器
+const showChartEditor = ref(false)
 
 // 版本历史相关
 const showVersionPanel = ref(false)
@@ -729,6 +745,19 @@ const handleElementApply = (editedSlides: any) => {
   alert('元素微调已保存！请下载更新后的PPT。')
 }
 
+// 图表已生成
+const handleChartGenerated = (chartData: any) => {
+  console.log('图表已生成:', chartData)
+  alert('图表已生成！点击"插入到幻灯片"添加到PPT中。')
+}
+
+// 插入图表到幻灯片
+const handleInsertChartIntoSlide = (chartData: any) => {
+  console.log('插入图表到幻灯片:', chartData)
+  alert('图表已插入到幻灯片！请下载查看。')
+  showChartEditor.value = false
+}
+
 // 单页重生成
 const regenerateSingleSlide = async (index: number) => {
   const slide = previewSlides.value[index]
@@ -821,6 +850,8 @@ const applyTuning = async () => {
     const editableSlide = editableSlides.value[i]
     
     // 调用单页重生成API
+    // 首次调用时重置_first_page_layout，确保新布局生效
+    const isFirstSlide = i === 0
     try {
       const res = await api.ppt.regenerateSlide({
         taskId: taskId.value,
@@ -829,7 +860,11 @@ const applyTuning = async () => {
         style: originalStyle.value || 'professional',
         content: editableSlide?.content || '',
         layout: apiLayout,
-        title: editableSlide?.title || `第${slideNum}页`
+        title: editableSlide?.title || `第${slideNum}页`,
+        // 强制使用 manual 模式 + 独立布局，确保每个 slide 用自己的 layout
+        layout_mode: 'manual',
+        unified_layout: false,
+        reset_first_layout: isFirstSlide,
       })
       
       if (res.data.success) {

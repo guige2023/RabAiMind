@@ -20,7 +20,14 @@
       "Bash(find /Users/guige/my_project/RabAiMind/src -name *.py)",
       "Bash(find /Users/guige/my_project/RabAiMind -name *.log -newer /Users/guige/my_project/RabAiMind/src/config.py)",
       "Bash(kill -0 74766)",
-      "Bash(source /Users/guige/my_project/RabAiMind/.venv/bin/activate)"
+      "Bash(source /Users/guige/my_project/RabAiMind/.venv/bin/activate)",
+      "Bash(rm -rf /Users/guige/my_project/RabAiMind/.venv)",
+      "Bash(/opt/homebrew/bin/python3 -m venv .venv)",
+      "Bash(pip install:*)",
+      "Bash(brew install:*)",
+      "Bash(pip list:*)",
+      "Bash(python -c \"from src.main import app; print\\(''Import OK''\\)\")",
+      "Bash(du -h /Users/guige/my_project/RabAiMind/output/277c79d0-6ea3-47b9-922f-b2703f15610a/*.pptx)"
     ]
   }
 }

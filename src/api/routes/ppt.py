@@ -1093,6 +1093,11 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
     content = body.get("content", "")
     layout = body.get("layout", "content")
     title = body.get("title", f"第 {slide_index} 页")
+    # applyTuning 可以覆盖 task params 中的 layout_mode 和 unified_layout
+    # 当用户显式选择布局时，应使用 manual 模式 + 独立布局（每个slide用自己的）
+    layout_mode_override = body.get("layout_mode", None)
+    unified_layout_override = body.get("unified_layout", None)
+    reset_first_layout = body.get("reset_first_layout", False)
 
     # 构建slide数据
     slide_data = {
@@ -1120,6 +1125,15 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
     font_caption = task_params.get("font_caption", "思源黑体")
     layout_mode = task_params.get("layout_mode", "auto")
     unified_layout = task_params.get("unified_layout", True)
+    # applyTuning 可以覆盖这些设置
+    if layout_mode_override is not None:
+        layout_mode = layout_mode_override
+    if unified_layout_override is not None:
+        unified_layout = unified_layout_override
+
+    # 重置首页布局状态（applyTuning 时需要）
+    if reset_first_layout:
+        gen._first_page_layout = None
 
     try:
         if use_smart_layout:

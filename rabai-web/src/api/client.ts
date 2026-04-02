@@ -150,13 +150,19 @@ export const api: APIClient = {
       content?: string;
       layout?: string;
       title?: string;
+      layout_mode?: string;  // 'manual'|'auto' - applyTuning 时传 'manual'
+      unified_layout?: boolean;  // applyTuning 时传 false
+      reset_first_layout?: boolean;  // applyTuning 首次调用时传 true
     }): Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>> => {
       return apiClient.post(`/ppt/regenerate/${params.taskId}/${params.slideIndex}`, {
         scene: params.scene || 'business',
         style: params.style || 'professional',
         content: params.content || '',
         layout: params.layout || 'content',
-        title: params.title || ''
+        title: params.title || '',
+        layout_mode: params.layout_mode,
+        unified_layout: params.unified_layout,
+        reset_first_layout: params.reset_first_layout,
       })
     },
 
