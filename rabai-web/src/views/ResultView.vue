@@ -31,6 +31,10 @@
               <div class="loading-spinner"></div>
               <p>加载预览中...</p>
             </div>
+            <div v-else-if="previewLoadFailed" class="preview-load-failed">
+              <p>预览加载失败</p>
+              <button class="btn btn-sm" @click="loadPreview">🔄 重试</button>
+            </div>
             <div class="preview-grid" v-else>
               <template v-if="previewSlides.length > 0">
                 <div
@@ -1102,6 +1106,7 @@ const loadPreview = async () => {
   if (!taskId.value) return
   // 清空之前的加载错误
   previewErrors.value.clear()
+  previewLoadFailed.value = false
   previewLoaded.value = false
 
   try {
@@ -1114,6 +1119,7 @@ const loadPreview = async () => {
     }
   } catch (e) {
     console.warn('预览加载失败:', e)
+    previewLoadFailed.value = true
   } finally {
     previewLoaded.value = true
   }
@@ -1797,6 +1803,18 @@ onMounted(() => {
   padding: 40px;
   color: #999;
   font-size: 14px;
+}
+
+.preview-load-failed {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #FF3B30;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
 /* BUG修复: 预览图片加载失败样式 */
