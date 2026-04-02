@@ -2035,6 +2035,16 @@ onMounted(() => {
   background: linear-gradient(135deg, #5a71d6 0%, #6a4190 100%);
 }
 
+.btn-chart-editor {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+  border: none;
+}
+
+.btn-chart-editor:hover {
+  background: linear-gradient(135deg, #0f8a7f 0%, #30d66e 100%);
+}
+
 /* 内容编辑面板 */
 .content-edit-panel {
   background: white;

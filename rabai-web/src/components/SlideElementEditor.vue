@@ -17,6 +17,101 @@
         <button class="btn-close" @click="closeEditor">✕</button>
       </div>
 
+      <!-- ===== R16: 富文本格式工具栏 ===== -->
+      <div v-if="selectedElement && selectedElement.type === 'text'" class="rich-toolbar">
+        <!-- 格式按钮组 -->
+        <div class="toolbar-group">
+          <button
+            class="format-btn"
+            :class="{ active: isFormatActive('bold') }"
+            @click="execFormat('bold')"
+            title="加粗 (Ctrl+B)"
+          ><b>B</b></button>
+          <button
+            class="format-btn"
+            :class="{ active: isFormatActive('italic') }"
+            @click="execFormat('italic')"
+            title="斜体 (Ctrl+I)"
+          ><i>I</i></button>
+          <button
+            class="format-btn"
+            :class="{ active: isFormatActive('underline') }"
+            @click="execFormat('underline')"
+            title="下划线 (Ctrl+U)"
+          ><u>U</u></button>
+        </div>
+
+        <!-- 字体系列 -->
+        <div class="toolbar-group">
+          <select class="font-family-select" v-model="richFontFamily" @change="applyRichFontFamily">
+            <option value="宋体">宋体</option>
+            <option value="黑体">黑体</option>
+            <option value="楷体">楷体</option>
+            <option value="微软雅黑">微软雅黑</option>
+            <option value="等线">等线</option>
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Verdana">Verdana</option>
+          </select>
+        </div>
+
+        <!-- 字号 -->
+        <div class="toolbar-group">
+          <select class="font-size-select" v-model="richFontSize" @change="applyRichFontSize">
+            <option value="12">12pt</option>
+            <option value="14">14pt</option>
+            <option value="16">16pt</option>
+            <option value="18">18pt</option>
+            <option value="20">20pt</option>
+            <option value="24">24pt</option>
+            <option value="28">28pt</option>
+            <option value="32">32pt</option>
+            <option value="36">36pt</option>
+            <option value="48">48pt</option>
+            <option value="72">72pt</option>
+          </select>
+        </div>
+
+        <!-- 文字颜色 -->
+        <div class="toolbar-group">
+          <div class="color-tool-group">
+            <span class="toolbar-label">文字色</span>
+            <input
+              type="color"
+              v-model="richTextColor"
+              @input="applyRichTextColor"
+              class="color-input-tool"
+              title="文字颜色"
+            />
+          </div>
+        </div>
+
+        <!-- 背景颜色 -->
+        <div class="toolbar-group">
+          <div class="color-tool-group">
+            <span class="toolbar-label">背景</span>
+            <input
+              type="color"
+              v-model="richBgColor"
+              @input="applyRichBgColor"
+              class="color-input-tool"
+              title="文字背景颜色"
+            />
+          </div>
+        </div>
+
+        <!-- 行高 -->
+        <div class="toolbar-group">
+          <select class="line-height-select" v-model="richLineHeight" @change="applyRichLineHeight">
+            <option value="1">单倍行高</option>
+            <option value="1.2">1.2倍</option>
+            <option value="1.5">1.5倍</option>
+            <option value="2">双倍行高</option>
+          </select>
+        </div>
+      </div>
+
       <div class="editor-content">
         <!-- 幻灯片缩略图列表 -->
         <div class="slides-list">
@@ -66,12 +161,13 @@
               <template v-if="el.type === 'text'">
                 <div
                   class="element-content text-content"
-                  contenteditable="true"
+                  :contenteditable="selectedElementIndex === index ? 'true' : 'false'"
+                  :style="getTextContentStyle(el)"
                   @blur="updateElementContent(index, $event)"
                   @click.stop
-                >
-                  {{ el.content }}
-                </div>
+                  @keydown="handleTextKeydown($event)"
+                  ref="textRefs"
+                >{{ el.content }}</div>
               </template>
 
               <!-- 形状元素 -->
@@ -88,9 +184,13 @@
                   v-if="el.src"
                   :src="el.src"
                   class="element-content image-content"
+                  :style="getImageStyle(el)"
                   alt=""
                 />
-                <div v-else class="element-content image-placeholder">🖼️</div>
+                <div v-else class="element-content image-placeholder">
+                  <span>🖼️</span>
+                  <span class="upload-hint">点击上传图片</span>
+                </div>
               </template>
 
               <!-- 选中标记 -->
@@ -101,6 +201,12 @@
                 <div class="handle handle-se" @mousedown.stop="startResize($event, 'se')"></div>
               </div>
             </div>
+          </div>
+
+          <!-- 对齐辅助线 -->
+          <div v-if="showGuides" class="canvas-guides">
+            <div class="guide guide-h" :style="{ top: guideY + 'px' }" v-if="guideY !== null"></div>
+            <div class="guide guide-v" :style="{ left: guideX + 'px' }" v-if="guideX !== null"></div>
           </div>
         </div>
 
@@ -174,23 +280,47 @@
               ></textarea>
             </div>
 
-            <!-- 字体设置 -->
+            <!-- R16: 字体设置（完整版） -->
             <div v-if="selectedElement.type === 'text'" class="prop-group">
-              <label class="prop-label">字体</label>
+              <label class="prop-label">字体样式</label>
+              <div class="prop-row">
+                <select
+                  class="prop-select"
+                  :value="selectedElement.fontFamily || '宋体'"
+                  @change="updateElementProp('fontFamily', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="宋体">宋体</option>
+                  <option value="黑体">黑体</option>
+                  <option value="楷体">楷体</option>
+                  <option value="微软雅黑">微软雅黑</option>
+                  <option value="等线">等线</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Times New Roman">Times New Roman</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Verdana">Verdana</option>
+                </select>
+              </div>
+            </div>
+
+            <div v-if="selectedElement.type === 'text'" class="prop-group">
+              <label class="prop-label">字号</label>
               <div class="prop-row">
                 <select
                   class="prop-select"
                   :value="selectedElement.fontSize || 18"
                   @change="updateElementProp('fontSize', Number(($event.target as HTMLSelectElement).value))"
                 >
-                  <option :value="12">12px</option>
-                  <option :value="14">14px</option>
-                  <option :value="16">16px</option>
-                  <option :value="18">18px</option>
-                  <option :value="24">24px</option>
-                  <option :value="32">32px</option>
-                  <option :value="40">40px</option>
-                  <option :value="48">48px</option>
+                  <option :value="12">12pt</option>
+                  <option :value="14">14pt</option>
+                  <option :value="16">16pt</option>
+                  <option :value="18">18pt</option>
+                  <option :value="20">20pt</option>
+                  <option :value="24">24pt</option>
+                  <option :value="28">28pt</option>
+                  <option :value="32">32pt</option>
+                  <option :value="36">36pt</option>
+                  <option :value="48">48pt</option>
+                  <option :value="72">72pt</option>
                 </select>
                 <select
                   class="prop-select"
@@ -200,6 +330,46 @@
                   <option value="normal">正常</option>
                   <option value="bold">粗体</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- R16: 行高设置 -->
+            <div v-if="selectedElement.type === 'text'" class="prop-group">
+              <label class="prop-label">行高</label>
+              <select
+                class="prop-select"
+                :value="selectedElement.lineHeight || '1.5'"
+                @change="updateElementProp('lineHeight', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="1">单倍</option>
+                <option value="1.2">1.2倍</option>
+                <option value="1.5">1.5倍</option>
+                <option value="2">双倍</option>
+              </select>
+            </div>
+
+            <!-- R16: 文字样式快捷设置 -->
+            <div v-if="selectedElement.type === 'text'" class="prop-group">
+              <label class="prop-label">快捷样式</label>
+              <div class="style-toggles">
+                <button
+                  class="style-toggle-btn"
+                  :class="{ active: selectedElement.fontStyle === 'italic' }"
+                  @click="toggleFontStyle('italic')"
+                  title="斜体"
+                ><i>I</i></button>
+                <button
+                  class="style-toggle-btn"
+                  :class="{ active: selectedElement.textDecoration === 'underline' }"
+                  @click="toggleTextDecoration('underline')"
+                  title="下划线"
+                ><u>U</u></button>
+                <button
+                  class="style-toggle-btn"
+                  :class="{ active: selectedElement.fontWeight === 'bold' }"
+                  @click="toggleFontWeight"
+                  title="加粗"
+                ><b>B</b></button>
               </div>
             </div>
 
@@ -217,6 +387,20 @@
               </div>
             </div>
 
+            <!-- R16: 文字背景色 -->
+            <div v-if="selectedElement.type === 'text'" class="prop-group">
+              <label class="prop-label">文字背景</label>
+              <div class="color-picker">
+                <input
+                  type="color"
+                  :value="selectedElement.textBgColor || '#ffffff'"
+                  @input="updateElementProp('textBgColor', ($event.target as HTMLInputElement).value)"
+                  class="color-input"
+                />
+                <span class="color-value">{{ selectedElement.textBgColor || '#ffffff' }}</span>
+              </div>
+            </div>
+
             <!-- 形状填充色 -->
             <div v-if="selectedElement.type === 'shape'" class="prop-group">
               <label class="prop-label">填充颜色</label>
@@ -231,6 +415,49 @@
               </div>
             </div>
 
+            <!-- R17: 图片上传 -->
+            <div v-if="selectedElement.type === 'image'" class="prop-group">
+              <label class="prop-label">图片上传</label>
+              <div class="image-upload-area">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref="imageFileInput"
+                  @change="handleImageUpload($event)"
+                  class="file-input"
+                  id="image-upload"
+                />
+                <label for="image-upload" class="file-label">
+                  📷 {{ selectedElement.src ? '更换图片' : '上传图片' }}
+                </label>
+              </div>
+            </div>
+
+            <!-- R17: 图片位置 -->
+            <div v-if="selectedElement.type === 'image' && selectedElement.src" class="prop-group">
+              <label class="prop-label">对齐方式</label>
+              <div class="align-buttons">
+                <button @click="setImageAlign('left')" :class="{ active: selectedElement.align === 'left' }" title="居左">⬅</button>
+                <button @click="setImageAlign('center')" :class="{ active: selectedElement.align === 'center' || !selectedElement.align }" title="居中">⬌</button>
+                <button @click="setImageAlign('right')" :class="{ active: selectedElement.align === 'right' }" title="居右">➡</button>
+              </div>
+            </div>
+
+            <!-- R17: 图片对象填充 -->
+            <div v-if="selectedElement.type === 'image' && selectedElement.src" class="prop-group">
+              <label class="prop-label">填充方式</label>
+              <select
+                class="prop-select"
+                :value="selectedElement.objectFit || 'cover'"
+                @change="updateElementProp('objectFit', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="cover">适应填充</option>
+                <option value="contain">完整显示</option>
+                <option value="fill">拉伸填充</option>
+                <option value="none">原始大小</option>
+              </select>
+            </div>
+
             <!-- 对齐 -->
             <div class="prop-group">
               <label class="prop-label">对齐</label>
@@ -238,6 +465,15 @@
                 <button @click="setAlignment('left')" title="左对齐">⬅</button>
                 <button @click="setAlignment('center')" title="居中">⬌</button>
                 <button @click="setAlignment('right')" title="右对齐">➡</button>
+              </div>
+            </div>
+
+            <!-- R20: 层级控制 -->
+            <div class="prop-group">
+              <label class="prop-label">层级</label>
+              <div class="z-index-controls">
+                <button @click="bringForward" title="上移一层">⬆ 上移</button>
+                <button @click="sendBackward" title="下移一层">⬇ 下移</button>
               </div>
             </div>
 
@@ -251,6 +487,99 @@
 
           <div v-else class="panel-empty">
             <p>选择画布中的元素进行编辑</p>
+          </div>
+
+          <!-- R20/R21: 布局可视化选择 -->
+          <div class="panel-header" style="margin-top: 8px;">📐 布局选择</div>
+          <div class="layout-grid">
+            <div
+              v-for="layout in layoutPresets"
+              :key="layout.id"
+              class="layout-thumb"
+              :class="{ active: activeLayout === layout.id }"
+              @click="applyLayoutPreset(layout)"
+              :title="layout.name"
+            >
+              <div class="layout-preview-icon">{{ layout.icon }}</div>
+              <span class="layout-name">{{ layout.name }}</span>
+            </div>
+          </div>
+
+          <!-- R21: 排版系统 -->
+          <div class="panel-header" style="margin-top: 8px;">🎨 排版主题</div>
+          <div class="theme-section">
+            <div class="theme-group">
+              <label class="prop-label">字体主题</label>
+              <div class="theme-options">
+                <div
+                  v-for="theme in fontThemes"
+                  :key="theme.id"
+                  class="theme-item"
+                  :class="{ active: activeFontTheme === theme.id }"
+                  @click="applyFontTheme(theme)"
+                >
+                  <span class="theme-icon">{{ theme.icon }}</span>
+                  <span class="theme-name">{{ theme.name }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-group">
+              <label class="prop-label">背景色</label>
+              <div class="bg-color-picker">
+                <input
+                  type="color"
+                  :value="slideBackground"
+                  @input="updateSlideBackground(($event.target as HTMLInputElement).value)"
+                  class="color-input"
+                />
+                <select class="bg-preset-select" @change="applyBgPreset(($event.target as HTMLSelectElement).value)">
+                  <option value="">自定义</option>
+                  <option value="#ffffff">纯白</option>
+                  <option value="#f5f5f5">浅灰</option>
+                  <option value="#1a1a2e">深蓝黑</option>
+                  <option value="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">渐变紫</option>
+                  <option value="linear-gradient(135deg, #11998e 0%, #38ef7d 100%)">渐变绿</option>
+                  <option value="linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)">渐变粉</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="theme-group">
+              <label class="prop-label">配色方案</label>
+              <div class="color-scheme-grid">
+                <div
+                  v-for="(scheme, idx) in colorSchemes"
+                  :key="idx"
+                  class="color-scheme-item"
+                  :class="{ active: activeColorScheme === idx }"
+                  @click="applyColorScheme(idx)"
+                  :title="scheme.name"
+                >
+                  <div class="scheme-swatches">
+                    <span
+                      v-for="c in scheme.colors"
+                      :key="c"
+                      class="scheme-swatch"
+                      :style="{ background: c }"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="theme-group">
+              <label class="prop-label">间距</label>
+              <div class="spacing-options">
+                <button
+                  v-for="sp in spacingOptions"
+                  :key="sp.value"
+                  class="spacing-btn"
+                  :class="{ active: activeSpacing === sp.value }"
+                  @click="applySpacing(sp.value)"
+                >{{ sp.label }}</button>
+              </div>
+            </div>
           </div>
 
           <!-- 添加元素 -->
@@ -274,7 +603,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 
 interface SlideElement {
   id: string
@@ -289,14 +618,77 @@ interface SlideElement {
   radius?: string
   fontSize?: number
   fontWeight?: string
+  fontFamily?: string
+  fontStyle?: string
+  textDecoration?: string
   textAlign?: string
+  textBgColor?: string
+  lineHeight?: string
+  objectFit?: string
+  align?: string
   src?: string
+  zIndex?: number
 }
 
 interface Slide {
   background?: string
   elements: SlideElement[]
 }
+
+// R16: 富文本状态
+const richFontFamily = ref('宋体')
+const richFontSize = ref('18')
+const richTextColor = ref('#000000')
+const richBgColor = ref('#ffffff')
+const richLineHeight = ref('1.5')
+const textRefs = ref<HTMLElement[]>([])
+
+// R20: 辅助线状态
+const showGuides = ref(true)
+const guideX = ref<number | null>(null)
+const guideY = ref<number | null>(null)
+
+// R20: 布局预设
+const activeLayout = ref('default')
+const layoutPresets = [
+  { id: 'default', name: '默认', icon: '📐' },
+  { id: 'center', name: '居中', icon: '🎯' },
+  { id: 'left-heavy', name: '左重', icon: '◀️' },
+  { id: 'right-heavy', name: '右重', icon: '▶️' },
+  { id: 'grid', name: '网格', icon: '🔲' },
+]
+
+// R21: 字体主题
+const activeFontTheme = ref('default')
+const fontThemes = [
+  { id: 'default', name: '默认', fontFamily: '宋体' },
+  { id: 'professional', name: '商务', fontFamily: '微软雅黑' },
+  { id: 'tech', name: '科技', fontFamily: 'Arial' },
+  { id: 'simple', name: '简约', fontFamily: 'Georgia' },
+  { id: 'chinese', name: '国风', fontFamily: '楷体' },
+]
+
+// R21: 配色方案
+const activeColorScheme = ref(0)
+const colorSchemes = [
+  { name: '商务蓝', colors: ['#165DFF', '#FFFFFF', '#F5F5F5', '#0e42d2'] },
+  { name: '科技紫', colors: ['#667EEA', '#764BA2', '#F5F5F5', '#5a71d6'] },
+  { name: '清新绿', colors: ['#34C759', '#FFFFFF', '#F0F9F0', '#2cad4a'] },
+  { name: '活力橙', colors: ['#FF6B35', '#FFFFFF', '#FFF5F0', '#e08600'] },
+  { name: '经典红', colors: ['#E53935', '#FFFFFF', '#FFEBEE', '#c62828'] },
+  { name: '深空灰', colors: ['#1F2937', '#FFFFFF', '#F3F4F6', '#111827'] },
+]
+
+// R21: 间距选项
+const activeSpacing = ref('standard')
+const spacingOptions = [
+  { value: 'compact', label: '紧凑' },
+  { value: 'standard', label: '标准' },
+  { value: 'loose', label: '宽松' },
+]
+
+// R21: 幻灯片背景色
+const slideBackground = ref('#ffffff')
 
 const emit = defineEmits(['close', 'apply'])
 
@@ -312,6 +704,7 @@ const isResizing = ref(false)
 const dragStart = ref({ x: 0, y: 0, elementX: 0, elementY: 0 })
 const resizeHandle = ref('')
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0, elX: 0, elY: 0 })
+const imageFileInput = ref<HTMLInputElement | null>(null)
 
 // 撤销/重做历史记录
 const history = ref<Slide[][]>([])
@@ -319,13 +712,10 @@ const historyIndex = ref(-1)
 const maxHistory = 50
 
 const saveHistory = () => {
-  // 移除当前位置之后的所有历史
   if (historyIndex.value < history.value.length - 1) {
     history.value = history.value.slice(0, historyIndex.value + 1)
   }
-  // 深拷贝当前状态
   history.value.push(JSON.parse(JSON.stringify(slides.value)))
-  // 限制历史记录数量
   if (history.value.length > maxHistory) {
     history.value.shift()
   } else {
@@ -352,27 +742,251 @@ const redo = () => {
   }
 }
 
+// R16: 执行富文本格式
+const execFormat = (command: string) => {
+  document.execCommand(command, false)
+  // 更新选中元素的样式
+  if (selectedElementIndex.value !== null) {
+    const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+    if (command === 'bold') {
+      el.fontWeight = el.fontWeight === 'bold' ? 'normal' : 'bold'
+    } else if (command === 'italic') {
+      el.fontStyle = el.fontStyle === 'italic' ? 'normal' : 'italic'
+    } else if (command === 'underline') {
+      el.textDecoration = el.textDecoration === 'underline' ? 'none' : 'underline'
+    }
+  }
+}
+
+const isFormatActive = (command: string) => {
+  if (selectedElementIndex.value === null) return false
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (command === 'bold') return el.fontWeight === 'bold'
+  if (command === 'italic') return el.fontStyle === 'italic'
+  if (command === 'underline') return el.textDecoration === 'underline'
+  return false
+}
+
+const applyRichFontFamily = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].fontFamily = richFontFamily.value
+}
+
+const applyRichFontSize = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].fontSize = Number(richFontSize.value)
+}
+
+const applyRichTextColor = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].color = richTextColor.value
+}
+
+const applyRichBgColor = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].textBgColor = richBgColor.value
+}
+
+const applyRichLineHeight = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].lineHeight = richLineHeight.value
+}
+
+// R16: 切换字体样式
+const toggleFontStyle = (style: string) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  el.fontStyle = el.fontStyle === 'italic' ? 'normal' : 'italic'
+}
+
+const toggleTextDecoration = (decoration: string) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  el.textDecoration = el.textDecoration === 'underline' ? 'none' : 'underline'
+}
+
+const toggleFontWeight = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  el.fontWeight = el.fontWeight === 'bold' ? 'normal' : 'bold'
+}
+
+// R17: 图片上传处理
+const handleImageUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || selectedElementIndex.value === null) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    saveHistory()
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].src = result
+    // 自动调整元素尺寸以适应图片
+    const img = new Image()
+    img.onload = () => {
+      const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!]
+      // 按比例缩放图片
+      const maxW = 400, maxH = 300
+      const ratio = Math.min(maxW / img.width, maxH / img.height, 1)
+      el.width = Math.round(img.width * ratio)
+      el.height = Math.round(img.height * ratio)
+    }
+    img.src = result
+  }
+  reader.readAsDataURL(file)
+}
+
+const setImageAlign = (align: string) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].align = align
+}
+
+const getImageStyle = (el: SlideElement) => ({
+  objectFit: el.objectFit || 'cover',
+  textAlign: el.align || 'center',
+})
+
+// R20: 层级控制
+const bringForward = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  const idx = selectedElementIndex.value
+  if (idx < elements.length - 1) {
+    const temp = elements[idx].zIndex || idx
+    elements[idx].zIndex = (elements[idx + 1].zIndex || idx + 1)
+    elements[idx + 1].zIndex = temp
+  }
+}
+
+const sendBackward = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  const idx = selectedElementIndex.value
+  if (idx > 0) {
+    const temp = elements[idx].zIndex || idx
+    elements[idx].zIndex = (elements[idx - 1].zIndex || idx - 1)
+    elements[idx - 1].zIndex = temp
+  }
+}
+
+// R20: 布局预设应用
+const applyLayoutPreset = (layout: { id: string }) => {
+  saveHistory()
+  activeLayout.value = layout.id
+  const elements = slides.value[activeSlideIndex.value].elements
+  const canvasW = 800
+  const canvasH = 450
+
+  switch (layout.id) {
+    case 'center':
+      elements.forEach((el, i) => {
+        el.x = Math.round((canvasW - el.width) / 2)
+        el.y = Math.round((canvasH - el.height) / (elements.length + 1) * (i + 1))
+      })
+      break
+    case 'left-heavy':
+      elements.forEach((el, i) => {
+        el.x = 60
+        el.y = 60 + i * 100
+      })
+      break
+    case 'right-heavy':
+      elements.forEach((el, i) => {
+        el.x = Math.round(canvasW - el.width - 60)
+        el.y = 60 + i * 100
+      })
+      break
+    case 'grid':
+      const cols = 3
+      const cellW = Math.round(canvasW / cols)
+      elements.forEach((el, i) => {
+        el.x = 60 + (i % cols) * cellW
+        el.y = 60 + Math.floor(i / cols) * 120
+        el.width = Math.min(el.width, cellW - 80)
+      })
+      break
+    default:
+      break
+  }
+}
+
+// R21: 字体主题应用
+const applyFontTheme = (theme: { id: string; fontFamily: string }) => {
+  activeFontTheme.value = theme.id
+  slides.value[activeSlideIndex.value].elements.forEach(el => {
+    if (el.type === 'text') {
+      el.fontFamily = theme.fontFamily
+    }
+  })
+}
+
+// R21: 背景色更新
+const updateSlideBackground = (color: string) => {
+  slideBackground.value = color
+  slides.value[activeSlideIndex.value].background = color
+}
+
+const applyBgPreset = (value: string) => {
+  if (!value) return
+  slideBackground.value = value
+  slides.value[activeSlideIndex.value].background = value
+}
+
+// R21: 配色方案应用
+const applyColorScheme = (idx: number) => {
+  activeColorScheme.value = idx
+  const scheme = colorSchemes[idx]
+  slides.value[activeSlideIndex.value].elements.forEach(el => {
+    if (el.type === 'text') {
+      el.color = scheme.colors[3] || scheme.colors[0]
+    } else if (el.type === 'shape') {
+      el.fill = scheme.colors[0]
+    }
+  })
+}
+
+// R21: 间距应用
+const applySpacing = (spacing: string) => {
+  activeSpacing.value = spacing
+  const scale = spacing === 'compact' ? 0.8 : spacing === 'loose' ? 1.2 : 1
+  slides.value[activeSlideIndex.value].elements.forEach(el => {
+    el.y = Math.round(el.y * scale)
+  })
+}
+
 // 初始化幻灯片数据
 const initSlides = () => {
-  // 生成示例数据
   slides.value = Array.from({ length: props.slideCount }, (_, i) => ({
     background: i % 2 === 0 ? '#ffffff' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     elements: i === 0
       ? [
-          { id: '1', type: 'text', x: 100, y: 80, width: 600, height: 60, content: 'PPT标题', fontSize: 40, fontWeight: 'bold', color: '#333333' },
-          { id: '2', type: 'text', x: 100, y: 160, width: 600, height: 40, content: '副标题', fontSize: 24, color: '#666666' }
+          { id: '1', type: 'text', x: 100, y: 80, width: 600, height: 60, content: 'PPT标题', fontSize: 40, fontWeight: 'bold', color: '#333333', fontFamily: '宋体', lineHeight: '1.5', textBgColor: 'transparent', zIndex: 1 },
+          { id: '2', type: 'text', x: 100, y: 160, width: 600, height: 40, content: '副标题', fontSize: 24, color: '#666666', fontFamily: '宋体', lineHeight: '1.5', textBgColor: 'transparent', zIndex: 1 }
         ]
       : [
-          { id: '1', type: 'text', x: 60, y: 40, width: 540, height: 50, content: '第' + (i + 1) + '页标题', fontSize: 28, fontWeight: 'bold', color: '#333333' },
-          { id: '2', type: 'text', x: 60, y: 100, width: 540, height: 200, content: '• 要点1\n• 要点2\n• 要点3\n• 要点4', fontSize: 18, color: '#555555' },
-          { id: '3', type: 'shape', x: 60, y: 320, width: 100, height: 8, fill: '#165DFF', radius: '4px' }
+          { id: '1', type: 'text', x: 60, y: 40, width: 540, height: 50, content: '第' + (i + 1) + '页标题', fontSize: 28, fontWeight: 'bold', color: '#333333', fontFamily: '宋体', lineHeight: '1.5', textBgColor: 'transparent', zIndex: 1 },
+          { id: '2', type: 'text', x: 60, y: 100, width: 540, height: 200, content: '• 要点1\n• 要点2\n• 要点3\n• 要点4', fontSize: 18, color: '#555555', fontFamily: '宋体', lineHeight: '1.5', textBgColor: 'transparent', zIndex: 1 },
+          { id: '3', type: 'shape', x: 60, y: 320, width: 100, height: 8, fill: '#165DFF', radius: '4px', color: '#165DFF', zIndex: 1 }
         ]
   }))
 }
 
-const currentSlideStyle = computed(() => ({
-  background: slides.value[activeSlideIndex.value]?.background || '#fff'
-}))
+const currentSlideStyle = computed(() => {
+  const bg = slides.value[activeSlideIndex.value]?.background || '#ffffff'
+  return { background: bg }
+})
 
 const currentElements = computed(() =>
   slides.value[activeSlideIndex.value]?.elements || []
@@ -383,14 +997,39 @@ const selectedElement = computed(() => {
   return currentElements.value[selectedElementIndex.value]
 })
 
+// 监听选中元素变化，同步富文本工具栏状态
+watch(selectedElement, (el) => {
+  if (el && el.type === 'text') {
+    richFontFamily.value = el.fontFamily || '宋体'
+    richFontSize.value = String(el.fontSize || 18)
+    richTextColor.value = el.color || '#000000'
+    richBgColor.value = el.textBgColor || '#ffffff'
+    richLineHeight.value = el.lineHeight || '1.5'
+  }
+}, { immediate: true })
+
+// 监听活动幻灯片变化，同步背景色
+watch(activeSlideIndex, (idx) => {
+  slideBackground.value = slides.value[idx]?.background || '#ffffff'
+}, { immediate: true })
+
 const selectSlide = (index: number) => {
   activeSlideIndex.value = index
   selectedElementIndex.value = null
+  slideBackground.value = slides.value[index]?.background || '#ffffff'
 }
 
 const selectElement = (slideIndex: number, elementIndex: number) => {
   activeSlideIndex.value = slideIndex
   selectedElementIndex.value = elementIndex
+  const el = slides.value[slideIndex].elements[elementIndex]
+  if (el.type === 'text') {
+    richFontFamily.value = el.fontFamily || '宋体'
+    richFontSize.value = String(el.fontSize || 18)
+    richTextColor.value = el.color || '#000000'
+    richBgColor.value = el.textBgColor || '#ffffff'
+    richLineHeight.value = el.lineHeight || '1.5'
+  }
 }
 
 const deselectElement = () => {
@@ -423,13 +1062,30 @@ const getCanvasElementStyle = (el: SlideElement, index: number) => {
     height: el.height + 'px',
     fontSize: (el.fontSize || 18) + 'px',
     fontWeight: el.fontWeight || 'normal',
+    fontStyle: el.fontStyle || 'normal',
+    textDecoration: el.textDecoration || 'none',
+    fontFamily: el.fontFamily || '宋体',
     color: el.color || '#000',
     backgroundColor: el.fill || 'transparent',
     borderRadius: el.radius || '0',
     border: isSelected ? '2px solid #165DFF' : 'none',
-    zIndex: isSelected ? 100 : 1
+    zIndex: el.zIndex || index + 1,
+    lineHeight: el.lineHeight || '1.5',
+    textAlign: el.textAlign || 'left',
   }
 }
+
+const getTextContentStyle = (el: SlideElement) => ({
+  fontSize: (el.fontSize || 18) + 'px',
+  fontWeight: el.fontWeight || 'normal',
+  fontStyle: el.fontStyle || 'normal',
+  textDecoration: el.textDecoration || 'none',
+  fontFamily: el.fontFamily || '宋体',
+  color: el.color || '#000',
+  backgroundColor: el.textBgColor || 'transparent',
+  lineHeight: el.lineHeight || '1.5',
+  textAlign: el.textAlign || 'left',
+})
 
 const updateElementContent = (index: number, event: Event) => {
   const target = event.target as HTMLElement
@@ -438,11 +1094,13 @@ const updateElementContent = (index: number, event: Event) => {
 
 const updateElementProp = (prop: string, value: any) => {
   if (selectedElementIndex.value === null) return
-  (slides.value[activeSlideIndex.value].elements[selectedElementIndex.value] as any)[prop] = value
+  saveHistory()
+  ;(slides.value[activeSlideIndex.value].elements[selectedElementIndex.value] as any)[prop] = value
 }
 
 const setAlignment = (align: string) => {
   if (selectedElementIndex.value === null) return
+  saveHistory()
   slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].textAlign = align
 }
 
@@ -465,7 +1123,11 @@ const addElement = (type: 'text' | 'shape' | 'image') => {
     content: type === 'text' ? '新文本' : undefined,
     color: '#000000',
     fill: type === 'shape' ? '#165DFF' : undefined,
-    fontSize: 18
+    fontSize: 18,
+    fontFamily: '宋体',
+    lineHeight: '1.5',
+    textBgColor: 'transparent',
+    zIndex: slides.value[activeSlideIndex.value].elements.length + 1,
   }
   slides.value[activeSlideIndex.value].elements.push(newElement)
   selectedElementIndex.value = slides.value[activeSlideIndex.value].elements.length - 1
@@ -491,12 +1153,42 @@ const onDrag = (event: MouseEvent) => {
   const dx = event.clientX - dragStart.value.x
   const dy = event.clientY - dragStart.value.y
   const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
-  el.x = Math.max(0, Math.min(800 - el.width, dragStart.value.elementX + dx))
-  el.y = Math.max(0, Math.min(450 - el.height, dragStart.value.elementY + dy))
+
+  // R20: 网格吸附辅助
+  const gridSize = 10
+  let newX = Math.max(0, Math.min(800 - el.width, dragStart.value.elementX + dx))
+  let newY = Math.max(0, Math.min(450 - el.height, dragStart.value.elementY + dy))
+
+  // 吸附到网格
+  if (showGuides.value) {
+    newX = Math.round(newX / gridSize) * gridSize
+    newY = Math.round(newY / gridSize) * gridSize
+
+    // 中心对齐辅助线
+    const centerX = 400
+    const centerY = 225
+    if (Math.abs(newX + el.width / 2 - centerX) < 8) {
+      newX = centerX - el.width / 2
+      guideX.value = centerX
+    } else {
+      guideX.value = null
+    }
+    if (Math.abs(newY + el.height / 2 - centerY) < 8) {
+      newY = centerY - el.height / 2
+      guideY.value = centerY
+    } else {
+      guideY.value = null
+    }
+  }
+
+  el.x = newX
+  el.y = newY
 }
 
 const stopDrag = () => {
   isDragging.value = false
+  guideX.value = null
+  guideY.value = null
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 }
@@ -550,7 +1242,6 @@ const resetChanges = () => {
 }
 
 const applyChanges = () => {
-  // 保存更改到本地存储
   localStorage.setItem('ppt_edited_elements', JSON.stringify(slides.value))
   emit('apply', slides.value)
   closeEditor()
@@ -560,12 +1251,26 @@ const closeEditor = () => {
   emit('close')
 }
 
+// R16: 富文本内键盘快捷键
+const handleTextKeydown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+    if (e.key === 'b') { e.preventDefault(); execFormat('bold') }
+    if (e.key === 'i') { e.preventDefault(); execFormat('italic') }
+    if (e.key === 'u') { e.preventDefault(); execFormat('underline') }
+  }
+}
+
 // 键盘快捷键
 const handleKeydown = (e: KeyboardEvent) => {
-  // 如果正在输入文本，不触发快捷键
   if ((e.target as HTMLElement).tagName === 'INPUT' ||
       (e.target as HTMLElement).tagName === 'TEXTAREA' ||
       (e.target as HTMLElement).isContentEditable) {
+    // R16: 富文本快捷键在其他输入场景下仍生效
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      if (e.key === 'b') { e.preventDefault(); execFormat('bold') }
+      if (e.key === 'i') { e.preventDefault(); execFormat('italic') }
+      if (e.key === 'u') { e.preventDefault(); execFormat('underline') }
+    }
     return
   }
 
@@ -622,7 +1327,6 @@ const handleKeydown = (e: KeyboardEvent) => {
 }
 
 onMounted(() => {
-  // 尝试加载已保存的编辑数据
   const saved = localStorage.getItem('ppt_edited_elements')
   if (saved) {
     try {
@@ -634,10 +1338,7 @@ onMounted(() => {
     initSlides()
   }
 
-  // 初始化历史记录
   saveHistory()
-
-  // 添加键盘事件监听
   window.addEventListener('keydown', handleKeydown)
 })
 
@@ -673,6 +1374,91 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* ===== R16: 富文本格式工具栏 ===== */
+.rich-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e5e5e5;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-right: 1px solid #e0e0e0;
+}
+
+.toolbar-group:last-child {
+  border-right: none;
+}
+
+.format-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.format-btn:hover {
+  background: #e6f0ff;
+  border-color: #165DFF;
+}
+
+.format-btn.active {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
+.font-family-select,
+.font-size-select,
+.line-height-select {
+  padding: 4px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  max-width: 120px;
+}
+
+.font-family-select {
+  max-width: 110px;
+}
+
+.color-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.color-input-tool {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .editor-header {
@@ -725,12 +1511,6 @@ onUnmounted(() => {
 .toolbar-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.editor-tip {
-  margin: 0;
-  font-size: 14px;
-  color: #666;
 }
 
 .btn-close {
@@ -820,6 +1600,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  position: relative;
 }
 
 .canvas-slide {
@@ -860,14 +1641,54 @@ onUnmounted(() => {
 
 .image-content {
   object-fit: cover;
+  width: 100%;
+  height: 100%;
 }
 
 .image-placeholder {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: #f0f0f0;
   font-size: 24px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 对齐辅助线 */
+.canvas-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.guide {
+  position: absolute;
+  background: rgba(22, 93, 255, 0.6);
+}
+
+.guide-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.guide-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
 }
 
 /* 调整手柄 */
@@ -897,11 +1718,12 @@ onUnmounted(() => {
 
 /* 属性面板 */
 .properties-panel {
-  width: 280px;
+  width: 300px;
   background: #f9fafb;
   border-left: 1px solid #e5e5e5;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .panel-header {
@@ -1031,6 +1853,258 @@ onUnmounted(() => {
   background: #f5f5f5;
 }
 
+.align-buttons button.active {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
+/* R16: 样式切换按钮 */
+.style-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.style-toggle-btn {
+  width: 36px;
+  height: 32px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.style-toggle-btn:hover {
+  background: #e6f0ff;
+  border-color: #165DFF;
+}
+
+.style-toggle-btn.active {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
+/* R17: 图片上传 */
+.image-upload-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.file-input {
+  display: none;
+}
+
+.file-label {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #EEF2FF;
+  color: #165DFF;
+  border: 1px dashed #165DFF;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.file-label:hover {
+  background: #165DFF;
+  color: white;
+  border-style: solid;
+}
+
+/* R20: 层级控制 */
+.z-index-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.z-index-controls button {
+  flex: 1;
+  padding: 6px 8px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.z-index-controls button:hover {
+  background: #f0f9ff;
+  border-color: #165DFF;
+}
+
+/* R20: 布局网格 */
+.layout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px 16px;
+}
+
+.layout-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border: 2px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.layout-thumb:hover {
+  border-color: #165DFF;
+  background: #f0f9ff;
+}
+
+.layout-thumb.active {
+  border-color: #165DFF;
+  background: #e6f0ff;
+}
+
+.layout-preview-icon {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.layout-name {
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+}
+
+/* R21: 排版系统 */
+.theme-section {
+  padding: 0 16px 8px;
+}
+
+.theme-group {
+  margin-bottom: 14px;
+}
+
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.theme-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.theme-item:hover {
+  border-color: #165DFF;
+  background: #f0f9ff;
+}
+
+.theme-item.active {
+  border-color: #165DFF;
+  background: #e6f0ff;
+}
+
+.theme-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.theme-name {
+  font-size: 10px;
+  color: #666;
+}
+
+.bg-color-picker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.bg-preset-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+}
+
+.color-scheme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.color-scheme-item {
+  border: 2px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+}
+
+.color-scheme-item:hover {
+  border-color: #165DFF;
+  transform: scale(1.02);
+}
+
+.color-scheme-item.active {
+  border-color: #165DFF;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.3);
+}
+
+.scheme-swatches {
+  display: flex;
+  height: 28px;
+}
+
+.scheme-swatch {
+  flex: 1;
+}
+
+.spacing-options {
+  display: flex;
+  gap: 4px;
+}
+
+.spacing-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  background: white;
+  transition: all 0.15s;
+}
+
+.spacing-btn:hover {
+  border-color: #165DFF;
+  background: #f0f9ff;
+}
+
+.spacing-btn.active {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
 .btn-delete-element {
   width: 100%;
   padding: 10px;
@@ -1114,6 +2188,16 @@ onUnmounted(() => {
     width: 100%;
     height: 100%;
     border-radius: 0;
+  }
+
+  .rich-toolbar {
+    gap: 4px;
+    padding: 6px 8px;
+    overflow-x: auto;
+  }
+
+  .toolbar-group {
+    padding: 0 4px;
   }
 
   .editor-header {
