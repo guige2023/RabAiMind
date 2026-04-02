@@ -109,6 +109,13 @@ export const api: APIClient = {
       })
     },
 
+    exportPngSequence: (taskId: string, resolution = '1080p'): Promise<Blob> => {
+      return apiClient.get(`/ppt/export/png/${taskId}`, {
+        responseType: 'blob',
+        params: { resolution }
+      })
+    },
+
     getTemplates: (): Promise<AxiosResponse<Template[]>> => {
       return apiClient.get('/ppt/templates')
     },

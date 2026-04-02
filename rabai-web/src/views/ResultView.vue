@@ -181,10 +181,18 @@
                   <select v-model="slide.layout" class="layout-select">
                     <option value="title">标题页</option>
                     <option value="content">内容页</option>
-                    <option value="two-column">双栏</option>
-                    <option value="image-left">左图右文</option>
-                    <option value="image-right">左文右图</option>
+                    <option value="two_column">双栏</option>
+                    <option value="left_image_right_text">左图右文</option>
+                    <option value="left_text_right_image">左文右图</option>
+                    <option value="card">卡片</option>
+                    <option value="center_radiation">居中</option>
                   </select>
+                  <!-- 操作按钮 -->
+                  <div class="slide-action-btns">
+                    <button class="slide-action-btn" @click="moveSlideUp(index)" :disabled="index === 0" title="上移">⬆️</button>
+                    <button class="slide-action-btn" @click="moveSlideDown(index)" :disabled="index === editableSlides.length - 1" title="下移">⬇️</button>
+                    <button class="slide-action-btn" @click="deleteSlide(index)" :disabled="editableSlides.length <= 1" title="删除">🗑️</button>
+                  </div>
                 </div>
                 <input
                   v-model="slide.title"
@@ -198,6 +206,10 @@
                   placeholder="幻灯片内容，每行一个要点"
                   rows="4"
                 ></textarea>
+                <!-- 单页预览按钮 -->
+                <button class="btn btn-sm btn-preview" @click="previewSlide(index)">
+                  👁️ 预览此页
+                </button>
               </div>
             </div>
             <div class="edit-actions">
@@ -914,6 +926,27 @@ const toggleEditMode = async () => {
 
 // 初始化可编辑的幻灯片数据
 const initEditableSlides = async () => {
+  // 布局名标准化映射（中文/旧格式 → API格式）
+  const normalizeLayout = (layout: string): string => {
+    const map: Record<string, string> = {
+      '标题页': 'title',
+      '内容页': 'content',
+      '左图右文': 'left_image_right_text',
+      '左文右图': 'left_text_right_image',
+      '上图下文': 'top_image_bottom_text',
+      '全图背景': 'full_background',
+      '纯文字': 'text_only',
+      '双栏': 'two_column',
+      '卡片': 'card',
+      '居中': 'center_radiation',
+      '时间轴': 'timeline',
+      'image-left': 'left_image_right_text',
+      'image-right': 'left_text_right_image',
+      'two-column': 'two_column',
+    }
+    return map[layout] || layout || 'content'
+  }
+
   // 优先从 localStorage（以当前任务ID为key）加载
   const taskBasedKey = `ppt_outline_${taskId.value}`
   const savedOutlineByTask = localStorage.getItem(taskBasedKey)
@@ -926,7 +959,10 @@ const initEditableSlides = async () => {
     try {
       const outline = JSON.parse(outlineToUse)
       if (outline.slides && outline.slides.length > 0) {
-        editableSlides.value = outline.slides
+        editableSlides.value = outline.slides.map((s: any) => ({
+          ...s,
+          layout: normalizeLayout(s.layout)
+        }))
         return
       }
     } catch (e) {
@@ -939,7 +975,10 @@ const initEditableSlides = async () => {
     try {
       const res = await api.ppt.getOutline(taskId.value)
       if (res.data && res.data.slides && res.data.slides.length > 0) {
-        editableSlides.value = res.data.slides
+        editableSlides.value = res.data.slides.map((s: any) => ({
+          ...s,
+          layout: normalizeLayout(s.layout)
+        }))
         // 缓存到localStorage
         localStorage.setItem(taskBasedKey, JSON.stringify(res.data))
         return
@@ -964,6 +1003,82 @@ const addEditSlide = () => {
     content: '',
     layout: 'content'
   })
+}
+
+// 删除幻灯片
+const deleteSlide = (index: number) => {
+  if (editableSlides.value.length <= 1) {
+    alert('至少需要保留一页幻灯片')
+    return
+  }
+  editableSlides.value.splice(index, 1)
+}
+
+// 上移幻灯片
+const moveSlideUp = (index: number) => {
+  if (index === 0) return
+  const temp = editableSlides.value[index]
+  editableSlides.value[index] = editableSlides.value[index - 1]
+  editableSlides.value[index - 1] = temp
+}
+
+// 下移幻灯片
+const moveSlideDown = (index: number) => {
+  if (index === editableSlides.value.length - 1) return
+  const temp = editableSlides.value[index]
+  editableSlides.value[index] = editableSlides.value[index + 1]
+  editableSlides.value[index + 1] = temp
+}
+
+// 预览单页（调用 regenerateSlide 不跳转结果页）
+const previewSlide = async (index: number) => {
+  const slide = editableSlides.value[index]
+  if (!slide) return
+  
+  // 映射前端布局名到API布局名
+  const layoutMap: Record<string, string> = {
+    '左图右文': 'left_image_right_text',
+    '左文右图': 'left_text_right_image',
+    '卡片': 'card',
+    '双栏': 'two_column',
+    '居中': 'center_radiation',
+    '时间轴': 'timeline',
+    'title': 'title',
+    'content': 'content',
+    'left_image_right_text': 'left_image_right_text',
+    'left_text_right_image': 'left_text_right_image',
+    'two_column': 'two_column',
+    'card': 'card',
+  }
+  const apiLayout = layoutMap[slide.layout] || 'content'
+  
+  try {
+    const res = await api.ppt.regenerateSlide({
+      taskId: taskId.value,
+      slideIndex: index + 1,
+      scene: originalScene.value || 'business',
+      style: originalStyle.value || 'professional',
+      content: typeof slide.content === 'string' 
+        ? slide.content.split('\n').filter(l => l.trim()).join('\n') 
+        : (Array.isArray(slide.content) ? slide.content.join('\n') : ''),
+      layout: apiLayout,
+      title: slide.title || `第${index + 1}页`,
+      layout_mode: 'manual',
+      unified_layout: false,
+      reset_first_layout: index === 0,
+    })
+    if (res.data.success && res.data.data?.svg_url) {
+      // 更新 previewSlides 中对应页的 URL
+      if (previewSlides.value[index]) {
+        previewSlides.value[index] = {
+          ...previewSlides.value[index],
+          url: res.data.data.svg_url + '?t=' + Date.now()
+        }
+      }
+    }
+  } catch (e) {
+    console.error('预览失败:', e)
+  }
 }
 
 // 使用编辑的内容重新生成PPT
@@ -1063,10 +1178,17 @@ const exportFormats = [
 ]
 
 const qualityOptions = [
-  { id: 'standard', name: '标准', desc: '适合普通演示', size: '约 2MB' },
-  { id: 'high', name: '高清', desc: '适合高质量展示', size: '约 5MB' },
-  { id: 'ultra', name: '超清', desc: '适合打印输出', size: '约 15MB' }
+  { id: 'standard', name: '720p', desc: '标准演示', size: '约 2MB', width: 1280, height: 720 },
+  { id: 'high', name: '1080p', desc: '高清展示', size: '约 5MB', width: 1920, height: 1080 },
+  { id: 'ultra', name: '4K', desc: '超清打印', size: '约 15MB', width: 3840, height: 2160 }
 ]
+
+// 分辨率映射
+const qualityResolutions: Record<ExportQuality, { width: number; height: number }> = {
+  standard: { width: 1280, height: 720 },
+  high: { width: 1920, height: 1080 },
+  ultra: { width: 3840, height: 2160 }
+}
 
 const handleExport = () => {
   switch (selectedFormat.value) {
@@ -1358,7 +1480,7 @@ const handleBatchExport = async () => {
   alert('批量导出功能开发中，将同时导出PDF和图片格式')
 }
 
-// 导出图片 - 使用真实SVG预览图
+// 导出图片 - 使用真实SVG预览图（支持分辨率选择）
 const handleExportImages = async () => {
   if (isExporting.value) return
   if (previewSlides.value.length === 0) {
@@ -1373,6 +1495,8 @@ const handleExportImages = async () => {
     const format = selectedFormat.value // 'png' or 'jpg'
     const slides = previewSlides.value
     const ext = format === 'jpg' ? 'jpg' : 'png'
+    const resolution = qualityResolutions[selectedQuality.value]
+    const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
 
     // 为每张幻灯片生成图片并下载
     for (let i = 0; i < slides.length; i++) {
@@ -1384,10 +1508,10 @@ const handleExportImages = async () => {
 
       await new Promise<void>((resolve, reject) => {
         img.onload = () => {
-          // 创建canvas
+          // 创建canvas，使用选定的分辨率
           const canvas = document.createElement('canvas')
-          canvas.width = img.naturalWidth || 1920
-          canvas.height = img.naturalHeight || 1080
+          canvas.width = resolution.width
+          canvas.height = resolution.height
           const ctx = canvas.getContext('2d')
 
           if (!ctx) {
@@ -1395,17 +1519,21 @@ const handleExportImages = async () => {
             return
           }
 
-          // 绘制图片
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          // 设置高质量渲染
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
+
+          // 绘制图片（缩放到目标分辨率）
+          ctx.drawImage(img, 0, 0, resolution.width, resolution.height)
 
           // 下载
           const link = document.createElement('a')
-          link.download = `slide_${i + 1}.${ext}`
-          link.href = canvas.toDataURL(`image/${ext}`, 0.92)
+          link.download = `slide_${i + 1}_${qualityName}.${ext}`
+          link.href = canvas.toDataURL(`image/${ext}`, 0.95)
           link.click()
 
           // 避免同时触发多个下载
-          setTimeout(resolve, 300)
+          setTimeout(resolve, 500)
         }
         img.onerror = () => {
           console.error(`幻灯片 ${i + 1} 图片加载失败`)
@@ -1415,7 +1543,7 @@ const handleExportImages = async () => {
       })
     }
 
-    alert(`已成功导出 ${slides.length} 张图片！`)
+    alert(`已成功导出 ${slides.length} 张 ${qualityName} 图片！`)
   } catch (error) {
     console.error('图片导出失败:', error)
     alert('图片导出失败，请重试')
@@ -2140,6 +2268,58 @@ onMounted(() => {
 
 .edit-slide-content:focus {
   border-color: #165DFF;
+}
+
+/* 幻灯片卡片操作按钮 */
+.slide-action-btns {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.slide-action-btn {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.slide-action-btn:hover:not(:disabled) {
+  background: #e8f0fe;
+  border-color: #165DFF;
+}
+
+.slide-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 单页预览按钮 */
+.btn-preview {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: #f0f7ff;
+  color: #165DFF;
+  border: 1px solid #d0e0ff;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-preview:hover {
+  background: #e0edff;
+  border-color: #165DFF;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 13px;
 }
 
 .edit-actions {

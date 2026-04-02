@@ -134,8 +134,28 @@
       <!-- Templates Grid -->
       <section class="templates-section">
         <div class="templates-header">
+          <div class="templates-tabs">
+            <button 
+              class="tab-btn" 
+              :class="{ active: !showMyTemplates && !showFavorites }"
+              @click="showMyTemplates = false; showFavorites = false">
+              全部模板
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ active: showMyTemplates }"
+              @click="showMyTemplates = true; showFavorites = false">
+              📁 我的模板
+            </button>
+            <button 
+              class="tab-btn" 
+              :class="{ active: showFavorites }"
+              @click="showMyTemplates = false; showFavorites = true">
+              ⭐ 收藏
+            </button>
+          </div>
           <span class="templates-count">
-            {{ (showFavorites ? favoriteTemplates : filteredTemplates).length }} 个模板
+            {{ displayTemplates.length }} 个模板
           </span>
         </div>
 
@@ -327,6 +347,7 @@ import {
   type Template
 } from '../composables/useTemplateStore'
 import { useSearch } from '../composables/useSearch'
+import { api } from '../api/client'
 
 const router = useRouter()
 const store = useTemplateStore()
@@ -336,6 +357,8 @@ const selectedCategory = ref<string | null>(null)
 const selectedStyle = ref<string | null>(null)
 const sortBy = ref<'popularity' | 'newest' | 'name'>('popularity')
 const showFavorites = ref(false)
+const showMyTemplates = ref(false)
+const myTemplates = ref<Template[]>([])
 const selectedTemplate = ref<Template | null>(null)
 const showSearchHistory = ref(false)
 
@@ -367,7 +390,29 @@ onMounted(() => {
   store.loadTemplates()
   store.loadCategoriesAndStyles()  // BUG修复: 从API加载分类/风格
   store.loadFavorites()
+  loadMyTemplates()
 })
+
+// 加载我的模板
+const loadMyTemplates = async () => {
+  try {
+    const res = await api.template.listMyTemplates()
+    if (res.data.success) {
+      myTemplates.value = res.data.templates.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        category: t.category,
+        style: t.style,
+        thumbnail: t.thumbnail,
+        isPremium: false,
+        isFavorite: false
+      }))
+    }
+  } catch (e) {
+    console.error('加载我的模板失败:', e)
+  }
+}
 
 // Computed - 使用增强搜索结果
 const filteredTemplates = computed(() => {
@@ -405,6 +450,9 @@ const filteredTemplates = computed(() => {
 })
 
 const displayTemplates = computed(() => {
+  if (showMyTemplates.value) {
+    return myTemplates.value
+  }
   if (showFavorites.value) {
     return store.favoriteTemplates.value.filter(t =>
       filteredTemplates.value.some(ft => ft.id === t.id)
@@ -745,6 +793,37 @@ const resetFilters = () => {
 
 .templates-header {
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.templates-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.tab-btn:hover {
+  background: #f5f5f5;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.tab-btn.active {
+  background: #165DFF;
+  border-color: #165DFF;
+  color: white;
 }
 
 .templates-count {

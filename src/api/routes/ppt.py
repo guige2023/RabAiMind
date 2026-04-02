@@ -7,7 +7,7 @@ API 路由定义
 """
 
 from fastapi import APIRouter, HTTPException, Request, status, UploadFile, File, Form, Query, Body
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 import asyncio
@@ -720,6 +720,113 @@ async def export_pdf(task_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PDF转换失败，请稍后重试"
+        )
+
+
+@router.get("/export/png/{task_id}")
+async def export_png_sequence(
+    task_id: str,
+    resolution: str = Query("1080p", description="分辨率: 720p, 1080p, 4K")
+):
+    """导出PNG图片序列（每页一张）"""
+    if not _check_rate_limit():
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    if task["status"] != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="任务尚未完成"
+        )
+
+    result = task.get("result", {})
+    svg_urls = result.get("svg_urls", [])
+
+    if not svg_urls:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="没有可导出的幻灯片"
+        )
+
+    # 分辨率设置
+    resolution_map = {
+        "720p": (1280, 720),
+        "1080p": (1920, 1080),
+        "4K": (3840, 2160)
+    }
+    width, height = resolution_map.get(resolution, (1920, 1080))
+
+    try:
+        import zipfile
+        import io
+        import httpx
+
+        # 下载所有SVG并转换为PNG
+        png_files = []
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for i, svg_url in enumerate(svg_urls):
+                # 构造完整URL
+                if svg_url.startswith('/'):
+                    svg_url = f"http://localhost:{settings.API_PORT}{svg_url}"
+
+                resp = await client.get(svg_url)
+                if resp.status_code != 200:
+                    continue
+
+                svg_content = resp.content
+
+                # 使用 cairosvg 或内置转换
+                try:
+                    import cairosvg
+                    png_data = cairosvg.svg2png(
+                        bytestring=svg_content,
+                        output_width=width,
+                        output_height=height
+                    )
+                except ImportError:
+                    # cairosvg 不可用，返回占位信息
+                    png_data = None
+
+                if png_data:
+                    png_files.append((f"slide_{i+1:03d}.png", png_data))
+
+        if not png_files:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="图片转换失败，请安装 cairosvg: pip install cairosvg"
+            )
+
+        # 打包为 ZIP
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for filename, data in png_files:
+                zf.writestr(filename, data)
+
+        zip_buffer.seek(0)
+
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename=slides_{resolution}_{task_id}.zip"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PNG导出失败: {str(e)}"
         )
 
 
