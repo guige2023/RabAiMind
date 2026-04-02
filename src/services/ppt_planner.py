@@ -7,6 +7,7 @@ import logging
 import requests
 import time
 import re
+import certifi
 from typing import Dict, Any, List, Optional, Generator
 
 logger = logging.getLogger(__name__)
@@ -213,7 +214,8 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
                 (cfg['endpoint'].rstrip('/') + "/chat/completions") if not cfg['project_id'] else (cfg['endpoint'].rstrip('/') + f"/projects/{cfg['project_id']}/chat/completions"),
                 headers=headers,
                 json=data,
-                timeout=(30, 120)
+                timeout=(30, 120),
+                verify=certifi.where()
             )
 
             if resp.status_code == 200:
@@ -670,7 +672,8 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, scene: str = "busin
             headers=headers,
             json=data,
             timeout=(5, 90),
-            stream=True
+            stream=True,
+            verify=certifi.where()
         )
 
         if resp.status_code == 200:
