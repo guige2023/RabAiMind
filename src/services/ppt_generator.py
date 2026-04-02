@@ -180,6 +180,11 @@ class PPTGenerator:
                 # 两阶段模式：内容已由用户在 OutlineEditView 确认
                 slides_content = pre_generated_slides
                 logger.info(f"使用预生成内容，共 {len(slides_content)} 页（跳过 AI 内容规划）")
+                # 如果用户指定了布局，自动启用smart_layout确保布局被应用
+                user_specified_layouts = [s.get("layout") for s in slides_content if s.get("layout") and s.get("layout") != "content"]
+                if user_specified_layouts and not use_smart_layout:
+                    logger.info(f"[SmartLayout] 两阶段模式检测到{len(user_specified_layouts)}个指定布局，自动启用smart_layout")
+                    use_smart_layout = True
                 task_manager.update_progress(task_id, 20, f"内容已确认，开始渲染设计...", "processing")
             else:
                 # 一次性模式：AI 内容规划 5%~20%
@@ -232,6 +237,11 @@ class PPTGenerator:
                         if layout.slide_index == i:
                             user_layout = layout.layout_type
                             break
+                # 如果slide_layouts没有指定布局，尝试从slides_content的layout字段读取
+                if not user_layout and slides_content:
+                    slide_with_layout = slides_content[i] if i < len(slides_content) else None
+                    if slide_with_layout and slide_with_layout.get("layout"):
+                        user_layout = slide_with_layout["layout"]
                 if use_smart_layout:
                     # 传递文字样式和字体参数
                     svg_code = self._generate_svg_smart_layout(
@@ -868,13 +878,13 @@ class PPTGenerator:
             # 手动模式：只使用用户指定的布局，不自动检测
             if user_layout:
                 slide_type = user_layout
+                # 用户已指定布局，即使是第一页也不强制覆盖
             else:
                 # 没有指定布局时使用默认
                 slide_type = "content_card"
-
-            # 如果是第一页，使用封面布局
-            if slide_num == 1:
-                slide_type = "title_slide"
+                # 如果是第一页，使用封面布局（无指定布局时）
+                if slide_num == 1:
+                    slide_type = "title_slide"
 
             # 统一布局模式：保存首页布局（线程安全）
             if unified_layout:
