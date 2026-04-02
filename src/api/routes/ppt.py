@@ -1149,6 +1149,27 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_code)
         
+        # 重建PPTX（布局变化后需要更新）
+        try:
+            import glob
+            svg_files = sorted(glob.glob(os.path.join(task_output_dir, "slide_*.svg")))
+            if svg_files:
+                pptx_path = os.path.join(task_output_dir, f"presentation_{task_id}.pptx")
+                gen._svg_to_ppt(
+                    svg_files, pptx_path,
+                    text_style=task_params.get("text_style", "transparent_overlay"),
+                    shadow_color=task_params.get("shadow_color", "#000000"),
+                    overlay_transparency=task_params.get("overlay_transparency", 30),
+                    use_smart_layout=use_smart_layout,
+                    font_title=task_params.get("font_title", "微软雅黑"),
+                    font_subtitle=task_params.get("font_subtitle", "微软雅黑"),
+                    font_content=task_params.get("font_content", "微软宋体"),
+                    font_caption=task_params.get("font_caption", "微软雅黑")
+                )
+                logger.info(f"PPTX已重建: {pptx_path}")
+        except Exception as e:
+            logger.warning(f"PPTX重建失败（SVG已更新）: {e}")
+        
         return {
             "success": True,
             "data": {
