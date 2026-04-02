@@ -575,6 +575,8 @@ const previewLoaded = ref(false)
 const previewSlides = ref<Array<{url: string; slideNum: number}>>([])
 // BUG修复: 跟踪预览图片加载错误 - 使用ref包装Set保证响应式
 const previewErrors = ref(new Set<number>())
+// 预览加载失败状态（区分"暂无数据"和"加载失败"）
+const previewLoadFailed = ref(false)
 const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
