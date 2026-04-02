@@ -267,6 +267,7 @@ const handleCancel = async () => {
     router.push('/create')
   } catch (error) {
     console.error('取消失败:', error)
+    alert('取消失败，请稍后重试')
   }
 }
 
