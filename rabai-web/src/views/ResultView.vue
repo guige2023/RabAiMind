@@ -811,6 +811,9 @@ const applyTuning = async () => {
       editableSlides.value[i].layout = apiLayout
     }
     
+    // 获取当前页的编辑内容（editableSlides可能为空，此时用slideNum作标题）
+    const editableSlide = editableSlides.value[i]
+    
     // 调用单页重生成API
     try {
       const res = await api.ppt.regenerateSlide({
@@ -818,9 +821,9 @@ const applyTuning = async () => {
         slideIndex: slideNum,
         scene: originalScene.value || 'business',
         style: originalStyle.value || 'professional',
-        content: editableSlides.value[i]?.content || '',
+        content: editableSlide?.content || '',
         layout: apiLayout,
-        title: editableSlides.value[i]?.title || `第${slideNum}页`
+        title: editableSlide?.title || `第${slideNum}页`
       })
       
       if (res.data.success) {
