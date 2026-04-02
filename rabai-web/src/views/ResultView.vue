@@ -1174,7 +1174,13 @@ const loadStatus = async () => {
     } else if (data.status === 'failed') {
       errorMessage.value = data.error?.message || '未知错误'
     }
-  } catch (error) {
+  } catch (error: any) {
+    // 429 限流不算失败，只是暂时不可用
+    if (error?.response?.status === 429) {
+      errorMessage.value = '服务器繁忙，请稍后刷新页面'
+      // 不改变 status，保留当前状态
+      return
+    }
     status.value = 'failed'
     errorMessage.value = '加载失败，请重试'
   }
