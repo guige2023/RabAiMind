@@ -122,9 +122,15 @@ let previewPollTimer: number | null = null
 
 const estimatedTime = computed(() => {
   if (progress.value <= 0) return 60
+  if (progress.value >= 95) return 10 // 即将完成
+  if (progress.value >= 85) return 60 // PPTX转换阶段最慢
+  if (progress.value >= 80) return 30 // SVG转PPTX开始
+  if (progress.value >= 48) return 45 // SVG渲染阶段
+
+  // 内容生成阶段（0-48%）
   const elapsed = (Date.now() - startTime.value) / 1000
   const total = elapsed / (progress.value / 100)
-  return Math.max(5, Math.round(total - elapsed))
+  return Math.max(10, Math.round(total - elapsed))
 })
 
 // 步骤定义

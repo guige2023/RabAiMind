@@ -150,12 +150,14 @@ export function useSmartRecommendation() {
 
     const results: Recommendation[] = []
     const lowerRequest = request.toLowerCase()
+    let idCounter = 0
 
     // Analyze scene
     for (const [scene, keywords] of Object.entries(sceneKeywords)) {
       const matches = keywords.filter(kw => lowerRequest.includes(kw)).length
       if (matches > 0) {
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'scene',
           value: scene,
           reason: `检测到"${keywords.find(kw => lowerRequest.includes(kw))}"相关内容`,
@@ -170,6 +172,7 @@ export function useSmartRecommendation() {
       const matches = keywords.filter(kw => lowerRequest.includes(kw)).length
       if (matches > 0) {
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'style',
           value: style,
           reason: `适合${keywords[0]}风格`,
@@ -184,6 +187,7 @@ export function useSmartRecommendation() {
       const matches = keywords.filter(kw => lowerRequest.includes(kw)).length
       if (matches > 0) {
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'template',
           value: template,
           reason: `${keywords[0]}模板`,
@@ -199,6 +203,7 @@ export function useSmartRecommendation() {
       const slideCount = parseInt(slideMatch[1])
       if (slideCount >= 5 && slideCount <= 30) {
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'scene',
           value: 'auto',
           reason: `自动设置${slideCount}页`,
@@ -221,6 +226,7 @@ export function useSmartRecommendation() {
         }
         const count = defaultCounts[detectedScene] || 10
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'scene',
           value: 'auto',
           reason: `根据${detectedScene}类型推荐${count}页`,
@@ -233,6 +239,7 @@ export function useSmartRecommendation() {
     const dataKeywords = ['数据', '统计', '分析', '增长', '趋势', '图表', '业绩', '销售', '占比', '同比', '环比', 'KPI']
     if (dataKeywords.some(kw => lowerRequest.includes(kw))) {
       results.push({
+        id: `rec-${Date.now()}-${idCounter++}`,
         type: 'scene',
         value: 'chart',
         reason: '检测到数据相关内容，建议添加图表',
@@ -244,6 +251,7 @@ export function useSmartRecommendation() {
     for (const [key, struct] of Object.entries(structureRecommendations)) {
       if (lowerRequest.includes(key) || results.some(r => r.value === key)) {
         results.push({
+          id: `rec-${Date.now()}-${idCounter++}`,
           type: 'structure',
           value: key,
           reason: struct.tips[0] || '推荐使用标准结构',
@@ -256,6 +264,7 @@ export function useSmartRecommendation() {
     // Content quality improvements
     if (request.length < 50) {
       results.push({
+        id: `rec-${Date.now()}-${idCounter++}`,
         type: 'quality',
         value: 'expand',
         reason: '建议补充更多细节，提升生成质量',
@@ -268,6 +277,7 @@ export function useSmartRecommendation() {
     if (audienceKeywords.some(kw => lowerRequest.includes(kw))) {
       const audience = audienceKeywords.find(kw => lowerRequest.includes(kw))
       results.push({
+        id: `rec-${Date.now()}-${idCounter++}`,
         type: 'quality',
         value: 'audience',
         reason: `针对${audience}群体优化内容`,

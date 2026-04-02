@@ -291,10 +291,31 @@ class PPTGenerator:
             )
 
             logger.info(f"SVG转PPT: {output_path}")
-            # 同步调用 - 传递字体参数
-            self._svg_to_ppt(svg_files, output_path, text_style, shadow_color, overlay_transparency, use_smart_layout, slide_backgrounds, font_title, font_subtitle, font_content, font_caption)
 
-            logger.info(f"PPT生成完成: {output_path}")
+            # 创建进度回调函数
+            def progress_callback(progress: int, message: str):
+                task_manager.update_progress(task_id, progress, message, "processing")
+
+            # 带超时保护调用 - 传递字体参数和进度回调
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        self._svg_to_ppt, svg_files, output_path, text_style, shadow_color,
+                        overlay_transparency, use_smart_layout, slide_backgrounds,
+                        font_title, font_subtitle, font_content, font_caption,
+                        progress_callback, task_id
+                    )
+                    # 最大等待5分钟（图片下载可能较慢）
+                    pptx_future = future.result(timeout=300)
+                logger.info(f"PPT生成完成: {output_path}")
+            except concurrent.futures.TimeoutError:
+                logger.error(f"PPT生成超时（5分钟），SVG文件数量: {len(svg_files)}")
+                task_manager.update_progress(task_id, 85, "PPT生成超时，图片下载过慢", "failed")
+                raise Exception("PPT生成超时：图片下载或处理时间过长，请稍后重试或减少图片数量")
+            except Exception as e:
+                logger.exception(f"PPT生成失败: {e}")
+                task_manager.update_progress(task_id, 85, f"PPT生成失败: {str(e)[:50]}", "failed")
+                raise
             task_manager.update_progress(task_id, 95, "文件处理中...", "processing")
 
             # 5. 完成
@@ -1221,7 +1242,7 @@ class PPTGenerator:
   <text x="800" y="520" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">第 {slide_num} 页</text>
 </svg>'''
 
-    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None, font_title: str = "微软雅黑", font_subtitle: str = "微软雅黑", font_content: str = "微软雅黑", font_caption: str = "微软雅黑") -> bool:
+    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None, font_title: str = "微软雅黑", font_subtitle: str = "微软雅黑", font_content: str = "微软雅黑", font_caption: str = "微软雅黑", progress_callback=None, task_id: str = None) -> bool:
         """SVG转PPT - 支持三种文字样式方案和智能布局模式
 
         兼容性说明:
@@ -1360,6 +1381,10 @@ class PPTGenerator:
                         logger.info(f"已添加 {len(contents)} 条内容")
 
                     logger.info(f"智能布局模式：已添加文字")
+
+                    # 发送进度回调
+                    if progress_callback:
+                        progress_callback(85 + int((idx + 1) / len(svg_files) * 10), f"处理第{idx + 1}/{len(svg_files)}页...")
                     continue
 
                 # ===== 原有模式：添加背景图片（铺满整个页面）=====
@@ -1370,7 +1395,7 @@ class PPTGenerator:
                         logger.warning(f"URL验证失败，跳过图片: {img_url[:50]}...")
                         continue
                     try:
-                        response = requests.get(img_url, timeout=60)
+                        response = requests.get(img_url, timeout=10)
                         if response.status_code == 200:
                             # 保存临时文件（使用安全临时目录）
                             import tempfile
@@ -1554,6 +1579,10 @@ class PPTGenerator:
                         p.font.size = Pt(26)
                         p.font.color.rgb = text_color
                         p.space_before = Pt(18)
+
+                    # 发送进度回调
+                    if progress_callback:
+                        progress_callback(85 + int((idx + 1) / len(svg_files) * 10), f"处理第{idx + 1}/{len(svg_files)}页...")
 
             # 保存（原子写入：先写临时文件再rename）
             import tempfile

@@ -14,7 +14,13 @@
       "Bash(curl -s http://localhost:8003/api/v1/health)",
       "Bash(curl:*)",
       "Bash(xargs kill:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npm run:*)",
+      "Bash(/Users/guige/my_project/RabAiMind/.venv/bin/python -c \"import fastapi; print\\(fastapi.__version__\\)\" 2>&1)",
+      "Bash(find /Users/guige/my_project/RabAiMind/src -name *.py)",
+      "Bash(find /Users/guige/my_project/RabAiMind -name *.log -newer /Users/guige/my_project/RabAiMind/src/config.py)",
+      "Bash(kill -0 74766)",
+      "Bash(source /Users/guige/my_project/RabAiMind/.venv/bin/activate)"
     ]
   }
 }

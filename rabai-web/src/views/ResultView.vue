@@ -38,6 +38,7 @@
                   :key="slide.slideNum"
                   class="preview-slide"
                 >
+                  <div class="slide-number-badge">{{ slide.slideNum }}</div>
                   <img
                     :src="slide.url"
                     :alt="`第 ${slide.slideNum} 页`"
@@ -45,7 +46,7 @@
                     @error="onPreviewError($event, slide.slideNum)"
                   />
                   <!-- BUG修复: 图片加载失败时显示占位符 -->
-                  <div v-if="previewErrors.value.has(slide.slideNum)" class="preview-error">
+                  <div v-if="previewErrors.has(slide.slideNum)" class="preview-error">
                     <span>加载失败</span>
                   </div>
                   <div class="slide-actions">
@@ -53,6 +54,7 @@
                       class="btn btn-sm btn-regenerate"
                       @click="regenerateSingleSlide(index)"
                       :disabled="regeneratingSlideIndex === index"
+                      :aria-label="`重生成第${slide.slideNum}页`"
                     >
                       {{ regeneratingSlideIndex === index ? '重生成中...' : '🔄 重生成' }}
                     </button>
@@ -792,29 +794,57 @@ const editableSlides = ref<{
 }[]>([])
 
 // 切换编辑模式
-const toggleEditMode = () => {
+const toggleEditMode = async () => {
   if (!isEditMode.value) {
     // 进入编辑模式，初始化可编辑数据
-    initEditableSlides()
+    await initEditableSlides()
   }
   isEditMode.value = !isEditMode.value
 }
 
 // 初始化可编辑的幻灯片数据
-const initEditableSlides = () => {
-  // 从本地存储或生成默认数据
+const initEditableSlides = async () => {
+  // 优先从 localStorage（以当前任务ID为key）加载
+  const taskBasedKey = `ppt_outline_${taskId.value}`
+  const savedOutlineByTask = localStorage.getItem(taskBasedKey)
   const savedOutline = localStorage.getItem('ppt_outline')
-  if (savedOutline) {
-    const outline = JSON.parse(savedOutline)
-    editableSlides.value = outline.slides || []
-  } else {
-    // 生成默认的幻灯片结构
-    editableSlides.value = Array.from({ length: slideCount.value }, (_, i) => ({
-      title: i === 0 ? '封面标题' : `第 ${i + 1} 页标题`,
-      content: i === 0 ? '副标题\n演讲者信息' : '内容要点1\n内容要点2\n内容要点3',
-      layout: i === 0 ? 'title' : 'content'
-    }))
+
+  // 优先使用与当前任务ID关联的outline
+  const outlineToUse = savedOutlineByTask || savedOutline
+
+  if (outlineToUse) {
+    try {
+      const outline = JSON.parse(outlineToUse)
+      if (outline.slides && outline.slides.length > 0) {
+        editableSlides.value = outline.slides
+        return
+      }
+    } catch (e) {
+      console.warn('解析localStorage中的outline失败:', e)
+    }
   }
+
+  // 如果localStorage没有或无效，尝试从API获取
+  if (taskId.value) {
+    try {
+      const res = await api.ppt.getOutline(taskId.value)
+      if (res.data && res.data.slides && res.data.slides.length > 0) {
+        editableSlides.value = res.data.slides
+        // 缓存到localStorage
+        localStorage.setItem(taskBasedKey, JSON.stringify(res.data))
+        return
+      }
+    } catch (e) {
+      console.warn('从API加载outline失败:', e)
+    }
+  }
+
+  // 生成默认的幻灯片结构
+  editableSlides.value = Array.from({ length: slideCount.value }, (_, i) => ({
+    title: i === 0 ? '封面标题' : `第 ${i + 1} 页标题`,
+    content: i === 0 ? '副标题\n演讲者信息' : '内容要点1\n内容要点2\n内容要点3',
+    layout: i === 0 ? 'title' : 'content'
+  }))
 }
 
 // 添加新页面
@@ -866,10 +896,10 @@ const regenerateWithEdits = async () => {
       layout: slide.layout,
     }))
 
-    // Step 1: 先保存大纲到服务器
+    // Step 1: 先保存大纲到服务器（旧任务ID，留作备份）
     if (taskId.value) {
       await api.ppt.saveOutline(taskId.value, outlineData)
-      console.log('✅ 大纲已保存到服务器')
+      console.log('✅ 大纲已保存到服务器（旧任务ID）')
     }
 
     // Step 2: 调用后端API创建新任务
@@ -882,11 +912,21 @@ const regenerateWithEdits = async () => {
       include_charts: includeCharts.value,
     })
 
+    const newTaskId = response.data.task_id
+
+    // Step 3: 关键修复！用新任务ID保存大纲（这样结果页能通过 getOutline(new_task_id) 获取）
+    await api.ppt.saveOutline(newTaskId, outlineData)
+    console.log('✅ 大纲已保存到服务器（新任务ID）')
+
+    // Step 4: 更新localStorage（以新任务ID为key存储，结果页会优先从API获取）
+    localStorage.setItem(`ppt_outline_${newTaskId}`, JSON.stringify(outlineData))
+    localStorage.setItem('ppt_outline', JSON.stringify(outlineData))
+
     // 跳转到生成页面，使用新任务ID
     router.push({
       path: '/generating',
       query: {
-        taskId: response.data.task_id
+        taskId: newTaskId
       }
     })
   } catch (error) {
@@ -991,6 +1031,7 @@ const loadPreview = async () => {
   if (!taskId.value) return
   // 清空之前的加载错误
   previewErrors.value.clear()
+  previewLoaded.value = false
 
   try {
     const response = await api.ppt.getTaskPreview(taskId.value)
@@ -1485,9 +1526,9 @@ onMounted(() => {
 }
 
 .result-card {
-  max-width: 500px;
+  max-width: 700px;
   width: 100%;
-  padding: 60px 40px;
+  padding: 48px 40px;
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.1);
@@ -1548,14 +1589,17 @@ onMounted(() => {
 
 /* PPT预览 */
 .ppt-preview-section {
-  margin-bottom: 32px;
+  margin-bottom: 40px;
+  padding: 24px;
+  background: #fafafa;
+  border-radius: 16px;
 }
 
 .preview-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   text-align: center;
 }
 
@@ -1582,18 +1626,39 @@ onMounted(() => {
 .preview-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 20px;
+  padding: 8px;
 }
 
 .preview-slide {
   aspect-ratio: 16/9;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.slide-number-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 5;
+}
+
+.preview-slide:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .preview-slide .slide-actions {
@@ -1601,16 +1666,19 @@ onMounted(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
   padding: 8px;
   display: flex;
   justify-content: center;
   gap: 8px;
-  opacity: 0;
+  opacity: 0.7;
   transition: opacity 0.2s;
+  z-index: 10;
 }
 
-.preview-slide:hover .slide-actions {
+.preview-slide:hover .slide-actions,
+.preview-slide:focus-within .slide-actions,
+.preview-slide:active .slide-actions {
   opacity: 1;
 }
 
@@ -2029,7 +2097,7 @@ onMounted(() => {
 }
 
 .chart-toggle-label {
-  font-size: 26rpx;
+  font-size: 13px;
   color: #333;
 }
 

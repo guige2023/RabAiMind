@@ -86,7 +86,7 @@
               <div
                 v-if="el.overlay"
                 class="text-overlay"
-                :style="{ backgroundColor: el.overlay, opacity: el.overlayOpacity / 100 }"
+                :style="{ backgroundColor: el.overlay, opacity: (el.overlayOpacity ?? 50) / 100 }"
               ></div>
               <!-- 文字阴影 -->
               <div
@@ -159,7 +159,7 @@
             <input
               type="color"
               :value="getBgColor(currentSlide.background)"
-              @input="setSlideBackground($event.target.value)"
+              @input="(e) => setSlideBackground((e.target as HTMLInputElement).value)"
               class="color-input"
             />
           </div>
@@ -568,7 +568,7 @@ const getCanvasElementStyle = (el: SlideElement, index: number) => {
     borderRadius: el.radius || '0',
     border: isSelected ? '2px solid #165DFF' : 'none',
     zIndex: isSelected ? 100 : 1,
-    textAlign: el.textAlign || 'left'
+    textAlign: (el.textAlign || 'left') as 'left' | 'center' | 'right'
   }
 }
 

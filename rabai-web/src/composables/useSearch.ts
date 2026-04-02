@@ -97,7 +97,7 @@ export function useSearch<T extends Record<string, any>>(
           maxScore = Math.max(maxScore, score)
         } else if (Array.isArray(val)) {
           // 搜索数组字段（如tags）
-          for (const v of val) {
+          for (const v of val as any[]) {
             if (typeof v === 'string') {
               const score = calculateScore(v, q)
               maxScore = Math.max(maxScore, score)

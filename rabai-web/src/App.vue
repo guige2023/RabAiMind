@@ -97,7 +97,7 @@ const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
 
 // Template store for favorites count
 const templateStore = useTemplateStore()
-const favoritesCount = computed(() => templateStore.favorites.size)
+const favoritesCount = computed(() => templateStore.favorites.value.size)
 
 const openGlobalSearch = () => {
   globalSearchRef.value?.openSearch()

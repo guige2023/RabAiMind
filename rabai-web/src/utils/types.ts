@@ -255,10 +255,32 @@ export interface APIClient {
     getScenes: () => Promise<AxiosResponse<Scene[]>>
     getStyles: () => Promise<AxiosResponse<Style[]>>
     plan: (request: string, slideCount?: number, scene?: string, style?: string) => Promise<AxiosResponse<PlanPPTResponse>>
+    saveOutline: (taskId: string, outline: any) => Promise<AxiosResponse<any>>
+    commitOutline: (data: any) => Promise<AxiosResponse<any>>
+    getOutline: (taskId: string) => Promise<AxiosResponse<any>>
+    regenerateSlide: (params: { taskId: string; slideIndex: number; scene?: string; style?: string; content?: string; layout?: string; title?: string }) => Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>>
+    uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string }) => Promise<AxiosResponse<any>>
+    previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
+    listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
+    getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>
+    rollbackVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    diffVersions: (taskId: string, versionA: string, versionB: string) => Promise<AxiosResponse<{ success: boolean; version_a: string; version_b: string; diff: any[]; total_changes: number }>>
+    createSnapshot: (taskId: string, name?: string) => Promise<AxiosResponse<{ success: boolean; version_id: string }>>
   }
   images: {
     search: (query: string, page?: number) => Promise<AxiosResponse<ImageSearchResponse>>
     random: (count?: number, orientation?: string) => Promise<AxiosResponse<ImageSearchResponse>>
     categories: () => Promise<AxiosResponse<{ success: boolean; categories: Array<{ id: string; name: string; icon: string; keywords: string[] }> }>>
+  }
+  favorites: {
+    add: (userId: string, data: { item_id: string; item_type: string; name: string; description?: string; thumbnail?: string }) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    remove: (userId: string, itemId: string, itemType: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    check: (userId: string, itemId: string, itemType: string) => Promise<AxiosResponse<{ is_favorite: boolean }>>
+    list: (userId: string, itemType?: string) => Promise<AxiosResponse<{ success: boolean; items: any[]; total: number }>>
+  }
+  template: {
+    uploadTemplate: (data: { name: string; description: string; scene: string; style: string; visibility: string }) => Promise<AxiosResponse<{ success: boolean; template_id: string; template: any }>>
+    listMyTemplates: () => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
+    deleteTemplate: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
   }
 }

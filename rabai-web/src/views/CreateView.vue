@@ -132,6 +132,8 @@
                 :key="tpl.value"
                 class="template-card"
                 :class="{ active: formData.template === tpl.value }"
+                :data-testid="`template-${tpl.value}`"
+                :aria-label="tpl.name"
                 @click="formData.template = tpl.value"
               >
                 <div class="template-preview" :style="{ background: tpl.preview }">
@@ -393,6 +395,8 @@
               :key="mode.value"
               class="generation-mode-card"
               :class="{ active: formData.generationMode === mode.value }"
+              :data-testid="`generation-mode-${mode.value}`"
+              :aria-label="`${mode.name}: ${mode.desc}`"
               @click="formData.generationMode = mode.value"
             >
               <span class="mode-icon">{{ mode.icon }}</span>
@@ -415,6 +419,8 @@
               :key="fmt.value"
               class="output-format-card"
               :class="{ active: formData.outputFormat === fmt.value }"
+              :data-testid="`output-format-${fmt.value}`"
+              :aria-label="`${fmt.name}: ${fmt.desc}`"
               @click="formData.outputFormat = fmt.value"
             >
               <span class="format-icon">{{ fmt.icon }}</span>
@@ -436,6 +442,8 @@
               :key="q.value"
               class="quality-option"
               :class="{ active: formData.quality === q.value }"
+              :data-testid="`quality-${q.value}`"
+              :aria-label="`${q.name} ${q.dpi}`"
               @click="formData.quality = q.value"
             >
               <span class="quality-name">{{ q.name }}</span>

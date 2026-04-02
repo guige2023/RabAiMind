@@ -59,12 +59,12 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useInteractionFeedback, type FeedbackMessage } from '../composables/useInteractionFeedback'
 
-const { messages, removeMessage } = useInteractionFeedback()
+const { messages, removeMessage, config } = useInteractionFeedback()
 
-const positionClass = computed(() => `toast-position-${useInteractionFeedback?.config?.value?.position || 'top'}`)
+const positionClass = computed(() => `toast-position-${config.value.position || 'top'}`)
 
 const visibleMessages = computed(() => {
-  const max = useInteractionFeedback?.config?.value?.maxToasts || 5
+  const max = config.value.maxToasts || 5
   return messages.value.slice(0, max)
 })
 

@@ -140,8 +140,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
+const route = useRoute()
 const step = ref(1)
 const showOnboarding = ref(false)
 const canShowTrigger = ref(false)
@@ -151,6 +153,14 @@ const MAX_SHOW_COUNT = 3
 
 const shouldShowOnboarding = (): boolean => {
   try {
+    // 如果URL中有taskId参数，说明用户在查看生成结果或进度，不显示引导
+    if (route.query.taskId) {
+      return false
+    }
+    // 如果URL是生成页或结果页，不显示引导
+    if (route.path.includes('/generating') || route.path.includes('/result')) {
+      return false
+    }
     const completed = localStorage.getItem(ONBOARDING_KEY)
     if (completed) {
       const data = JSON.parse(completed)
@@ -207,6 +217,16 @@ const prevStep = () => {
 const finishOnboarding = () => {
   closeOnboarding()
 }
+
+// 监听路由变化，重新检查是否显示引导
+watch(() => route.path, () => {
+  if (showOnboarding.value) {
+    // 如果正在显示引导，路由变化时重新检查
+    if (!shouldShowOnboarding()) {
+      showOnboarding.value = false
+    }
+  }
+}, { immediate: true })
 
 onMounted(() => {
   // 延迟显示，让页面先加载
