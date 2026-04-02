@@ -751,9 +751,7 @@ const generatePPT = async () => {
       include_charts: false,
       generation_mode: genOptions.generationMode,
       output_format: genOptions.outputFormat,
-      quality: genOptions.quality,
-      // 用户选择的图片（从 CreateView 的 selectedPptImages 传递）
-      images: JSON.parse(localStorage.getItem('ppt_images') || '[]')
+      quality: genOptions.quality
     })
     const taskId = response.data.task_id
 
