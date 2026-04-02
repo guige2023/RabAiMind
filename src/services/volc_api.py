@@ -87,7 +87,8 @@ class VolcEngineAPI:
                 url,
                 headers=self._get_headers(), 
                 json=payload,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             result = response.json()
@@ -151,7 +152,8 @@ class VolcEngineAPI:
                 url,
                 headers=self._get_headers(),
                 json=payload,
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             result = response.json()
@@ -212,7 +214,8 @@ class VolcEngineAPI:
                 url,
                 headers=self._get_headers(),
                 json=payload,
-                timeout=180
+                timeout=180,
+                verify=False
             )
             response.raise_for_status()
             result = response.json()
