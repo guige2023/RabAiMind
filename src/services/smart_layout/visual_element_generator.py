@@ -109,7 +109,7 @@ class VisualElementGenerator:
         layout: str = "card"
     ) -> str:
         """生成内容幻灯片"""
-        if layout == "card":
+        if layout in ("card", "content_card"):
             return self._generate_card_layout(title, content_items, colors)
         elif layout == "two_column":
             return self._generate_two_column_layout(title, content_items, colors)
