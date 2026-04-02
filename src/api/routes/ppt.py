@@ -197,7 +197,7 @@ async def commit_outline_and_generate(request: GenerateRequest):
         scene=request.scene.value if request.scene else "business",
         style=request.style.value if request.style else "professional",
         layout_mode=request.layout_mode or "auto",
-        color_scheme=request.color_scheme or "#165DFF",
+        color_scheme=request.theme_color or "#165DFF",
     )
     tm.save_outline(task_id, outline)
     return {"success": True, "task_id": task_id}
