@@ -614,7 +614,7 @@ const testAPI = async () => {
   try {
     const scene = route.query.scene as string || 'business'
     const style = route.query.style as string || 'professional'
-    const resp = await fetch('http://localhost:8003/api/v1/ppt/plan', {
+    const resp = await fetch('/api/v1/ppt/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_request: route.query.request || '商务演示', slide_count: 6, scene: scene, style: style })
