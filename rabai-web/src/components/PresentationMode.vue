@@ -11,6 +11,12 @@
       <div class="presentation-toolbar" @click.stop>
         <span class="slide-counter">{{ currentSlide + 1 }} / {{ totalSlides }}</span>
 
+        <!-- R157: Network quality & device indicator -->
+        <div class="quality-indicator" :title="`${deviceAdaptiveQuality.deviceLabel} · ${deviceAdaptiveQuality.qualityLabel}模式`">
+          <span class="quality-dot" :class="`quality-${networkQuality.networkState.value.qualityLevel}`"></span>
+          <span class="quality-text">{{ deviceAdaptiveQuality.deviceLabel }} {{ deviceAdaptiveQuality.qualityLabel }}</span>
+        </div>
+
         <!-- 计时器显示 -->
         <div class="timer-display">
           <span class="timer-elapsed" :class="{ 'overtime': isOvertime }">
@@ -173,6 +179,43 @@
           />
         </div>
 
+        <!-- R152: 标注工具 -->
+        <div class="annotation-controls" @click.stop v-if="annotationActive">
+          <button
+            class="toolbar-btn"
+            :class="{ active: annotationTool === 'pen' }"
+            @click="annotationTool = 'pen'"
+            title="画笔 (P)"
+          >✏️</button>
+          <button
+            class="toolbar-btn"
+            :class="{ active: annotationTool === 'eraser' }"
+            @click="annotationTool = 'eraser'"
+            title="橡皮擦 (E)"
+          >🧹</button>
+          <button
+            class="toolbar-btn"
+            @click="clearAnnotations"
+            title="清除标注"
+          >🗑️</button>
+          <input
+            type="color"
+            v-model="annotationColor"
+            class="laser-color-picker"
+            title="标注颜色"
+          />
+        </div>
+
+        <!-- 标注开关按钮 -->
+        <button
+          class="toolbar-btn annotation-btn"
+          :class="{ active: annotationActive }"
+          @click="annotationActive = !annotationActive; if(!annotationActive) { annotationTool = 'pen' }"
+          title="标注模式 (D)"
+        >
+          🖊️
+        </button>
+
         <!-- 演讲者备注按钮 -->
         <button
           class="toolbar-btn notes-btn"
@@ -181,6 +224,47 @@
           title="演讲者备注 (N)"
         >
           📋
+        </button>
+
+        <!-- R155: Picture-in-Picture 备注小窗按钮 -->
+        <button
+          class="toolbar-btn pip-btn"
+          :class="{ active: pipEnabled }"
+          @click="togglePip"
+          title="备注小窗 (PiP)"
+        >
+          🪟
+        </button>
+
+        <!-- R155: 字幕按钮 -->
+        <button
+          class="toolbar-btn subtitles-btn"
+          :class="{ active: subtitlesEnabled }"
+          @click="subtitlesEnabled = !subtitlesEnabled"
+          title="实时字幕"
+        >
+          📝
+        </button>
+        <!-- 字幕语言选择 -->
+        <select
+          v-if="subtitlesEnabled"
+          v-model="subtitleLanguage"
+          class="subtitle-lang-select"
+          title="字幕语言"
+        >
+          <option v-for="lang in subtitleLanguages" :key="lang.code" :value="lang.code">
+            {{ lang.label }}
+          </option>
+        </select>
+
+        <!-- R155: 手语主播按钮 -->
+        <button
+          class="toolbar-btn sign-avatar-btn"
+          :class="{ active: signAvatarEnabled }"
+          @click="signAvatarEnabled = !signAvatarEnabled"
+          title="手语主播"
+        >
+          🤟
         </button>
 
         <!-- Q&A / 投票模式按钮 -->
@@ -233,6 +317,33 @@
         <button class="toolbar-btn" @click="toggleFullscreen" title="全屏 (F)">
           {{ isFullscreen ? '⛶' : '⛶' }}
         </button>
+
+        <!-- 手势控制（摄像头手势识别） -->
+        <button
+          class="toolbar-btn hand-gesture-btn"
+          :class="{ active: handGestureEnabled, detected: handGestureDetected }"
+          @click="toggleHandGesture"
+          title="手势控制 (G) - 通过摄像头识别手势"
+        >
+          🖐️
+          <span v-if="handGestureEnabled && currentHandGesture !== 'none'" class="gesture-badge">
+            {{ currentHandGesture }}
+          </span>
+        </button>
+
+        <!-- 远程控制（手机遥控） -->
+        <button
+          class="toolbar-btn remote-btn"
+          :class="{ active: remoteControlEnabled }"
+          @click="toggleRemoteControlPanel"
+          title="手机遥控 (R) - 扫码控制演示"
+        >
+          📱
+          <span v-if="remoteControlEnabled && remoteParticipantCount > 0" class="remote-count">
+            {{ remoteParticipantCount }}
+          </span>
+        </button>
+
         <button class="toolbar-btn" @click="exitPresentation" title="退出 (ESC)">
           ✕
         </button>
@@ -264,6 +375,60 @@
         :style="laserTrailStyle"
       ></div>
 
+      <!-- R155: 实时字幕覆盖层 -->
+      <Transition name="subtitle-slide">
+        <div v-if="subtitlesEnabled && currentSubtitle" class="subtitle-overlay" role="status" :aria-label="'Subtitles: ' + currentSubtitle">
+          <div class="subtitle-box">
+            <span class="subtitle-lang-badge">{{ subtitleLanguages.find(l => l.code === subtitleLanguage)?.label }}</span>
+            <span class="subtitle-text">{{ currentSubtitle }}</span>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- R155: 手语主播覆盖层 -->
+      <Transition name="fade">
+        <div v-if="signAvatarEnabled" class="sign-avatar-overlay" role="img" aria-label="Sign language avatar">
+          <div class="sign-avatar-box">
+            <div class="sign-avatar-emoji">🤟</div>
+            <div class="sign-avatar-label">手语主播</div>
+            <div class="sign-avatar-hint">{{ subtitleLanguages.find(l => l.code === subtitleLanguage)?.label }}手语模式</div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- R155: PiP 备注小窗 -->
+      <Transition name="pip-enter">
+        <div v-if="pipEnabled && showPresenterNotes" class="pip-notes-window" role="dialog" aria-label="Picture-in-Picture notes">
+          <div class="pip-notes-header">
+            <span>📋 演讲者备注</span>
+            <button class="pip-close-btn" @click="pipEnabled = false">✕</button>
+          </div>
+          <div class="pip-notes-content">
+            {{ currentSlideNotes }}
+          </div>
+        </div>
+      </Transition>
+
+      <!-- 手势识别提示浮层 -->
+      <Transition name="fade">
+        <div v-if="showGestureHelp" class="gesture-toast">
+          <div class="gesture-name">{{ currentHandGesture }}</div>
+          <div style="font-size:12px;opacity:0.7">手势控制已激活</div>
+        </div>
+      </Transition>
+
+      <!-- 远程控制面板 -->
+      <div v-if="showRemoteControl && remoteRoomCode" class="remote-panel">
+        <h4>📱 手机遥控</h4>
+        <div class="remote-room-code">{{ remoteRoomCode }}</div>
+        <div class="remote-url">{{ getRemoteURL() }}</div>
+        <div class="remote-status">
+          <span class="dot" :class="{ error: remoteConnectionState === 'error' }"></span>
+          {{ remoteParticipantCount }} 位观众已连接
+        </div>
+        <button class="btn btn-sm" style="margin-top:10px;width:100%" @click="stopRemoteControl">关闭遥控</button>
+      </div>
+
       <!-- 幻灯片内容 -->
       <div class="slides-container" ref="slidesRef" :style="slidesContainerStyle">
         <!-- Swipe hint on mobile -->
@@ -284,7 +449,7 @@
             :src="slide.svgUrl"
             :alt="slide.title"
             class="slide-svg"
-            :style="{ cursor: laserPointerActive ? 'none' : 'default' }"
+            :style="{ cursor: laserPointerActive ? 'none' : annotationActive ? 'crosshair' : 'default' }"
           />
           <!-- 文本模式：显示文字内容（降级） -->
           <template v-else>
@@ -294,6 +459,17 @@
               <li v-for="(bullet, i) in slide.bullets" :key="i">{{ bullet }}</li>
             </div>
           </template>
+          <!-- R152: 标注画布叠加层 -->
+          <canvas
+            v-if="annotationActive && index === currentSlide"
+            ref="annotationCanvas"
+            class="annotation-canvas"
+            :style="{ pointerEvents: annotationActive ? 'all' : 'none' }"
+            @pointerdown="startAnnotation"
+            @pointermove="continueAnnotation"
+            @pointerup="endAnnotation"
+            @pointerleave="endAnnotation"
+          ></canvas>
           </div>
         </div>
       </div>
@@ -346,6 +522,25 @@
             </div>
             <div v-else class="notes-empty">
               本页暂无备注
+            </div>
+            <!-- Voice annotation input -->
+            <div class="voice-annotate-section">
+              <div class="voice-annotate-row">
+                <button
+                  class="btn btn-annotate"
+                  :class="{ active: isVoiceAnnotating }"
+                  @click="toggleVoiceAnnotate"
+                  :title="isVoiceAnnotating ? '停止语音备注' : '开始语音备注'"
+                >
+                  {{ isVoiceAnnotating ? '⏹️ 停止备注' : '🎤 语音备注' }}
+                </button>
+                <span v-if="voiceAnnotationTranscript" class="annotate-transcript">
+                  "{{ voiceAnnotationTranscript }}"
+                </span>
+              </div>
+              <div v-if="isVoiceAnnotating" class="annotating-indicator">
+                <span class="pulse-dot"></span> 正在聆听并添加到备注...
+              </div>
             </div>
           </div>
           <div class="notes-panel-footer">
@@ -743,6 +938,31 @@
             </div>
 
             <!-- 表达建议 -->
+            <!-- Real-time Translation -->
+            <div class="coach-section">
+              <div class="coach-section-title">🌐 实时翻译</div>
+              <div class="translate-controls">
+                <div class="translate-lang-row">
+                  <select v-model="translateTargetLang" class="form-select-sm">
+                    <option v-for="lang in coachTranslateLangs" :key="lang.code" :value="lang.code">
+                      {{ lang.name }}
+                    </option>
+                  </select>
+                  <button
+                    class="btn btn-sm"
+                    :class="isTranslatingSlide ? 'btn-danger' : 'btn-primary'"
+                    @click="toggleSlideTranslation"
+                  >
+                    {{ isTranslatingSlide ? '⏹️ 停止翻译' : '🎤 开始语音翻译' }}
+                  </button>
+                </div>
+                <div v-if="slideTranslationText" class="slide-translation-result">
+                  <div class="translation-label">翻译结果:</div>
+                  <div class="translation-text">{{ slideTranslationText }}</div>
+                </div>
+              </div>
+            </div>
+
             <div class="coach-section">
               <div class="coach-section-title">💡 表达建议</div>
               <div class="delivery-tips">
@@ -895,11 +1115,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive, nextTick } from 'vue'
 import { useSwipeGesture } from '../composables/useSwipeGesture'
 import { usePinchZoom } from '../composables/usePinchZoom'
 import { recordHeatmapPoint } from '../composables/usePresentationAnalytics'
 import { useVoiceCommands } from '../composables/useVoiceCommands'
+import { useHandGesture } from '../composables/useHandGesture'
+import { useRemoteControl } from '../composables/useRemoteControl'
+import { getNetworkQuality } from '../composables/useNetworkQuality'
+import { api } from '../api/client'
 import ARVRMode from './ARVRMode.vue'
 
 export interface SlideElementAnimation {
@@ -936,6 +1160,12 @@ export interface Slide {
   transition?: 'slide' | 'fade' | 'zoom' | 'flip' | '3d'
   transition3d?: 'cube' | 'cylinder' | 'carousel' | 'flip' | 'depth' | 'flythrough'
   presenterNotes?: string  // 演讲者备注
+  // R152: Advanced Slide Notes & Annotations
+  notes?: string
+  richNotes?: string
+  speakerNotes?: string
+  annotations?: any[]
+  stickyNotes?: any[]
   elements?: SlideElement[]
 }
 
@@ -1020,6 +1250,7 @@ const emit = defineEmits<{
   (e: 'poll-voted', pollId: string, optionIndex: number): void
   (e: 'poll-closed', pollId: string): void
   (e: 'add-chapter', time: number): void
+  (e: 'annotate-notes', slideIndex: number, notes: string): void
 }>()
 
 const isActive = ref(false)
@@ -1028,6 +1259,184 @@ const isFullscreen = ref(false)
 const slidesRef = ref<HTMLElement | null>(null)
 const webcamVideoRef = ref<HTMLVideoElement | null>(null)
 const webcamStreamRef = ref<MediaStream | null>(null)
+
+// ── R157: Device Auto-Detection & Adaptive Quality ─────────────────────
+const networkQuality = getNetworkQuality()
+
+// Adaptive quality based on device + network
+const deviceAdaptiveQuality = computed(() => {
+  const nq = networkQuality.networkState.value
+  const level = nq.qualityLevel
+  
+  // Detect device type
+  const isMobileDevice = window.innerWidth < 768
+  const isTabletDevice = window.innerWidth >= 768 && window.innerWidth < 1024
+  
+  return {
+    // Rendering quality (affects image quality, animations)
+    renderQuality: level >= 2 ? 'high' : level >= 1 ? 'medium' : 'low',
+    // Disable expensive effects on low-end devices/networks
+    animationsEnabled: level >= 1 && !isMobileDevice,
+    // 3D transitions - disable on mobile or slow networks
+    transitions3D: level >= 2 && !isMobileDevice,
+    // Transition speed multiplier (slower = more performant)
+    transitionDuration: level >= 2 ? 1.0 : level >= 1 ? 1.2 : 1.5,
+    // Spotlight/laser effects (GPU intensive)
+    effectsEnabled: level >= 2,
+    // Auto-save interval during presentation (ms)
+    autoSaveInterval: level >= 2 ? 60000 : 120000,
+    // Webcam size reduction on mobile
+    webcamMaxSize: isMobileDevice ? 80 : isTabletDevice ? 120 : 160,
+    // Recording bitrate
+    recordingBitrate: level >= 2 ? 8000000 : level >= 1 ? 4000000 : 2000000,
+    // Preview image quality
+    previewQuality: level >= 3 ? 90 : level >= 2 ? 70 : level >= 1 ? 50 : 30,
+    // Network quality label for UI
+    qualityLabel: nq.quality === 'unknown' ? '自动' 
+      : nq.quality === 'slow-2g' || nq.quality === '2g' ? '省流' 
+      : nq.quality === '3g' ? '标准' 
+      : nq.quality === '4g' ? '高清' : '超清',
+    // Device type label
+    deviceLabel: isMobileDevice ? '手机' : isTabletDevice ? '平板' : '电脑'
+  }
+})
+
+// Apply adaptive duration to transitions
+const durationMapAdaptive = computed(() => {
+  const multiplier = deviceAdaptiveQuality.value.transitionDuration
+  return {
+    fast: 0.3 * multiplier,
+    normal: 0.5 * multiplier,
+    slow: 0.8 * multiplier
+  }
+})
+
+// ── Hand Gesture Recognition (Air Gestures) ────────────────────
+const handGestureEnabled = ref(false)
+const handGestureActive = ref(false)
+const handGestureDetected = ref(false)
+const currentHandGesture = ref<string>('none')
+const showGestureHelp = ref(false)
+
+const handGesture = useHandGesture({
+  videoElement: webcamVideoRef,
+  enabled: handGestureEnabled,
+  mirror: true,
+  onGesture: (gesture, confidence) => {
+    currentHandGesture.value = gesture
+    console.log(`[HandGesture] ${gesture} (${(confidence * 100).toFixed(0)}%)`)
+    switch (gesture) {
+      case 'swipe_left':
+      case 'swipe_up':
+        nextSlide()
+        break
+      case 'swipe_right':
+      case 'swipe_down':
+        prevSlide()
+        break
+      case 'palm_open':
+        // 张开手掌 → 暂停/显示手势帮助
+        showGestureHelp.value = true
+        setTimeout(() => { showGestureHelp.value = false }, 3000)
+        break
+      case 'point_up':
+        // 食指指向 → 激光笔
+        if (!laserPointerActive.value) toggleLaserPointer()
+        break
+      case 'fist':
+        // 握拳 → 停止激光笔
+        if (laserPointerActive.value) toggleLaserPointer()
+        break
+      case 'peace':
+        // V手势 → 切换标注
+        annotationActive.value = !annotationActive.value
+        break
+      case 'thumb_up':
+        // 拇指朝上 → 开始/重置计时器
+        if (!timerRunning.value) startTimerWithSetup()
+        break
+      case 'ok_sign':
+        // OK手势 → 全屏
+        toggleFullscreen()
+        break
+    }
+  },
+  onHandDetected: (detected) => {
+    handGestureDetected.value = detected
+  }
+})
+
+// ── Remote Control (Phone/Mobile) ────────────────────────────────
+const remoteControlEnabled = ref(false)
+const showRemoteControl = ref(false)
+const remoteRoomCode = ref<string | null>(null)
+const remoteParticipantCount = ref(0)
+const remoteConnectionState = ref<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
+const showRemoteQR = ref(false)  // 显示二维码
+
+const remoteControl = useRemoteControl({
+  onCommand: (cmd, payload) => {
+    switch (cmd) {
+      case 'next_slide': nextSlide(); break
+      case 'prev_slide': prevSlide(); break
+      case 'go_slide':
+        if (typeof payload?.slideIndex === 'number') {
+          goToSlide(payload.slideIndex)
+        }
+        break
+      case 'toggle_annotations':
+        annotationActive.value = !annotationActive.value
+        break
+      case 'toggle_laser':
+        toggleLaserPointer()
+        break
+      case 'start_timer': if (!timerRunning.value) startTimerWithSetup(); break
+      case 'pause_timer': pauseTimer(); break
+      case 'reset_timer': resetTimer(); break
+      case 'exit':
+        emit('update:active', false)
+        break
+    }
+  },
+  onConnected: () => {
+    remoteConnectionState.value = 'connected'
+  },
+  onDisconnected: () => {
+    remoteConnectionState.value = 'disconnected'
+  },
+  onRoomInfo: (info) => {
+    remoteRoomCode.value = info.code
+    remoteParticipantCount.value = info.participantCount
+  }
+})
+
+async function startRemoteControl() {
+  try {
+    const code = await remoteControl.createRoom()
+    remoteRoomCode.value = code
+    remoteConnectionState.value = 'connected'
+    remoteControlEnabled.value = true
+    showRemoteControl.value = true
+    showRemoteQR.value = true
+    console.log(`[RemoteControl] Room created: ${code}`)
+  } catch (e: any) {
+    remoteConnectionState.value = 'error'
+    console.error('[RemoteControl] Failed to create room:', e)
+  }
+}
+
+function stopRemoteControl() {
+  remoteControl.leaveRoom()
+  remoteControlEnabled.value = false
+  showRemoteControl.value = false
+  showRemoteQR.value = false
+  remoteRoomCode.value = null
+}
+
+function getRemoteURL(): string {
+  const base = window.location.origin
+  return remoteControl.getRemoteURL(base)
+}
 
 // Touch swipe: navigate slides with swipe gestures
 useSwipeGesture({
@@ -1344,6 +1753,167 @@ const laserPosition = ref({ x: 0, y: 0 })
 const laserTrailPoints = ref<Array<{ x: number; y: number }>>([])
 let laserTrailTimer: ReturnType<typeof setTimeout> | null = null
 
+// =====================
+// R152: ANNOTATION LAYER
+// =====================
+const annotationActive = ref(false)   // 标注工具是否激活
+const annotationTool = ref<'pen' | 'eraser' | 'arrow' | 'rect' | 'text'>('pen')  // 当前标注工具
+const annotationColor = ref('#FF5500')  // 标注颜色
+const annotationSize = ref(3)           // 画笔粗细
+const isDrawingAnnotation = ref(false)  // 是否正在绘制
+const currentAnnotationPath = ref<Array<{ x: number; y: number; pressure?: number }>>([])  // 当前路径
+const savedAnnotations = ref<Array<any>>([])  // 已保存的标注数据
+const annotationCanvas = ref<HTMLCanvasElement | null>(null)
+let annotationCtx: CanvasRenderingContext2D | null = null
+
+const initAnnotationCanvas = () => {
+  const canvas = annotationCanvas.value
+  if (!canvas) return
+  annotationCtx = canvas.getContext('2d')
+  // 设置 canvas 尺寸与幻灯片一致
+  const slideEl = canvas.parentElement
+  if (slideEl) {
+    canvas.width = slideEl.clientWidth
+    canvas.height = slideEl.clientHeight
+  }
+}
+
+const startAnnotation = (e: PointerEvent) => {
+  if (!annotationActive.value || annotationTool.value === 'eraser') return
+  // Capture pointer for smooth drawing
+  ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  isDrawingAnnotation.value = true
+  const rect = (e.target as HTMLElement).getBoundingClientRect()
+  const pressure = e.pressure > 0 ? e.pressure : 0.5  // 鼠标默认0.5压力，触控笔有真实压力
+  currentAnnotationPath.value = [{ x: e.clientX - rect.left, y: e.clientY - rect.top, pressure }]
+}
+
+const continueAnnotation = (e: PointerEvent) => {
+  if (!isDrawingAnnotation.value || !annotationActive.value) return
+  const rect = (e.target as HTMLElement).getBoundingClientRect()
+  const pressure = e.pressure > 0 ? e.pressure : 0.5
+  currentAnnotationPath.value.push({ x: e.clientX - rect.left, y: e.clientY - rect.top, pressure })
+  // 实时绘制
+  drawAnnotationPath(currentAnnotationPath.value)
+}
+
+const endAnnotation = () => {
+  if (!isDrawingAnnotation.value) return
+  isDrawingAnnotation.value = false
+  if (currentAnnotationPath.value.length > 1) {
+    savedAnnotations.value.push({
+      type: annotationTool.value,
+      color: annotationColor.value,
+      size: annotationSize.value,
+      points: [...currentAnnotationPath.value],
+    })
+    // 保存到后端
+    saveAnnotationsToBackend()
+  }
+  currentAnnotationPath.value = []
+}
+
+const drawAnnotationPath = (points: Array<{ x: number; y: number; pressure?: number }>) => {
+  if (!annotationCtx || points.length < 2) return
+  annotationCtx.clearRect(0, 0, annotationCanvas.value!.width, annotationCanvas.value!.height)
+  // 重绘所有已保存的标注
+  redrawAllAnnotations()
+  // 绘制当前路径（支持压力感应）
+  annotationCtx.strokeStyle = annotationColor.value
+  annotationCtx.lineCap = 'round'
+  annotationCtx.lineJoin = 'round'
+
+  // 压力感应：绘制渐变线宽
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const pressure = curr.pressure ?? 0.5
+    // 压力范围: 0.1 ~ 1.0 → 线宽: 0.5x ~ 1.5x
+    const lineWidth = annotationSize.value * (0.5 + pressure)
+    annotationCtx.lineWidth = lineWidth
+    annotationCtx.beginPath()
+    annotationCtx.moveTo(prev.x, prev.y)
+    annotationCtx.lineTo(curr.x, curr.y)
+    annotationCtx.stroke()
+  }
+}
+
+const redrawAllAnnotations = () => {
+  if (!annotationCtx || !annotationCanvas.value) return
+  annotationCtx.clearRect(0, 0, annotationCanvas.value.width, annotationCanvas.value.height)
+  for (const ann of savedAnnotations.value) {
+    annotationCtx.strokeStyle = ann.color
+    annotationCtx.lineCap = 'round'
+    annotationCtx.lineJoin = 'round'
+    if (ann.points && ann.points.length > 0) {
+      for (let i = 1; i < ann.points.length; i++) {
+        const prev = ann.points[i - 1]
+        const curr = ann.points[i]
+        const pressure = curr.pressure ?? 0.5
+        annotationCtx.lineWidth = ann.size * (0.5 + pressure)
+        annotationCtx.beginPath()
+        annotationCtx.moveTo(prev.x, prev.y)
+        annotationCtx.lineTo(curr.x, curr.y)
+        annotationCtx.stroke()
+      }
+    }
+  }
+}
+
+const clearAnnotations = () => {
+  savedAnnotations.value = []
+  if (annotationCtx && annotationCanvas.value) {
+    annotationCtx.clearRect(0, 0, annotationCanvas.value.width, annotationCanvas.value.height)
+  }
+  saveAnnotationsToBackend()
+}
+
+const saveAnnotationsToBackend = async () => {
+  if (!taskId.value) return
+  try {
+    await api.ppt.saveSlideAnnotations(taskId.value, currentSlide.value, savedAnnotations.value)
+  } catch (e) {
+    console.warn('保存标注失败:', e)
+  }
+}
+
+const loadAnnotationsFromBackend = async () => {
+  if (!taskId.value) return
+  try {
+    // 从当前幻灯片数据加载标注
+    const slideAnnotations = props.slides[currentSlide.value]?.annotations || []
+    savedAnnotations.value = slideAnnotations
+    // 重绘标注
+    nextTick(() => {
+      redrawAllAnnotations()
+    })
+  } catch (e) {
+    console.warn('加载标注失败:', e)
+  }
+}
+
+// 监听幻灯片切换，加载对应标注
+watch(currentSlide, () => {
+  if (annotationActive.value) {
+    loadAnnotationsFromBackend()
+  }
+})
+
+// 监听标注模式开关，初始化/清理画布
+watch(annotationActive, (active) => {
+  if (active) {
+    nextTick(() => {
+      initAnnotationCanvas()
+      loadAnnotationsFromBackend()
+    })
+  } else {
+    // 关闭时清除
+    if (annotationCtx && annotationCanvas.value) {
+      annotationCtx.clearRect(0, 0, annotationCanvas.value.width, annotationCanvas.value.height)
+    }
+  }
+})
+
 const laserDotStyle = computed(() => {
   const color = laserColor.value
   return {
@@ -1421,14 +1991,128 @@ const toggleSpotlight = () => {
   }
 }
 
+// ── Hand Gesture Toggle ─────────────────────────────────────────
+async function toggleHandGesture() {
+  if (!webcamConfig.value?.enabled) {
+    // 需要先启用摄像头
+    alert('请先在设置中启用摄像头以使用手势控制')
+    return
+  }
+  if (!handGestureEnabled.value) {
+    // 启动手势识别
+    await handGesture.start()
+    handGestureEnabled.value = true
+    console.log('[HandGesture] Started')
+  } else {
+    // 停止手势识别
+    handGesture.stop()
+    handGestureEnabled.value = false
+    handGestureActive.value = false
+    console.log('[HandGesture] Stopped')
+  }
+}
+
+// ── Remote Control Panel Toggle ──────────────────────────────────
+function toggleRemoteControlPanel() {
+  if (!remoteControlEnabled.value) {
+    // 启动远程控制
+    startRemoteControl()
+  } else {
+    // 停止远程控制
+    stopRemoteControl()
+  }
+}
+
+// Watch for webcam stream to start hand gesture when enabled
+watch(webcamStreamRef, async (stream) => {
+  if (stream && handGestureEnabled.value) {
+    await nextTick()
+    await handGesture.start()
+  }
+})
+
 // =====================
 // PRESENTER NOTES FEATURE
 // =====================
 const showPresenterNotes = ref(false)
 
 const currentSlideNotes = computed(() => {
-  return props.slides[currentSlide.value]?.presenterNotes || ''
+  const slide = props.slides[currentSlide.value]
+  // R152: 优先使用 richNotes > speakerNotes > presenterNotes > notes
+  return slide?.richNotes || slide?.speakerNotes || slide?.presenterNotes || slide?.notes || ''
 })
+
+// =====================
+// R155: MULTI-LANGUAGE SUBTITLES
+// =====================
+const subtitlesEnabled = ref(false)
+const subtitleLanguage = ref<'zh' | 'en' | 'ja' | 'ko' | 'es' | 'fr' | 'ar' | 'he'>('zh')
+const currentSubtitle = ref('')
+const subtitleLanguages = [
+  { code: 'zh', label: '中文' },
+  { code: 'en', label: 'English' },
+  { code: 'ja', label: '日本語' },
+  { code: 'ko', label: '한국어' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'he', label: 'עברית' },
+]
+
+// Generate mock subtitle from current slide content (in real app, would call translation API)
+const generateSubtitle = () => {
+  const slide = props.slides[currentSlide.value]
+  const content = slide?.content || slide?.title || ''
+  if (!content) {
+    currentSubtitle.value = ''
+    return
+  }
+  // Simple demo: show truncated content as "subtitle"
+  // In production, this would call a real-time translation API
+  const text = typeof content === 'string' ? content : JSON.stringify(content)
+  currentSubtitle.value = text.length > 200 ? text.substring(0, 200) + '...' : text
+}
+
+watch(currentSlide, () => {
+  if (subtitlesEnabled.value) {
+    generateSubtitle()
+  }
+})
+
+watch(subtitlesEnabled, (val) => {
+  if (val) generateSubtitle()
+  else currentSubtitle.value = ''
+})
+
+// =====================
+// R155: SIGN LANGUAGE AVATAR
+// =====================
+const signAvatarEnabled = ref(false)
+
+// =====================
+// R155: PICTURE-IN-PICTURE FOR PRESENTER NOTES
+// =====================
+const pipEnabled = ref(false)
+
+const togglePip = async () => {
+  if (!pipEnabled.value) {
+    // Try to use Picture-in-Picture API
+    try {
+      // Create a video element offscreen to request PiP
+      const video = document.createElement('video')
+      video.srcObject = null
+      video.muted = true
+      if ('pictureInPictureEnabled' in document && document.pictureInPictureEnabled) {
+        pipEnabled.value = true
+        // We'll use a floating overlay instead for notes content
+        // since PiP API works with video elements
+      }
+    } catch (e) {
+      console.warn('PiP not supported, using floating overlay fallback')
+    }
+  }
+  pipEnabled.value = !pipEnabled.value
+}
 
 // =====================
 // Q&A FEATURE
@@ -1643,7 +2327,7 @@ const replayCurrentSlideAnimation = () => {
 const totalSlides = computed(() => props.slides.length)
 
 // Current transition duration in seconds
-const currentDuration = computed(() => durationMap[selectedDuration.value])
+const currentDuration = computed(() => durationMapAdaptive.value[selectedDuration.value])
 
 // Get per-slide or global transition
 const getSlideTransition = (index: number): string => {
@@ -1979,6 +2663,31 @@ const handleKeydown = (e: KeyboardEvent) => {
         emit('add-chapter', elapsedSeconds.value)
       }
       break
+    // R152: 标注模式 (D)
+    case 'd':
+    case 'D':
+      e.preventDefault()
+      annotationActive.value = !annotationActive.value
+      if (!annotationActive.value) {
+        annotationTool.value = 'pen'
+      }
+      break
+    // R152: 橡皮擦 (E)
+    case 'e':
+    case 'E':
+      if (annotationActive.value) {
+        e.preventDefault()
+        annotationTool.value = 'eraser'
+      }
+      break
+    // R152: 清除标注 (X)
+    case 'x':
+    case 'X':
+      if (annotationActive.value) {
+        e.preventDefault()
+        clearAnnotations()
+      }
+      break
   }
 }
 
@@ -2252,6 +2961,99 @@ function stopVoiceSpeaking() {
   voicePM.stopSpeaking()
 }
 
+// ── Voice Annotation ──────────────────────────────────────────────────────────
+
+const isVoiceAnnotating = ref(false)
+const voiceAnnotationTranscript = ref('')
+let annotationRecognition: any = null
+let annotationTimeout: ReturnType<typeof setTimeout> | null = null
+
+function initAnnotationRecognition() {
+  if (typeof window === 'undefined') return null
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return null
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  const rec = new SpeechRecognition()
+  rec.continuous = true
+  rec.interimResults = true
+  rec.lang = voiceSettings.language || 'zh-CN'
+
+  rec.onresult = (event: any) => {
+    let final = ''
+    let interim = ''
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript
+      if (event.results[i].isFinal) {
+        final += t
+      } else {
+        interim += t
+      }
+    }
+    voiceAnnotationTranscript.value = final || interim
+    if (final) {
+      appendAnnotationToNotes(final)
+    }
+  }
+
+  rec.onend = () => {
+    if (isVoiceAnnotating.value) {
+      // Restart if still annotating
+      try { annotationRecognition?.start() } catch {}
+    }
+  }
+
+  rec.onerror = (e: any) => {
+    if (e.error !== 'no-speech' && e.error !== 'aborted') {
+      console.warn('[VoiceAnnotation] error:', e.error)
+    }
+  }
+
+  return rec
+}
+
+function appendAnnotationToNotes(text: string) {
+  const currentSlideData = props.slides[currentSlide.value]
+  if (!currentSlideData) return
+  const existing = currentSlideData.presenterNotes || ''
+  const separator = existing && !existing.endsWith('\n') ? '\n' : ''
+  const updatedNotes = existing + separator + text
+  emit('annotate-notes', currentSlide.value, updatedNotes)
+}
+
+function toggleVoiceAnnotate() {
+  if (isVoiceAnnotating.value) {
+    stopVoiceAnnotate()
+  } else {
+    startVoiceAnnotate()
+  }
+}
+
+function startVoiceAnnotate() {
+  if (!annotationRecognition) {
+    annotationRecognition = initAnnotationRecognition()
+  }
+  if (!annotationRecognition) {
+    console.warn('[VoiceAnnotation] not supported')
+    return
+  }
+  voiceAnnotationTranscript.value = ''
+  isVoiceAnnotating.value = true
+  try {
+    annotationRecognition.start()
+  } catch (e) {
+    isVoiceAnnotating.value = false
+  }
+}
+
+function stopVoiceAnnotate() {
+  if (annotationRecognition) {
+    try {
+      annotationRecognition.stop()
+    } catch {}
+  }
+  isVoiceAnnotating.value = false
+  voiceAnnotationTranscript.value = ''
+}
+
 // Set up voice navigation to control presentation slides
 voicePM.setNavigationHandler((action, value) => {
   if (value === 'next') {
@@ -2278,6 +3080,21 @@ voicePM.setControlHandler((action, value) => {
   } else if (value === 'captions') {
     captionsEnabled.value = !captionsEnabled.value
     toggleCaptionsLocal()
+  }
+})
+
+voicePM.setAnnotationHandler((action, value) => {
+  if (value === 'start' || value === 'annotate') {
+    startVoiceAnnotate()
+  } else if (value === 'stop') {
+    stopVoiceAnnotate()
+  } else {
+    // Toggle
+    if (isVoiceAnnotating.value) {
+      stopVoiceAnnotate()
+    } else {
+      startVoiceAnnotate()
+    }
   }
 })
 
@@ -2391,6 +3208,108 @@ watch(() => currentSlide.value, () => {
   currentSlideTime.value = 0
 })
 
+// ── Slide Translation ─────────────────────────────────────────────────────────
+
+const coachTranslateLangs = [
+  { code: 'zh', name: '中文' },
+  { code: 'en', name: 'English' },
+  { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
+  { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'es', name: 'Español' },
+]
+
+const translateTargetLang = ref('en')
+const isTranslatingSlide = ref(false)
+const slideTranslationText = ref('')
+let slideTranscribeRecognition: any = null
+
+function initSlideTranslateRecognition() {
+  if (typeof window === 'undefined') return null
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return null
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  const rec = new SpeechRecognition()
+  rec.continuous = true
+  rec.interimResults = true
+  rec.lang = voiceSettings.language || 'zh-CN'
+
+  rec.onresult = async (event: any) => {
+    let final = ''
+    let interim = ''
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript
+      if (event.results[i].isFinal) {
+        final += t
+      } else {
+        interim += t
+      }
+    }
+    if (final) {
+      // Translate the final transcript
+      await translateSlideText(final)
+    }
+  }
+
+  rec.onend = () => {
+    if (isTranslatingSlide.value) {
+      try { slideTranscribeRecognition?.start() } catch {}
+    }
+  }
+
+  rec.onerror = (e: any) => {
+    if (e.error !== 'no-speech' && e.error !== 'aborted') {
+      console.warn('[SlideTranslate] error:', e.error)
+    }
+  }
+
+  return rec
+}
+
+async function translateSlideText(text: string) {
+  try {
+    const res = await api.translate.translateText({
+      text,
+      source_lang: 'zh',
+      target_lang: translateTargetLang.value,
+    } as any)
+    if (res.data.success) {
+      slideTranslationText.value = res.data.data.translated
+    }
+  } catch (e) {
+    console.warn('[SlideTranslate] translate error:', e)
+  }
+}
+
+async function toggleSlideTranslation() {
+  if (isTranslatingSlide.value) {
+    stopSlideTranslation()
+  } else {
+    startSlideTranslation()
+  }
+}
+
+function startSlideTranslation() {
+  if (!slideTranscribeRecognition) {
+    slideTranscribeRecognition = initSlideTranslateRecognition()
+  }
+  if (!slideTranscribeRecognition) return
+  slideTranslationText.value = ''
+  isTranslatingSlide.value = true
+  try {
+    slideTranscribeRecognition.start()
+  } catch (e) {
+    isTranslatingSlide.value = false
+  }
+}
+
+function stopSlideTranslation() {
+  if (slideTranscribeRecognition) {
+    try { slideTranscribeRecognition.stop() } catch {}
+  }
+  isTranslatingSlide.value = false
+}
+
 // Delivery Tips
 interface DeliveryTip {
   id: number
@@ -2461,6 +3380,8 @@ onUnmounted(() => {
   stopAudienceSimulation()
   stopEyeContactSimulation()
   stopTimingTracking()
+  stopSlideTranslation()
+  stopVoiceAnnotate()
   bc?.close()
   if (presenterWindow && !presenterWindow.closed) {
     presenterWindow.close()
@@ -2567,6 +3488,36 @@ onUnmounted(() => {
   font-size: 14px;
   margin-right: auto;
   min-width: 60px;
+}
+
+/* R157: Network quality indicator */
+.quality-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 10px;
+  cursor: default;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.quality-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.quality-dot.quality-0 { background: #ff6b6b; }
+.quality-dot.quality-1 { background: #ffd93d; }
+.quality-dot.quality-2 { background: #4ade80; }
+.quality-dot.quality-3 { background: #38bdf8; }
+
+.quality-text {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 /* Timer */
@@ -2952,6 +3903,32 @@ onUnmounted(() => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+/* R152: 标注画布 */
+.annotation-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  cursor: crosshair;
+}
+
+.annotation-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+}
+
+.annotation-btn.active,
+.annotation-controls .toolbar-btn.active {
+  background: #165DFF;
+  color: #fff;
+}
+
 .slide-title {
   font-size: 42px;
   font-weight: 700;
@@ -3196,6 +4173,73 @@ onUnmounted(() => {
   padding: 14px;
   max-height: 160px;
   overflow-y: auto;
+}
+
+.voice-annotate-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.voice-annotate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-annotate {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-annotate:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-annotate.active {
+  background: rgba(22, 93, 255, 0.4);
+  border-color: rgba(22, 93, 255, 0.6);
+  color: #93c5fd;
+}
+
+.annotate-transcript {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.annotating-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #93c5fd;
+  margin-top: 4px;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background: #165DFF;
+  border-radius: 50%;
+  animation: voice-pulse 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
 }
 
 .notes-text {
@@ -4467,6 +5511,54 @@ onUnmounted(() => {
   padding: 12px 0;
 }
 
+/* Slide Translation */
+.translate-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.translate-lang-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-select-sm {
+  flex: 1;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+}
+
+.form-select-sm:focus {
+  border-color: rgba(22, 93, 255, 0.5);
+}
+
+.slide-translation-result {
+  background: rgba(22, 93, 255, 0.08);
+  border: 1px solid rgba(22, 93, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.translation-label {
+  font-size: 11px;
+  color: rgba(22, 93, 255, 0.8);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.translation-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+}
+
 /* Coach panel transition */
 .slide-right-enter-active,
 .slide-right-leave-active {
@@ -4834,5 +5926,339 @@ onUnmounted(() => {
 
 .file-import-label input {
   display: none;
+}
+
+/* ── Gesture & Remote Control ─────────────────────────────────── */
+.hand-gesture-btn,
+.remote-btn {
+  position: relative;
+}
+
+.hand-gesture-btn.detected::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: #4caf50;
+  border-radius: 50%;
+  animation: pulse-gesture 1s infinite;
+}
+
+@keyframes pulse-gesture {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.2); }
+}
+
+.gesture-badge {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+.remote-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #2196f3;
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 远程控制面板 */
+.remote-panel {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 220px;
+  z-index: 1000;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+.remote-panel h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remote-room-code {
+  font-family: monospace;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-align: center;
+  padding: 10px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  margin: 8px 0;
+  color: #4fc3f7;
+}
+
+.remote-qr {
+  text-align: center;
+  margin: 10px 0;
+}
+
+.remote-qr canvas {
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+.remote-url {
+  font-size: 10px;
+  color: #888;
+  word-break: break-all;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.remote-status {
+  font-size: 11px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.remote-status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+}
+
+.remote-status .dot.error {
+  background: #f44336;
+}
+
+/* 手势帮助浮层 */
+.gesture-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  z-index: 2000;
+  pointer-events: none;
+  text-align: center;
+}
+
+.gesture-toast .gesture-name {
+  font-size: 20px;
+  font-weight: bold;
+  color: #4fc3f7;
+  margin-bottom: 4px;
+}
+
+/* R155: Subtitle overlay */
+.subtitle-overlay {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  width: 90%;
+  max-width: 800px;
+  pointer-events: none;
+}
+
+.subtitle-box {
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 18px;
+  line-height: 1.5;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.subtitle-lang-badge {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.subtitle-text {
+  flex: 1;
+  text-align: left;
+}
+
+/* R155: Sign language avatar overlay */
+.sign-avatar-overlay {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 3000;
+  pointer-events: none;
+}
+
+.sign-avatar-box {
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  min-width: 120px;
+}
+
+.sign-avatar-emoji {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.sign-avatar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sign-avatar-hint {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+}
+
+/* R155: PiP notes window */
+.pip-notes-window {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 280px;
+  max-height: 200px;
+  background: rgba(20, 20, 30, 0.92);
+  color: #fff;
+  border-radius: 12px;
+  z-index: 3000;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+}
+
+.pip-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pip-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+
+.pip-close-btn:hover {
+  color: #fff;
+}
+
+.pip-notes-content {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-y: auto;
+  flex: 1;
+  color: rgba(255,255,255,0.85);
+}
+
+/* Subtitle language selector in toolbar */
+.subtitle-lang-select {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  height: 32px;
+}
+
+.subtitle-lang-select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+/* Transitions */
+.subtitle-slide-enter-active,
+.subtitle-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.subtitle-slide-enter-from,
+.subtitle-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+.pip-enter-enter-active,
+.pip-enter-leave-active {
+  transition: all 0.3s ease;
+}
+
+.pip-enter-enter-from,
+.pip-enter-leave-to {
+  opacity: 0;
+  transform: scale(0.8) translateY(20px);
+}
+
+/* R155: Dyslexia font mode - apply to entire presentation */
+:root.dyslexia-font .slide-content,
+:root.dyslexia-font .slide-title,
+:root.dyslexia-font .slide-body,
+:root.dyslexia-font .subtitle-text {
+  font-family: var(--font-family-body, 'OpenDyslexic', 'Noto Sans SC', sans-serif) !important;
 }
 </style>

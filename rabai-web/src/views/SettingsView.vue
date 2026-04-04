@@ -145,6 +145,12 @@
                 <option value="large">大</option>
               </select>
             </div>
+            <!-- R155: Dyslexia-friendly font -->
+            <label class="toggle-row">
+              <span>阅读障碍友好字体 (OpenDyslexic)</span>
+              <input type="checkbox" :checked="prefs.accessibility?.dyslexia_font" @change="updateAcc('dyslexia_font', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
         </div>
 
@@ -653,6 +659,7 @@ const tabs = [
   { id: 'cache', label: '缓存管理', icon: '💾' },
   { id: 'sync', label: '离线同步', icon: '☁️' },
   { id: 'export', label: '数据导出', icon: '📦' },
+  { id: 'security', label: '安全设置', icon: '🔐' },
 ]
 
 const themeOptions = [
@@ -666,7 +673,7 @@ const prefs = reactive<any>({
   theme: 'auto',
   language: 'zh',
   notifications: { email_on_complete: true, push_on_complete: true, weekly_summary: false, collab_joined_push: true, collab_joined_email: false },
-  accessibility: { reduce_motion: false, high_contrast: false, font_size: 'medium' },
+  accessibility: { reduce_motion: false, high_contrast: false, font_size: 'medium', dyslexia_font: false },
   editor: { auto_save: true, show_grid: true, snap_to_grid: true },
 })
 const resetting = ref(false)
@@ -835,7 +842,7 @@ const updateNotif = async (key: string, value: boolean) => {
   }
 }
 
-const { setHighContrast, setFontSize } = useAccessibility()
+const { setHighContrast, setFontSize, setDyslexiaFont } = useAccessibility()
 const { setLocale } = useI18n()
 
 const updateAcc = async (key: string, value: any) => {
@@ -845,6 +852,8 @@ const updateAcc = async (key: string, value: any) => {
     setHighContrast(Boolean(value))
   } else if (key === 'font_size') {
     setFontSize(value)
+  } else if (key === 'dyslexia_font') {
+    setDyslexiaFont(Boolean(value))
   }
   try {
     await axios.put('/user/preferences', { accessibility: { [key]: value } })

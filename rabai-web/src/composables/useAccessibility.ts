@@ -14,6 +14,10 @@ const highContrast = ref(localStorage.getItem('highContrast') === 'true')
 
 type FontSize = 'small' | 'medium' | 'large'
 const fontSize = ref<FontSize>((localStorage.getItem('fontSize') as FontSize) || 'medium')
+const dyslexiaFont = ref(localStorage.getItem('dyslexiaFont') === 'true')
+
+// Dyslexia-friendly font (OpenDyslexic via Google Fonts CDN)
+const DYSLEXIA_FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=OpenDyslexic&display=swap');`
 
 const focusedElement = ref<HTMLElement | null>(null)
 
@@ -58,6 +62,29 @@ const applyFontSize = () => {
   root.style.fontSize = FONT_SIZE_MAP[fontSize.value]
 }
 
+// Apply dyslexia-friendly font setting
+const applyDyslexiaFont = () => {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  // Inject OpenDyslexic font if not already present
+  let styleEl = document.getElementById('dyslexia-font-style') as HTMLStyleElement
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.id = 'dyslexia-font-style'
+    document.head.appendChild(styleEl)
+  }
+  if (dyslexiaFont.value) {
+    styleEl.textContent = DYSLEXIA_FONT_CSS
+    root.classList.add('dyslexia-font')
+    root.style.setProperty('--font-family-body', "'OpenDyslexic', 'Noto Sans SC', sans-serif")
+    root.style.setProperty('--font-family-ui', "'OpenDyslexic', 'Inter', sans-serif")
+  } else {
+    root.classList.remove('dyslexia-font')
+    root.style.removeProperty('--font-family-body')
+    root.style.removeProperty('--font-family-ui')
+  }
+}
+
 /**
  * Apply all early accessibility settings to document.
  * Call this early in main.ts BEFORE mounting the Vue app.
@@ -88,6 +115,13 @@ export function applyAccessibilityEarly() {
     fontSize.value = storedFontSize
   }
   applyFontSize()
+
+  // Dyslexia font
+  const storedDyslexia = localStorage.getItem('dyslexiaFont')
+  if (storedDyslexia !== null) {
+    dyslexiaFont.value = storedDyslexia === 'true'
+  }
+  applyDyslexiaFont()
 }
 
 // Backward compatibility alias
@@ -97,6 +131,7 @@ export function useAccessibility() {
   const isReduceMotion = computed(() => reduceMotion.value)
   const isHighContrast = computed(() => highContrast.value)
   const currentFontSize = computed(() => fontSize.value)
+  const isDyslexiaFont = computed(() => dyslexiaFont.value)
 
   const toggleReduceMotion = () => {
     reduceMotion.value = !reduceMotion.value
@@ -126,6 +161,18 @@ export function useAccessibility() {
     fontSize.value = size
     localStorage.setItem('fontSize', size)
     applyFontSize()
+  }
+
+  const toggleDyslexiaFont = () => {
+    dyslexiaFont.value = !dyslexiaFont.value
+    localStorage.setItem('dyslexiaFont', String(dyslexiaFont.value))
+    applyDyslexiaFont()
+  }
+
+  const setDyslexiaFont = (value: boolean) => {
+    dyslexiaFont.value = value
+    localStorage.setItem('dyslexiaFont', String(value))
+    applyDyslexiaFont()
   }
 
   // Trap focus within a container (modal/dialog)
@@ -227,11 +274,14 @@ export function useAccessibility() {
     isReduceMotion,
     isHighContrast,
     currentFontSize,
+    isDyslexiaFont,
     toggleReduceMotion,
     setReduceMotion,
     toggleHighContrast,
     setHighContrast,
     setFontSize,
+    toggleDyslexiaFont,
+    setDyslexiaFont,
     applyHighContrast,
     applyReduceMotion,
     trapFocus,
