@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": "cd809dd96a682b8a",
+    "schedule_id": "242183b988b6eba0",
+    "task_id": null,
+    "to_email": "test@example.com",
+    "to_name": null,
+    "subject": "Daily Report Ready",
+    "body_html": "<p>Your daily report is ready.</p>",
+    "body_text": null,
+    "smtp_host": null,
+    "smtp_port": null,
+    "smtp_user": null,
+    "smtp_password": null,
+    "smtp_from_email": null,
+    "smtp_from_name": null,
+    "status": "active",
+    "created_at": 1775314744.5555909,
+    "sent_at": null,
+    "error": null
+  }
+]

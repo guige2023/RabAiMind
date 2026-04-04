@@ -58,6 +58,14 @@ const DEFAULT_COMMANDS: VoiceCommand[] = [
   { id: 'ctrl-read', phrase: 'read slide', action: 'control', value: 'read', description: 'Read current slide aloud', icon: '🔊' },
   { id: 'ctrl-stop', phrase: 'stop reading', action: 'control', value: 'stop', description: 'Stop reading aloud', icon: '⏹️' },
   { id: 'ctrl-captions', phrase: 'show captions', action: 'control', value: 'captions', description: 'Toggle live captions', icon: '📝' },
+  { id: 'ctrl-annotate', phrase: 'annotate', action: 'annotation', value: 'annotate', description: 'Voice annotate current slide', icon: '📝' },
+  { id: 'ctrl-annotate-start', phrase: 'start annotating', action: 'annotation', value: 'start', description: 'Start voice annotation', icon: '🎤' },
+  { id: 'ctrl-annotate-stop', phrase: 'stop annotating', action: 'annotation', value: 'stop', description: 'Stop voice annotation', icon: '⏹️' },
+  // Chinese navigation
+  { id: 'nav-next-zh', phrase: '下一页', action: 'navigation', value: 'next', description: '下一页', icon: '➡️' },
+  { id: 'nav-prev-zh', phrase: '上一页', action: 'navigation', value: 'prev', description: '上一页', icon: '⬅️' },
+  { id: 'nav-first-zh', phrase: '第一页', action: 'navigation', value: 'first', description: '第一页', icon: '⏮️' },
+  { id: 'nav-last-zh', phrase: '最后一页', action: 'navigation', value: 'last', description: '最后一页', icon: '⏭️' },
 ]
 
 // ─── Composable ─────────────────────────────────────────────────────────────
@@ -223,6 +231,7 @@ export function useVoiceCommands() {
 
   let onNavigation: ((action: string, value?: string) => void) | null = null
   let onControl: ((action: string, value?: string) => void) | null = null
+  let onAnnotation: ((action: string, value?: string) => void) | null = null
 
   function setNavigationHandler(handler: (action: string, value?: string) => void) {
     onNavigation = handler
@@ -230,6 +239,10 @@ export function useVoiceCommands() {
 
   function setControlHandler(handler: (action: string, value?: string) => void) {
     onControl = handler
+  }
+
+  function setAnnotationHandler(handler: (action: string, value?: string) => void) {
+    onAnnotation = handler
   }
 
   function handleTranscript(transcript: string) {
@@ -245,6 +258,8 @@ export function useVoiceCommands() {
       onNavigation(cmd.action, cmd.value)
     } else if (cmd.action === 'control' && onControl) {
       onControl(cmd.action, cmd.value)
+    } else if (cmd.action === 'annotation' && onAnnotation) {
+      onAnnotation(cmd.action, cmd.value)
     }
   }
 
@@ -528,6 +543,7 @@ export function useVoiceCommands() {
     // Navigation/Control handlers
     setNavigationHandler,
     setControlHandler,
+    setAnnotationHandler,
 
     // TTS
     readSlideAloud,

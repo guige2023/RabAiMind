@@ -328,6 +328,13 @@
               @click="showBundles = true; showMyTemplates = false; showFavorites = false">
               📦 捆绑包
             </button>
+            <!-- R139: Team Templates Tab -->
+            <button
+              class="tab-btn"
+              :class="{ active: showTeamTemplates }"
+              @click="showTeamTemplates = true; showMyTemplates = false; showFavorites = false; showBundles = false; loadTeamTemplates()">
+              👥 团队模板
+            </button>
           </div>
           <span class="templates-count">
             {{ displayTemplates.length }} 个模板
@@ -566,8 +573,58 @@
           </div>
         </div>
 
+        <!-- R139: Team Templates Section -->
+        <div v-if="showTeamTemplates" class="team-templates-section">
+          <div class="team-templates-header">
+            <div class="team-templates-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="20" height="20">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>团队模板库</span>
+            </div>
+            <p class="team-templates-subtitle">团队成员共享的模板，整个组织可使用</p>
+          </div>
+          <div v-if="loadingTeamTemplates" class="team-templates-loading">
+            <p>加载团队模板中...</p>
+          </div>
+          <div v-else-if="teamTemplates.length === 0" class="team-templates-empty">
+            <p>暂无团队模板</p>
+            <p class="team-templates-hint">在「我的模板」中点击「分享到团队」将模板共享给团队</p>
+          </div>
+          <div v-else class="team-templates-grid">
+            <article
+              v-for="template in teamTemplates"
+              :key="template.id"
+              class="template-card"
+              @click="selectTemplate(template)"
+            >
+              <div class="template-thumbnail">
+                <div class="thumbnail-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 9h6M9 12h6M9 15h4"/>
+                  </svg>
+                </div>
+                <!-- Author badge -->
+                <div class="template-author-badge" :title="'由 ' + (template.author_name || '团队成员') + ' 分享'">
+                  👤 {{ template.author_name || '团队成员' }}
+                </div>
+              </div>
+              <div class="template-info">
+                <h3 class="template-name">{{ template.name }}</h3>
+                <p class="template-desc">{{ template.description }}</p>
+                <div v-if="template.colors" class="template-colors">
+                  <span v-for="color in template.colors.slice(0, 4)" :key="color" class="color-dot" :style="{ background: color }"></span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
         <!-- Templates Grid -->
-        <div v-if="displayTemplates.length > 0 && !showBundles" class="templates-grid">
+        <div v-if="displayTemplates.length > 0 && !showBundles && !showTeamTemplates" class="templates-grid">
           <article
             v-for="template in displayTemplates"
             :key="template.id"
@@ -661,6 +718,18 @@
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     <line x1="10" y1="11" x2="10" y2="17"/>
                     <line x1="14" y1="11" x2="14" y2="17"/>
+                  </svg>
+                </button>
+                <!-- R139: Share to Team -->
+                <button
+                  class="template-action-btn team-share-btn"
+                  @click.stop="shareTemplateToTeam(template)"
+                  title="分享到团队"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                 </button>
               </div>
@@ -1578,6 +1647,55 @@ const purchaseBundle = async (bundleId: string) => {
     }
   } catch (e) {
     console.error('领取捆绑包失败:', e)
+  }
+}
+
+// R48: Publish to marketplace
+// R139: Team Templates
+const showTeamTemplates = ref(false)
+const teamTemplates = ref<any[]>([])
+const loadingTeamTemplates = ref(false)
+const currentWorkspaceId = ref(localStorage.getItem('workspace_id') || 'default')
+
+const loadTeamTemplates = async () => {
+  if (teamTemplates.value.length > 0) return  // Already loaded
+  loadingTeamTemplates.value = true
+  try {
+    const userId = localStorage.getItem('user_id') || 'default'
+    const res = await api.workspace.getTeamTemplates(currentWorkspaceId.value, userId)
+    if (res.data?.success) {
+      teamTemplates.value = res.data.templates || []
+    }
+  } catch (e) {
+    console.warn('加载团队模板失败:', e)
+  }
+  loadingTeamTemplates.value = false
+}
+
+const shareTemplateToTeam = async (template: Template) => {
+  try {
+    const userId = localStorage.getItem('user_id') || 'default'
+    const res = await api.workspace.shareTemplateToTeam(currentWorkspaceId.value, template.id, userId)
+    if (res.data?.success) {
+      alert(`"${template.name}" 已分享到团队模板库！`)
+    } else {
+      alert('分享失败：' + (res.data?.message || '未知错误'))
+    }
+  } catch (e) {
+    console.error('分享模板到团队失败:', e)
+    alert('分享失败，请重试')
+  }
+}
+
+const unshareTemplateFromTeam = async (template: Template) => {
+  try {
+    const res = await api.workspace.unshareTemplateFromTeam(currentWorkspaceId.value, template.id)
+    if (res.data?.success) {
+      teamTemplates.value = teamTemplates.value.filter(t => t.id !== template.id)
+      alert(`"${template.name}" 已从团队模板库移除`)
+    }
+  } catch (e) {
+    console.error('从团队取消分享模板失败:', e)
   }
 }
 
@@ -3679,6 +3797,76 @@ const executeDelete = async () => {
 
 .publishing-spinner {
   font-size: 14px;
+}
+
+/* R139: Team Share Button */
+.team-share-btn {
+  background: #6366f1 !important;
+  color: white !important;
+}
+
+.team-share-btn:hover {
+  background: #4f46e5 !important;
+}
+
+/* R139: Team Templates Section */
+.team-templates-section {
+  padding: 24px 0;
+}
+
+.team-templates-header {
+  margin-bottom: 24px;
+}
+
+.team-templates-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+}
+
+.team-templates-title svg {
+  color: #6366f1;
+}
+
+.team-templates-subtitle {
+  color: #888;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.team-templates-loading,
+.team-templates-empty {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 14px;
+}
+
+.team-templates-hint {
+  color: #aaa;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.team-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.template-author-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(99, 102, 241, 0.9);
+  color: white;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 
 /* R48: Reviews */

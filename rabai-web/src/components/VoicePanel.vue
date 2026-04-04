@@ -331,6 +331,100 @@
         </div>
       </div>
 
+      <!-- Tab: Translate -->
+      <div v-if="activeTab === 'translate'" class="tab-content">
+        <div class="section-title">🌐 实时翻译</div>
+        <p class="section-desc">输入或粘贴需要翻译的文本，选择语言后即可翻译</p>
+
+        <div class="form-item">
+          <label class="form-label">源语言</label>
+          <select v-model="translateSource" class="form-select">
+            <option v-for="lang in translateLangs" :key="lang.code" :value="lang.code">
+              {{ lang.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-item">
+          <label class="form-label">目标语言</label>
+          <select v-model="translateTarget" class="form-select">
+            <option v-for="lang in translateLangs" :key="lang.code" :value="lang.code">
+              {{ lang.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-item">
+          <label class="form-label">原文</label>
+          <textarea
+            v-model="translateInput"
+            class="form-textarea"
+            placeholder="在此输入或粘贴需要翻译的文本..."
+            rows="4"
+          ></textarea>
+        </div>
+
+        <div class="action-row" style="margin-bottom: 12px;">
+          <button
+            class="btn btn-primary"
+            :disabled="!translateInput.trim() || translateLoading"
+            @click="doTranslate"
+          >
+            {{ translateLoading ? '翻译中...' : '🌐 翻译' }}
+          </button>
+          <button
+            v-if="translatedResult"
+            class="btn btn-outline"
+            @click="speakTranslation"
+            :disabled="isSpeaking"
+          >
+            {{ isSpeaking ? '🔊 朗读中...' : '🔊 朗读翻译' }}
+          </button>
+        </div>
+
+        <div v-if="translateError" class="error-display">
+          ❌ {{ translateError }}
+        </div>
+
+        <div v-if="translatedResult" class="translate-result">
+          <div class="translate-result-header">
+            <span class="translate-result-label">翻译结果</span>
+            <button class="btn btn-mini" @click="copyTranslation">📋 复制</button>
+          </div>
+          <div class="translate-result-text">{{ translatedResult }}</div>
+          <div class="translate-result-meta">
+            {{ translateLangs.find(l => l.code === translateSource)?.name }} → {{ translateLangs.find(l => l.code === translateTarget)?.name }}
+          </div>
+        </div>
+
+        <!-- Voice input for translation -->
+        <div class="section-title" style="margin-top: 20px;">🎤 语音输入翻译</div>
+        <div class="form-item">
+          <label class="form-label">对着麦克风说话，自动翻译为 {{ translateLangs.find(l => l.code === translateTarget)?.name }}</label>
+          <div class="voice-input-row">
+            <button
+              class="btn"
+              :class="isVoiceTranslating ? 'btn-danger' : 'btn-primary'"
+              @click="toggleVoiceTranslate"
+            >
+              {{ isVoiceTranslating ? '⏹️ 停止' : '🎤 开始语音翻译' }}
+            </button>
+            <span v-if="voiceTranscription" class="voice-transcription">
+              "{{ voiceTranscription }}"
+            </span>
+          </div>
+          <div v-if="isVoiceTranslating" class="voice-translating-indicator">
+            <span class="pulse-dot"></span> 正在聆听...
+          </div>
+          <div v-if="voiceTranslateResult" class="translate-result">
+            <div class="translate-result-header">
+              <span class="translate-result-label">语音翻译结果</span>
+            </div>
+            <div class="translate-result-text">{{ voiceTranslateResult }}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Footer -->
       <div class="panel-footer">
         <button class="btn btn-outline" @click="$emit('close')">关闭</button>
@@ -341,6 +435,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { api } from '../api/client'
 import { TTS_VOICES, RECOGNITION_LANGUAGES } from '../composables/useVoiceCommands'
 import type { VoiceCommand, VoiceSettings } from '../composables/useVoiceCommands'
 
@@ -369,12 +464,15 @@ const emit = defineEmits<{
   'batch-generate': []
   'add-command': [command: Omit<VoiceCommand, 'id'>]
   'remove-command': [id: string]
+  'translate': [text: string, sourceLang: string, targetLang: string]
+  'speak-translation': [text: string]
 }>()
 
 const tabs = [
   { id: 'commands', name: '命令', icon: '🎤' },
   { id: 'read', name: '朗读', icon: '🔊' },
   { id: 'captions', name: '字幕', icon: '📝' },
+  { id: 'translate', name: '翻译', icon: '🌐' },
   { id: 'training', name: '训练', icon: '🎯' },
 ]
 
@@ -538,6 +636,166 @@ function saveNewCommand() {
   newCommandName.value = ''
   newCommandIcon.value = ''
   activeTab.value = 'commands'
+}
+
+// ── Translate ────────────────────────────────────────────────────────────────
+
+const translateLangs = [
+  { code: 'zh', name: '中文' },
+  { code: 'en', name: 'English' },
+  { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
+  { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'es', name: 'Español' },
+  { code: 'pt', name: 'Português' },
+  { code: 'it', name: 'Italiano' },
+  { code: 'ru', name: 'Русский' },
+  { code: 'ar', name: 'العربية' },
+]
+
+const translateSource = ref('zh')
+const translateTarget = ref('en')
+const translateInput = ref('')
+const translatedResult = ref('')
+const translateLoading = ref(false)
+const translateError = ref('')
+
+// Voice transcription state for translate tab
+const isVoiceTranslating = ref(false)
+const voiceTranscription = ref('')
+const voiceTranslateResult = ref('')
+let voiceTranscribeRecognition: any = null
+
+async function doTranslate() {
+  if (!translateInput.value.trim()) return
+  translateLoading.value = true
+  translateError.value = ''
+  translatedResult.value = ''
+  try {
+    const res = await api.translate.translateText({
+      text: translateInput.value,
+      source_lang: translateSource.value,
+      target_lang: translateTarget.value,
+    } as any)
+    if (res.data.success) {
+      translatedResult.value = res.data.data.translated
+    } else {
+      translateError.value = res.data.error || '翻译失败'
+    }
+  } catch (e: any) {
+    translateError.value = e?.response?.data?.detail || e.message || '翻译请求失败'
+  } finally {
+    translateLoading.value = false
+  }
+}
+
+function onTranslateResult(result: string, error?: string) {
+  translateLoading.value = false
+  if (error) {
+    translateError.value = error
+  } else {
+    translatedResult.value = result
+  }
+}
+
+async function speakTranslation() {
+  if (!translatedResult.value) return
+  try {
+    isSpeaking.value = true
+    const res = await api.voice.tts({
+      text: translatedResult.value,
+      voice: localSettings.value.ttsVoice || 'zh-CN-Xiaoxiao',
+      rate: localSettings.value.ttsRate || '+0%',
+      volume: localSettings.value.ttsVolume || '+0%',
+      pitch: localSettings.value.ttsPitch || '+0Hz',
+    } as any)
+    if (res.data.success) {
+      const audio = new Audio(res.data.data.audio_url)
+      audio.onended = () => { isSpeaking.value = false }
+      audio.onerror = () => { isSpeaking.value = false }
+      audio.play().catch(() => { isSpeaking.value = false })
+    }
+  } catch {
+    isSpeaking.value = false
+  }
+}
+
+function copyTranslation() {
+  if (!translatedResult.value) return
+  navigator.clipboard.writeText(translatedResult.value).catch(() => {})
+}
+
+// Voice transcription for translate input
+function initVoiceTranscribe() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    return null
+  }
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  const rec = new SpeechRecognition()
+  rec.continuous = true
+  rec.interimResults = true
+  rec.lang = translateSource.value === 'zh' ? 'zh-CN' : translateSource.value === 'en' ? 'en-US' : translateSource.value === 'ja' ? 'ja-JP' : translateSource.value === 'ko' ? 'ko-KR' : 'zh-CN'
+
+  rec.onresult = (event: any) => {
+    let interim = ''
+    let final = ''
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript
+      if (event.results[i].isFinal) final += t
+      else interim += t
+    }
+    voiceTranscription.value = final || interim
+    if (final) {
+      translateInput.value = (translateInput.value + ' ' + final).trim()
+      // Auto-translate on final result
+      if (translateInput.value.trim()) {
+        doTranslate()
+      }
+    }
+  }
+
+  rec.onend = () => {
+    isVoiceTranslating.value = false
+  }
+
+  rec.onerror = (e: any) => {
+    if (e.error !== 'no-speech') {
+      isVoiceTranslating.value = false
+    }
+  }
+
+  return rec
+}
+
+function toggleVoiceTranslate() {
+  if (isVoiceTranslating.value) {
+    stopVoiceTranslate()
+  } else {
+    startVoiceTranslate()
+  }
+}
+
+function startVoiceTranslate() {
+  if (!voiceTranscribeRecognition) {
+    voiceTranscribeRecognition = initVoiceTranscribe()
+  }
+  if (!voiceTranscribeRecognition) return
+  try {
+    voiceTranscription.value = ''
+    voiceTranslateResult.value = ''
+    isVoiceTranslating.value = true
+    voiceTranscribeRecognition.start()
+  } catch {}
+}
+
+function stopVoiceTranslate() {
+  if (voiceTranscribeRecognition) {
+    try {
+      voiceTranscribeRecognition.stop()
+    } catch {}
+  }
+  isVoiceTranslating.value = false
 }
 </script>
 
@@ -1101,5 +1359,96 @@ input:checked + .slider::before {
 
 .btn-danger.btn-mini:hover {
   background: #fee2e2;
+}
+
+/* Translate tab */
+.form-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.form-textarea:focus {
+  border-color: #165DFF;
+}
+
+.translate-result {
+  background: #f0f7ff;
+  border: 1px solid #d0e2ff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.translate-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.translate-result-label {
+  font-size: 12px;
+  color: #165DFF;
+  font-weight: 600;
+}
+
+.translate-result-text {
+  font-size: 15px;
+  color: #1a1a1a;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.translate-result-meta {
+  font-size: 11px;
+  color: #999;
+  margin-top: 6px;
+}
+
+.voice-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-transcription {
+  font-size: 13px;
+  color: #333;
+  font-style: italic;
+  background: #f5f5f5;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.voice-translating-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #165DFF;
+  margin-top: 6px;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #165DFF;
+  border-radius: 50%;
+  animation: pulse-dot-anim 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot-anim {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
 }
 </style>

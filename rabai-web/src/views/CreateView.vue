@@ -72,6 +72,14 @@
                 <span class="import-icon">📊</span>
                 <span>数据源</span>
               </button>
+              <button class="import-btn" @click="showNotionImportModal = true" title="导入 Notion 页面">
+                <span class="import-icon">🗂️</span>
+                <span>Notion</span>
+              </button>
+              <button class="import-btn" @click="showGoogleDocsImportModal = true" title="导入 Google Docs">
+                <span class="import-icon">📝</span>
+                <span>Google Docs</span>
+              </button>
             </div>
             <input
               type="file"
@@ -819,6 +827,113 @@
       </div>
     </div>
   </Teleport>
+  <!-- Notion 导入弹窗 -->
+  <Teleport to="body">
+    <div v-if="showNotionImportModal" class="error-modal-overlay" @click.self="showNotionImportModal = false">
+      <div class="error-modal notion-import-modal">
+        <div class="modal-header">
+          <h3>🗂️ 导入 Notion 页面</h3>
+          <button class="modal-close" @click="showNotionImportModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">输入 Notion 页面链接，系统将提取内容并自动生成 PPT 大纲</p>
+          <input
+            v-model="notionPageUrl"
+            type="url"
+            class="input"
+            placeholder="https://notion.so/workspace/Page-Title-abc123..."
+            @keyup.enter="handleNotionImport"
+          />
+          <div class="notion-token-section">
+            <input
+              v-model="notionAccessToken"
+              type="text"
+              class="input"
+              placeholder="Notion Integration Token (ntn_xxx...)"
+            />
+            <p class="token-hint">
+              <a href="https://www.notion.so/my-integrations" target="_blank">前往 Notion Integrations 创建集成</a>，
+              然后将 Token 粘贴到此处
+            </p>
+          </div>
+          <div v-if="notionImportLoading" class="import-loading">
+            <div class="spinner"></div>
+            <span>正在提取 Notion 内容...</span>
+          </div>
+          <div v-if="notionImportError" class="import-error">
+            {{ notionImportError }}
+          </div>
+          <div v-if="notionImportGuide" class="import-guide">
+            <p class="guide-title">{{ notionImportGuide.title }}</p>
+            <ol>
+              <li v-for="(step, idx) in notionImportGuide.steps" :key="idx">{{ step }}</li>
+            </ol>
+          </div>
+        </div>
+        <div class="error-actions">
+          <button class="btn btn-primary" @click="handleNotionImport" :disabled="notionImportLoading">
+            📥 开始导入
+          </button>
+          <button class="btn btn-secondary" @click="showNotionImportModal = false" :disabled="notionImportLoading">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Google Docs 导入弹窗 -->
+  <Teleport to="body">
+    <div v-if="showGoogleDocsImportModal" class="error-modal-overlay" @click.self="showGoogleDocsImportModal = false">
+      <div class="error-modal google-docs-import-modal">
+        <div class="modal-header">
+          <h3>📝 导入 Google Docs</h3>
+          <button class="modal-close" @click="showGoogleDocsImportModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">输入 Google Docs 文档链接，系统将提取内容并自动生成 PPT 大纲</p>
+          <input
+            v-model="googleDocsUrl"
+            type="url"
+            class="input"
+            placeholder="https://docs.google.com/document/d/..."
+            @keyup.enter="handleGoogleDocsImport"
+          />
+          <div class="notion-token-section">
+            <input
+              v-model="googleDocsAccessToken"
+              type="text"
+              class="input"
+              placeholder="Google OAuth Access Token（可选，有则更完整）"
+            />
+            <p class="token-hint">授权后将提取完整的文档结构和表格内容</p>
+          </div>
+          <div v-if="googleDocsImportLoading" class="import-loading">
+            <div class="spinner"></div>
+            <span>正在提取 Google Docs 内容...</span>
+          </div>
+          <div v-if="googleDocsImportError" class="import-error">
+            {{ googleDocsImportError }}
+          </div>
+          <div v-if="googleDocsImportGuide" class="import-guide">
+            <p class="guide-title">{{ googleDocsImportGuide.title }}</p>
+            <ol>
+              <li v-for="(step, idx) in googleDocsImportGuide.steps" :key="idx">{{ step }}</li>
+            </ol>
+          </div>
+        </div>
+        <div class="error-actions">
+          <button class="btn btn-primary" @click="handleGoogleDocsImport" :disabled="googleDocsImportLoading">
+            📥 开始导入
+          </button>
+          <button class="btn btn-secondary" @click="showGoogleDocsImportModal = false" :disabled="googleDocsImportLoading">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
 
   <!-- 数据源弹窗 (R113) -->
   <Teleport to="body">
@@ -1077,6 +1192,8 @@ const formData = ref<{
   generationMode: string
   outputFormat: string
   quality: string
+  // R148: AI脚本内容生成类型
+  scriptContentType: string
 }>({
   userRequest: '',
   slideCount: 10,
@@ -1090,6 +1207,8 @@ const formData = ref<{
   generationMode: 'standard',
   outputFormat: 'pptx',
   quality: 'standard',
+  // R148: AI脚本内容生成类型
+  scriptContentType: '',
   overlayTransparency: 30,
   useSmartLayout: false,
   backgroundMode: '统一',  // 统一或自定义
@@ -1250,6 +1369,23 @@ const showUrlImportModal = ref(false)
 const importUrl = ref('')
 const importLoading = ref(false)
 const importError = ref('')
+
+// Notion import
+const showNotionImportModal = ref(false)
+const notionPageUrl = ref('')
+const notionAccessToken = ref('')
+const notionImportLoading = ref(false)
+const notionImportError = ref('')
+const notionImportGuide = ref<{ title: string; steps: string[] } | null>(null)
+
+// Google Docs import
+const showGoogleDocsImportModal = ref(false)
+const googleDocsUrl = ref('')
+const googleDocsAccessToken = ref('')
+const googleDocsImportLoading = ref(false)
+const googleDocsImportError = ref('')
+const googleDocsImportGuide = ref<{ title: string; steps: string[] } | null>(null)
+
 const pdfFileInput = ref<HTMLInputElement | null>(null)
 const docxFileInput = ref<HTMLInputElement | null>(null)
 
@@ -1682,6 +1818,110 @@ const handleUrlImport = async () => {
   }
 }
 
+// Notion 导入处理
+const handleNotionImport = async () => {
+  if (!notionPageUrl.value.trim()) {
+    notionImportError.value = '请输入 Notion 页面链接'
+    return
+  }
+  
+  notionImportLoading.value = true
+  notionImportError.value = ''
+  notionImportGuide.value = null
+  
+  try {
+    const response = await fetch('/api/v1/ppt/import/notion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        page_url: notionPageUrl.value,
+        access_token: notionAccessToken.value || null
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      const outline = result.outline
+      if (outline?.slides?.length > 0) {
+        const slideTexts = outline.slides
+          .filter((s: any) => s.slide_type !== 'title')
+          .map((s: any) => `${s.title || ''}${s.content ? '\n' + s.content : ''}`)
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        
+        formData.value.userRequest = slideTexts || outline.title || '导入的内容'
+      }
+      showNotionImportModal.value = false
+      notionPageUrl.value = ''
+      notionAccessToken.value = ''
+      showSuccess('Notion 导入成功', `提取了 ${result.block_count || 0} 个内容块`)
+    } else {
+      if (result.guide) {
+        notionImportGuide.value = { title: '导入指南', steps: Object.values(result.guide) }
+      }
+      notionImportError.value = result.error || 'Notion 内容提取失败'
+    }
+  } catch (err) {
+    notionImportError.value = 'Notion 导入失败，请稍后重试'
+    console.error('Notion import error:', err)
+  } finally {
+    notionImportLoading.value = false
+  }
+}
+
+// Google Docs 导入处理
+const handleGoogleDocsImport = async () => {
+  if (!googleDocsUrl.value.trim()) {
+    googleDocsImportError.value = '请输入 Google Docs 链接'
+    return
+  }
+  
+  googleDocsImportLoading.value = true
+  googleDocsImportError.value = ''
+  googleDocsImportGuide.value = null
+  
+  try {
+    const response = await fetch('/api/v1/ppt/import/google-docs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        doc_url: googleDocsUrl.value,
+        access_token: googleDocsAccessToken.value || null
+      })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      const outline = result.outline
+      if (outline?.slides?.length > 0) {
+        const slideTexts = outline.slides
+          .filter((s: any) => s.slide_type !== 'title')
+          .map((s: any) => `${s.title || ''}${s.content ? '\n' + s.content : ''}`)
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        
+        formData.value.userRequest = slideTexts || outline.title || '导入的内容'
+      }
+      showGoogleDocsImportModal.value = false
+      googleDocsUrl.value = ''
+      googleDocsAccessToken.value = ''
+      showSuccess('Google Docs 导入成功', `提取了 ${result.block_count || 0} 个内容块`)
+    } else {
+      if (result.guide) {
+        googleDocsImportGuide.value = { title: '导入指南', steps: Object.values(result.guide) }
+      }
+      googleDocsImportError.value = result.error || 'Google Docs 内容提取失败'
+    }
+  } catch (err) {
+    googleDocsImportError.value = 'Google Docs 导入失败，请稍后重试'
+    console.error('Google Docs import error:', err)
+  } finally {
+    googleDocsImportLoading.value = false
+  }
+}
+
 // API加载的配置数据（模板/场景/风格）
 // BUG修复: 从后端API加载，而不是硬编码
 const apiTemplates = ref<Array<{value: string; name: string; icon: string; preview: string; desc: string}>>([])
@@ -1925,6 +2165,16 @@ const generationModeOptions = [
   { value: 'fast', name: '快速模式', icon: '🚀', desc: '快速生成，适合预览和初稿', time: '约1-2分钟' },
   { value: 'quality', name: '高清模式', icon: '🎬', desc: '高清输出，适合正式演示', time: '约8-10分钟' },
   { value: 'stream', name: '流式模式', icon: '🌊', desc: '实时流式输出，边生成边预览', time: '实时' }
+]
+
+// R148: AI脚本内容生成类型选项
+const scriptContentTypeOptions = [
+  { value: '', name: '默认生成', icon: '🎯', desc: '标准AI内容生成，适合通用场景' },
+  { value: 'story_arc', name: '故事弧线', icon: '📖', desc: '按叙事结构生成：钩子→冲突→高潮→解决，适合品牌/产品/励志类演示' },
+  { value: 'data_story', name: '数据故事', icon: '📊', desc: '将数据转化为有说服力的3幕式数据叙事，适合分析报告/商业洞察' },
+  { value: 'persuasion', name: '说服技巧', icon: '🎭', desc: '运用AIDA/PAS/FAB等说服框架，适合销售提案/商业谈判' },
+  { value: 'audience_persona', name: '受众画像', icon: '👥', desc: '基于目标受众画像精准定制内容，适合B2B营销/企业培训' },
+  { value: 'competitor_analysis', name: '竞品分析', icon: '⚔️', desc: '自动生成竞品对比矩阵和竞争策略，适合商业计划/市场分析' }
 ]
 
 // 输出格式选项
@@ -3529,6 +3779,93 @@ useKeyboardShortcuts([
   border-radius: 6px;
   color: #DC2626;
   font-size: 13px;
+}
+
+/* Notion Import Modal */
+.notion-import-modal,
+.google-docs-import-modal {
+  min-width: 460px;
+}
+
+.notion-import-modal .modal-header,
+.google-docs-import-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.notion-import-modal .modal-header h3,
+.google-docs-import-modal .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.notion-import-modal .modal-body,
+.google-docs-import-modal .modal-body {
+  margin-bottom: 16px;
+}
+
+.notion-import-modal .modal-desc,
+.google-docs-import-modal .modal-desc {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.notion-token-section {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #F5F7FA;
+  border-radius: 8px;
+}
+
+.notion-token-section .input {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.token-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+
+.token-hint a {
+  color: #165DFF;
+  text-decoration: none;
+}
+
+.token-hint a:hover {
+  text-decoration: underline;
+}
+
+.import-guide {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+}
+
+.import-guide .guide-title {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1D4ED8;
+}
+
+.import-guide ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.import-guide li {
+  font-size: 12px;
+  color: #374151;
+  margin-bottom: 4px;
+  line-height: 1.5;
 }
 
 /* Data Source Modal (R113) */

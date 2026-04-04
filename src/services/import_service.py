@@ -650,5 +650,310 @@ class ImportService:
         }
 
 
+    async def import_notion(
+        self,
+        page_url: str,
+        access_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Import content from Notion page.
+        Requires Notion integration token (from https://www.notion.so/my-integrations).
+        """
+        import re
+
+        # Extract page ID from URL
+        page_id = None
+        # Patterns: notion.so/username/Page-Title-1234567890abcdef...
+        match = re.search(r"notion\.so/[\w-]+/([a-f0-9]{32})", page_url)
+        if match:
+            page_id = match.group(1)
+        else:
+            # Try direct page ID (32 hex chars)
+            match = re.search(r"^([a-f0-9]{32})$", page_url.strip())
+            if match:
+                page_id = match.group(1)
+
+        if not page_id:
+            return {
+                "success": False,
+                "error": "无法解析 Notion 页面 URL，请确保链接格式正确",
+                "guide": {
+                    "step1": "打开要导入的 Notion 页面",
+                    "step2": "点击右上角 '...' 菜单 → 复制链接",
+                    "step3": "确保 Notion 集成已添加到该页面（通过 '...' → 添加连接）",
+                }
+            }
+
+        if not access_token:
+            # Try environment variable
+            import os
+            access_token = os.environ.get("NOTION_TOKEN")
+
+        if not access_token:
+            return {
+                "success": False,
+                "error": "Notion 导入需要 API Token",
+                "guide": {
+                    "step1": "前往 https://www.notion.so/my-integrations 创建集成",
+                    "step2": "复制 Integration Token（secret_xxx）",
+                    "step3": "在 Notion 页面中，点击 '...' → 添加连接 → 选择你的集成",
+                    "step4": "重新粘贴 Notion 页面链接并导入",
+                },
+                "requires_auth": True,
+                "page_id": page_id
+            }
+
+        try:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+                "Notion-Version": "2022-06-28"
+            }
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                # Get page info
+                page_resp = await client.get(
+                    f"https://api.notion.com/v1/pages/{page_id}",
+                    headers=headers
+                )
+                if page_resp.status_code == 404:
+                    return {
+                        "success": False,
+                        "error": "页面不存在或无权访问，请确保已在 Notion 页面中添加该集成"
+                    }
+                if page_resp.status_code == 401:
+                    return {
+                        "success": False,
+                        "error": "Notion Token 无效或已过期，请检查集成设置"
+                    }
+                page_resp.raise_for_status()
+                page_data = page_resp.json()
+
+                # Get page title from properties
+                title = "Notion 内容"
+                props = page_data.get("properties", {})
+                for prop_name, prop_value in props.items():
+                    if prop_value.get("type") == "title":
+                        title_texts = prop_value.get("title", [])
+                        if title_texts:
+                            title = "".join(t.get("plain_text", "") for t in title_texts)
+                            break
+
+                # Get page blocks (content)
+                blocks_resp = await client.post(
+                    f"https://api.notion.com/v1/blocks/{page_id}/children",
+                    headers=headers,
+                    json={"page_size": 100}
+                )
+                blocks_data = blocks_resp.json() if blocks_resp.status_code == 200 else {}
+                blocks = blocks_data.get("results", [])
+
+                # Extract text from blocks
+                content_blocks = []
+                for block in blocks:
+                    block_type = block.get("type", "")
+                    block_content = block.get(block_type, {})
+
+                    # Get text from various block types
+                    text_runs = []
+                    if "rich_text" in block_content:
+                        text_runs = block_content["rich_text"]
+                    elif block_type == "bulleted_list_item":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "numbered_list_item":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "to_do":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "heading_1":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "heading_2":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "heading_3":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "paragraph":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "quote":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "callout":
+                        text_runs = block_content.get("rich_text", [])
+                    elif block_type == "code":
+                        text_runs = block_content.get("rich_text", [])
+
+                    text = "".join(run.get("plain_text", "") for run in text_runs)
+                    if text and len(text) > 3:
+                        content_blocks.append({"type": block_type, "text": text})
+
+                # Build full text for outline conversion
+                full_text = "\n".join([b["text"] for b in content_blocks])
+                outline = self._text_to_outline(full_text, source=title)
+                outline["title"] = title
+
+                return {
+                    "success": True,
+                    "source": "notion",
+                    "page_id": page_id,
+                    "title": title,
+                    "outline": outline,
+                    "block_count": len(content_blocks)
+                }
+
+        except httpx.HTTPError as e:
+            logger.error(f"Notion API error: {e}")
+            return {"success": False, "error": f"Notion API 请求失败: {str(e)}"}
+        except Exception:
+            logger.exception("Notion import error")
+            return {"success": False, "error": "导入 Notion 页面失败"}
+
+    async def import_google_docs(
+        self,
+        doc_url: str,
+        access_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Import content from Google Docs (not Slides).
+        With access_token: Uses Google Docs API to extract content.
+        Without token: Returns helpful error with steps.
+        """
+        import re
+
+        # Extract document ID from URL
+        doc_id = None
+        # https://docs.google.com/document/d/DOC_ID/edit
+        match = re.search(r"/document/d/([a-zA-Z0-9-_]+)", doc_url)
+        if match:
+            doc_id = match.group(1)
+        elif re.match(r"^[a-zA-Z0-9-_]{30,}$", doc_url.strip()):
+            doc_id = doc_url.strip()
+
+        if not doc_id:
+            return {
+                "success": False,
+                "error": "无法解析 Google Docs URL，请确保是 docs.google.com/document/ 链接",
+                "guide": {
+                    "step1": "打开 Google Docs 文档",
+                    "step2": "点击 '文件' → '共享' → '发布到网络'",
+                    "step3": "或者复制浏览器地址栏中的文档链接",
+                }
+            }
+
+        if not access_token:
+            return {
+                "success": False,
+                "error": "Google Docs 导入需要授权",
+                "guide": {
+                    "step1": "此功能需要 Google OAuth 授权",
+                    "step2": "请先在设置中连接 Google 账号",
+                    "step3": "授权后将自动提取文档内容"
+                },
+                "requires_auth": True,
+                "doc_id": doc_id
+            }
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                }
+
+                # Get document metadata
+                doc_resp = await client.get(
+                    f"https://docs.googleapis.com/v1/documents/{doc_id}",
+                    headers=headers
+                )
+                if doc_resp.status_code == 404:
+                    return {"success": False, "error": "文档不存在或无权访问"}
+                if doc_resp.status_code == 401:
+                    return {"success": False, "error": "Google token 无效或已过期"}
+                doc_resp.raise_for_status()
+                doc_data = doc_resp.json()
+
+                title = doc_data.get("title", "Google Docs 文档")
+
+                # Get document body content
+                body = doc_data.get("body", {})
+                content_blocks = []
+
+                def extract_text_from_content(content_item):
+                    """Recursively extract text from content elements."""
+                    results = []
+                    if "textRun" in content_item:
+                        text = content_item["textRun"].get("content", "")
+                        if text.strip():
+                            results.append(text.strip())
+                    if "paragraph" in content_item:
+                        para = content_item["paragraph"]
+                        elements = para.get("elements", [])
+                        for elem in elements:
+                            if "textRun" in elem:
+                                text = elem["textRun"].get("content", "")
+                                if text.strip():
+                                    results.append(text.strip())
+                    if "table" in content_item:
+                        table = content_item["table"]
+                        for row in table.get("tableRows", []):
+                            for cell in row.get("tableCells", []):
+                                for content in cell.get("content", []):
+                                    results.extend(extract_text_from_content(content))
+                    if "sectionBreak" in content_item:
+                        results.append("===")  # Section divider
+                    return results
+
+                # Process body content
+                body_content = body.get("content", [])
+                for item in body_content:
+                    if "paragraph" in item:
+                        para_texts = extract_text_from_content(item)
+                        if para_texts:
+                            text = " ".join(para_texts)
+                            if text.strip():
+                                # Determine block type by paragraph style
+                                para_props = item["paragraph"].get("paragraphStyle", {})
+                                named_style = para_props.get("namedStyleType", "NORMAL_TEXT")
+
+                                if "HEADING" in named_style or "TITLE" in named_style:
+                                    content_blocks.append({"type": "heading", "text": text})
+                                else:
+                                    content_blocks.append({"type": "paragraph", "text": text})
+                    elif "table" in item:
+                        table_texts = []
+                        for row in item["table"].get("tableRows", []):
+                            for cell in row.get("tableCells", []):
+                                cell_texts = []
+                                for content in cell.get("content", []):
+                                    cell_texts.extend(extract_text_from_content(content))
+                                if cell_texts:
+                                    table_texts.append(" | ".join(cell_texts))
+                        if table_texts:
+                            content_blocks.append({"type": "table", "text": "\n".join(table_texts)})
+
+                if not content_blocks:
+                    return {
+                        "success": False,
+                        "error": "未能从 Google Docs 提取到文本内容"
+                    }
+
+                # Build text for outline conversion
+                full_text = "\n".join([b["text"] for b in content_blocks if b["text"].strip()])
+                outline = self._text_to_outline(full_text, source=title)
+                outline["title"] = title
+
+                return {
+                    "success": True,
+                    "source": "google-docs",
+                    "doc_id": doc_id,
+                    "title": title,
+                    "outline": outline,
+                    "block_count": len(content_blocks)
+                }
+
+        except httpx.HTTPError as e:
+            logger.error(f"Google Docs API error: {e}")
+            return {"success": False, "error": f"Google Docs API 请求失败: {str(e)}"}
+        except Exception:
+            logger.exception("Google Docs import error")
+            return {"success": False, "error": "导入 Google Docs 失败"}
+
+
 def get_import_service() -> ImportService:
     return ImportService()

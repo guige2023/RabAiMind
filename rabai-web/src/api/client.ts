@@ -315,7 +315,7 @@ export const api: APIClient = {
     },
 
     // 版本管理
-    listVersions: (taskId: string): Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>> => {
+    listVersions: (taskId: string): Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number; tags?: string[]; branch_id?: string; branched_from?: string; auto_created?: boolean; auto_type?: string }> }>> => {
       return apiClient.get(`/ppt/versions/${taskId}`)
     },
 
@@ -369,8 +369,8 @@ export const api: APIClient = {
       return apiClient.get(`/ppt/timeline/${taskId}`, { params: { limit } })
     },
 
-    undoByActionId: (taskId: string, actionId: string): Promise<AxiosResponse<{ success: boolean; undone_action?: string; affected_actions?: number }>> => {
-      return apiClient.post(`/ppt/undo/${taskId}/${actionId}`)
+    undoByActionId: (taskId: string, actionId: string, force = false): Promise<AxiosResponse<{ success: boolean; undone_action?: string; affected_actions?: number; mode?: string; warning?: string }>> => {
+      return apiClient.post(`/ppt/undo/${taskId}/${actionId}`, null, { params: { force } })
     },
 
     // 检查点系统
@@ -403,12 +403,43 @@ export const api: APIClient = {
       return apiClient.post(`/ppt/versions/${taskId}/${versionId}/branch`, null, { params: { name } })
     },
 
-    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy = 'branch_wins'): Promise<AxiosResponse<{ success: boolean; version_id: string; merged_from: string; merged_to: string; strategy: string }>> => {
+    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy = 'branch_wins', slideResolutions?: Record<number, string>): Promise<AxiosResponse<{ success: boolean; version_id?: string; merged_from: string; merged_to: string; strategy: string; has_conflicts?: boolean; conflicts?: any[]; conflict_count?: number; requires_resolution?: boolean; message?: string; merged_slide_count?: number }>> => {
       return apiClient.post(`/ppt/versions/${taskId}/merge`, {
         source_version_id: sourceVersionId,
         target_version_id: targetVersionId,
         strategy,
+        slide_resolutions: slideResolutions,
       })
+    },
+
+    // ========== 版本标签 ==========
+    addVersionTag: (taskId: string, versionId: string, tag: string): Promise<AxiosResponse<{ success: boolean; version_id: string; tag: string; tags: string[] }>> => {
+      return apiClient.post(`/ppt/versions/${taskId}/${versionId}/tag`, { tag })
+    },
+
+    removeVersionTag: (taskId: string, versionId: string, tag: string): Promise<AxiosResponse<{ success: boolean; version_id: string; removed_tag: string; tags: string[] }>> => {
+      return apiClient.delete(`/ppt/versions/${taskId}/${versionId}/tag/${encodeURIComponent(tag)}`)
+    },
+
+    getAllVersionTags: (taskId: string): Promise<AxiosResponse<{ success: boolean; tags: Record<string, Array<{ version_id: string; version_name: string }>> }>> => {
+      return apiClient.get(`/ppt/versions/${taskId}/tags`)
+    },
+
+    // ========== 自动版本化 ==========
+    getAutoVersionStatus: (taskId: string): Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_significant_change_at?: string; last_auto_version_at?: string; auto_version_threshold: number }>> => {
+      return apiClient.get(`/ppt/versions/${taskId}/auto-version/status`)
+    },
+
+    recordSignificantChange: (taskId: string): Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_recorded_at?: string; auto_version: any }>> => {
+      return apiClient.post(`/ppt/versions/${taskId}/significant-change/record`)
+    },
+
+    detectSignificantChange: (taskId: string, oldState: any, newState: any): Promise<AxiosResponse<{ significant: boolean; reasons: string[]; change_details: any }>> => {
+      return apiClient.post(`/ppt/versions/${taskId}/significant-change/detect`, oldState, { params: { new_state: newState } })
+    },
+
+    checkAutoVersion: (taskId: string): Promise<AxiosResponse<{ success: boolean; auto_created?: boolean; version_id?: string; version_name?: string; significant_change_count?: number; remaining?: number }>> => {
+      return apiClient.post(`/ppt/versions/${taskId}/auto-version/check`)
     },
 
     // ========== A/B Testing ==========
@@ -546,6 +577,122 @@ export const api: APIClient = {
       const formData = new FormData()
       formData.append('file', file)
       return apiClient.post('/ppt/backups/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
+
+    // R145: Smart Layout Suggestion (used by SmartDesignPanel)
+    suggestLayouts: (params: { title?: string; content?: string }): Promise<AxiosResponse<{
+      success: boolean
+      content_type: string
+      content_type_display: string
+      density: number
+      element_count: number
+      has_timeline: boolean
+      has_comparison: boolean
+      keywords: string[]
+      primary_layout: string
+      suggestions: Array<{ type: string; name: string; description: string; confidence: number; is_primary: boolean }>
+    }>> => {
+      return apiClient.get('/ppt/layouts/suggest', { params })
+    },
+
+    // R145: Auto-Theme Suggestion (used by SmartDesignPanel and MasterSlideEditor)
+    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }): Promise<AxiosResponse<{
+      success: boolean
+      theme: { primary: string; secondary: string; accent: string; style: string; name: string }
+      content_analysis: { type: string; keywords: string[]; density: number }
+      reasons: string[]
+      alternatives?: Array<{ primary: string; secondary: string; accent: string; name: string; style: string }>
+    }>> => {
+      return apiClient.get('/ppt/theme/suggest', { params })
+    },
+
+    // R145: Master Slide CRUD
+    getMasterSlides: (): Promise<AxiosResponse<{ success: boolean; master_slides: any[] }>> => {
+      return apiClient.get('/ppt/master-slides')
+    },
+
+    saveMasterSlide: (master: any): Promise<AxiosResponse<{ success: boolean; master_slide: any }>> => {
+      return apiClient.post('/ppt/master-slides', master)
+    },
+
+    updateMasterSlide: (id: string, master: any): Promise<AxiosResponse<{ success: boolean; master_slide: any }>> => {
+      return apiClient.put(`/ppt/master-slides/${id}`, master)
+    },
+
+    deleteMasterSlide: (id: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/master-slides/${id}`)
+    },
+
+    // R145: Custom Themes CRUD
+    getCustomThemes: (): Promise<AxiosResponse<{ success: boolean; themes: any[] }>> => {
+      return apiClient.get('/ppt/custom-themes')
+    },
+
+    saveCustomTheme: (theme: any): Promise<AxiosResponse<{ success: boolean; theme: any }>> => {
+      return apiClient.post('/ppt/custom-themes', theme)
+    },
+
+    deleteCustomTheme: (id: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/custom-themes/${id}`)
+    },
+
+    // R152: Advanced Slide Notes & Annotations
+    updateSlideNotes: (taskId: string, params: {
+      slide_index: number
+      notes?: string
+      rich_notes?: string
+      speaker_notes?: string
+    }): Promise<AxiosResponse<{ success: boolean; slide_index: number }>> => {
+      return apiClient.patch(`/ppt/slides/${taskId}/notes`, params)
+    },
+
+    updateSlideStickyNotes: (taskId: string, params: {
+      slide_index: number
+      sticky_notes?: any[]
+    }): Promise<AxiosResponse<{ success: boolean; slide_index: number }>> => {
+      return apiClient.patch(`/ppt/slides/${taskId}/sticky-notes`, params)
+    },
+
+    saveSlideAnnotations: (taskId: string, slideIndex: number, annotations: any[]): Promise<AxiosResponse<{
+      success: boolean; slide_index: number; count: number
+    }>> => {
+      return apiClient.post(`/ppt/annotations/${taskId}/${slideIndex}`, annotations)
+    },
+
+    getStickyNotes: (taskId: string): Promise<AxiosResponse<{
+      success: boolean; sticky_notes: any[]
+    }>> => {
+      return apiClient.get(`/ppt/sticky-notes/${taskId}`)
+    },
+
+    addStickyNote: (taskId: string, note: {
+      slide_index: number
+      content: string
+      author: string
+      color?: string
+      position_x?: number
+      position_y?: number
+    }): Promise<AxiosResponse<{ success: boolean; note: any }>> => {
+      return apiClient.post(`/ppt/sticky-notes/${taskId}`, note)
+    },
+
+    deleteStickyNote: (taskId: string, noteId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/sticky-notes/${taskId}/${noteId}`)
+    },
+
+    getNotesTemplates: (templateType?: string): Promise<AxiosResponse<{
+      success: boolean; templates: any[]
+    }>> => {
+      return apiClient.get('/ppt/notes-templates', { params: templateType ? { template_type: templateType } : {} })
+    },
+
+    createNotesTemplate: (tpl: {
+      name: string
+      description?: string
+      template_type?: string
+      content: string
+    }): Promise<AxiosResponse<{ success: boolean; template: any }>> => {
+      return apiClient.post('/ppt/notes-templates', tpl)
     },
   },
 
@@ -723,6 +870,16 @@ export const api: APIClient = {
       layouts: Array<{ type: string; name: string; description: string; typical_use: string[]; elements: string[] }>
     }>> => {
       return apiClient.get('/ppt/layouts/all')
+    },
+
+    // R145: Auto-Theme Suggestion
+    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }): Promise<AxiosResponse<{
+      success: boolean
+      theme: { primary: string; secondary: string; accent: string; style: string; name: string }
+      content_analysis: { type: string; keywords: string[]; density: number }
+      reasons: string[]
+    }>> => {
+      return apiClient.get('/ppt/theme/suggest', { params })
     },
 
     // R55: Template Learning / Layout Preferences
@@ -998,6 +1155,25 @@ export const api: APIClient = {
         slides: params.slides,
         target_style: params.target_style || 'business',
         use_case: params.use_case || '商务演示'
+      })
+    },
+
+    // R148: AI脚本内容生成 2.0
+    generateScriptContent: (params: {
+      content_type: 'story_arc' | 'data_story' | 'persuasion' | 'audience_persona' | 'competitor_analysis'
+      topic: string
+      scene?: string
+      slide_count?: number
+      audience?: string
+      brief_description?: string
+    }): Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>> => {
+      return apiClient.post('/ppt/ai/script-content', {
+        content_type: params.content_type,
+        topic: params.topic,
+        scene: params.scene || 'business',
+        slide_count: params.slide_count || 10,
+        audience: params.audience || '',
+        brief_description: params.brief_description || ''
       })
     }
   },
@@ -1616,6 +1792,364 @@ export const api: APIClient = {
     },
     deleteSecurity(taskId: string) {
       return apiClient.delete(`/security/presentation/${taskId}/security`)
+    },
+
+    // R140: Org IP Allowlist
+    getOrgIPAllowlist() {
+      return apiClient.get('/security/org/ip-allowlist')
+    },
+    setOrgIPAllowlist(allowed_ips: string[], mode = 'allow') {
+      return apiClient.post('/security/org/ip-allowlist', { allowed_ips, mode })
+    },
+    setOrgIPDenylist(denied_ips: string[]) {
+      return apiClient.post('/security/org/ip-denylist', { denied_ips })
+    },
+    clearOrgIPAllowlist() {
+      return apiClient.delete('/security/org/ip-allowlist')
+    },
+    checkMyIPAllowlist() {
+      return apiClient.get('/security/org/ip-allowlist/check')
+    },
+
+    // R140: Custom RBAC Roles
+    getCustomRoles(include_inactive = false) {
+      return apiClient.get('/security/roles', { params: { include_inactive } })
+    },
+    createCustomRole(name: string, description: string, permissions: string[]) {
+      return apiClient.post('/security/roles', { name, description, permissions })
+    },
+    updateCustomRole(role_id: string, updates: { name?: string; description?: string; permissions?: string[]; is_active?: boolean }) {
+      return apiClient.put(`/security/roles/${role_id}`, updates)
+    },
+    deleteCustomRole(role_id: string) {
+      return apiClient.delete(`/security/roles/${role_id}`)
+    },
+    assignCustomRole(user_id: string, role_id: string) {
+      return apiClient.post('/security/roles/assign', { user_id, role_id })
+    },
+    getUserCustomRoles(user_id: string) {
+      return apiClient.get(`/security/roles/assign/${user_id}`)
+    },
+    getAvailablePermissions() {
+      return apiClient.get('/security/roles/permissions')
+    },
+
+    // R140: SOC2 Compliance
+    getSOC2Attestation() {
+      return apiClient.get('/security/soc2/attestation')
+    },
+    getSOC2DataInventory(user_id = '') {
+      return apiClient.get('/security/soc2/data-inventory', { params: { user_id } })
+    },
+    getSOC2AccessControls() {
+      return apiClient.get('/security/soc2/access-controls')
+    },
+    getSOC2Encryption() {
+      return apiClient.get('/security/soc2/encryption')
+    },
+    getSOC2AuditTrail(days = 90) {
+      return apiClient.get('/security/soc2/audit-trail', { params: { days } })
+    },
+
+  // R140: SSO/SAML Authentication
+  sso: {
+    getProviders() {
+      return apiClient.get('/auth/sso/providers')
+    },
+    initiateLogin(provider = 'saml') {
+      // Opens SSO login in a popup or redirect
+      return apiClient.get('/auth/sso/login', { params: { provider } })
+    },
+    getSSOCallbackResult(temp_token: string) {
+      // After SSO callback, get the result
+      return apiClient.get('/auth/sso/callback/saml', { params: { temp_token } })
+    },
+    completeSSORegistration(username: string, temp_token: string) {
+      return apiClient.post('/auth/sso/register', null, { params: { username, temp_token } })
+    },
+    getMySSOStatus() {
+      return apiClient.get('/auth/sso/me')
+    },
+    linkSSOProvider(provider = 'saml') {
+      return apiClient.post('/auth/sso/link', { params: { provider } })
+    },
+    unlinkSSOProvider(provider: string) {
+      return apiClient.delete(`/auth/sso/link/${provider}`)
+    },
+    getSSOConfig() {
+      return apiClient.get('/auth/sso/config')
+    },
+  },
+
+  // R147: Reminders (notifications)
+  reminders: {
+    list() {
+      return apiClient.get('/notifications/reminders')
+    },
+    create(params: {
+      task_id?: string
+      title: string
+      review_date: string
+      remind_before_hours?: number
+      notes?: string
+    }) {
+      return apiClient.post('/notifications/reminders', params)
+    },
+    update(reminder_id: string, params: Record<string, any>) {
+      return apiClient.put(`/notifications/reminders/${reminder_id}`, params)
+    },
+    delete(reminder_id: string) {
+      return apiClient.delete(`/notifications/reminders/${reminder_id}`)
+    },
+  },
+
+  // R147: Presentation Scheduling & Automation
+  schedule: {
+    // 创建定时任务
+    create(params: {
+      name: string
+      action: 'generate' | 'export' | 'webhook' | 'email'
+      schedule_type: 'once' | 'daily' | 'weekly' | 'monthly'
+      run_at?: string
+      day_of_week?: string
+      day_of_month?: number
+      hour?: number
+      minute?: number
+      generation?: Record<string, any>
+      export_config?: Record<string, any>
+      webhook_config?: Record<string, any>
+      email_config?: Record<string, any>
+      user_id?: string
+    }) {
+      return apiClient.post('/schedules', params)
+    },
+    // 列出定时任务
+    list(status?: string, user_id?: string) {
+      return apiClient.get('/schedules', { params: { status, user_id } })
+    },
+    // 获取单个定时任务
+    get(schedule_id: string) {
+      return apiClient.get(`/schedules/${schedule_id}`)
+    },
+    // 更新定时任务
+    update(schedule_id: string, params: Record<string, any>) {
+      return apiClient.patch(`/schedules/${schedule_id}`, params)
+    },
+    // 删除定时任务
+    delete(schedule_id: string) {
+      return apiClient.delete(`/schedules/${schedule_id}`)
+    },
+    // 暂停定时任务
+    pause(schedule_id: string) {
+      return apiClient.post(`/schedules/${schedule_id}/pause`)
+    },
+    // 恢复定时任务
+    resume(schedule_id: string) {
+      return apiClient.post(`/schedules/${schedule_id}/resume`)
+    },
+    // 立即触发
+    trigger(schedule_id: string) {
+      return apiClient.post(`/schedules/${schedule_id}/trigger`)
+    },
+    // 调度器状态
+    status() {
+      return apiClient.get('/schedules/status')
+    },
+
+    // 循环演示文稿
+    createRecurring(params: {
+      name: string
+      generation: Record<string, any>
+      recurrence: 'daily' | 'weekly' | 'monthly'
+      day_of_week?: string
+      day_of_month?: number
+      hour?: number
+      minute?: number
+      user_id?: string
+      auto_email?: Record<string, any>
+    }) {
+      return apiClient.post('/schedules/recurring', params)
+    },
+    listRecurring(user_id?: string) {
+      return apiClient.get('/schedules/recurring', { params: { user_id } })
+    },
+
+    // 邮件投递
+    createEmail(params: {
+      schedule_id?: string
+      task_id?: string
+      to_email: string
+      to_name?: string
+      subject: string
+      body_html?: string
+      body_text?: string
+      smtp_host?: string
+      smtp_port?: number
+      smtp_user?: string
+      smtp_password?: string
+      from_email?: string
+      from_name?: string
+    }) {
+      return apiClient.post('/schedules/emails', params)
+    },
+    listEmails(schedule_id?: string) {
+      return apiClient.get('/schedules/emails', { params: { schedule_id } })
+    },
+    deleteEmail(email_id: string) {
+      return apiClient.delete(`/schedules/emails/${email_id}`)
+    },
+    testEmail(params: {
+      to_email: string
+      to_name?: string
+      subject?: string
+      body_html?: string
+      body_text?: string
+      smtp_host?: string
+      smtp_port?: number
+      smtp_user?: string
+      smtp_password?: string
+      from_email?: string
+      from_name?: string
+    }) {
+      return apiClient.post('/schedules/emails/test', params)
+    },
+
+    // 批量定时导出
+    batchExport(schedules: Array<{
+      name: string
+      schedule_type: string
+      hour?: number
+      minute?: number
+      day_of_week?: string
+      day_of_month?: number
+      export_config: Record<string, any>
+    }>) {
+      return apiClient.post('/schedules/batch-export', { schedules })
+    },
+  },
+
+  },
+
+  // R139: Team Collaboration 2.0 - Team Templates
+  workspace: {
+    getTeamTemplates: (workspaceId: string, userId = 'default'): Promise<AxiosResponse<{
+      success: boolean
+      templates: any[]
+    }>> => {
+      return apiClient.get(`/workspace/${workspaceId}/templates`, { params: { user_id: userId } })
+    },
+    shareTemplateToTeam: (workspaceId: string, templateId: string, userId = 'default'): Promise<AxiosResponse<{
+      success: boolean
+      message: string
+    }>> => {
+      return apiClient.post(`/workspace/${workspaceId}/templates/${templateId}/share`, null, { params: { user_id: userId } })
+    },
+    unshareTemplateFromTeam: (workspaceId: string, templateId: string): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.delete(`/workspace/${workspaceId}/templates/${templateId}/share`)
+    },
+  },
+
+  // R153: Share Enhancement APIs (QR, NFC, Beacon, URL Shortener)
+  shareEnhancements: {
+    // URL Shortener
+    createShortUrl: (params: {
+      original_url: string
+      ppt_id: string
+      title: string
+    }): Promise<AxiosResponse<{
+      success: boolean
+      short_code: string
+      short_url: string
+      original_url: string
+      created_at: string
+    }>> => {
+      return apiClient.post('/share/short-url', params)
+    },
+    resolveShortUrl: (shortCode: string): Promise<AxiosResponse<{
+      success: boolean
+      original_url: string
+      ppt_id: string
+      title: string
+    }>> => {
+      return apiClient.get(`/share/short-url/${shortCode}`)
+    },
+    listShortUrls: (): Promise<AxiosResponse<{
+      success: boolean
+      short_urls: any[]
+    }>> => {
+      return apiClient.get('/share/short-urls')
+    },
+    getShortUrlAnalytics: (shortCode: string): Promise<AxiosResponse<{
+      success: boolean
+      short_code: string
+      total_accesses: number
+      qr_scans: number
+      nfc_taps: number
+      beacon_triggers: number
+      created_at: string
+    }>> => {
+      return apiClient.get(`/share/short-url/${shortCode}/analytics`)
+    },
+    deleteShortUrl: (shortCode: string): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.delete(`/share/short-url/${shortCode}`)
+    },
+    // QR Scan Tracking
+    recordQRScan: (shortCode: string, deviceInfo = '', location = ''): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.post('/share/qr-scan', null, { params: { short_code: shortCode, device_info: deviceInfo, location } })
+    },
+    recordNFCTap: (shortCode: string, deviceInfo = '', location = ''): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.post('/share/nfc-tap', null, { params: { short_code: shortCode, device_info: deviceInfo, location } })
+    },
+    recordBeaconTrigger: (beaconId: string, shortCode = '', deviceInfo = ''): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.post('/share/beacon-trigger', null, { params: { beacon_id: beaconId, short_code: shortCode, device_info: deviceInfo } })
+    },
+    // Bluetooth Beacon Management
+    createBeacon: (params: {
+      ppt_id: string
+      name: string
+      uuid?: string
+      major?: number
+      minor?: number
+      tx_power?: number
+      url?: string
+    }): Promise<AxiosResponse<{
+      success: boolean
+      beacon: any
+    }>> => {
+      return apiClient.post('/share/beacon', params)
+    },
+    listBeacons: (pptId = ''): Promise<AxiosResponse<{
+      success: boolean
+      beacons: any[]
+    }>> => {
+      return apiClient.get('/share/beacons', { params: { ppt_id: pptId } })
+    },
+    getBeacon: (beaconId: string): Promise<AxiosResponse<{
+      success: boolean
+      beacon: any
+    }>> => {
+      return apiClient.get(`/share/beacon/${beaconId}`)
+    },
+    updateBeacon: (beaconId: string, updates: Record<string, any>): Promise<AxiosResponse<{
+      success: boolean
+      beacon: any
+    }>> => {
+      return apiClient.put(`/share/beacon/${beaconId}`, updates)
+    },
+    deleteBeacon: (beaconId: string): Promise<AxiosResponse<{
+      success: boolean
+    }>> => {
+      return apiClient.delete(`/share/beacon/${beaconId}`)
     },
   },
 }

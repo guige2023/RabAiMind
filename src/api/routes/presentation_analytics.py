@@ -245,3 +245,96 @@ async def get_browser_device_breakdown(task_id: str) -> dict:
     service = get_presentation_analytics_service()
     breakdown = service.get_browser_device_breakdown(task_id)
     return {"success": True, "task_id": task_id, **breakdown}
+# ==================== R156: A/B Testing Routes ====================
+
+class ABVersionRequest(BaseModel):
+    task_id: str
+    slide_index: int
+    version_key: str  # "A" or "B"
+    content_md5: str
+    metadata: Optional[dict] = None
+
+
+class ABAssignmentRequest(BaseModel):
+    task_id: str
+    session_id: str
+    slide_index: int
+    version_key: str
+
+
+@router.post("/ab/version")
+async def save_ab_version(body: ABVersionRequest) -> dict:
+    """Save a slide version for A/B testing"""
+    service = get_presentation_analytics_service()
+    result = service.save_ab_version(
+        task_id=body.task_id,
+        slide_index=body.slide_index,
+        version_key=body.version_key,
+        content_md5=body.content_md5,
+        metadata=body.metadata,
+    )
+    return result
+
+
+@router.post("/ab/assign")
+async def track_ab_assignment(body: ABAssignmentRequest) -> dict:
+    """Track which version a viewer was assigned to"""
+    service = get_presentation_analytics_service()
+    result = service.track_ab_assignment(
+        task_id=body.task_id,
+        session_id=body.session_id,
+        slide_index=body.slide_index,
+        version_key=body.version_key,
+    )
+    return result
+
+
+@router.get("/ab/results/{task_id}/{slide_index}")
+async def get_ab_test_results(task_id: str, slide_index: int) -> dict:
+    """Get A/B test comparison results for a slide"""
+    service = get_presentation_analytics_service()
+    result = service.get_ab_test_results(task_id=task_id, slide_index=slide_index)
+    return result
+
+
+# ==================== R156: Story Flow Analysis ====================
+
+@router.get("/story-flow/{task_id}")
+async def get_story_flow(task_id: str) -> dict:
+    """Analyze narrative engagement across slides"""
+    service = get_presentation_analytics_service()
+    result = service.get_story_flow_analysis(task_id)
+    return result
+
+
+# ==================== R156: Predicted Conversion Score ====================
+
+@router.get("/conversion-score/{task_id}")
+async def get_conversion_score(task_id: str) -> dict:
+    """Get AI-predicted conversion score"""
+    service = get_presentation_analytics_service()
+    result = service.get_predicted_conversion_score(task_id)
+    return result
+
+
+# ==================== R156: Comparative Benchmarks ====================
+
+@router.get("/benchmarks/{task_id}")
+async def get_benchmarks(
+    task_id: str,
+    category: str = Query(default="business"),
+) -> dict:
+    """Compare presentation performance against industry benchmarks"""
+    service = get_presentation_analytics_service()
+    result = service.get_comparative_benchmarks(task_id, category)
+    return result
+
+
+# ==================== R156: Per-Slide Heatmaps ====================
+
+@router.get("/slide-heatmaps/{task_id}")
+async def get_per_slide_heatmaps(task_id: str) -> dict:
+    """Get per-slide attention heatmaps (not just aggregated overview)"""
+    service = get_presentation_analytics_service()
+    result = service.get_slide_heatmaps(task_id)
+    return result

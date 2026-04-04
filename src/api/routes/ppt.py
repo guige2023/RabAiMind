@@ -451,6 +451,7 @@ async def generate_ppt(http_request: Request, request: GenerateRequest):
             "generation_mode": request.generation_mode,
             "output_format": request.output_format,
             "quality": request.quality,
+            "script_content_type": request.script_content_type.value if request.script_content_type else None,
         })
 
         # P2 修复: 使用 threading.Thread 替代 asyncio.create_task
@@ -490,7 +491,8 @@ async def generate_ppt(http_request: Request, request: GenerateRequest):
                         quality=request.quality,
                         layout_mode=request.layout_mode,
                         unified_layout=request.unified_layout,
-                        pre_generated_slides=request.pre_generated_slides
+                        pre_generated_slides=request.pre_generated_slides,
+                        script_content_type=request.script_content_type.value if request.script_content_type else None
                     )
                 )
             except Exception as e:
@@ -967,8 +969,9 @@ async def export_pdf(request: Request, task_id: str):
 class PdfExportOptions(BaseModel):
     """Enhanced PDF export options"""
     mode: str = Field(default="slides", description="导出模式: slides(幻灯片) | notes(备注页) | handout(讲义)")
-    page_size: str = Field(default="A4", description="页面大小: A4 | Letter | 16:9 | 4:3")
+    page_size: str = Field(default="A4", description="页面大小: A4 | Letter | 16:9 | 4:3 | 1:1 | 9:16")
     orientation: str = Field(default="landscape", description="方向: portrait | landscape")
+    aspect_ratio: str = Field(default="16:9", description="幻灯片比例: 16:9 | 4:3 | 1:1 | 9:16")
     handout_layout: str = Field(default="3", description="讲义布局(每页几张): 1 | 2 | 3 | 6")
     notes_position: str = Field(default="below", description="备注位置: below | right | separate")
     notes_font_size: int = Field(default=10, description="备注字体大小")
@@ -1078,7 +1081,8 @@ async def export_enhanced_pdf(
         notes_font_size=options.notes_font_size,
         watermark=watermark,
         header_footer=header_footer,
-        theme=options.theme
+        theme=options.theme,
+        aspect_ratio=getattr(options, 'aspect_ratio', '16:9') or '16:9'
     )
     
     # Generate output filename based on options
@@ -1960,13 +1964,17 @@ async def get_action_timeline(task_id: str, limit: int = 100):
 
 
 @router.post("/undo/{task_id}/{action_id}")
-async def undo_by_action_id(task_id: str, action_id: str):
-    """撤销指定操作（分支撤销）- 不影响其他操作"""
+async def undo_by_action_id(task_id: str, action_id: str, force: bool = False):
+    """
+    撤销指定操作（选择性撤销）
+    force=False（默认）：仅撤销目标操作，保留其他操作
+    force=True：分支撤销，撤销目标及其后续所有操作
+    """
     from ...services.task_manager import get_task_manager
 
     tm = get_task_manager()
     try:
-        result = tm.undo_by_action_id(task_id, action_id)
+        result = tm.undo_by_action_id(task_id, action_id, force)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -2061,17 +2069,132 @@ async def merge_versions(
     task_id: str,
     source_version_id: str = Body(..., description="要合并的源版本ID"),
     target_version_id: str = Body(None, description="目标版本ID，不传则合并到当前最新"),
-    strategy: str = Body("branch_wins", description="合并策略: branch_wins/main_wins/newest_first"),
+    strategy: str = Body("branch_wins", description="合并策略: branch_wins/main_wins/newest_first/manual"),
+    slide_resolutions: dict = Body(None, description="手动冲突解决: {slide_index: 'source'|'target'}"),
 ):
-    """合并分支版本到目标版本"""
+    """合并分支版本到目标版本（支持冲突解决）"""
     from ...services.task_manager import get_task_manager
 
     tm = get_task_manager()
     try:
-        result = tm.merge_version(task_id, source_version_id, target_version_id, strategy)
+        result = tm.merge_version(task_id, source_version_id, target_version_id, strategy, slide_resolutions)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========== 版本标签 ==========
+
+@router.post("/versions/{task_id}/{version_id}/tag")
+async def add_version_tag(task_id: str, version_id: str, tag: str = Body(..., description="标签名称")):
+    """为版本添加标签"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.add_version_tag(task_id, version_id, tag)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/versions/{task_id}/{version_id}/tag/{tag}")
+async def remove_version_tag(task_id: str, version_id: str, tag: str):
+    """移除版本的标签"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.remove_version_tag(task_id, version_id, tag)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/versions/{task_id}/tags")
+async def get_all_version_tags(task_id: str):
+    """获取所有版本标签统计"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    return tm.get_version_tags(task_id)
+
+
+@router.get("/versions/{task_id}/{version_id}/slide/{slide_index}/svg")
+async def get_version_slide_svg(
+    request: Request,
+    task_id: str,
+    version_id: str,
+    slide_index: int
+):
+    """获取指定版本的指定幻灯片SVG内容（用于视觉diff）"""
+    # 速率限制检查
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    result = tm.get_version_slide_svg(task_id, version_id, slide_index)
+    svg_content = result.get("svg_content", "")
+
+    return Response(
+        content=svg_content,
+        media_type="image/svg+xml",
+        headers={
+            "Content-Disposition": f"inline; filename=slide_{slide_index}.svg",
+            "Cache-Control": "private, max-age=3600",
+        }
+    )
+
+
+# ========== 自动版本化 ==========
+
+@router.get("/versions/{task_id}/auto-version/status")
+async def get_auto_version_status(task_id: str):
+    """获取自动版本化状态"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    return tm.get_auto_version_status(task_id)
+
+
+@router.post("/versions/{task_id}/significant-change/record")
+async def record_significant_change(task_id: str):
+    """记录一次显著变化（由编辑操作触发）"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    result = tm.record_significant_change(task_id)
+    # 同时检查是否需要自动创建版本
+    auto_result = tm.auto_version_on_significant_change(task_id)
+    return {**result, "auto_version": auto_result}
+
+
+@router.post("/versions/{task_id}/significant-change/detect")
+async def detect_significant_change(
+    task_id: str,
+    old_state: dict = Body(..., description="变更前状态"),
+    new_state: dict = Body(..., description="变更后状态"),
+):
+    """检测显著变化"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    return tm.detect_significant_change(task_id, old_state, new_state)
+
+
+@router.post("/versions/{task_id}/auto-version/check")
+async def check_auto_version(task_id: str):
+    """检查是否需要自动创建版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    return tm.auto_version_on_significant_change(task_id)
 
 
 @router.post("/autosave/{task_id}")
@@ -2897,6 +3020,64 @@ async def import_pinterest(
     return result
 
 
+
+# ==================== Notion Import ====================
+
+class ImportNotionRequest(BaseModel):
+    page_url: str = Field(..., description="Notion 页面分享链接或 page ID")
+    access_token: Optional[str] = Field(None, description="Notion Integration Token (ntn_xxx)")
+
+
+@router.post("/import/notion")
+async def import_notion(
+    request: Request,
+    body: ImportNotionRequest,
+):
+    """导入 Notion 页面内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not body.page_url.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请提供 Notion 页面链接")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_notion(
+        body.page_url,
+        body.access_token
+    )
+    return result
+
+
+# ==================== Google Docs Import ====================
+
+class ImportGoogleDocsRequest(BaseModel):
+    doc_url: str = Field(..., description="Google Docs 文档链接或 document ID")
+    access_token: Optional[str] = Field(None, description="Google OAuth access token")
+
+
+@router.post("/import/google-docs")
+async def import_google_docs(
+    request: Request,
+    body: ImportGoogleDocsRequest,
+):
+    """导入 Google Docs 文档内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not body.doc_url.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请提供 Google Docs 链接")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_google_docs(
+        body.doc_url,
+        body.access_token
+    )
+    return result
+
+
+
 # ==================== Images Import ====================
 
 class ImportImagesRequest(BaseModel):
@@ -3158,6 +3339,36 @@ async def professional_polish(request: Request, body: ProfessionalPolishRequest)
     return result
 
 
+# ─── R148: AI Script Content Generation 2.0 ────────────────────────────────
+
+class ScriptContentRequest(BaseModel):
+    content_type: str = Field(..., description="内容类型: story_arc, data_story, persuasion, audience_persona, competitor_analysis")
+    topic: str = Field(..., description="PPT主题")
+    scene: str = Field(default="business", description="场景类型")
+    slide_count: int = Field(default=10, ge=3, le=30, description="幻灯片数量")
+    audience: str = Field(default="", description="目标受众描述")
+    brief_description: str = Field(default="", description="Brief描述（竞品分析用）")
+
+
+@router.post("/ai/script-content")
+async def generate_script_content(request: Request, body: ScriptContentRequest):
+    """R148: AI脚本内容生成 - 5种高级内容生成模式"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.script_content_service import get_script_content_service
+    result = get_script_content_service().generate(
+        content_type=body.content_type,
+        topic=body.topic,
+        scene=body.scene,
+        slide_count=body.slide_count,
+        audience=body.audience,
+        brief_description=body.brief_description
+    )
+    return result
+
+
 # ─── Layout Suggestions API (R55) ─────────────────────────────────────────
 
 @router.get("/layouts/suggest")
@@ -3307,6 +3518,133 @@ async def get_layout_preferences(
     )
     
     return {"success": True, "preferences": preferences, "user_id": user_id}
+
+
+# ─── Auto-Theme Suggestion API (R145) ───────────────────────────────────────
+
+@router.get("/theme/suggest")
+async def suggest_theme(
+    content: str = "",
+    title: str = "",
+    scene: str = "",
+    style: str = "",
+):
+    """
+    智能主题推荐：根据内容上下文自动推荐最佳主题配色
+
+    分析内容类型、行业领域和情感基调，返回推荐的主题配色方案
+    """
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
+    from ...services.smart_layout.color_scheme import get_color_scheme_generator
+
+    # 分析内容类型
+    analyzer = get_content_analyzer()
+    analysis = analyzer.analyze(title or "", content or "")
+
+    # 行业/场景关键词映射到主题
+    SCENE_THEME_MAP = {
+        "科技": {"primary": "#165DFF", "secondary": "#0E42D2", "accent": "#64D2FF", "style": "tech"},
+        "商务": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#FF7D00", "style": "professional"},
+        "金融": {"primary": "#1A1A2E", "secondary": "#165DFF", "accent": "#C6A87C", "style": "premium"},
+        "教育": {"primary": "#34C759", "secondary": "#248A3D", "accent": "#FF9500", "style": "nature"},
+        "医疗": {"primary": "#00B96B", "secondary": "#00875A", "accent": "#64D2FF", "style": "simple"},
+        "创意": {"primary": "#722ED1", "secondary": "#EB2F96", "accent": "#13C2C2", "style": "creative"},
+        "时尚": {"primary": "#FF2D55", "secondary": "#C41E3A", "accent": "#FFD60A", "style": "elegant"},
+        "餐饮": {"primary": "#FF9500", "secondary": "#CC7A00", "accent": "#FF3B30", "style": "energetic"},
+        "旅游": {"primary": "#007AFF", "secondary": "#0055CC", "accent": "#5AC8FA", "style": "nature"},
+        "地产": {"primary": "#C6A87C", "secondary": "#8B7355", "accent": "#D4AF37", "style": "premium"},
+        "互联网": {"primary": "#165DFF", "secondary": "#00B96B", "accent": "#FF7D00", "style": "tech"},
+        "人工智能": {"primary": "#5856D6", "secondary": "#3634A3", "accent": "#BF5AF2", "style": "tech"},
+        "创业": {"primary": "#FF9500", "secondary": "#FF3B30", "accent": "#FFD60A", "style": "energetic"},
+        "企业": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#00B96B", "style": "professional"},
+        "政府": {"primary": "#165DFF", "secondary": "#1A1A2E", "accent": "#FF3B30", "style": "professional"},
+        "公益": {"primary": "#34C759", "secondary": "#30D158", "accent": "#FFD60A", "style": "nature"},
+    }
+
+    # 内容类型关键词
+    CONTENT_THEME_MAP = {
+        "title_slide": {"primary": "#165DFF", "secondary": "#0E42D2", "accent": "#C6A87C", "style": "premium"},
+        "quote": {"primary": "#AF52DE", "secondary": "#5E5CE6", "accent": "#BF5AF2", "style": "elegant"},
+        "timeline": {"primary": "#5856D6", "secondary": "#3634A3", "accent": "#FF9500", "style": "tech"},
+        "comparison": {"primary": "#165DFF", "secondary": "#FF3B30", "accent": "#34C759", "style": "professional"},
+        "data": {"primary": "#165DFF", "secondary": "#00B96B", "accent": "#FF7D00", "style": "simple"},
+        "content": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#FF7D00", "style": "professional"},
+    }
+
+    # 基于场景优先匹配
+    matched_theme = None
+    if scene:
+        for key, theme in SCENE_THEME_MAP.items():
+            if key in scene:
+                matched_theme = theme
+                break
+
+    # 基于内容关键词匹配
+    if not matched_theme:
+        scene_text = f"{scene} {title} {content}"
+        for key, theme in SCENE_THEME_MAP.items():
+            if key in scene_text:
+                matched_theme = theme
+                break
+
+    # 基于内容类型兜底
+    if not matched_theme:
+        matched_theme = CONTENT_THEME_MAP.get(
+            analysis.type,
+            CONTENT_THEME_MAP["content"]
+        )
+
+    # 用户指定风格优先
+    if style and style != "auto":
+        color_gen = get_color_scheme_generator()
+        palette = color_gen.get_palette(style)
+        matched_theme = {
+            "primary": palette.primary,
+            "secondary": palette.secondary,
+            "accent": palette.accent,
+            "style": style,
+        }
+
+    # 构建推荐理由
+    reasons = []
+    if analysis.type != "content":
+        reasons.append(f"内容类型「{analysis.type}」适合此配色")
+    if scene:
+        reasons.append(f"场景「{scene}」推荐此配色")
+    if analysis.keywords:
+        reasons.append(f"关键词：{', '.join(analysis.keywords[:3])}")
+
+    return {
+        "success": True,
+        "theme": {
+            "primary": matched_theme["primary"],
+            "secondary": matched_theme["secondary"],
+            "accent": matched_theme["accent"],
+            "style": matched_theme["style"],
+            "name": _get_theme_style_name_api(matched_theme["style"]),
+        },
+        "content_analysis": {
+            "type": analysis.type,
+            "keywords": analysis.keywords[:5],
+            "density": analysis.density,
+        },
+        "reasons": reasons,
+    }
+
+
+def _get_theme_style_name_api(style: str) -> str:
+    """获取主题风格的中文名称"""
+    names = {
+        "professional": "专业商务",
+        "creative": "创意活力",
+        "simple": "简约现代",
+        "tech": "科技未来",
+        "premium": "高端大气",
+        "nature": "自然清新",
+        "energetic": "活力动感",
+        "elegant": "优雅知性",
+    }
+    return names.get(style, style)
 
 
 # ==================== Additional Export Formats ====================
@@ -3958,6 +4296,26 @@ class CoachPersonalizedRequest(BaseModel):
     user_id: str = "default"
 
 
+class CoachLiveSessionRequest(BaseModel):
+    """R138: AI演讲教练 3.0 - 实时演讲分析请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    # 实时阶段数据（每段话的分析结果）
+    speech_transcript: str = ""  # 演讲转录文本
+    filler_words_detected: List[Dict[str, Any]] = []  # [{word, count, timestamps}]
+    current_wpm: float = 0.0
+    total_words_spoken: int = 0
+    speaking_duration_seconds: float = 0.0
+    # 眼神接触数据
+    eye_contact_ratio: float = 0.0  # 0.0-1.0，眼神接触比例
+    gaze_away_count: int = 0
+    # 置信度相关
+    filler_word_ratio: float = 0.0  # 填充词比例
+    pace_score: float = 0.0  # 节奏评分 0-10
+    confidence_score: float = 0.0  # 置信度评分 0-10
+    delivery_session_id: Optional[str] = ""
+
+
 @router.post("/coach/speaking-pace")
 async def coach_speaking_pace(request: Request, body: CoachSpeakingPaceRequest):
     """AI演讲教练 - 语速分析（Delivery Coach）"""
@@ -4020,6 +4378,33 @@ async def coach_personalized(request: Request, body: CoachPersonalizedRequest):
         return JSONResponse(result)
     except Exception as e:
         logger.error(f"Personalized coaching error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/live-session")
+async def coach_live_session(request: Request, body: CoachLiveSessionRequest):
+    """R138: AI演讲教练 3.0 - 实时演讲分析（Live Delivery Coach）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.analyze_live_delivery(
+            task_id=body.task_id,
+            slides=body.slides,
+            transcript=body.speech_transcript,
+            filler_words=body.filler_words_detected,
+            current_wpm=body.current_wpm,
+            total_words=body.total_words_spoken,
+            duration_seconds=body.speaking_duration_seconds,
+            eye_contact_ratio=body.eye_contact_ratio,
+            gaze_away_count=body.gaze_away_count,
+            filler_word_ratio=body.filler_word_ratio,
+            pace_score=body.pace_score,
+            confidence_score=body.confidence_score,
+            session_id=body.delivery_session_id,
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Live session coaching error: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
@@ -4437,3 +4822,298 @@ async def import_backup(file: UploadFile = File(...)):
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+# ==================== R152: Advanced Slide Notes & Annotations ====================
+
+class SlideNotesUpdate(BaseModel):
+    """更新幻灯片备注请求"""
+    slide_index: int
+    notes: Optional[str] = None
+    rich_notes: Optional[str] = None
+    speaker_notes: Optional[str] = None
+
+
+class SlideAnnotationsUpdate(BaseModel):
+    """更新幻灯片标注请求"""
+    slide_index: int
+    annotations: List[Dict[str, Any]] = []
+
+
+class StickyNoteItem(BaseModel):
+    """便签数据"""
+    id: str
+    slide_index: int
+    content: str
+    author: str
+    color: str = "#FFE066"
+    position_x: float = 0
+    position_y: float = 0
+    created_at: Optional[str] = None
+
+
+class StickyNoteCreate(BaseModel):
+    """创建便签请求"""
+    slide_index: int
+    content: str
+    author: str
+    color: str = "#FFE066"
+    position_x: float = 0
+    position_y: float = 0
+
+
+class NotesTemplateItem(BaseModel):
+    """备注模板"""
+    id: str
+    name: str
+    description: str
+    template_type: str  # business | education | tech | marketing |通用
+    content: str
+    created_at: Optional[str] = None
+
+
+class NotesTemplateCreate(BaseModel):
+    """创建备注模板"""
+    name: str
+    description: str = ""
+    template_type: str = "通用"
+    content: str
+
+
+@router.patch("/slides/{task_id}/notes")
+async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
+    """R152: 更新幻灯片备注（支持富文本和演讲者私有备注）"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        if update.slide_index < 0 or update.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+        
+        slide = slides[update.slide_index]
+        if update.notes is not None:
+            slide["notes"] = update.notes
+        if update.rich_notes is not None:
+            slide["rich_notes"] = update.rich_notes
+        if update.speaker_notes is not None:
+            slide["speaker_notes"] = update.speaker_notes
+        
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": update.slide_index}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/slides/{task_id}/sticky-notes")
+async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
+    """R152: 更新幻灯片便签数据"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        if update.slide_index < 0 or update.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+        
+        if update.sticky_notes is not None:
+            slides[update.slide_index]["sticky_notes"] = update.sticky_notes
+        
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": update.slide_index}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/annotations/{task_id}/{slide_index}")
+async def save_slide_annotations(task_id: str, slide_index: int, annotations: List[Dict[str, Any]]):
+    """R152: 保存幻灯片标注（演示模式涂鸦）"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        if slide_index < 0 or slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+        
+        slides[slide_index]["annotations"] = annotations
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": slide_index, "count": len(annotations)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sticky-notes/{task_id}")
+async def get_sticky_notes(task_id: str):
+    """R152: 获取任务的所有便签"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        all_sticky = []
+        for idx, slide in enumerate(slides):
+            sticky = slide.get("sticky_notes", [])
+            for s in sticky:
+                all_sticky.append({**s, "slide_index": idx})
+        
+        return {"success": True, "sticky_notes": all_sticky}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sticky-notes/{task_id}")
+async def add_sticky_note(task_id: str, note: StickyNoteCreate):
+    """R152: 添加便签"""
+    from ...services.task_manager import get_task_manager
+    from datetime import datetime
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        if note.slide_index < 0 or note.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+        
+        import uuid
+        new_note = {
+            "id": str(uuid.uuid4())[:8],
+            "slide_index": note.slide_index,
+            "content": note.content,
+            "author": note.author,
+            "color": note.color,
+            "position_x": note.position_x,
+            "position_y": note.position_y,
+            "created_at": datetime.now().isoformat(),
+        }
+        
+        if "sticky_notes" not in slides[note.slide_index]:
+            slides[note.slide_index]["sticky_notes"] = []
+        slides[note.slide_index]["sticky_notes"].append(new_note)
+        
+        tm.save_outline(task_id, outline)
+        return {"success": True, "note": new_note}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sticky-notes/{task_id}/{note_id}")
+async def delete_sticky_note(task_id: str, note_id: str):
+    """R152: 删除便签"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+    
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+        
+        found = False
+        for slide in slides:
+            sticky = slide.get("sticky_notes", [])
+            slide["sticky_notes"] = [s for s in sticky if s.get("id") != note_id]
+            if len(slide["sticky_notes"]) < len(sticky):
+                found = True
+        
+        if not found:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        tm.save_outline(task_id, outline)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Notes Templates ====================
+
+# In-memory store for notes templates (in production, use database)
+NOTES_TEMPLATES_STORE = [
+    {
+        "id": "tpl-business-1",
+        "name": "商业汇报模板",
+        "description": "适用于季度汇报、项目汇报",
+        "template_type": "business",
+        "content": "【背景】<br>本次汇报聚焦于...<br><br>【核心成果】<br>• 成果1：...<br>• 成果2：...<br><br>【关键数据】<br>- 指标1：...<br>- 指标2：...<br><br>【下一步计划】<br>1. ...<br>2. ...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-education-1",
+        "name": "教学演示模板",
+        "description": "适用于课堂教学、学术报告",
+        "template_type": "education",
+        "content": "【教学目标】<br>本节课我们将学习...<br><br>【重点难点】<br>• 重点：...<br>• 难点：...<br><br>【案例分析】<br>...<br><br>【思考题】<br>1. ...<br>2. ...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-tech-1",
+        "name": "技术分享模板",
+        "description": "适用于技术分享会、架构讲解",
+        "template_type": "tech",
+        "content": "【背景介绍】<br>今天分享的主题是...<br><br>【技术方案】<br>我们采用了以下方案：<br>• 方案A：...<br>• 方案B：...<br><br>【代码示例】<br>```<br>...<br>```<br><br>【Q&A】<br>",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-marketing-1",
+        "name": "营销提案模板",
+        "description": "适用于营销方案、客户提案",
+        "template_type": "marketing",
+        "content": "【市场洞察】<br>当前市场趋势显示...<br><br>【目标受众】<br>我们的目标用户是...<br><br>【核心策略】<br>• 策略1：...<br>• 策略2：...<br><br>【预期效果】<br>- 品牌提升：...<br>- 转化提升：...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-general-1",
+        "name": "通用备注模板",
+        "description": "适用于各类演示的通用备注",
+        "template_type": "通用",
+        "content": "【开场】<br>各位好，今天我将分享...<br><br>【要点1】<br>首先，...<br><br>【要点2】<br>其次，...<br><br>【总结】<br>综上所述，...<br><br>【问答】<br>",
+        "created_at": "2026-01-01T00:00:00",
+    },
+]
+
+
+@router.get("/notes-templates")
+async def get_notes_templates(template_type: Optional[str] = None):
+    """R152: 获取备注模板列表"""
+    if template_type:
+        filtered = [t for t in NOTES_TEMPLATES_STORE if t["template_type"] == template_type]
+        return {"success": True, "templates": filtered}
+    return {"success": True, "templates": NOTES_TEMPLATES_STORE}
+
+
+@router.post("/notes-templates")
+async def create_notes_template(tpl: NotesTemplateCreate):
+    """R152: 创建自定义备注模板"""
+    import uuid
+    from datetime import datetime
+    new_tpl = {
+        "id": f"tpl-custom-{uuid.uuid4().hex[:8]}",
+        "name": tpl.name,
+        "description": tpl.description,
+        "template_type": tpl.template_type,
+        "content": tpl.content,
+        "created_at": datetime.now().isoformat(),
+    }
+    NOTES_TEMPLATES_STORE.append(new_tpl)
+    return {"success": True, "template": new_tpl}
+
+
+@router.delete("/notes-templates/{template_id}")
+async def delete_notes_template(template_id: str):
+    """R152: 删除自定义备注模板"""
+    global NOTES_TEMPLATES_STORE
+    if template_id.startswith("tpl-custom-"):
+        before = len(NOTES_TEMPLATES_STORE)
+        NOTES_TEMPLATES_STORE = [t for t in NOTES_TEMPLATES_STORE if t["id"] != template_id]
+        if len(NOTES_TEMPLATES_STORE) == before:
+            raise HTTPException(status_code=404, detail="Template not found")
+        return {"success": True}
+    raise HTTPException(status_code=403, detail="Cannot delete built-in templates")

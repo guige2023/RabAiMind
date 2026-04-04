@@ -32,6 +32,7 @@ from .routes.developer import router as developer_router
 from .routes.collaboration import router as collaboration_router
 from .routes.dashboard import router as dashboard_router
 from .routes.sharing import router as sharing_router
+from .routes.share_enhancements import router as share_enhancements_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -62,3 +63,4 @@ api_router.include_router(developer_router)
 api_router.include_router(collaboration_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(sharing_router)
+api_router.include_router(share_enhancements_router)

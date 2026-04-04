@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 import asyncio
+import uuid
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import os
@@ -305,17 +306,33 @@ class TaskManager:
                 raise ValueError(f"Task {task_id} not found")
 
             version_id = f"v{int(time.time() * 1000)}"
+            slides_summary = task.get("result", {}).get("slides_summary", [])
+
+            # 为版本存储SVG内容（用于视觉diff）
+            svg_contents = []
+            try:
+                from .ppt_generator import PPTGenerator
+                gen = PPTGenerator()
+                for i, slide in enumerate(slides_summary):
+                    svg_content = gen._generate_svg_smart_text(slide, i + 1)
+                    svg_contents.append(svg_content)
+            except Exception as e:
+                logger.warning(f"生成版本SVG内容失败: {e}")
+                svg_contents = []
+
             version_data = {
                 "version_id": version_id,
                 "task_id": task_id,
                 "name": version_name or f"版本 {len(task.get('versions', [])) + 1}",
                 "created_at": get_timestamp(),
+                "tags": [],  # 版本标签列表
                 "config": {
                     "scene": task.get("result", {}).get("scene", "business"),
                     "style": task.get("result", {}).get("style", "professional"),
-                    "slides": task.get("result", {}).get("slides_summary", []),
+                    "slides": slides_summary,
                 },
                 "svg_paths": task.get("result", {}).get("svg_paths", []),
+                "svg_contents": svg_contents,  # 版本专属SVG内容（用于视觉diff）
                 "pptx_path": task.get("result", {}).get("pptx_path", ""),
                 "outline": task.get("outline", ""),
             }
@@ -325,6 +342,166 @@ class TaskManager:
             task["versions"].append(version_data)
 
             return {"success": True, "version_id": version_id}
+
+    # ========== 自动版本化（Significant Change Detection） ==========
+
+    def detect_significant_change(self, task_id: str, old_state: dict, new_state: dict) -> dict:
+        """
+        检测是否发生了显著变化，用于触发自动版本创建
+        显著变化包括：
+        - 幻灯片数量变化 >= 2
+        - 超过50%的幻灯片内容发生变更
+        - 大纲结构发生重大变化
+        - 主题/场景/风格变更
+        """
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"significant": False, "reason": "Task not found"}
+
+            old_slides = old_state.get("slides_summary", []) or []
+            new_slides = new_state.get("slides_summary", []) or []
+
+            reasons = []
+
+            # 1. 幻灯片数量大幅变化
+            slide_diff = abs(len(new_slides) - len(old_slides))
+            if len(new_slides) > len(old_slides) + 1:
+                reasons.append(f"新增 {len(new_slides) - len(old_slides)} 页幻灯片")
+            elif len(new_slides) < len(old_slides) - 1:
+                reasons.append(f"删除 {len(old_slides) - len(new_slides)} 页幻灯片")
+
+            # 2. 超过50%的幻灯片内容变化
+            if old_slides and new_slides:
+                changed = 0
+                max_count = max(len(old_slides), len(new_slides))
+                for i in range(max_count):
+                    old_s = old_slides[i] if i < len(old_slides) else None
+                    new_s = new_slides[i] if i < len(new_slides) else None
+                    if old_s != new_s:
+                        changed += 1
+                change_ratio = changed / max_count if max_count > 0 else 0
+                if change_ratio >= 0.5:
+                    reasons.append(f"{int(change_ratio * 100)}% 幻灯片内容变更")
+
+            # 3. 场景/风格变更
+            old_scene = old_state.get("scene", "")
+            new_scene = new_state.get("scene", "")
+            old_style = old_state.get("style", "")
+            new_style = new_state.get("style", "")
+            if old_scene and new_scene and old_scene != new_scene:
+                reasons.append(f"场景变更: {old_scene} → {new_scene}")
+            if old_style and new_style and old_style != new_style:
+                reasons.append(f"风格变更: {old_style} → {new_style}")
+
+            # 4. 大纲结构重大变化
+            old_outline = (old_state.get("outline") or "").strip()
+            new_outline = (new_state.get("outline") or "").strip()
+            if old_outline and new_outline:
+                old_lines = len(old_outline.split('\n'))
+                new_lines = len(new_outline.split('\n'))
+                outline_diff = abs(new_lines - old_lines)
+                if outline_diff >= 3:
+                    reasons.append(f"大纲结构重大变化: {outline_diff} 行差异")
+
+            significant = len(reasons) > 0
+            return {
+                "significant": significant,
+                "reasons": reasons,
+                "change_details": {
+                    "slide_count_change": len(new_slides) - len(old_slides),
+                    "old_slide_count": len(old_slides),
+                    "new_slide_count": len(new_slides),
+                    "scene_changed": old_scene != new_scene,
+                    "style_changed": old_style != new_style,
+                }
+            }
+
+    def auto_version_on_significant_change(self, task_id: str, auto_version_threshold: int = 3) -> dict:
+        """
+        检查是否需要自动创建版本
+        当累积的显著变化达到阈值时自动创建版本
+        auto_version_threshold: 累积多少次显著变化后自动创建版本
+        """
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": False, "message": "Task not found"}
+
+            # 初始化计数器
+            if "_significant_change_count" not in task:
+                task["_significant_change_count"] = 0
+                task["_last_auto_version_at"] = None
+
+            count = task.get("_significant_change_count", 0)
+
+            if count >= auto_version_threshold:
+                # 创建自动版本
+                auto_version_name = f"自动版本 (累积{count}次显著变化)"
+                result = self.create_version(task_id, auto_version_name)
+                # 重置计数器
+                task["_significant_change_count"] = 0
+                task["_last_auto_version_at"] = get_timestamp()
+                # 标记为自动版本
+                for v in task.get("versions", []):
+                    if v["version_id"] == result.get("version_id"):
+                        v["auto_created"] = True
+                        v["auto_type"] = "significant_change"
+                        break
+                return {
+                    "success": True,
+                    "auto_created": True,
+                    "version_id": result.get("version_id"),
+                    "version_name": auto_version_name,
+                    "changes_since_last": count,
+                }
+
+            return {
+                "success": True,
+                "auto_created": False,
+                "significant_change_count": count,
+                "threshold": auto_version_threshold,
+                "remaining": auto_version_threshold - count,
+            }
+
+    def record_significant_change(self, task_id: str) -> dict:
+        """记录一次显著变化"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": False, "message": "Task not found"}
+
+            if "_significant_change_count" not in task:
+                task["_significant_change_count"] = 0
+
+            task["_significant_change_count"] = task.get("_significant_change_count", 0) + 1
+            task["_last_significant_change_at"] = get_timestamp()
+
+            count = task.get("_significant_change_count", 0)
+            return {
+                "success": True,
+                "significant_change_count": count,
+                "last_recorded_at": task.get("_last_significant_change_at"),
+            }
+
+    def get_auto_version_status(self, task_id: str) -> dict:
+        """获取自动版本化状态"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": False, "message": "Task not found"}
+
+            count = task.get("_significant_change_count", 0)
+            last_change = task.get("_last_significant_change_at")
+            last_auto = task.get("_last_auto_version_at")
+
+            return {
+                "success": True,
+                "significant_change_count": count,
+                "last_significant_change_at": last_change,
+                "last_auto_version_at": last_auto,
+                "auto_version_threshold": 3,
+            }
 
     def list_versions(self, task_id: str) -> list:
         """列出任务所有版本"""
@@ -340,9 +517,71 @@ class TaskManager:
                     "slide_count": len(v.get("config", {}).get("slides", [])),
                     "branch_id": v.get("branch_id"),
                     "branched_from": v.get("branched_from"),
+                    "tags": v.get("tags", []),  # 版本标签
                 }
                 for v in sorted(task.get("versions", []), key=lambda x: x["created_at"])
             ]
+
+    def add_version_tag(self, task_id: str, version_id: str, tag: str) -> dict:
+        """为版本添加标签"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for v in task.get("versions", []):
+                if v["version_id"] == version_id:
+                    if "tags" not in v:
+                        v["tags"] = []
+                    if tag not in v["tags"]:
+                        v["tags"].append(tag)
+                    return {
+                        "success": True,
+                        "version_id": version_id,
+                        "tag": tag,
+                        "tags": v["tags"],
+                    }
+
+            raise ValueError(f"Version {version_id} not found")
+
+    def remove_version_tag(self, task_id: str, version_id: str, tag: str) -> dict:
+        """移除版本的标签"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for v in task.get("versions", []):
+                if v["version_id"] == version_id:
+                    if "tags" in v and tag in v["tags"]:
+                        v["tags"].remove(tag)
+                    return {
+                        "success": True,
+                        "version_id": version_id,
+                        "removed_tag": tag,
+                        "tags": v.get("tags", []),
+                    }
+
+            raise ValueError(f"Version {version_id} not found")
+
+    def get_version_tags(self, task_id: str) -> dict:
+        """获取所有版本标签统计"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": True, "tags": {}}
+
+            all_tags = {}
+            for v in task.get("versions", []):
+                for tag in v.get("tags", []):
+                    if tag not in all_tags:
+                        all_tags[tag] = []
+                    all_tags[tag].append({
+                        "version_id": v["version_id"],
+                        "version_name": v["name"],
+                    })
+
+            return {"success": True, "tags": all_tags}
 
     def get_version(self, task_id: str, version_id: str) -> dict:
         """获取指定版本详情"""
@@ -354,6 +593,56 @@ class TaskManager:
             for v in task.get("versions", []):
                 if v["version_id"] == version_id:
                     return {"success": True, "version": v}
+
+            raise ValueError(f"Version {version_id} not found")
+
+    def get_version_slide_svg(self, task_id: str, version_id: str, slide_index: int) -> dict:
+        """获取指定版本的指定幻灯片SVG内容（用于视觉diff）
+        如果版本没有预存SVG内容，则实时生成"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for v in task.get("versions", []):
+                if v["version_id"] == version_id:
+                    svg_contents = v.get("svg_contents", [])
+                    slides = v.get("config", {}).get("slides", [])
+                    
+                    # 如果有预存SVG内容，直接返回
+                    if svg_contents and slide_index >= 1 and slide_index <= len(svg_contents):
+                        return {
+                            "success": True,
+                            "svg_content": svg_contents[slide_index - 1],
+                            "slide_index": slide_index,
+                            "version_id": version_id,
+                            "version_name": v.get("name", version_id),
+                        }
+                    
+                    # 否则从slides数据实时生成SVG
+                    if slide_index < 1 or slide_index > len(slides):
+                        raise ValueError(f"Slide {slide_index} not found in version {version_id}")
+                    
+                    slide = slides[slide_index - 1]
+                    try:
+                        from .ppt_generator import PPTGenerator
+                        gen = PPTGenerator()
+                        svg_content = gen._generate_svg_smart_text(slide, slide_index)
+                    except Exception as e:
+                        logger.warning(f"实时生成SVG失败: {e}")
+                        svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <rect width="1600" height="900" fill="#1e3a5f"/>
+  <text x="800" y="450" text-anchor="middle" fill="white" font-size="36">第{slide_index}页</text>
+</svg>'''
+                    
+                    return {
+                        "success": True,
+                        "svg_content": svg_content,
+                        "slide_index": slide_index,
+                        "version_id": version_id,
+                        "version_name": v.get("name", version_id),
+                    }
 
             raise ValueError(f"Version {version_id} not found")
 
@@ -372,6 +661,16 @@ class TaskManager:
 
             # 保存当前为新版本（回滚前的快照）
             rollback_snapshot_id = f"v{int(time.time() * 1000)}"
+            slides_summary = task.get("result", {}).get("slides_summary", [])
+            rollback_svg_contents = []
+            try:
+                from .ppt_generator import PPTGenerator
+                gen = PPTGenerator()
+                for i, slide in enumerate(slides_summary):
+                    svg_content = gen._generate_svg_smart_text(slide, i + 1)
+                    rollback_svg_contents.append(svg_content)
+            except Exception as e:
+                logger.warning(f"生成回滚快照SVG内容失败: {e}")
             rollback_snapshot = {
                 "version_id": rollback_snapshot_id,
                 "task_id": task_id,
@@ -380,9 +679,10 @@ class TaskManager:
                 "config": {
                     "scene": task.get("result", {}).get("scene", "business"),
                     "style": task.get("result", {}).get("style", "professional"),
-                    "slides": task.get("result", {}).get("slides_summary", []),
+                    "slides": slides_summary,
                 },
                 "svg_paths": task.get("result", {}).get("svg_paths", []),
+                "svg_contents": rollback_svg_contents,
                 "pptx_path": task.get("result", {}).get("pptx_path", ""),
                 "outline": task.get("outline", ""),
             }
@@ -399,7 +699,7 @@ class TaskManager:
                 task["result"]["pptx_path"] = v["pptx_path"]
             task["outline"] = v.get("outline", "")
 
-            # 创建回滚后新版本标记
+            # 创建回滚后新版本标记（使用目标版本的SVG内容）
             post_rollback_id = f"v{int(time.time() * 1000)}"
             post_rollback_version = {
                 "version_id": post_rollback_id,
@@ -408,6 +708,7 @@ class TaskManager:
                 "created_at": get_timestamp(),
                 "config": v["config"],
                 "svg_paths": v["svg_paths"],
+                "svg_contents": v.get("svg_contents", []),
                 "pptx_path": v["pptx_path"],
                 "outline": v.get("outline", ""),
             }
@@ -435,36 +736,128 @@ class TaskManager:
         return {"success": True, "message": f"已回滚到 {v['name']}"}
 
     def diff_versions(self, task_id: str, version_id_a: str, version_id_b: str) -> dict:
-        """对比两个版本的差异"""
+        """对比两个版本的差异 - 增强视觉diff"""
         v_a = self.get_version(task_id, version_id_a)["version"]
         v_b = self.get_version(task_id, version_id_b)["version"]
 
         slides_a = v_a.get("config", {}).get("slides", [])
         slides_b = v_b.get("config", {}).get("slides", [])
 
+        svg_paths_a = v_a.get("svg_paths", [])
+        svg_paths_b = v_b.get("svg_paths", [])
+
         diff = []
         max_len = max(len(slides_a), len(slides_b))
+        total_changes = 0
 
         for i in range(max_len):
             slide_a = slides_a[i] if i < len(slides_a) else None
             slide_b = slides_b[i] if i < len(slides_b) else None
 
             if slide_a != slide_b:
+                # 分析具体变更类型
+                change_types = []
+                if slide_a is None:
+                    change_types.append("新增幻灯片")
+                elif slide_b is None:
+                    change_types.append("删除幻灯片")
+                else:
+                    if slide_a.get("title") != slide_b.get("title"):
+                        change_types.append("标题变更")
+                    if slide_a.get("content") != slide_b.get("content"):
+                        change_types.append("内容变更")
+                    if slide_a.get("layout") != slide_b.get("layout"):
+                        change_types.append("布局变更")
+                    if slide_a.get("background") != slide_b.get("background"):
+                        change_types.append("背景变更")
+                    if slide_a.get("theme") != slide_b.get("theme"):
+                        change_types.append("主题变更")
+
+                # SVG路径对比
+                svg_a = svg_paths_a[i] if i < len(svg_paths_a) else None
+                svg_b = svg_paths_b[i] if i < len(svg_paths_b) else None
+                svg_changed = svg_a != svg_b
+
+                # 文本内容差异（前50字预览）
+                content_preview_a = (slide_a.get("content", "") or "")[:50] if slide_a else None
+                content_preview_b = (slide_b.get("content", "") or "")[:50] if slide_b else None
+
+                # 计算文本diff
+                text_diff = []
+                if slide_a and slide_b:
+                    text_a = (slide_a.get("content") or "").split('\n')
+                    text_b = (slide_b.get("content") or "").split('\n')
+                    # 简单的行级diff
+                    added = set(text_b) - set(text_a)
+                    removed = set(text_a) - set(text_b)
+                    if added:
+                        text_diff.append({"type": "added", "lines": list(added)[:5]})
+                    if removed:
+                        text_diff.append({"type": "removed", "lines": list(removed)[:5]})
+
                 diff.append({
                     "slide_index": i + 1,
+                    "slide_a_version_id": version_id_a,
+                    "slide_b_version_id": version_id_b,
                     "before": slide_a,
                     "after": slide_b,
-                    "changed": slide_a is None or slide_b is None or
-                               slide_a.get("title") != slide_b.get("title") or
-                               slide_a.get("content") != slide_b.get("content")
+                    "changed": True,
+                    "change_types": change_types,
+                    "svg_a_path": svg_a,
+                    "svg_b_path": svg_b,
+                    "svg_changed": svg_changed,
+                    "content_preview_a": content_preview_a,
+                    "content_preview_b": content_preview_b,
+                    "text_diff": text_diff,
                 })
+                total_changes += 1
+            else:
+                # 幻灯片相同，但检查SVG是否有变化
+                svg_a = svg_paths_a[i] if i < len(svg_paths_a) else None
+                svg_b = svg_paths_b[i] if i < len(svg_paths_b) else None
+                if svg_a != svg_b:
+                    diff.append({
+                        "slide_index": i + 1,
+                        "slide_a_version_id": version_id_a,
+                        "slide_b_version_id": version_id_b,
+                        "before": slide_a,
+                        "after": slide_b,
+                        "changed": False,
+                        "change_types": ["SVG渲染变更"],
+                        "svg_a_path": svg_a,
+                        "svg_b_path": svg_b,
+                        "svg_changed": True,
+                        "content_preview_a": None,
+                        "content_preview_b": None,
+                        "text_diff": [],
+                    })
+                    total_changes += 1
+
+        # 版本摘要
+        version_summary = {
+            "version_a": {
+                "version_id": version_id_a,
+                "name": v_a["name"],
+                "slide_count": len(slides_a),
+                "created_at": v_a["created_at"],
+            },
+            "version_b": {
+                "version_id": version_id_b,
+                "name": v_b["name"],
+                "slide_count": len(slides_b),
+                "created_at": v_b["created_at"],
+            },
+        }
 
         return {
             "success": True,
             "version_a": v_a["name"],
             "version_b": v_b["name"],
+            "version_a_id": version_id_a,
+            "version_b_id": version_id_b,
             "diff": diff,
-            "total_changes": len(diff)
+            "total_changes": total_changes,
+            "version_summary": version_summary,
         }
 
     # ========== 操作日志 & 撤销栈 ==========
@@ -709,8 +1102,12 @@ class TaskManager:
             timeline = task.get("action_timeline", [])
             return timeline[-limit:] if limit > 0 else timeline
 
-    def undo_by_action_id(self, task_id: str, action_id: str) -> dict:
-        """撤销指定操作（分支撤销）- 不影响其他操作"""
+    def undo_by_action_id(self, task_id: str, action_id: str, force: bool = False) -> dict:
+        """
+        撤销指定操作（选择性撤销）- 仅撤销目标操作，不影响其他操作
+        force=True 时执行"分支撤销"（撤销目标及其后续所有操作）
+        force=False（默认）时仅撤销目标操作（可能产生冲突，但保留其他操作）
+        """
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
@@ -727,39 +1124,73 @@ class TaskManager:
             if target_index is None:
                 return {"success": False, "message": f"未找到操作 {action_id}"}
 
-            # 找到该操作后，移除它及其之后的所有操作到重做栈
-            # 注意：这是一种"分支"行为 - 将被撤销的操作及其后续操作移到重做栈
-            entries_to_redo = []
-            for i in range(len(undo_stack) - 1, target_index - 1, -1):
-                entries_to_redo.append(undo_stack.pop())
+            target_entry = undo_stack[target_index]
 
-            # 将被撤销的操作添加到重做栈
-            if "redo_stack" not in task:
-                task["redo_stack"] = []
-            task["redo_stack"].extend(reversed(entries_to_redo))
+            if force:
+                # 分支撤销：撤销目标及其后续所有操作
+                entries_to_redo = []
+                for i in range(len(undo_stack) - 1, target_index - 1, -1):
+                    entries_to_redo.append(undo_stack.pop())
 
-            # 对每个被撤销的操作执行实际的撤销逻辑
-            for entry in entries_to_redo:
-                self._execute_undo_entry(task, entry)
+                if "redo_stack" not in task:
+                    task["redo_stack"] = []
+                task["redo_stack"].extend(reversed(entries_to_redo))
 
-            # 记录分支撤销操作到时间线
-            branch_undo_entry = {
-                "action_id": str(uuid.uuid4())[:8],
-                "action_type": "branch_undo",
-                "description": f"分支撤销: {entries_to_redo[0].get('description', '')}",
-                "timestamp": get_timestamp(),
-                "undo_data": None,
-                "branch_id": f"branch_undo_{int(time.time() * 1000)}",
-            }
-            if "action_timeline" not in task:
-                task["action_timeline"] = []
-            task["action_timeline"].append(branch_undo_entry)
+                for entry in entries_to_redo:
+                    self._execute_undo_entry(task, entry)
 
-            return {
-                "success": True,
-                "undone_action": entries_to_redo[0].get("description", ""),
-                "affected_actions": len(entries_to_redo),
-            }
+                branch_undo_entry = {
+                    "action_id": str(uuid.uuid4())[:8],
+                    "action_type": "branch_undo",
+                    "description": f"分支撤销: {entries_to_redo[0].get('description', '')}",
+                    "timestamp": get_timestamp(),
+                    "undo_data": None,
+                    "branch_id": f"branch_undo_{int(time.time() * 1000)}",
+                }
+                if "action_timeline" not in task:
+                    task["action_timeline"] = []
+                task["action_timeline"].append(branch_undo_entry)
+
+                return {
+                    "success": True,
+                    "mode": "branch_undo",
+                    "undone_action": entries_to_redo[0].get("description", ""),
+                    "affected_actions": len(entries_to_redo),
+                }
+            else:
+                # 选择性撤销：仅撤销目标操作，保留其他操作
+                # 将目标从undo_stack移除，加入redo_stack
+                undo_stack.pop(target_index)
+
+                if "redo_stack" not in task:
+                    task["redo_stack"] = []
+                task["redo_stack"].append(target_entry)
+
+                # 记录被撤销的操作到时间线（不执行实际撤销，保留其他操作状态）
+                selective_undo_entry = {
+                    "action_id": str(uuid.uuid4())[:8],
+                    "action_type": "selective_undo",
+                    "description": f"选择性撤销: {target_entry.get('description', '')}",
+                    "timestamp": get_timestamp(),
+                    "undo_data": {
+                        "original_action_id": action_id,
+                        "original_action_type": target_entry.get("action_type"),
+                        "inverse_data": target_entry.get("undo_data"),
+                    },
+                    "branch_id": f"selective_undo_{int(time.time() * 1000)}",
+                }
+                if "action_timeline" not in task:
+                    task["action_timeline"] = []
+                task["action_timeline"].append(selective_undo_entry)
+
+                return {
+                    "success": True,
+                    "mode": "selective_undo",
+                    "undone_action": target_entry.get("description", ""),
+                    "action_type": target_entry.get("action_type"),
+                    "affected_actions": 1,
+                    "warning": "选择性撤销仅移除操作记录，实际内容变更可能被后续操作覆盖",
+                }
 
     def _execute_undo_entry(self, task: dict, entry: dict) -> None:
         """执行单个撤销条目"""
@@ -994,10 +1425,11 @@ class TaskManager:
 
             return {"success": True, "version_id": branch_version_id, "branch_id": branch_id}
 
-    def merge_version(self, task_id: str, source_version_id: str, target_version_id: str = None, strategy: str = "branch_wins") -> dict:
+    def merge_version(self, task_id: str, source_version_id: str, target_version_id: str = None, strategy: str = "branch_wins", slide_resolutions: dict = None) -> dict:
         """
         合并分支版本到目标版本（默认合并到当前最新版本）
-        strategy: 'branch_wins' | 'main_wins' | 'newest_first'
+        strategy: 'branch_wins' | 'main_wins' | 'newest_first' | 'manual'（手动解决冲突）
+        slide_resolutions: dict of {slide_index: 'source' | 'target'} for manual conflict resolution
         """
         with self._task_lock:
             task = self.tasks.get(task_id)
@@ -1019,41 +1451,92 @@ class TaskManager:
             if not target:
                 branch_id = source.get("branch_id")
                 if branch_id:
-                    # 找同一分支的最新版本
                     branch_versions = [v for v in task.get("versions", []) if v.get("branch_id") == branch_id]
                     if branch_versions:
                         target = sorted(branch_versions, key=lambda x: x["created_at"])[-1]
-                # 如果还是没找到target，使用当前task的result作为目标
 
-            # 获取当前任务的当前状态
+            # ===== 冲突检测 =====
             current_result = task.get("result", {})
             target_svg_paths = target.get("svg_paths", []) if target else current_result.get("svg_paths", [])
             source_svg_paths = source.get("svg_paths", [])
+            target_slides = target.get("config", {}).get("slides", []) if target else []
+            source_slides = source.get("config", {}).get("slides", [])
 
-            # 根据策略决定最终svg_paths
-            if strategy == "branch_wins":
-                # branch的svg_paths覆盖target的
-                merged_svg_paths = list(target_svg_paths)
-                for i, svg_path in enumerate(source_svg_paths):
-                    if svg_path and svg_path.strip():
-                        if i < len(merged_svg_paths):
-                            merged_svg_paths[i] = svg_path
-                        else:
-                            merged_svg_paths.append(svg_path)
-            elif strategy == "main_wins":
-                merged_svg_paths = list(target_svg_paths)
-            else:
-                # newest_first: 时间更新的优先
-                merged_svg_paths = list(target_svg_paths)
-                source_time = source.get("created_at", "")
-                target_time = target.get("created_at", "") if target else ""
-                if source_time >= target_time:
-                    for i, svg_path in enumerate(source_svg_paths):
-                        if svg_path and svg_path.strip():
-                            if i < len(merged_svg_paths):
-                                merged_svg_paths[i] = svg_path
-                            else:
-                                merged_svg_paths.append(svg_path)
+            conflicts = []
+            max_slides = max(len(target_svg_paths), len(source_svg_paths))
+            for i in range(max_slides):
+                target_svg = target_svg_paths[i] if i < len(target_svg_paths) else None
+                source_svg = source_svg_paths[i] if i < len(source_svg_paths) else None
+                # 冲突：两边都有SVG且不相同
+                if target_svg and source_svg and target_svg != source_svg:
+                    target_slide = target_slides[i] if i < len(target_slides) else {}
+                    source_slide = source_slides[i] if i < len(source_slides) else {}
+                    # 检查slide内容是否也不同
+                    if target_slide != source_slide:
+                        conflicts.append({
+                            "slide_index": i + 1,
+                            "source_svg": source_svg,
+                            "target_svg": target_svg,
+                            "source_title": source_slide.get("title", f"第{i+1}页"),
+                            "target_title": target_slide.get("title", f"第{i+1}页"),
+                            "conflict_type": "svg_and_content_modified",
+                        })
+
+            # 如果有冲突且不是manual策略，先返回冲突信息
+            if conflicts and strategy != "manual":
+                return {
+                    "success": True,
+                    "has_conflicts": True,
+                    "conflicts": conflicts,
+                    "conflict_count": len(conflicts),
+                    "source_version_id": source_version_id,
+                    "target_version_id": target_version_id or "current",
+                    "strategy": strategy,
+                    "requires_resolution": True,
+                    "message": f"检测到 {len(conflicts)} 个冲突，请使用 strategy='manual' 和 slide_resolutions 参数解决冲突",
+                }
+
+            # ===== 执行合并 =====
+            slide_resolutions = slide_resolutions or {}
+            merged_svg_paths = []
+            merged_slides = []
+
+            for i in range(max_slides):
+                target_svg = target_svg_paths[i] if i < len(target_svg_paths) else None
+                source_svg = source_svg_paths[i] if i < len(source_svg_paths) else None
+                target_slide = target_slides[i] if i < len(target_slides) else None
+                source_slide = source_slides[i] if i < len(source_slides) else None
+
+                if strategy == "manual" and i in slide_resolutions:
+                    # 手动解决冲突
+                    chosen = slide_resolutions[i]
+                    if chosen == "source":
+                        merged_svg_paths.append(source_svg)
+                        merged_slides.append(source_slide)
+                    else:
+                        merged_svg_paths.append(target_svg)
+                        merged_slides.append(target_slide)
+                elif strategy == "branch_wins":
+                    merged_svg_paths.append(source_svg if source_svg else target_svg)
+                    merged_slides.append(source_slide if source_slide else target_slide)
+                elif strategy == "main_wins":
+                    merged_svg_paths.append(target_svg if target_svg else source_svg)
+                    merged_slides.append(target_slide if target_slide else source_slide)
+                else:
+                    # newest_first
+                    source_time = source.get("created_at", "")
+                    target_time = target.get("created_at", "") if target else ""
+                    if source_time >= target_time:
+                        merged_svg_paths.append(source_svg if source_svg else target_svg)
+                        merged_slides.append(source_slide if source_slide else target_slide)
+                    else:
+                        merged_svg_paths.append(target_svg if target_svg else source_svg)
+                        merged_slides.append(target_slide if target_slide else source_slide)
+
+            # 处理新增的幻灯片（一边有，一边没有）
+            for i in range(max_slides, len(source_svg_paths)):
+                merged_svg_paths.append(source_svg_paths[i])
+                merged_slides.append(source_slides[i] if i < len(source_slides) else {})
 
             # 创建合并后的新版本
             merge_version_id = f"v{int(time.time() * 1000)}"
@@ -1062,13 +1545,22 @@ class TaskManager:
             if target:
                 merge_name = f"合并「{target.get('name', target_version_id)}」←「{source.get('name', source_version_id)}」"
 
+            # 构建config
+            merged_config = {
+                "scene": source.get("config", {}).get("scene", "business"),
+                "style": source.get("config", {}).get("style", "professional"),
+                "slides": merged_slides,
+            }
+
             merge_version_data = {
                 "version_id": merge_version_id,
                 "task_id": task_id,
                 "name": merge_name,
                 "created_at": get_timestamp(),
-                "config": source.get("config", {}),
+                "tags": [],
+                "config": merged_config,
                 "svg_paths": merged_svg_paths,
+                "svg_contents": [""],  # 合并后版本SVG内容待生成（首次访问时生成）
                 "pptx_path": source.get("pptx_path", "") or (target.get("pptx_path", "") if target else ""),
                 "outline": source.get("outline", "") or (target.get("outline", "") if target else ""),
                 "branched_from": source_version_id,
@@ -1076,7 +1568,8 @@ class TaskManager:
                 "merged_from": {
                     "source": source_version_id,
                     "target": target_version_id or "current",
-                    "strategy": strategy
+                    "strategy": strategy,
+                    "conflicts_resolved": len(conflicts) if strategy == "manual" else 0,
                 }
             }
 
@@ -1092,7 +1585,7 @@ class TaskManager:
                 "undo_data": {
                     "source_version": source_version_id,
                     "target_version": target_version_id,
-                    "strategy": strategy
+                    "strategy": strategy,
                 },
                 "branch_id": merge_branch_id,
             }
@@ -1105,10 +1598,14 @@ class TaskManager:
 
             return {
                 "success": True,
+                "has_conflicts": bool(conflicts) and strategy != "manual",
+                "conflicts": conflicts if strategy == "manual" else [],
+                "conflict_count": len(conflicts),
                 "version_id": merge_version_id,
                 "merged_from": source_version_id,
                 "merged_to": target_version_id or "current",
-                "strategy": strategy
+                "strategy": strategy,
+                "merged_slide_count": len(merged_svg_paths),
             }
 
     def auto_save(self, task_id: str, state: dict) -> dict:

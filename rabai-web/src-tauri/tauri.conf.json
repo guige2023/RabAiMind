@@ -1,0 +1,62 @@
+{
+  "$schema": "https://v2.tauri.app/schemas/authority-schema.json",
+  "identifier": "com.rabai.mind",
+  "description": "RabAi Mind - AI PPT Generation Platform",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "RabAi Mind - AI PPT 生成平台",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    }
+  },
+  "plugins": {
+    "fs": {
+      "scope": {
+        "allow": ["$DOCUMENT/**", "$DOWNLOAD/**", "$DESKTOP/**", "$HOME/**", "$APPDATA/**", "$TEMP/**"],
+        "deny": []
+      }
+    },
+    "notification": {
+      "all": true
+    },
+    "dialog": {
+      "all": true
+    },
+    "shell": {
+      "open": true
+    }
+  }
+}

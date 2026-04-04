@@ -972,6 +972,373 @@ class PresentationAnalyticsService:
         }
 
 
+
+
+# ==================== R156: Advanced Presentation Analytics ====================
+
+    # ==================== A/B Testing ====================
+
+    def save_ab_version(self, task_id: str, slide_index: int, version_key: str,
+                        content_md5: str, metadata: Optional[dict] = None) -> dict:
+        with self._lock:
+            data = self._get_data(task_id)
+            if "ab_versions" not in data:
+                data["ab_versions"] = {}
+            if str(slide_index) not in data["ab_versions"]:
+                data["ab_versions"][str(slide_index)] = {}
+            data["ab_versions"][str(slide_index)][version_key] = {
+                "content_md5": content_md5,
+                "metadata": metadata or {},
+                "created_at": datetime.now().isoformat(),
+            }
+            self._save(task_id, data)
+        return {"success": True, "slide_index": slide_index, "version_key": version_key}
+
+    def track_ab_assignment(self, task_id: str, session_id: str, slide_index: int,
+                              version_key: str) -> dict:
+        with self._lock:
+            data = self._get_data(task_id)
+            if "ab_assignments" not in data:
+                data["ab_assignments"] = {}
+            key = f"{session_id}:{slide_index}"
+            data["ab_assignments"][key] = {
+                "version_key": version_key,
+                "assigned_at": datetime.now().isoformat(),
+            }
+            self._save(task_id, data)
+        return {"success": True}
+
+    def get_ab_test_results(self, task_id: str, slide_index: int) -> dict:
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+        version_stats: Dict[str, dict] = {
+            "A": {"times": [], "heatmap_weights": [], "scroll_depths": []},
+            "B": {"times": [], "heatmap_weights": [], "scroll_depths": []},
+        }
+        ab_assignments = data.get("ab_assignments", {})
+
+        for session in sessions:
+            key = f"{session.get('session_id')}:{slide_index}"
+            assignment = ab_assignments.get(key, {})
+            vk = assignment.get("version_key")
+            if vk not in ("A", "B"):
+                vk = "A"
+            for sv in session.get("slide_views", []):
+                if sv["slide_index"] == slide_index and sv.get("duration_seconds", 0) > 0:
+                    version_stats[vk]["times"].append(sv["duration_seconds"])
+            hdata = session.get("heatmap_data", {}).get(slide_index, [])
+            if hdata:
+                total_weight = sum(p.get("weight", 1) for p in hdata)
+                version_stats[vk]["heatmap_weights"].append(total_weight)
+            if session.get("scroll_depth_percent", 0) > 0:
+                version_stats[vk]["scroll_depths"].append(session["scroll_depth_percent"])
+
+        def avg(lst):
+            return round(sum(lst) / len(lst), 2) if lst else 0
+
+        def win_rate(times_a, times_b):
+            if not times_a or not times_b:
+                return 0.5
+            wins = sum(1 for b in times_b for a in times_a if b > a)
+            total = len(times_a) * len(times_b)
+            return round(wins / total, 3) if total > 0 else 0.5
+
+        results = {}
+        for vk in ("A", "B"):
+            stats = version_stats[vk]
+            results[vk] = {
+                "sample_size": len(stats["times"]),
+                "avg_time_seconds": avg(stats["times"]),
+                "avg_heatmap_weight": avg(stats["heatmap_weights"]),
+                "avg_scroll_depth": avg(stats["scroll_depths"]),
+            }
+
+        ab_winner = "A"
+        if results["B"]["avg_time_seconds"] > results["A"]["avg_time_seconds"] * 1.1:
+            ab_winner = "B"
+        elif results["B"]["avg_time_seconds"] == results["A"]["avg_time_seconds"]:
+            ab_winner = "tie"
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "slide_index": slide_index,
+            "versions": results,
+            "winner": ab_winner,
+            "confidence": win_rate(results["A"]["avg_time_seconds"], results["B"]["avg_time_seconds"]),
+        }
+
+    # ==================== Story Flow Analysis ====================
+
+    def get_story_flow_analysis(self, task_id: str) -> dict:
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+        total_slides = max(
+            (max((sv["slide_index"] for sv in s.get("slide_views", [])), default=0) for s in sessions),
+            default=0
+        ) + 1
+
+        if total_slides == 0:
+            return {"success": True, "task_id": task_id, "total_slides": 0, "flow": []}
+
+        slide_engagement: Dict[int, dict] = {}
+        for slide_idx in range(total_slides):
+            slide_engagement[slide_idx] = {"view_count": 0, "avg_time_seconds": 0, "times": [], "dropped_after": 0}
+
+        for session in sessions:
+            sv_list = sorted(session.get("slide_views", []), key=lambda x: x["slide_index"])
+            for sv in sv_list:
+                idx = sv["slide_index"]
+                if idx in slide_engagement:
+                    slide_engagement[idx]["view_count"] += 1
+                    if sv.get("duration_seconds", 0) > 0:
+                        slide_engagement[idx]["times"].append(sv["duration_seconds"])
+            if sv_list:
+                last_idx = sv_list[-1]["slide_index"]
+                if last_idx in slide_engagement:
+                    slide_engagement[last_idx]["dropped_after"] += 1
+
+        max_avg_time = max(
+            (sum(slide_engagement[j]["times"]) / len(slide_engagement[j]["times"]) if slide_engagement[j]["times"] else 0)
+            for j in range(total_slides)
+        ) or 1
+        max_view_count = max((slide_engagement[j]["view_count"] for j in range(total_slides))) or 1
+
+        flow = []
+        for slide_idx in range(total_slides):
+            eng = slide_engagement[slide_idx]
+            times = eng["times"]
+            avg_time = round(sum(times) / len(times), 1) if times else 0
+            prev_views = slide_engagement[slide_idx - 1]["view_count"] if slide_idx > 0 else eng["view_count"]
+            drop_rate = round(eng["dropped_after"] / prev_views, 3) if prev_views > 0 else 0.0
+            time_score = (avg_time / max_avg_time) * 50 if avg_time > 0 else 0
+            view_ratio = (eng["view_count"] / max_view_count) * 50
+            engagement_score = round(min(100, time_score + view_ratio), 1)
+
+            if total_slides <= 1:
+                phase = "opening"
+            else:
+                ratio = slide_idx / (total_slides - 1)
+                if ratio < 0.2:
+                    phase = "opening"
+                elif ratio < 0.4:
+                    phase = "setup"
+                elif ratio < 0.7:
+                    phase = "development"
+                elif ratio < 0.9:
+                    phase = "climax"
+                else:
+                    phase = "resolution"
+
+            flow.append({
+                "slide_index": slide_idx,
+                "view_count": eng["view_count"],
+                "avg_time_seconds": avg_time,
+                "drop_rate": drop_rate,
+                "engagement_score": engagement_score,
+                "phase": phase,
+            })
+
+        if len(flow) < 3:
+            coherence_score = 100.0
+        else:
+            scores = [f["engagement_score"] for f in flow]
+            transitions = [abs(scores[i] - scores[i+1]) for i in range(len(scores)-1)]
+            avg_transition = sum(transitions) / len(transitions)
+            coherence_score = round(max(0, 100 - avg_transition * 2), 1)
+
+        peak_slides = sorted(flow, key=lambda x: x["engagement_score"], reverse=True)[:3]
+        bottleneck_slides = [f for f in flow if f["drop_rate"] > 0.3][:3]
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "total_slides": total_slides,
+            "flow": flow,
+            "coherence_score": coherence_score,
+            "peak_slides": peak_slides,
+            "bottleneck_slides": bottleneck_slides,
+        }
+
+    # ==================== Predicted Conversion Score ====================
+
+    def get_predicted_conversion_score(self, task_id: str) -> dict:
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        if not sessions:
+            return {"success": True, "task_id": task_id, "predicted_conversion_score": 0,
+                    "factors": [], "confidence": "low"}
+
+        all_times = [sv.get("duration_seconds", 0) for s in sessions for sv in s.get("slide_views", [])]
+        avg_time = sum(all_times) / len(all_times) if all_times else 0
+        time_score = min(25, round(avg_time / 2, 1))
+
+        scroll_depths = [s.get("scroll_depth_percent", 0) for s in sessions if s.get("scroll_depth_percent", 0) > 0]
+        avg_scroll = sum(scroll_depths) / len(scroll_depths) if scroll_depths else 0
+        scroll_score = min(25, round(avg_scroll / 4, 1))
+
+        all_heatmap_weights = []
+        for s in sessions:
+            for pts in s.get("heatmap_data", {}).values():
+                all_heatmap_weights.extend([p.get("weight", 1) for p in pts])
+        avg_heatmap = sum(all_heatmap_weights) / len(all_heatmap_weights) if all_heatmap_weights else 0
+        heatmap_score = min(20, round(avg_heatmap * 5, 1))
+
+        completed = sum(1 for s in sessions if s.get("completed"))
+        completion_rate = completed / len(sessions) if sessions else 0
+        completion_score = min(15, round(completion_rate * 15, 1))
+
+        cta_data = data.get("cta_stats", {})
+        total_cta_clicks = cta_data.get("total_clicks", 0)
+        cta_score = min(15, total_cta_clicks * 3)
+
+        total = round(time_score + scroll_score + heatmap_score + completion_score + cta_score, 1)
+        sample_size = len(sessions)
+        confidence = "high" if sample_size >= 50 else "medium" if sample_size >= 20 else "low"
+
+        overall = 58.0
+        diff = total - overall
+        pct = round((total / overall - 1) * 100, 1) if overall > 0 else 0
+        if total >= overall * 1.2:
+            percentile_label = "Top 10%"
+        elif total >= overall * 1.1:
+            percentile_label = "Top 25%"
+        elif total >= overall:
+            percentile_label = "Above Average"
+        elif total >= overall * 0.9:
+            percentile_label = "Average"
+        elif total >= overall * 0.8:
+            percentile_label = "Below Average"
+        else:
+            percentile_label = "Bottom 25%"
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "predicted_conversion_score": min(100, total),
+            "factors": [
+                {"name": "平均停留时长", "score": time_score, "max": 25, "unit": "pts"},
+                {"name": "滚动深度", "score": scroll_score, "max": 25, "unit": "pts"},
+                {"name": "注意力集中度", "score": heatmap_score, "max": 20, "unit": "pts"},
+                {"name": "会话完成率", "score": completion_score, "max": 15, "unit": "pts"},
+                {"name": "CTA点击率", "score": cta_score, "max": 15, "unit": "pts"},
+            ],
+            "confidence": confidence,
+            "sample_size": sample_size,
+            "percentile_vs_industry": {"diff": round(diff, 1), "percentile_label": percentile_label, "pct_above_avg": pct},
+        }
+
+    # ==================== Comparative Benchmarks ====================
+
+    def get_comparative_benchmarks(self, task_id: str, category: str = "business") -> dict:
+        analytics = self.get_presentation_analytics(task_id)
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        benchmark = {"overall_avg": 58.0, "by_category": {
+            "business": 62.0, "marketing": 68.0, "education": 54.0,
+            "tech": 61.0, "creative": 65.0, "finance": 59.0, "medical": 55.0, "government": 50.0,
+        }}
+        cat_avg = benchmark["by_category"].get(category, benchmark["overall_avg"])
+
+        all_times = [sv.get("duration_seconds", 0) for s in sessions for sv in s.get("slide_views", [])]
+        avg_time = round(sum(all_times) / len(all_times), 1) if all_times else 0
+        scroll_depths = [s.get("scroll_depth_percent", 0) for s in sessions if s.get("scroll_depth_percent", 0) > 0]
+        avg_scroll = round(sum(scroll_depths) / len(scroll_depths), 1) if scroll_depths else 0
+        completed = sum(1 for s in sessions if s.get("completed"))
+        completion_rate = round(completed / len(sessions) * 100, 1) if sessions else 0
+        cta_data = data.get("cta_stats", {})
+        cta_rate = round(cta_data.get("total_clicks", 0) / len(sessions) * 100, 1) if sessions else 0
+        es_score = analytics.get("effectiveness_score", {}).get("total", 0)
+
+        industry_ref = {
+            "avg_time_seconds": 35.0, "avg_scroll_depth_pct": 65.0,
+            "completion_rate_pct": 45.0, "cta_click_rate_pct": 8.0, "effectiveness_score": 65.0,
+        }
+
+        def rate_indicator(actual: float, industry: float, higher_is_better: bool = True) -> dict:
+            if industry <= 0:
+                return {"rating": "N/A", "stars": 0, "actual": actual, "industry": industry}
+            ratio = actual / industry
+            if higher_is_better:
+                if ratio >= 1.3: stars, rating = 5, "优秀"
+                elif ratio >= 1.1: stars, rating = 4, "良好"
+                elif ratio >= 0.9: stars, rating = 3, "持平"
+                elif ratio >= 0.75: stars, rating = 2, "略差"
+                else: stars, rating = 1, "较差"
+            else:
+                if ratio <= 0.7: stars, rating = 5, "优秀"
+                elif ratio <= 0.85: stars, rating = 4, "良好"
+                elif ratio <= 1.0: stars, rating = 3, "持平"
+                elif ratio <= 1.2: stars, rating = 2, "略差"
+                else: stars, rating = 1, "较差"
+            return {"rating": rating, "stars": stars, "actual": actual, "industry": industry}
+
+        recs = []
+        if avg_time < industry_ref["avg_time_seconds"] * 0.8:
+            recs.append("停留时间偏短，建议增加内容深度")
+        if avg_scroll < industry_ref["avg_scroll_depth_pct"] * 0.85:
+            recs.append("滚动深度不足，建议精简前面内容")
+        if completion_rate < industry_ref["completion_rate_pct"] * 0.85:
+            recs.append("完成率偏低，建议优化开场和结尾")
+        if cta_rate < industry_ref["cta_click_rate_pct"] * 0.8:
+            recs.append("CTA点击率低，建议强化行动号召文案")
+        if es_score < 50:
+            recs.append("综合效果评分待提升，建议全面优化")
+        if not recs:
+            recs.append("各项指标均达到或超过行业平均水平！")
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "category": category,
+            "industry_avg": cat_avg,
+            "metrics": [
+                {**rate_indicator(avg_time, industry_ref["avg_time_seconds"], higher_is_better=False),
+                 "label": "平均停留时长", "unit": "秒", "better": "低"},
+                {**rate_indicator(avg_scroll, industry_ref["avg_scroll_depth_pct"]),
+                 "label": "滚动深度", "unit": "%", "better": "高"},
+                {**rate_indicator(completion_rate, industry_ref["completion_rate_pct"]),
+                 "label": "完成率", "unit": "%", "better": "高"},
+                {**rate_indicator(cta_rate, industry_ref["cta_click_rate_pct"]),
+                 "label": "CTA点击率", "unit": "%", "better": "高"},
+                {**rate_indicator(es_score, industry_ref["effectiveness_score"]),
+                 "label": "效果评分", "unit": "/100", "better": "高"},
+            ],
+            "overall_rating": rate_indicator(es_score, cat_avg),
+            "recommendation": " | ".join(recs),
+        }
+
+    # ==================== Per-Slide Heatmaps ====================
+
+    def get_slide_heatmaps(self, task_id: str) -> dict:
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+        slide_heatmaps: Dict[int, dict] = defaultdict(lambda: defaultdict(float))
+
+        for session in sessions:
+            for slide_idx, points in session.get("heatmap_data", {}).items():
+                for pt in points:
+                    grid_x = min(int(pt.get("x", 0) * HEATMAP_GRID), HEATMAP_GRID - 1)
+                    grid_y = min(int(pt.get("y", 0) * HEATMAP_GRID), HEATMAP_GRID - 1)
+                    weight = pt.get("weight", 1.0)
+                    slide_heatmaps[slide_idx][f"{grid_x},{grid_y}"] += weight
+
+        result = {}
+        for slide_idx, grid in slide_heatmaps.items():
+            max_w = max(grid.values()) if grid else 1
+            result[slide_idx] = {k: round(v / max_w, 3) for k, v in grid.items()}
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "slide_heatmaps": result,
+            "grid_size": HEATMAP_GRID,
+            "total_slides_with_data": len(result),
+        }
+
+
 _presentation_analytics_service: Optional['PresentationAnalyticsService'] = None
 
 

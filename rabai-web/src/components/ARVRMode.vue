@@ -22,8 +22,20 @@
         <span class="arvr-badge">{{ arvr.mode.value === 'ar' ? '📷 AR' : '🕶 VR' }}</span>
         <span class="slide-counter">{{ currentSlide + 1 }} / {{ slides.length }}</span>
 
-        <!-- 3D Transition selector -->
-        <div class="transition-3d-selector">
+        <!-- Presentation mode selector -->
+        <div class="arvr-mode-tabs">
+          <button
+            v-for="m in arvrModes"
+            :key="m.id"
+            class="mode-tab"
+            :class="{ active: selectedMode === m.id }"
+            @click="switchMode(m.id)"
+            :title="m.label"
+          >{{ m.icon }} {{ m.label }}</button>
+        </div>
+
+        <!-- 3D Transition selector (hidden in auditorium mode) -->
+        <div class="transition-3d-selector" v-if="selectedMode !== 'auditorium'">
           <select v-model="selected3DTransition" class="transition-select">
             <option value="cube">3D立方体</option>
             <option value="cylinder">3D圆柱</option>
@@ -125,6 +137,7 @@ const props = defineProps<{
   isActive: boolean
   slides: Slide[]
   initialSlide?: number
+  presentMode?: 'vr' | 'panorama' | 'ar' | 'hologram' | 'auditorium'
 }>()
 
 const emit = defineEmits<{
@@ -139,6 +152,7 @@ const slideLayersCanvas = ref<HTMLCanvasElement | null>(null)
 
 const currentSlide = ref(props.initialSlide || 0)
 const selected3DTransition = ref<'cube' | 'cylinder' | 'carousel' | 'flip' | 'depth' | 'flythrough'>('depth')
+const selectedMode = ref<'vr' | 'panorama' | 'ar' | 'hologram' | 'auditorium'>(props.presentMode || 'vr')
 const showModelPanel = ref(false)
 const showGestureHelp = ref(false)
 const modelUrlInput = ref('')
@@ -159,6 +173,29 @@ const presetModels: PresetModel[] = [
   { id: 'cone', name: '圆锥', icon: '🔺', type: 'obj', url: '', scale: 0.5 },
   { id: 'torus', name: '圆环', icon: '⭕', type: 'obj', url: '', scale: 0.4 },
 ]
+
+interface ARVRModeOption {
+  id: 'vr' | 'panorama' | 'ar' | 'hologram' | 'auditorium'
+  label: string
+  icon: string
+}
+
+const arvrModes: ARVRModeOption[] = [
+  { id: 'vr', label: 'VR沉浸', icon: '🕶' },
+  { id: 'panorama', label: '360°全景', icon: '🌐' },
+  { id: 'ar', label: 'AR叠加', icon: '📷' },
+  { id: 'hologram', label: '全息投影', icon: '🔮' },
+  { id: 'auditorium', label: '虚拟礼堂', icon: '🏛' },
+]
+
+// Auditorium audience avatars
+interface Avatar {
+  mesh: THREE.Object3D
+  targetX: number
+  targetZ: number
+  speed: number
+}
+let audienceAvatars: Avatar[] = []
 
 const loader = new GLTFLoader()
 
@@ -185,9 +222,263 @@ function initThree() {
   rimLight.position.set(-2, 1, -2)
   threeScene.add(rimLight)
 
+  // Apply mode-specific scene setup
+  applySceneSetup()
   // Build slide planes
   buildSlidePlanes()
   startAnimationLoop()
+}
+
+// ── Mode-specific scene setup ────────────────────────────────
+
+function applySceneSetup() {
+  if (!threeScene || !threeCamera) return
+
+  // Reset camera
+  threeCamera.position.set(0, 0, 5)
+  threeCamera.lookAt(0, 0, 0)
+
+  if (selectedMode.value === 'panorama') {
+    setupPanoramaScene()
+  } else if (selectedMode.value === 'auditorium') {
+    setupAuditoriumScene()
+  } else if (selectedMode.value === 'ar') {
+    setupARScene()
+  } else {
+    // vr / hologram: remove panorama and auditorium objects
+    removePanoramaSphere()
+    removeAuditorium()
+  }
+}
+
+function setupPanoramaScene() {
+  if (!threeScene) return
+  removePanoramaSphere()
+
+  // Create a large sphere for the 360° panorama background
+  const sphereGeo = new THREE.SphereGeometry(50, 64, 32)
+  // Create gradient panorama texture using canvas
+  const canvas = document.createElement('canvas')
+  canvas.width = 2048
+  canvas.height = 1024
+  const ctx = canvas.getContext('2d')!
+  // Deep space gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height)
+  grad.addColorStop(0, '#0a0a2e')
+  grad.addColorStop(0.4, '#1a1a4e')
+  grad.addColorStop(0.7, '#2d1b4e')
+  grad.addColorStop(1, '#1a0a2e')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  // Add some stars
+  for (let i = 0; i < 500; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.8 + 0.2})`
+    ctx.beginPath()
+    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height * 0.6, Math.random() * 1.5, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  // Add horizon glow
+  const hGrad = ctx.createLinearGradient(0, canvas.height * 0.6, 0, canvas.height * 0.9)
+  hGrad.addColorStop(0, 'rgba(74, 144, 226, 0)')
+  hGrad.addColorStop(0.5, 'rgba(74, 144, 226, 0.15)')
+  hGrad.addColorStop(1, 'rgba(74, 144, 226, 0.05)')
+  ctx.fillStyle = hGrad
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  const sphereMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide })
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat)
+  sphere.name = 'panorama-sphere'
+  threeScene.add(sphere)
+
+  // Camera inside the sphere
+  if (threeCamera) {
+    threeCamera.position.set(0, 0, 0)
+  }
+}
+
+function removePanoramaSphere() {
+  if (!threeScene) return
+  const sphere = threeScene.getObjectByName('panorama-sphere')
+  if (sphere) {
+    threeScene.remove(sphere)
+    const mat = (sphere as THREE.Mesh).material as THREE.Material
+    if (mat) mat.dispose()
+  }
+}
+
+function setupARScene() {
+  // Start AR camera stream as background
+  arvr.startAR().then(() => {
+    setupCameraOverlayForAR()
+  })
+}
+
+function setupCameraOverlayForAR() {
+  if (!threeScene || !threeRenderer) return
+  // Camera background - the video element is appended by useARVR
+  const bgGeo = new THREE.PlaneGeometry(16, 9)
+  const bgMat = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.FrontSide })
+  const bgMesh = new THREE.Mesh(bgGeo, bgMat)
+  bgMesh.position.z = -5
+  bgMesh.name = 'ar-bg'
+  threeScene.add(bgMesh)
+}
+
+function setupAuditoriumScene() {
+  if (!threeScene) return
+  removeAuditorium()
+
+  // Floor
+  const floorGeo = new THREE.PlaneGeometry(20, 30)
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8, metalness: 0.1 })
+  const floor = new THREE.Mesh(floorGeo, floorMat)
+  floor.rotation.x = -Math.PI / 2
+  floor.position.y = -1
+  floor.name = 'auditorium-floor'
+  threeScene.add(floor)
+
+  // Stage platform
+  const stageGeo = new THREE.BoxGeometry(10, 0.3, 3)
+  const stageMat = new THREE.MeshStandardMaterial({ color: 0x2d1b4e, roughness: 0.5, metalness: 0.2 })
+  const stage = new THREE.Mesh(stageGeo, stageMat)
+  stage.position.set(0, -0.85, -5)
+  stage.name = 'auditorium-stage'
+  threeScene.add(stage)
+
+  // Stage spotlight
+  const spotLight = new THREE.SpotLight(0xffffff, 50)
+  spotLight.position.set(0, 5, -3)
+  spotLight.target.position.set(0, -0.85, -5)
+  spotLight.angle = Math.PI / 6
+  spotLight.penumbra = 0.5
+  spotLight.name = 'auditorium-spotlight'
+  threeScene.add(spotLight)
+  threeScene.add(spotLight.target)
+
+  // Seating rows (simple geometry)
+  const seatColors = [0x1e3a5f, 0x1a3350, 0x162a45, 0x12203a]
+  for (let row = 0; row < 4; row++) {
+    const seatsInRow = 8 - row
+    for (let col = 0; col < seatsInRow; col++) {
+      const seatGeo = new THREE.BoxGeometry(0.6, 0.6, 0.5)
+      const seatMat = new THREE.MeshStandardMaterial({
+        color: seatColors[row],
+        roughness: 0.7
+      })
+      const seat = new THREE.Mesh(seatGeo, seatMat)
+      seat.position.set(
+        (col - (seatsInRow - 1) / 2) * 1.1,
+        -0.7 + row * 0.6,
+        -3 + row * 1.5
+      )
+      seat.name = `auditorium-seat-${row}-${col}`
+      threeScene!.add(seat)
+    }
+  }
+
+  // Audience avatars (simple capsule shapes)
+  audienceAvatars = []
+  const avatarPositions = [
+    [-3, -0.5, -2.5], [0, -0.5, -2.5], [3, -0.5, -2.5],
+    [-2, 0.1, -1.0], [2, 0.1, -1.0],
+    [-1, 0.1, -1.0], [1, 0.1, -1.0],
+    [-3, 0.1, -1.0], [0, 0.1, -1.0], [3, 0.1, -1.0],
+    [-2, 0.7, 0.5], [0, 0.7, 0.5], [2, 0.7, 0.5],
+    [-3, 0.7, 0.5], [1.5, 0.7, 0.5], [3.5, 0.7, 0.5],
+  ]
+  avatarPositions.forEach((pos, idx) => {
+    const bodyGeo = new THREE.CylinderGeometry(0.12, 0.15, 0.5, 8)
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(Math.random(), 0.6, 0.4),
+      roughness: 0.6,
+    })
+    const body = new THREE.Mesh(bodyGeo, bodyMat)
+    body.position.set(pos[0], pos[1], pos[2])
+
+    const headGeo = new THREE.SphereGeometry(0.1, 8, 8)
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac, roughness: 0.8 })
+    const head = new THREE.Mesh(headGeo, headMat)
+    head.position.y = 0.35
+    body.add(head)
+
+    body.name = `auditorium-avatar-${idx}`
+    threeScene!.add(body)
+    audienceAvatars.push({
+      mesh: body,
+      targetX: pos[0] + (Math.random() - 0.5) * 0.2,
+      targetZ: pos[2] + (Math.random() - 0.5) * 0.2,
+      speed: 0.5 + Math.random() * 0.5,
+    })
+  })
+
+  // Camera positioned in the audience
+  if (threeCamera) {
+    threeCamera.position.set(0, 0.5, 3)
+    threeCamera.lookAt(0, 0, -4)
+  }
+}
+
+function removeAuditorium() {
+  if (!threeScene) return
+  const toRemove: THREE.Object3D[] = []
+  threeScene.traverse((obj) => {
+    const name = obj.name
+    if (name.startsWith('auditorium-') || name === 'auditorium-floor' || name === 'auditorium-stage' || name === 'auditorium-spotlight') {
+      toRemove.push(obj)
+    }
+  })
+  toRemove.forEach(obj => {
+    threeScene!.remove(obj)
+    if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose()
+    const mat = (obj as THREE.Mesh).material
+    if (mat) {
+      if (Array.isArray(mat)) mat.forEach(m => m.dispose())
+      else mat.dispose()
+    }
+  })
+  audienceAvatars = []
+}
+
+// ── Slide plane material by mode ────────────────────────────
+
+function makeSlideMaterial(i: number): THREE.Material {
+  if (selectedMode.value === 'hologram') {
+    return new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      emissive: new THREE.Color(0x003333),
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: i === currentSlide.value ? 0.75 : 0.15,
+      side: THREE.DoubleSide,
+      wireframe: false,
+      metalness: 0.8,
+      roughness: 0.1,
+    })
+  }
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    side: THREE.FrontSide,
+    transparent: true,
+    opacity: i === currentSlide.value ? 1 : 0.2,
+  })
+}
+
+// ── Switch mode ──────────────────────────────────────────────
+
+function switchMode(mode: 'vr' | 'panorama' | 'ar' | 'hologram' | 'auditorium') {
+  selectedMode.value = mode
+  // Rebuild scene for the new mode
+  if (threeScene && threeRenderer) {
+    stopRenderLoop()
+    clearSlidePlanes()
+    removePanoramaSphere()
+    removeAuditorium()
+    applySceneSetup()
+    buildSlidePlanes()
+    startAnimationLoop()
+  }
 }
 
 function buildSlidePlanes() {
@@ -195,20 +486,30 @@ function buildSlidePlanes() {
   clearSlidePlanes()
   const textureLoader = new THREE.TextureLoader()
   props.slides.forEach((slide, i) => {
+    const isHologram = selectedMode.value === 'hologram'
     const geo = new THREE.PlaneGeometry(3.2, 2.4)
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      side: THREE.FrontSide,
-      transparent: true,
-      opacity: i === currentSlide.value ? 1 : 0.3,
-    })
+    const mat = makeSlideMaterial(i)
     const mesh = new THREE.Mesh(geo, mat)
     mesh.userData.slideIndex = i
+
+    // Hologram mode: add wireframe outline
+    if (isHologram) {
+      const frameGeo = new THREE.EdgesGeometry(geo)
+      const frameMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 })
+      const frame = new THREE.LineSegments(frameGeo, frameMat)
+      mesh.add(frame)
+    }
 
     if (slide.svgUrl) {
       textureLoader.load(slide.svgUrl, (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace
-        ;(mat as THREE.MeshStandardMaterial).map = tex
+        const targetMat = mat as THREE.MeshStandardMaterial
+        if (isHologram) {
+          // Tint SVG in hologram mode
+          targetMat.emissive = new THREE.Color(0x003333)
+        } else {
+          targetMat.map = tex
+        }
         mat.needsUpdate = true
         slidePlaneTextures.set(i, tex)
       })
@@ -229,12 +530,13 @@ function clearSlidePlanes() {
 
 function updateSlidePlanePositions() {
   const t = selected3DTransition.value
+  const isHologram = selectedMode.value === 'hologram'
   slidePlanes.forEach((plane, i) => {
     const rel = i - currentSlide.value
     if (t === 'carousel') {
       const angle = rel * (Math.PI / 3)
       plane.position.x = Math.sin(angle) * 3
-      plane.position.y = 0
+      plane.position.y = isHologram ? Math.sin(Date.now() * 0.002 + i) * 0.1 : 0
       plane.position.z = Math.cos(angle) * 3 - 3
       plane.rotation.y = -angle
     } else if (t === 'cube') {
@@ -246,25 +548,25 @@ function updateSlidePlanePositions() {
     } else if (t === 'cylinder') {
       const angle = rel * (Math.PI / 5)
       plane.position.x = Math.sin(angle) * 2
-      plane.position.y = 0
+      plane.position.y = isHologram ? Math.sin(Date.now() * 0.002 + i) * 0.1 : 0
       plane.position.z = Math.cos(angle) * 2 - 3
       plane.rotation.y = -angle
     } else if (t === 'depth' || t === 'flythrough') {
-      plane.position.x = 0
-      plane.position.y = 0
+      plane.position.x = isHologram ? Math.sin(Date.now() * 0.001 + i) * 0.15 : 0
+      plane.position.y = isHologram ? Math.sin(Date.now() * 0.002 + i * 0.5) * 0.1 : 0
       plane.position.z = -rel * 2
       plane.rotation.set(0, 0, 0)
     } else {
       // flip
       plane.position.x = rel * 3.2
-      plane.position.y = 0
+      plane.position.y = isHologram ? Math.sin(Date.now() * 0.002 + i) * 0.1 : 0
       plane.position.z = 0
       plane.rotation.set(0, rel === 0 ? 0 : Math.PI, 0)
     }
 
     // Active slide opacity
     const mat = plane.material as THREE.MeshStandardMaterial
-    mat.opacity = i === currentSlide.value ? 1 : 0.2
+    mat.opacity = i === currentSlide.value ? (isHologram ? 0.8 : 1) : (isHologram ? 0.1 : 0.2)
     mat.transparent = true
     mat.needsUpdate = true
   })
@@ -280,14 +582,53 @@ function startAnimationLoop() {
         slidePlanes.forEach((plane, i) => {
           const rel = i - currentSlide.value
           const angle = rel * (Math.PI / 3) + carouselAngle
+          const isHologram = selectedMode.value === 'hologram'
           plane.position.x = Math.sin(angle) * 3
           plane.position.z = Math.cos(angle) * 3 - 3
+          plane.position.y = isHologram ? Math.sin(Date.now() * 0.002 + i) * 0.1 : 0
           plane.rotation.y = -angle
         })
       }
       if (selected3DTransition.value === 'flythrough' && threeCamera) {
         threeCamera.position.z = Math.sin(Date.now() * 0.001) * 0.5
       }
+
+      // Auditorium: animate audience avatars
+      if (selectedMode.value === 'auditorium') {
+        audienceAvatars.forEach((avatar) => {
+          avatar.mesh.position.x += (avatar.targetX - avatar.mesh.position.x) * 0.02 * avatar.speed
+          avatar.mesh.position.z += (avatar.targetZ - avatar.mesh.position.z) * 0.02 * avatar.speed
+          // Subtle idle animation
+          avatar.mesh.rotation.y = Math.sin(Date.now() * 0.001 * avatar.speed) * 0.05
+        })
+        // Slow camera orbit in auditorium
+        const angle = Date.now() * 0.0001
+        threeCamera.position.x = Math.sin(angle) * 0.3
+      }
+
+      // Hologram: pulsing emissive glow
+      if (selectedMode.value === 'hologram') {
+        slidePlanes.forEach((plane, i) => {
+          const mat = plane.material as THREE.MeshStandardMaterial
+          if (mat.emissive) {
+            const pulse = 0.4 + Math.sin(Date.now() * 0.003 + i) * 0.2
+            mat.emissiveIntensity = pulse
+          }
+        })
+        // Slide float animation for depth/flythrough
+        if (selected3DTransition.value === 'depth' || selected3DTransition.value === 'flythrough') {
+          slidePlanes.forEach((plane, i) => {
+            plane.position.x = Math.sin(Date.now() * 0.001 + i) * 0.15
+            plane.position.y = Math.sin(Date.now() * 0.002 + i * 0.5) * 0.1
+          })
+        }
+      }
+
+      // Panorama: subtle camera rotation
+      if (selectedMode.value === 'panorama') {
+        threeCamera.rotation.y = Math.sin(Date.now() * 0.0002) * 0.05
+      }
+
       threeRenderer.render(threeScene, threeCamera)
     }
   }
@@ -376,9 +717,10 @@ async function insertCustomModel() {
 
 // ── Lifecycle ──────────────────────────────────────────────────
 
-async function enter(mode: 'ar' | 'vr') {
+async function enter(mode: 'vr' | 'panorama' | 'ar' | 'hologram' | 'auditorium') {
   if (mode === 'ar') await arvr.startAR()
-  else await arvr.startVR()
+  else if (mode === 'vr') await arvr.startVR()
+  // panorama, hologram, auditorium: just use Three.js (no WebXR needed)
   initThree()
   window.addEventListener('keydown', onKeyDown)
   arvr.setupGestureListeners(overlayRef.value || document.body)
@@ -403,6 +745,8 @@ function stop() {
   if (overlayRef.value) arvr.removeGestureListeners(overlayRef.value)
   stopRenderLoop()
   clearSlidePlanes()
+  removePanoramaSphere()
+  removeAuditorium()
   if (threeRenderer) {
     threeRenderer.dispose()
     threeRenderer = null
@@ -422,8 +766,7 @@ function stopRenderLoop() {
 // Watch for active prop changes
 watch(() => props.isActive, (active) => {
   if (active) {
-    // Default to VR mode (most compatible)
-    enter('vr')
+    enter(selectedMode.value)
   } else {
     stop()
   }
@@ -437,7 +780,7 @@ watch(() => props.slides, () => {
 }, { deep: true })
 
 onMounted(() => {
-  if (props.isActive) enter('vr')
+  if (props.isActive) enter(selectedMode.value)
 })
 
 onUnmounted(() => {
@@ -508,6 +851,35 @@ onUnmounted(() => {
   background: rgba(255,255,255,0.15);
   padding: 4px 10px;
   border-radius: 12px;
+}
+
+/* Presentation mode tabs */
+.arvr-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.mode-tab {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.mode-tab:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+.mode-tab.active {
+  background: rgba(74,144,226,0.6);
+  border-color: rgba(74,144,226,0.8);
+  color: #fff;
+  font-weight: 600;
 }
 
 .slide-counter {

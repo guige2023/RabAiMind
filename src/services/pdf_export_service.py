@@ -57,8 +57,9 @@ class PdfExportOptions:
     mode: str = "slides"  # slides | notes | handout
     
     # Slide layout (for mode=slides)
-    page_size: str = "A4"  # A4 | Letter | 16:9 | 4:3
+    page_size: str = "A4"  # A4 | Letter | 16:9 | 4:3 | 1:1 | 9:16
     orientation: str = "landscape"  # portrait | landscape
+    aspect_ratio: str = "16:9"  # 16:9 | 4:3 | 1:1 | 9:16
     
     # Notes page (for mode=notes)
     notes_position: str = "below"  # below | right | separate
@@ -622,20 +623,35 @@ class EnhancedPdfExportService:
     
     def _get_page_size(self, options: PdfExportOptions) -> tuple:
         """Get page dimensions in inches"""
-        if options.page_size == "A4":
+        # Use aspect_ratio if provided, otherwise fall back to page_size
+        ratio = getattr(options, 'aspect_ratio', None) or options.page_size
+        
+        if ratio == "A4":
             if options.orientation == "portrait":
                 return (8.27, 11.69)
             else:
                 return (11.69, 8.27)
-        elif options.page_size == "Letter":
+        elif ratio == "Letter":
             if options.orientation == "portrait":
                 return (8.5, 11.0)
             else:
                 return (11.0, 8.5)
-        elif options.page_size == "16:9":
+        elif ratio == "16:9":
             return (13.33, 7.5)  # 16:9 aspect ratio scaled
-        elif options.page_size == "4:3":
+        elif ratio == "4:3":
             return (10.0, 7.5)
+        elif ratio == "1:1":
+            # Square 1:1 ratio
+            if options.orientation == "portrait":
+                return (7.5, 7.5)
+            else:
+                return (7.5, 7.5)
+        elif ratio == "9:16":
+            # Vertical 9:16 ratio (mobile/story format)
+            if options.orientation == "portrait":
+                return (4.5, 8.0)  # portrait mode uses 9:16
+            else:
+                return (8.0, 4.5)  # landscape mode swaps to 16:9 equivalent
         else:
             return (11.69, 8.27)  # Default A4 landscape
     

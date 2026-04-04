@@ -281,107 +281,6 @@ async def list_schedules(
     )
 
 
-@router.get(
-    "/{schedule_id}",
-    response_model=ScheduleResponse,
-    summary="获取定时任务详情",
-)
-async def get_schedule(schedule_id: str):
-    svc = get_scheduler_service()
-    sched = svc.get_schedule(schedule_id)
-    if not sched:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    return ScheduleResponse(success=True, schedule=_format_schedule(sched))
-
-
-@router.patch(
-    "/{schedule_id}",
-    response_model=ScheduleResponse,
-    summary="更新定时任务",
-    description="更新定时任务的时间、参数或状态",
-)
-async def update_schedule(schedule_id: str, body: UpdateScheduleRequest):
-    svc = get_scheduler_service()
-    sched = svc.get_schedule(schedule_id)
-    if not sched:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-
-    updates: Dict[str, Any] = {}
-    if body.name is not None:
-        updates["name"] = body.name
-    if body.status is not None:
-        updates["status"] = _parse_status(body.status)
-    if body.run_at is not None:
-        updates["run_at"] = body.run_at
-    if body.day_of_week is not None:
-        updates["day_of_week"] = body.day_of_week
-    if body.day_of_month is not None:
-        updates["day_of_month"] = body.day_of_month
-    if body.hour is not None:
-        updates["hour"] = body.hour
-    if body.minute is not None:
-        updates["minute"] = body.minute
-    if body.generation is not None:
-        updates["params"] = {**sched.params, "generation": body.generation}
-    if body.export_config is not None:
-        updates["params"] = {**sched.params, "export_config": body.export_config}
-        updates["params"]["task_ids"] = body.export_config.get("task_ids", [])
-    if body.webhook_config is not None:
-        updates["params"] = {**sched.params, "webhook_config": body.webhook_config}
-    if body.email_config is not None:
-        updates["params"] = {**sched.params, "email": body.email_config}
-
-    updated = svc.update_schedule(schedule_id, **updates)
-    return ScheduleResponse(success=True, schedule=_format_schedule(updated))
-
-
-@router.delete(
-    "/{schedule_id}",
-    summary="删除定时任务",
-)
-async def delete_schedule(schedule_id: str):
-    svc = get_scheduler_service()
-    if not svc.delete_schedule(schedule_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    return {"success": True, "schedule_id": schedule_id}
-
-
-@router.post(
-    "/{schedule_id}/pause",
-    summary="暂停定时任务",
-)
-async def pause_schedule(schedule_id: str):
-    svc = get_scheduler_service()
-    if not svc.pause_schedule(schedule_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    return {"success": True, "schedule_id": schedule_id, "status": "paused"}
-
-
-@router.post(
-    "/{schedule_id}/resume",
-    summary="恢复定时任务",
-)
-async def resume_schedule(schedule_id: str):
-    svc = get_scheduler_service()
-    if not svc.resume_schedule(schedule_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    sched = svc.get_schedule(schedule_id)
-    return {"success": True, "schedule_id": schedule_id, "status": sched.status.value if sched else "active"}
-
-
-@router.post(
-    "/{schedule_id}/trigger",
-    summary="立即触发定时任务",
-    description="立即执行定时任务，不等待预定时间",
-)
-async def trigger_schedule(schedule_id: str):
-    svc = get_scheduler_service()
-    result = svc.trigger_now(schedule_id)
-    if not result.get("success") and "not found" in result.get("error", "").lower():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
-    return {"success": True, "result": result}
-
-
 # ── Webhook Trigger Routes ────────────────────────────────────────────────────
 
 class WebhookTriggerRequest(BaseModel):
@@ -726,3 +625,108 @@ async def get_scheduler_status(request: Request):
         "paused_count": len(paused),
         "upcoming": upcoming[:10],
     }
+
+
+# ── Individual Schedule Routes (/{schedule_id}) ────────────────────────────────
+# NOTE: These are defined LAST to avoid catching specific routes like /recurring, /emails, /status
+
+
+@router.get(
+    "/{schedule_id}",
+    response_model=ScheduleResponse,
+    summary="获取定时任务详情",
+)
+async def get_schedule(schedule_id: str):
+    svc = get_scheduler_service()
+    sched = svc.get_schedule(schedule_id)
+    if not sched:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return ScheduleResponse(success=True, schedule=_format_schedule(sched))
+
+
+@router.patch(
+    "/{schedule_id}",
+    response_model=ScheduleResponse,
+    summary="更新定时任务",
+    description="更新定时任务的时间、参数或状态",
+)
+async def update_schedule(schedule_id: str, body: UpdateScheduleRequest):
+    svc = get_scheduler_service()
+    sched = svc.get_schedule(schedule_id)
+    if not sched:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+
+    updates: Dict[str, Any] = {}
+    if body.name is not None:
+        updates["name"] = body.name
+    if body.status is not None:
+        updates["status"] = _parse_status(body.status)
+    if body.run_at is not None:
+        updates["run_at"] = body.run_at
+    if body.day_of_week is not None:
+        updates["day_of_week"] = body.day_of_week
+    if body.day_of_month is not None:
+        updates["day_of_month"] = body.day_of_month
+    if body.hour is not None:
+        updates["hour"] = body.hour
+    if body.minute is not None:
+        updates["minute"] = body.minute
+    if body.generation is not None:
+        updates["params"] = {**sched.params, "generation": body.generation}
+    if body.export_config is not None:
+        updates["params"] = {**sched.params, "export_config": body.export_config}
+        updates["params"]["task_ids"] = body.export_config.get("task_ids", [])
+    if body.webhook_config is not None:
+        updates["params"] = {**sched.params, "webhook_config": body.webhook_config}
+    if body.email_config is not None:
+        updates["params"] = {**sched.params, "email": body.email_config}
+
+    updated = svc.update_schedule(schedule_id, **updates)
+    return ScheduleResponse(success=True, schedule=_format_schedule(updated))
+
+
+@router.delete(
+    "/{schedule_id}",
+    summary="删除定时任务",
+)
+async def delete_schedule(schedule_id: str):
+    svc = get_scheduler_service()
+    if not svc.delete_schedule(schedule_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return {"success": True, "schedule_id": schedule_id}
+
+
+@router.post(
+    "/{schedule_id}/pause",
+    summary="暂停定时任务",
+)
+async def pause_schedule(schedule_id: str):
+    svc = get_scheduler_service()
+    if not svc.pause_schedule(schedule_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return {"success": True, "schedule_id": schedule_id, "status": "paused"}
+
+
+@router.post(
+    "/{schedule_id}/resume",
+    summary="恢复定时任务",
+)
+async def resume_schedule(schedule_id: str):
+    svc = get_scheduler_service()
+    if not svc.resume_schedule(schedule_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    sched = svc.get_schedule(schedule_id)
+    return {"success": True, "schedule_id": schedule_id, "status": sched.status.value if sched else "active"}
+
+
+@router.post(
+    "/{schedule_id}/trigger",
+    summary="立即触发定时任务",
+    description="立即执行定时任务，不等待预定时间",
+)
+async def trigger_schedule(schedule_id: str):
+    svc = get_scheduler_service()
+    result = svc.trigger_now(schedule_id)
+    if not result.get("success") and "not found" in result.get("error", "").lower():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+    return {"success": True, "result": result}

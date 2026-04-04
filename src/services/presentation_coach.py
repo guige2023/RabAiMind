@@ -1035,7 +1035,156 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"个性化教练失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
+    # ==================== R138: Live Delivery Coach - 实时演讲分析 ====================
+
+    def analyze_live_delivery(
+        self,
+        task_id: str,
+        slides: List[Dict],
+        transcript: str = "",
+        filler_words: List[Dict[str, Any]] = [],
+        current_wpm: float = 0.0,
+        total_words: int = 0,
+        duration_seconds: float = 0.0,
+        eye_contact_ratio: float = 0.0,
+        gaze_away_count: int = 0,
+        filler_word_ratio: float = 0.0,
+        pace_score: float = 0.0,
+        confidence_score: float = 0.0,
+        session_id: str = "",
+    ) -> Dict[str, Any]:
+        """
+        R138: AI Presentation Coach 3.0 - 实时演讲分析
+        分析实时演讲数据，提供即时反馈和改进建议
+        """
+        import uuid
+        if not session_id:
+            session_id = str(uuid.uuid4()[:8])
+
+        # 1. 计算综合置信度评分
+        # 权重: 眼神接触30% + 填充词控制25% + 节奏稳定性25% + 演讲完整性20%
+        eye_contact_score = min(10, eye_contact_ratio * 10)
+        filler_control_score = max(0, 10 - filler_word_ratio * 50) if filler_word_ratio > 0 else 10
+        pace_stability_score = max(0, min(10, pace_score))
+        
+        overall_confidence = (
+            eye_contact_score * 0.30 +
+            filler_control_score * 0.25 +
+            pace_stability_score * 0.25 +
+            (10 if total_words > 100 else (total_words / 10)) * 0.20
+        )
+        overall_confidence = round(min(10, overall_confidence), 1)
+
+        # 2. 眼神接触反馈
+        if eye_contact_ratio >= 0.7:
+            eye_contact_verdict = "优秀"
+            eye_contact_tip = "眼神接触做得很好！继续保持与观众的眼神交流"
+        elif eye_contact_ratio >= 0.4:
+            eye_contact_verdict = "一般"
+            eye_contact_tip = "眼神接触还可以，尝试将视线更均匀地分布在观众席"
+        else:
+            eye_contact_verdict = "需改进"
+            eye_contact_tip = "眼神接触不足，尝试多看向观众，不要只看屏幕或笔记"
+
+        # 3. 填充词检测反馈
+        filler_detail = []
+        total_filler_count = sum(fw.get("count", 0) for fw in filler_words)
+        filler_cn_map = {
+            "um": "嗯", "uh": "呃", "like": "好像", "you know": "你知道",
+            "so": "所以", "actually": "实际上", "basically": "基本上",
+            "literally": "确实", "honestly": "说实话", "probably": "可能",
+            "maybe": "也许", "right": "对吧", "okay": "好吧"
+        }
+        for fw in filler_words:
+            word = fw.get("word", "")
+            count = fw.get("count", 0)
+            cn_name = filler_cn_map.get(word.lower(), word)
+            filler_detail.append({"word": cn_name, "count": count, "severity": "high" if count > 5 else "medium" if count > 2 else "low"})
+
+        if filler_word_ratio < 0.03:
+            filler_verdict = "优秀"
+            filler_tip = "几乎没用填充词，表达清晰流畅！"
+        elif filler_word_ratio < 0.08:
+            filler_verdict = "一般"
+            filler_tip = f"检测到 {total_filler_count} 次填充词，尝试在思考时保持沉默"
+        else:
+            filler_verdict = "需改进"
+            filler_tip = f"填充词过多（{total_filler_count}次），建议刻意练习减少使用"
+
+        # 4. 节奏反馈
+        if current_wpm == 0:
+            pace_verdict = "等待数据"
+            pace_tip = "开始说话后会自动分析语速..."
+            pace_icon = "⏳"
+        elif current_wpm < 80:
+            pace_verdict = "偏慢"
+            pace_tip = f"当前 {current_wpm:.0f} WPM，语速偏慢，可以适当加快"
+            pace_icon = "🐢"
+        elif current_wpm <= 150:
+            pace_verdict = "适中"
+            pace_tip = f"当前 {current_wpm:.0f} WPM，节奏良好！"
+            pace_icon = "✅"
+        else:
+            pace_verdict = "偏快"
+            pace_tip = f"当前 {current_wpm:.0f} WPM，语速偏快，建议适当放慢"
+            pace_icon = "🏃"
+
+        # 5. 实时改进建议
+        suggestions = []
+        if eye_contact_ratio < 0.5:
+            suggestions.append("眼神: 尝试将视线从屏幕移开，多与观众进行眼神交流")
+        if filler_word_ratio > 0.05:
+            suggestions.append(f"填充词: 检测到 {total_filler_count} 次填充词，刻意放慢语速可减少使用")
+        if current_wpm > 150:
+            suggestions.append("节奏: 语速过快，适当停顿可以增加重点的强调效果")
+        if current_wpm < 80 and current_wpm > 0:
+            suggestions.append("节奏: 语速偏慢，保持信息传递效率的同时可以稍微加快")
+        if gaze_away_count > 10:
+            suggestions.append(f"视线: 检测到 {gaze_away_count} 次视线离开观众，注意控制视线分布")
+        if not suggestions:
+            suggestions.append("整体表现良好！继续保持当前状态")
+
+        # 6. 会话统计
+        session_stats = {
+            "session_id": session_id,
+            "total_words": total_words,
+            "duration_seconds": round(duration_seconds, 1),
+            "filler_word_count": total_filler_count,
+            "gaze_away_count": gaze_away_count,
+        }
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "session_id": session_id,
+            # 置信度评分
+            "confidence_score": overall_confidence,
+            "confidence_grade": "A" if overall_confidence >= 8 else "B" if overall_confidence >= 6 else "C" if overall_confidence >= 4 else "D",
+            # 分项评分
+            "eye_contact_score": round(eye_contact_score, 1),
+            "eye_contact_ratio": round(eye_contact_ratio, 2),
+            "eye_contact_verdict": eye_contact_verdict,
+            "eye_contact_tip": eye_contact_tip,
+            "filler_control_score": round(filler_control_score, 1),
+            "filler_word_ratio": round(filler_word_ratio, 4),
+            "filler_verdict": filler_verdict,
+            "filler_tip": filler_tip,
+            "filler_detail": filler_detail[:5],
+            "pace_score": round(pace_stability_score, 1),
+            "current_wpm": round(current_wpm, 1),
+            "pace_verdict": pace_verdict,
+            "pace_tip": pace_tip,
+            "pace_icon": pace_icon,
+            # 眼神追踪
+            "gaze_away_count": gaze_away_count,
+            # 改进建议
+            "suggestions": suggestions[:4],
+            # 会话统计
+            "session_stats": session_stats,
+            "analyzed_at": datetime.now().isoformat(),
+        }
+
     def _save_coaching_session(self, user_id: str, task_id: str, slides: List[Dict],
                                 result: Dict[str, Any], history_file: Path) -> None:
         try:

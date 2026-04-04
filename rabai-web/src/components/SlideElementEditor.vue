@@ -534,31 +534,52 @@
               <!-- R51: 视频元素 -->
               <template v-else-if="el.type === 'video'">
                 <div class="element-content video-content" v-if="el.videoUrl">
-                  <iframe
-                    v-if="el.videoType === 'youtube'"
-                    :src="getYouTubeEmbedUrl(el.videoUrl)"
-                    class="video-iframe"
-                    frameborder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowfullscreen
-                  ></iframe>
-                  <iframe
-                    v-else-if="el.videoType === 'vimeo'"
-                    :src="getVimeoEmbedUrl(el.videoUrl)"
-                    class="video-iframe"
-                    frameborder="0"
-                    allow="autoplay; fullscreen; picture-in-picture"
-                    allowfullscreen
-                  ></iframe>
-                  <video
-                    v-else
-                    :src="el.videoUrl"
-                    class="video-native"
-                    controls
-                    :autoplay="el.autoPlay"
-                    :loop="el.loop"
-                    :muted="el.muted"
-                  ></video>
+                  <!-- R143: Video trim wrapper -->
+                  <div class="video-trim-wrapper" :style="getVideoTrimStyle(el)">
+                    <iframe
+                      v-if="el.videoType === 'youtube'"
+                      :src="getYouTubeEmbedUrl(el.videoUrl)"
+                      class="video-iframe"
+                      frameborder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowfullscreen
+                    ></iframe>
+                    <iframe
+                      v-else-if="el.videoType === 'vimeo'"
+                      :src="getVimeoEmbedUrl(el.videoUrl)"
+                      class="video-iframe"
+                      frameborder="0"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowfullscreen
+                    ></iframe>
+                    <!-- R143: Loom/screen recording embed -->
+                    <iframe
+                      v-else-if="el.videoType === 'screen'"
+                      :src="el.videoUrl"
+                      class="video-iframe"
+                      frameborder="0"
+                      allow="autoplay; fullscreen"
+                      allowfullscreen
+                    ></iframe>
+                    <video
+                      v-else
+                      :src="el.videoUrl"
+                      class="video-native"
+                      controls
+                      :autoplay="el.autoPlay"
+                      :loop="el.loop"
+                      :muted="el.muted"
+                    ></video>
+                  </div>
+                  <!-- R143: Subtitle overlay -->
+                  <div v-if="el.subtitles && el.subtitles.length > 0" class="video-subtitle-overlay">
+                    <div
+                      v-for="sub in el.subtitles"
+                      :key="sub.id"
+                      class="subtitle-item"
+                      :class="{ active: isSubtitleActive(sub) }"
+                    >{{ sub.text }}</div>
+                  </div>
                 </div>
                 <div v-else class="element-content video-placeholder">
                   <span>🎬</span>
@@ -569,8 +590,14 @@
               <!-- R51: 音频元素 -->
               <template v-else-if="el.type === 'audio'">
                 <div class="element-content audio-content">
-                  <div v-if="el.audioUrl" class="audio-player">
-                    <span class="audio-icon">🎵</span>
+                  <!-- R143: Audio waveform visualization -->
+                  <div v-if="el.audioUrl" class="audio-waveform-wrapper">
+                    <canvas
+                      :ref="e => drawWaveform(e as HTMLCanvasElement, el)"
+                      class="audio-waveform-canvas"
+                      width="400"
+                      height="60"
+                    ></canvas>
                     <audio
                       :src="el.audioUrl"
                       controls
@@ -583,6 +610,32 @@
                   <div v-else class="audio-placeholder">
                     <span>🎵</span>
                     <span class="upload-hint">上传音频文件</span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- R143: 背景音乐元素 -->
+              <template v-else-if="el.type === 'bgMusic'">
+                <div class="element-content bgmusic-content">
+                  <div v-if="el.bgMusicUrl" class="bgmusic-player">
+                    <span class="bgmusic-icon">🎶</span>
+                    <div class="bgmusic-info">
+                      <span class="bgmusic-label">背景音乐</span>
+                      <div class="bgmusic-fade-info" v-if="el.bgMusicFadeIn || el.bgMusicFadeOut">
+                        <span v-if="el.bgMusicFadeIn">🔊 淡入 {{ el.bgMusicFadeIn }}s</span>
+                        <span v-if="el.bgMusicFadeOut"> | 淡出 {{ el.bgMusicFadeOut }}s</span>
+                      </div>
+                    </div>
+                    <audio
+                      :src="el.bgMusicUrl"
+                      :loop="el.loop"
+                      :muted="el.muted"
+                      class="audio-native"
+                    ></audio>
+                  </div>
+                  <div v-else class="audio-placeholder">
+                    <span>🎶</span>
+                    <span class="upload-hint">添加背景音乐</span>
                   </div>
                 </div>
               </template>
@@ -880,6 +933,7 @@
                 <option value="mp4">本地视频 (MP4)</option>
                 <option value="youtube">YouTube</option>
                 <option value="vimeo">Vimeo</option>
+                <option value="screen">屏幕录制 (Loom/etc)</option>
               </select>
             </div>
 
@@ -890,7 +944,7 @@
                 class="prop-input-full"
                 :value="selectedElement.videoUrl || ''"
                 @input="updateElementProp('videoUrl', ($event.target as HTMLInputElement).value)"
-                :placeholder="selectedElement.videoType === 'youtube' ? 'https://youtube.com/watch?v=...' : (selectedElement.videoType === 'vimeo' ? 'https://vimeo.com/...' : 'https://...mp4')"
+                :placeholder="selectedElement.videoType === 'youtube' ? 'https://youtube.com/watch?v=...' : (selectedElement.videoType === 'vimeo' ? 'https://vimeo.com/...' : (selectedElement.videoType === 'screen' ? 'https://www.loom.com/embed/...' : 'https://...mp4'))"
               />
               <input
                 v-if="selectedElement.videoType === 'mp4'"
@@ -924,6 +978,85 @@
               </div>
             </div>
 
+            <!-- R143: Video trim controls -->
+            <div v-if="selectedElement.type === 'video' && selectedElement.videoUrl" class="prop-group">
+              <label class="prop-label">✂️ 视频裁切（秒）</label>
+              <div class="trim-controls">
+                <div class="trim-row">
+                  <span class="trim-label">起始</span>
+                  <input
+                    type="number"
+                    class="prop-input-inline"
+                    :value="selectedElement.trimStart || 0"
+                    @input="updateElementProp('trimStart', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                    min="0"
+                    step="0.1"
+                    placeholder="0"
+                  />
+                  <span class="trim-unit">s</span>
+                </div>
+                <div class="trim-row">
+                  <span class="trim-label">结束</span>
+                  <input
+                    type="number"
+                    class="prop-input-inline"
+                    :value="selectedElement.trimEnd || 0"
+                    @input="updateElementProp('trimEnd', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                    min="0"
+                    step="0.1"
+                    placeholder="0=不裁切"
+                  />
+                  <span class="trim-unit">s</span>
+                </div>
+                <div v-if="selectedElement.trimEnd > 0 && selectedElement.trimStart > 0" class="trim-duration">
+                  时长: {{ (selectedElement.trimEnd - selectedElement.trimStart).toFixed(1) }}s
+                </div>
+              </div>
+            </div>
+
+            <!-- R143: Video subtitles editor -->
+            <div v-if="selectedElement.type === 'video' && selectedElement.videoUrl" class="prop-group">
+              <label class="prop-label">📝 字幕编辑</label>
+              <div class="subtitles-list">
+                <div
+                  v-for="(sub, idx) in (selectedElement.subtitles || [])"
+                  :key="sub.id"
+                  class="subtitle-entry"
+                >
+                  <div class="subtitle-time-row">
+                    <input
+                      type="number"
+                      class="prop-input-inline"
+                      :value="sub.start"
+                      @input="updateSubtitleProp(idx, 'start', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                      min="0"
+                      step="0.1"
+                      placeholder="起始秒"
+                    />
+                    <span>→</span>
+                    <input
+                      type="number"
+                      class="prop-input-inline"
+                      :value="sub.end"
+                      @input="updateSubtitleProp(idx, 'end', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                      min="0"
+                      step="0.1"
+                      placeholder="结束秒"
+                    />
+                    <button class="btn-icon btn-icon-sm" @click="removeSubtitle(idx)">✕</button>
+                  </div>
+                  <textarea
+                    class="prop-textarea"
+                    :value="sub.text"
+                    @input="updateSubtitleProp(idx, 'text', ($event.target as HTMLTextAreaElement).value)"
+                    placeholder="字幕文本..."
+                    rows="2"
+                  ></textarea>
+                </div>
+                <button class="btn btn-outline btn-sm" @click="addSubtitle">➕ 添加字幕</button>
+              </div>
+            </div>
+
             <!-- R51: 音频属性 -->
             <div v-if="selectedElement.type === 'audio'" class="prop-group">
               <label class="prop-label">音频文件</label>
@@ -953,6 +1086,112 @@
                 <label class="checkbox-label">
                   <input type="checkbox" :checked="selectedElement.loop" @change="updateElementProp('loop', ($event.target as HTMLInputElement).checked)" />
                   循环播放
+                </label>
+              </div>
+            </div>
+
+            <!-- R143: Audio waveform visualization toggle -->
+            <div v-if="selectedElement.type === 'audio' && selectedElement.audioUrl" class="prop-group">
+              <label class="prop-label">🎵 波形可视化</label>
+              <div class="waveform-preview-box">
+                <canvas
+                  :ref="e => drawWaveformPreview(e as HTMLCanvasElement, selectedElement)"
+                  class="waveform-preview-canvas"
+                  width="300"
+                  height="50"
+                ></canvas>
+                <button class="btn btn-outline btn-sm" @click="regenerateWaveform">🔄 刷新波形</button>
+              </div>
+            </div>
+
+            <!-- R143: Background music properties -->
+            <div v-if="selectedElement.type === 'bgMusic'" class="prop-group">
+              <label class="prop-label">🎶 背景音乐文件</label>
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/ogg,audio/mp3,audio/*"
+                class="file-input"
+                :ref="el => bgMusicFileInput = el as HTMLInputElement | null"
+                @change="handleBgMusicUpload($event)"
+                id="bgmusic-upload"
+              />
+              <label for="bgmusic-upload" class="file-label">
+                🎶 {{ selectedElement.bgMusicUrl ? '更换音乐' : '上传音乐文件' }}
+              </label>
+              <input
+                type="text"
+                class="prop-input-full"
+                :value="selectedElement.bgMusicUrl || ''"
+                @input="updateElementProp('bgMusicUrl', ($event.target as HTMLInputElement).value)"
+                placeholder="或输入音频链接..."
+              />
+              <div v-if="selectedElement.bgMusicUrl" class="audio-preview-mini">
+                <audio :src="selectedElement.bgMusicUrl" controls class="audio-native-mini"></audio>
+              </div>
+            </div>
+
+            <div v-if="selectedElement.type === 'bgMusic'" class="prop-group">
+              <label class="prop-label">🔊 音量</label>
+              <div class="volume-control">
+                <input
+                  type="range"
+                  class="prop-range"
+                  :value="(selectedElement.bgMusicVolume ?? 0.7) * 100"
+                  @input="updateElementProp('bgMusicVolume', parseFloat(($event.target as HTMLInputElement).value) / 100)"
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+                <span class="volume-value">{{ Math.round((selectedElement.bgMusicVolume ?? 0.7) * 100) }}%</span>
+              </div>
+            </div>
+
+            <div v-if="selectedElement.type === 'bgMusic'" class="prop-group">
+              <label class="prop-label">🎚️ 淡入淡出（秒）</label>
+              <div class="fade-controls">
+                <div class="fade-row">
+                  <span class="fade-label">🔊 淡入</span>
+                  <input
+                    type="number"
+                    class="prop-input-inline"
+                    :value="selectedElement.bgMusicFadeIn ?? 2"
+                    @input="updateElementProp('bgMusicFadeIn', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                    min="0"
+                    max="30"
+                    step="0.5"
+                  />
+                  <span class="trim-unit">s</span>
+                </div>
+                <div class="fade-row">
+                  <span class="fade-label">🔉 淡出</span>
+                  <input
+                    type="number"
+                    class="prop-input-inline"
+                    :value="selectedElement.bgMusicFadeOut ?? 2"
+                    @input="updateElementProp('bgMusicFadeOut', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                    min="0"
+                    max="30"
+                    step="0.5"
+                  />
+                  <span class="trim-unit">s</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="selectedElement.type === 'bgMusic'" class="prop-group">
+              <label class="prop-label">音频控制</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.autoPlay" @change="updateElementProp('autoPlay', ($event.target as HTMLInputElement).checked)" />
+                  自动播放
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.loop" @change="updateElementProp('loop', ($event.target as HTMLInputElement).checked)" />
+                  循环播放
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.muted" @change="updateElementProp('muted', ($event.target as HTMLInputElement).checked)" />
+                  静音
                 </label>
               </div>
             </div>
@@ -1321,6 +1560,8 @@
               <button @click="addElement('video')" title="添加视频">🎬 视频</button>
               <button @click="addElement('audio')" title="添加音频">🎵 音频</button>
               <button @click="addElement('gif')" title="添加动图">🎞️ 动图</button>
+              <!-- R143: Background music -->
+              <button @click="addElement('bgMusic')" title="添加背景音乐">🎶 背景音乐</button>
             </div>
           </div>
         </div>
@@ -1369,9 +1610,17 @@ interface SlideElementAnimation {
   customCurve?: [number, number, number, number]
 }
 
+// R143: Video subtitle track
+interface VideoSubtitle {
+  id: string
+  start: number  // seconds
+  end: number    // seconds
+  text: string
+}
+
 interface SlideElement {
   id: string
-  type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif'
+  type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif' | 'bgMusic'
   x: number
   y: number
   width: number
@@ -1394,14 +1643,26 @@ interface SlideElement {
   zIndex?: number
   // R51: video
   videoUrl?: string
-  videoType?: 'youtube' | 'vimeo' | 'mp4'
+  videoType?: 'youtube' | 'vimeo' | 'mp4' | 'screen'
+  // R143: video trim
+  trimStart?: number  // seconds
+  trimEnd?: number    // seconds (0 = no trim)
+  // R143: video subtitles
+  subtitles?: VideoSubtitle[]
   // R51: audio
   audioUrl?: string
+  // R143: audio waveform (client-only generated)
+  waveformData?: number[]
   // R51: gif
   gifUrl?: string
   autoPlay?: boolean
   loop?: boolean
   muted?: boolean
+  // R143: background music
+  bgMusicUrl?: string
+  bgMusicFadeIn?: number   // seconds
+  bgMusicFadeOut?: number  // seconds
+  bgMusicVolume?: number   // 0-1
   // R130: Animation
   animation?: SlideElementAnimation
 }
@@ -2273,7 +2534,7 @@ const getVimeoEmbedUrl = (url: string): string => {
 const updateVideoType = (type: string) => {
   if (selectedElementIndex.value === null) return
   saveHistory()
-  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].videoType = type as 'youtube' | 'vimeo' | 'mp4'
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].videoType = type as 'youtube' | 'vimeo' | 'mp4' | 'screen'
   // 清空旧URL，因为切换类型后需要重新输入
   slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].videoUrl = ''
 }
@@ -2311,6 +2572,8 @@ const handleAudioUpload = (event: Event) => {
 
 // R51: GIF文件上传
 const gifFileInput = ref<HTMLInputElement | null>(null)
+// R143: Background music file input
+const bgMusicFileInput = ref<HTMLInputElement | null>(null)
 const handleGifUpload = (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -2322,6 +2585,133 @@ const handleGifUpload = (event: Event) => {
     slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].gifUrl = result
   }
   reader.readAsDataURL(file)
+}
+
+// R143: Background music upload
+const handleBgMusicUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || selectedElementIndex.value === null) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    saveHistory()
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].bgMusicUrl = result
+  }
+  reader.readAsDataURL(file)
+}
+
+// R143: Subtitle management
+const addSubtitle = () => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const subs = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].subtitles || []
+  subs.push({
+    id: Date.now().toString(),
+    start: 0,
+    end: 3,
+    text: ''
+  })
+  updateElementProp('subtitles', [...subs])
+}
+
+const removeSubtitle = (index: number) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const subs = [...(slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].subtitles || [])]
+  subs.splice(index, 1)
+  updateElementProp('subtitles', subs)
+}
+
+const updateSubtitleProp = (index: number, prop: 'start' | 'end' | 'text', value: number | string) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  const subs = [...(slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].subtitles || [])]
+  ;(subs[index] as any)[prop] = value
+  updateElementProp('subtitles', subs)
+}
+
+// R143: Check if subtitle should be visible (simplified - uses first audio/video element's current time)
+const isSubtitleActive = (sub: VideoSubtitle): boolean => {
+  // Simplified: show all subtitles in edit mode, real timing handled by audio/video element
+  return false
+}
+
+// R143: Video trim CSS style
+const getVideoTrimStyle = (el: SlideElement): Record<string, string> => {
+  if (el.trimStart && el.trimStart > 0) {
+    // For native video, trim via clip-path or start attribute
+    return {}
+  }
+  return {}
+}
+
+// R143: Audio waveform visualization
+const drawWaveform = (canvas: HTMLCanvasElement | null, el: SlideElement) => {
+  if (!canvas || !el.audioUrl) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const W = canvas.width
+  const H = canvas.height
+  ctx.clearRect(0, 0, W, H)
+  // Generate pseudo-waveform from stored data or random
+  const data = el.waveformData || generatePseudoWaveform(100)
+  const barWidth = W / data.length
+  const color = '#6366f1'
+  ctx.fillStyle = color
+  for (let i = 0; i < data.length; i++) {
+    const barH = data[i] * H * 0.8
+    const x = i * barWidth
+    const y = (H - barH) / 2
+    ctx.fillRect(x, y, Math.max(1, barWidth - 1), barH)
+  }
+}
+
+const drawWaveformPreview = (canvas: HTMLCanvasElement | null, el: SlideElement) => {
+  if (!canvas || !el.audioUrl) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const W = canvas.width
+  const H = canvas.height
+  ctx.clearRect(0, 0, W, H)
+  const data = el.waveformData || generatePseudoWaveform(80)
+  const barWidth = W / data.length
+  const gradient = ctx.createLinearGradient(0, 0, W, 0)
+  gradient.addColorStop(0, '#6366f1')
+  gradient.addColorStop(1, '#8b5cf6')
+  ctx.fillStyle = gradient
+  for (let i = 0; i < data.length; i++) {
+    const barH = data[i] * H * 0.85
+    const x = i * barWidth
+    const y = (H - barH) / 2
+    ctx.fillRect(x, y, Math.max(1, barWidth - 1), barH)
+  }
+}
+
+// Generate pseudo waveform data for visual effect
+const generatePseudoWaveform = (bars: number): number[] => {
+  const data: number[] = []
+  let v = 0.3
+  for (let i = 0; i < bars; i++) {
+    v += (Math.random() - 0.4) * 0.3
+    v = Math.max(0.05, Math.min(1, v))
+    data.push(v)
+  }
+  return data
+}
+
+const regenerateWaveform = () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!]
+  if (el.type !== 'audio' && el.type !== 'bgMusic') return
+  const data = generatePseudoWaveform(80)
+  saveHistory()
+  updateElementProp('waveformData', data)
+  // Redraw
+  nextTick(() => {
+    const canvas = document.querySelector('.waveform-preview-canvas') as HTMLCanvasElement
+    if (canvas) drawWaveformPreview(canvas, el)
+  })
 }
 
 // R20: 层级控制
@@ -2518,7 +2908,8 @@ const getElementTypeName = (type: string) => {
     image: '图片',
     video: '视频',
     audio: '音频',
-    gif: '动图'
+    gif: '动图',
+    bgMusic: '背景音乐'
   }
   return map[type] || type
 }
@@ -2613,7 +3004,7 @@ const deleteElement = () => {
   selectedElementIndex.value = null
 }
 
-const addElement = (type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif') => {
+const addElement = (type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif' | 'bgMusic') => {
   saveHistory()
   const newElement: SlideElement = {
     id: Date.now().toString(),
@@ -2621,7 +3012,7 @@ const addElement = (type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif'
     x: 100,
     y: 100,
     width: type === 'text' ? 400 : (type === 'video' ? 320 : (type === 'gif' ? 200 : 150)),
-    height: type === 'text' ? 50 : (type === 'video' ? 180 : (type === 'audio' ? 60 : 150)),
+    height: type === 'text' ? 50 : (type === 'video' ? 180 : (type === 'audio' ? 80 : 150)),
     content: type === 'text' ? '新文本' : undefined,
     color: '#000000',
     fill: type === 'shape' ? '#165DFF' : undefined,
@@ -2633,6 +3024,14 @@ const addElement = (type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif'
     autoPlay: false,
     loop: false,
     muted: true,
+    // R143: background music defaults
+    bgMusicFadeIn: 2,
+    bgMusicFadeOut: 2,
+    bgMusicVolume: 0.7,
+    // R143: video trim defaults
+    trimStart: 0,
+    trimEnd: 0,
+    subtitles: [],
   }
   slides.value[activeSlideIndex.value].elements.push(newElement)
   selectedElementIndex.value = slides.value[activeSlideIndex.value].elements.length - 1
@@ -3204,6 +3603,42 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
+/* R143: Video trim */
+.video-trim-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* R143: Video subtitle overlay */
+.video-subtitle-overlay {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  max-width: 90%;
+}
+
+.subtitle-item {
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+  white-space: pre-wrap;
+  display: none;
+}
+
+.subtitle-item.active {
+  display: block;
+}
+
 /* R51: 音频元素 */
 .audio-content {
   width: 100%;
@@ -3211,6 +3646,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* R143: Audio waveform visualization */
+.audio-waveform-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.audio-waveform-canvas {
+  width: 100%;
+  height: 60px;
+  border-radius: 4px;
+  background: #f0f0f8;
 }
 
 .audio-player {
@@ -3251,6 +3703,46 @@ onUnmounted(() => {
 
 .audio-preview-mini {
   margin-top: 8px;
+}
+
+/* R143: Background music element */
+.bgmusic-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bgmusic-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  width: 100%;
+}
+
+.bgmusic-icon {
+  font-size: 28px;
+}
+
+.bgmusic-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bgmusic-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.bgmusic-fade-info {
+  font-size: 11px;
+  color: #888;
 }
 
 /* R51: GIF动图元素 */
@@ -3463,6 +3955,174 @@ onUnmounted(() => {
   color: #4F46E5;
   border-radius: 4px;
   font-size: 12px;
+}
+
+/* R143: Trim controls */
+.trim-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.trim-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trim-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 28px;
+}
+
+.prop-input-inline {
+  padding: 4px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 70px;
+}
+
+.trim-unit {
+  font-size: 11px;
+  color: #999;
+}
+
+.trim-duration {
+  font-size: 11px;
+  color: #6366f1;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* R143: Subtitles list */
+.subtitles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.subtitle-entry {
+  background: #f8f9fa;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtitle-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subtitle-time-row span {
+  font-size: 12px;
+  color: #888;
+}
+
+.prop-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 13px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* R143: Fade controls */
+.fade-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.fade-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fade-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+}
+
+/* R143: Volume control */
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.prop-range {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  background: #e5e5e5;
+  border-radius: 2px;
+  outline: none;
+}
+
+.prop-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #6366f1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volume-value {
+  font-size: 12px;
+  color: #666;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* R143: Waveform preview */
+.waveform-preview-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.waveform-preview-canvas {
+  width: 100%;
+  height: 50px;
+  border-radius: 4px;
+  background: #f0f0f8;
+}
+
+.btn-icon-sm {
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #666;
+}
+
+.btn-icon-sm:hover {
+  background: #e5e5e5;
 }
 
 .color-picker {

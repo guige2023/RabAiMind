@@ -245,20 +245,280 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     return None
 
 
+def _convert_script_to_slides(data: Dict, script_type: str) -> List[Dict]:
+    """R148: 将脚本内容服务生成的数据转换为PPT大纲格式"""
+    if not data:
+        return []
+
+    slides = []
+
+    # ===== Story Arc =====
+    if script_type == "story_arc":
+        story_arc = data.get("story_arc", {})
+        arc_slides = story_arc.get("slides", [])
+
+        if not arc_slides:
+            # 兜底：从story_arc结构化提取slides
+            theme = story_arc.get("theme", "")
+            protagonist = story_arc.get("protagonist", "")
+            slides.append({
+                "slide_type": "title",
+                "title": theme or "故事演示",
+                "subtitle": f"主角：{protagonist}" if protagonist else "",
+                "layout": "title_slide"
+            })
+            for pos in ["setup", "conflict", "journey", "climax", "resolution"]:
+                slides.append({
+                    "slide_type": "content",
+                    "title": f"【{pos.upper()}】阶段",
+                    "content": [],
+                    "layout": "left_text_right_image",
+                    "story_position": pos
+                })
+            slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+        else:
+            for s in arc_slides:
+                slides.append({
+                    "slide_type": s.get("slide_type", "content"),
+                    "title": s.get("title", ""),
+                    "subtitle": s.get("emotion", ""),
+                    "content": [s.get("key_message", ""), s.get("content", "")],
+                    "layout": _story_position_to_layout(s.get("story_position", "")),
+                    "story_position": s.get("story_position", ""),
+                    "emotion": s.get("emotion", "")
+                })
+
+    # ===== Data Story =====
+    elif script_type == "data_story":
+        ds = data.get("data_story", {})
+        insight_hook = ds.get("insight_hook", "")
+
+        # Act 1
+        act1 = ds.get("act1", {})
+        act1_slides = act1.get("slides", [])
+        if act1_slides:
+            slides.append({"slide_type": "title", "title": insight_hook or "数据洞察", "layout": "title_slide"})
+            for s in act1_slides:
+                slides.append({
+                    "slide_type": "content",
+                    "title": s.get("title", ""),
+                    "content": [s.get("narrative", ""), s.get("data_point", "")],
+                    "layout": "left_text_right_image",
+                    "chart_hint": s.get("chart_type", "")
+                })
+        else:
+            slides.append({"slide_type": "title", "title": insight_hook or "数据故事", "layout": "title_slide"})
+
+        # Act 2
+        act2 = ds.get("act2", {})
+        act2_slides = act2.get("slides", [])
+        for s in act2_slides:
+            slides.append({
+                "slide_type": "content",
+                "title": s.get("title", ""),
+                "content": [s.get("finding", ""), s.get("supporting_data", "")],
+                "layout": "data_visualization",
+                "chart_hint": s.get("chart_type", "bar"),
+                "key_findings": act2.get("key_findings", [])
+            })
+
+        # Act 3
+        act3 = ds.get("act3", {})
+        act3_slides = act3.get("slides", [])
+        for s in act3_slides:
+            slides.append({
+                "slide_type": "content",
+                "title": s.get("title", ""),
+                "content": [s.get("conclusion", ""), s.get("call_to_action", "")],
+                "layout": "center",
+                "recommendations": act3.get("recommendations", [])
+            })
+        slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+
+    # ===== Persuasion =====
+    elif script_type == "persuasion":
+        p = data.get("persuasion", {})
+        slides.append({
+            "slide_type": "title",
+            "title": p.get("primary_framework", "说服演示"),
+            "subtitle": f"核心杠杆：{p.get('key_persuasion_lever', '')}",
+            "layout": "title_slide"
+        })
+        p_slides = p.get("slides", [])
+        for s in p_slides:
+            slides.append({
+                "slide_type": "content",
+                "title": s.get("title", ""),
+                "content": [s.get("content", ""), s.get("persuasion_element", "")],
+                "layout": _framework_to_layout(s.get("framework_used", "")),
+                "technique": s.get("technique", ""),
+                "leverage_point": s.get("leverage_point", "")
+            })
+        slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+
+    # ===== Audience Persona =====
+    elif script_type == "audience_persona":
+        ap = data.get("audience_persona", {})
+        persona = ap.get("primary_persona", {})
+        slides.append({
+            "slide_type": "title",
+            "title": f"目标受众：{persona.get('name', '')}",
+            "subtitle": f"{persona.get('role', '')} | {persona.get('company_stage', '')}",
+            "layout": "title_slide"
+        })
+
+        # Persona details slide
+        slides.append({
+            "slide_type": "content",
+            "title": "受众画像分析",
+            "content": [
+                f"核心痛点：{persona.get('core_pain', '')}",
+                f"业务目标：{persona.get('business_goal', '')}",
+                f"内容偏好：{persona.get('information_style', '')}",
+            ],
+            "layout": "card"
+        })
+
+        # Content tailoring slides
+        tailoring = ap.get("content_tailoring", {})
+        pain_agenda = tailoring.get("pain_agenda", [])
+        for s in ap.get("slides", []):
+            slides.append({
+                "slide_type": "content",
+                "title": s.get("title", ""),
+                "content": [s.get("content", "")],
+                "layout": "two_column",
+                "pain_addressed": s.get("pain_addressed", ""),
+                "value_shown": s.get("value_shown", "")
+            })
+        slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+
+    # ===== Competitor Analysis =====
+    elif script_type == "competitor_analysis":
+        ca = data.get("competitor_analysis", {})
+        slides.append({
+            "slide_type": "title",
+            "title": "竞品分析",
+            "subtitle": ca.get("market_overview", {}).get("market_size", ""),
+            "layout": "title_slide"
+        })
+
+        # Players overview
+        players = ca.get("key_players", [])
+        for player in players:
+            slides.append({
+                "slide_type": "content",
+                "title": f"竞品：{player.get('name', '')}",
+                "content": [
+                    f"市场份额：{player.get('market_share', '')}",
+                    f"优势：{', '.join(player.get('strengths', []))}",
+                    f"劣势：{', '.join(player.get('weaknesses', []))}",
+                    f"定价：{player.get('pricing', '')}",
+                ],
+                "layout": "card",
+                "competitor": player.get("name", "")
+            })
+
+        # Comparison matrix
+        matrix = ca.get("comparison_matrix", {})
+        if matrix:
+            slides.append({
+                "slide_type": "content",
+                "title": "竞品对比矩阵",
+                "content": [f"维度：{', '.join(matrix.get('dimensions', []))}"],
+                "layout": "comparison",
+                "comparison_matrix": matrix
+            })
+
+        # Our advantages
+        advantages = ca.get("our_advantages", [])
+        slides.append({
+            "slide_type": "content",
+            "title": "我们的竞争优势",
+            "content": advantages,
+            "layout": "three_column"
+        })
+
+        # Opportunity window
+        slides.append({
+            "slide_type": "content",
+            "title": "机会窗口",
+            "content": [ca.get("opportunity_window", "")],
+            "layout": "left_text_right_image"
+        })
+
+        slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+
+    # 兜底
+    if not slides:
+        slides.append({"slide_type": "title", "title": data.get("summary", "演示文稿"), "layout": "title_slide"})
+        slides.append({"slide_type": "thank_you", "title": "谢谢观看", "layout": "thank_you"})
+
+    return slides
+
+
+def _story_position_to_layout(position: str) -> str:
+    """将故事弧线位置转换为布局类型"""
+    mapping = {
+        "hook": "title_slide",
+        "setup": "left_text_right_image",
+        "conflict": "center_radiation",
+        "journey": "timeline",
+        "climax": "center",
+        "resolution": "card",
+        "cta": "thank_you"
+    }
+    return mapping.get(position, "content_card")
+
+
+def _framework_to_layout(framework: str) -> str:
+    """将说服框架转换为布局类型"""
+    if "AIDA" in framework:
+        return "timeline"
+    elif "PAS" in framework:
+        return "left_text_right_image"
+    elif "FAB" in framework:
+        return "three_column"
+    return "content_card"
+
+
 def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
-              style: str = "professional", temperature: float = 0.7) -> List[Dict]:
+              style: str = "professional", temperature: float = 0.7,
+              script_content_type: str = None) -> List[Dict]:
     """
     让AI规划PPT的完整结构
 
     P0修复: 默认方案现在会结合用户需求
     P2修复: temperature可配置
     场景化: scene/style 参数支持不同场景定制
+    R148: script_content_type 支持故事弧线/数据故事/说服技巧/受众画像/竞品分析
 
     包括：
     1. 每页的布局类型
     2. 每页的具体内容
     3. 文字和图片的互补关系
     """
+
+    # R148: 如果指定了 script_content_type，使用脚本内容服务生成增强大纲
+    if script_content_type:
+        try:
+            from .script_content_service import get_script_content_service
+            svc = get_script_content_service()
+            result = svc.generate(
+                content_type=script_content_type,
+                topic=user_request,
+                scene=scene,
+                slide_count=slide_count,
+                audience=user_request,
+                brief_description=user_request
+            )
+            if result.get("success"):
+                slides = _convert_script_to_slides(result.get("data", {}), script_content_type)
+                if slides:
+                    logger.info(f"[R148] script_content_type={script_content_type} 生成了 {len(slides)} 页大纲")
+                    return slides
+        except Exception as e:
+            logger.warning(f"[R148] script_content_type 生成失败: {e}")
 
     # 获取场景 Prompt
     scene_config = SCENE_PROMPTS.get(scene, SCENE_PROMPTS["business"])

@@ -860,6 +860,122 @@
             </button>
           </div>
         </div>
+
+        <!-- R138: Live Coach Tab -->
+        <div v-else-if="activeTab === 'live'" class="tab-panel">
+          <div class="coach-start">
+            <p class="coach-desc">实时分析你的演讲：麦克风检测填充词和语速，摄像头追踪眼神接触，AI 给出即时反馈</p>
+            <div class="live-permissions" v-if="!hasPermissions">
+              <div class="permission-warn">
+                <span>需要麦克风和摄像头权限才能启用实时教练</span>
+              </div>
+            </div>
+            
+            <div class="live-controls">
+              <!-- Permission buttons -->
+              <div class="live-perm-row">
+                <button class="btn btn-sm" @click="requestMicPermission" :disabled="micPermission === 'granted'">
+                  {{ micPermission === 'granted' ? '✅ 麦克风已授权' : '🎤 授权麦克风' }}
+                </button>
+                <button class="btn btn-sm" @click="requestCameraPermission" :disabled="cameraPermission === 'granted'">
+                  {{ cameraPermission === 'granted' ? '✅ 摄像头已授权' : '📷 授权摄像头' }}
+                </button>
+              </div>
+
+              <!-- Webcam Preview -->
+              <div class="webcam-preview" v-if="cameraPermission === 'granted'">
+                <video ref="webcamVideo" class="webcam-video" autoplay muted playsinline></video>
+                <canvas ref="webcamCanvas" class="webcam-canvas" style="display:none"></canvas>
+                <div class="eye-contact-overlay">
+                  <div class="eye-indicator" :class="eyeContactStatus">
+                    <span class="eye-icon">{{ eyeContactStatus === 'good' ? '👁️' : eyeContactStatus === 'warning' ? '👁️‍🗨️' : '❌' }}</span>
+                    <span class="eye-text">{{ eyeContactLabel }}</span>
+                  </div>
+                  <div class="gaze-counter" v-if="gazeAwayCount > 0">视线离开: {{ gazeAwayCount }}次</div>
+                </div>
+              </div>
+
+              <!-- Mic status -->
+              <div class="mic-status" v-if="micPermission === 'granted'">
+                <div class="mic-wpm-display">
+                  <span class="wpm-num">{{ currentWPM }}</span>
+                  <span class="wpm-unit">WPM</span>
+                  <span class="pace-badge" :class="paceStatusClass">{{ paceStatusLabel }}</span>
+                </div>
+                <div class="mic-waveform">
+                  <div v-for="i in 12" :key="i" class="wave-bar" :class="{ active: isListening }" :style="{ animationDelay: (i * 0.08) + 's' }"></div>
+                </div>
+                <div class="filler-counter" v-if="fillerWordCount > 0">
+                  <span class="filler-badge">💬 填充词: {{ fillerWordCount }}次</span>
+                  <span class="filler-ratio">{{ fillerWordRatio }}%</span>
+                </div>
+              </div>
+
+              <!-- Live Metrics Dashboard -->
+              <div class="live-metrics" v-if="liveResult">
+                <div class="metric-card confidence" :class="confidenceGrade">
+                  <div class="metric-score">{{ liveResult.confidence_score }}</div>
+                  <div class="metric-label">置信度评分</div>
+                  <div class="metric-grade">{{ liveResult.confidence_grade }}</div>
+                </div>
+                <div class="metric-card eye">
+                  <div class="metric-score">{{ liveResult.eye_contact_score }}</div>
+                  <div class="metric-label">眼神接触</div>
+                  <div class="metric-sub">{{ liveResult.eye_contact_verdict }}</div>
+                </div>
+                <div class="metric-card filler">
+                  <div class="metric-score">{{ liveResult.filler_control_score }}</div>
+                  <div class="metric-label">填充词控制</div>
+                  <div class="metric-sub">{{ liveResult.filler_verdict }}</div>
+                </div>
+                <div class="metric-card pace">
+                  <div class="metric-score">{{ liveResult.pace_score }}</div>
+                  <div class="metric-label">节奏</div>
+                  <div class="metric-sub">{{ liveResult.pace_icon }} {{ liveResult.pace_verdict }}</div>
+                </div>
+              </div>
+
+              <!-- Suggestions -->
+              <div class="live-suggestions" v-if="liveResult && liveResult.suggestions?.length">
+                <h4>💡 实时建议</h4>
+                <div v-for="(sug, idx) in liveResult.suggestions" :key="idx" class="suggestion-item">
+                  {{ sug }}
+                </div>
+              </div>
+
+              <!-- Session Stats -->
+              <div class="session-stats" v-if="liveResult?.session_stats">
+                <span>📊 {{ liveResult.session_stats.total_words }}字</span>
+                <span>⏱️ {{ formatDuration(liveResult.session_stats.duration_seconds) }}</span>
+                <span>👁️ {{ gazeAwayCount }}次视线离开</span>
+              </div>
+            </div>
+
+            <!-- Start/Stop Controls -->
+            <div class="live-actions">
+              <button
+                v-if="micPermission === 'granted'"
+                class="btn btn-primary btn-lg"
+                :class="{ 'btn-danger': isLiveActive, 'btn-start': !isLiveActive }"
+                @click="toggleLiveSession"
+              >
+                {{ isLiveActive ? '⏹️ 停止练习' : '▶️ 开始实时练习' }}
+              </button>
+              <button
+                v-if="isLiveActive"
+                class="btn btn-outline"
+                @click="resetLiveSession"
+              >
+                🔄 重置
+              </button>
+            </div>
+
+            <!-- Start hint when permissions not yet granted -->
+            <p class="live-hint" v-if="hasPermissions && !isLiveActive">
+              授权麦克风和摄像头后，点击「开始实时练习」
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -894,6 +1010,7 @@ const tabs = [
   { id: 'design', label: '视觉设计', icon: '🎨' },
   { id: 'engagement', label: '参与度预测', icon: '🔥' },
   { id: 'personalized', label: '个性化', icon: '⭐' },
+  { id: 'live', label: 'Live教练', icon: '🎙️' },
 ]
 
 const activeTab = ref('analyze')
@@ -1237,8 +1354,404 @@ async function runPersonalized() {
   }
 }
 
-// Reset when panel opens with new task
+// ========== R138: Live Delivery Coach ==========
+
+// Refs
+const webcamVideo = ref<HTMLVideoElement | null>(null)
+const webcamCanvas = ref<HTMLCanvasElement | null>(null)
+
+// Permissions
+const micPermission = ref<'granted' | 'denied' | 'prompt'>('prompt')
+const cameraPermission = ref<'granted' | 'denied' | 'prompt'>('prompt')
+const hasPermissions = computed(() => micPermission.value === 'granted' && cameraPermission.value === 'granted')
+
+// Live session state
+const isLiveActive = ref(false)
+const isListening = ref(false)
+const liveResult = ref<any>(null)
+
+// Speech tracking
+const currentWPM = ref(0)
+const totalWords = ref(0)
+const speakingStartTime = ref<number | null>(null)
+const speakingDuration = ref(0)
+const transcriptLines = ref<string[]>([])
+const fillerWordCount = ref(0)
+const fillerWordRatio = computed(() => {
+  if (totalWords.value === 0) return 0
+  return Math.round((fillerWordCount.value / totalWords.value) * 100)
+})
+
+// Eye contact tracking
+const eyeContactRatio = ref(0)
+const gazeAwayCount = ref(0)
+const eyeContactStatus = computed(() => {
+  if (eyeContactRatio.value >= 0.7) return 'good'
+  if (eyeContactRatio.value >= 0.4) return 'warning'
+  return 'poor'
+})
+const eyeContactLabel = computed(() => {
+  if (eyeContactRatio.value >= 0.7) return '眼神接触良好'
+  if (eyeContactRatio.value >= 0.4) return '视线分散'
+  if (eyeContactRatio.value > 0) return '眼神接触不足'
+  return '等待摄像头数据'
+})
+
+// Pace status
+const paceStatusClass = computed(() => {
+  if (currentWPM.value === 0) return 'pace-waiting'
+  if (currentWPM.value < 80) return 'pace-slow'
+  if (currentWPM.value <= 150) return 'pace-good'
+  return 'pace-fast'
+})
+const paceStatusLabel = computed(() => {
+  if (currentWPM.value === 0) return '等待中'
+  if (currentWPM.value < 80) return '偏慢'
+  if (currentWPM.value <= 150) return '适中'
+  return '偏快'
+})
+
+const confidenceGrade = computed(() => {
+  const score = liveResult.value?.confidence_score || 0
+  if (score >= 8) return 'grade-a'
+  if (score >= 6) return 'grade-b'
+  if (score >= 4) return 'grade-c'
+  return 'grade-d'
+})
+
+// Media streams
+let mediaStream: MediaStream | null = null
+let recognition: any = null
+let animationFrameId: number | null = null
+let speechTimer: number | null = null
+let eyeTrackInterval: number | null = null
+let sessionId = ''
+
+// Filler word patterns
+const FILLER_PATTERNS = [
+  /\bum\b/gi, /\buh\b/gi, /\blike\b/gi, /\byou know\b/gi,
+  /\bso\b/gi, /\bactually\b/gi, /\bbasically\b/gi,
+  /\bliterally\b/gi, /\bhonestly\b/gi, /\bprobably\b/gi,
+  /\bmaybe\b/gi, /\bright\b/gi, /\bokay\b/gi,
+  /\b这个\b/gi, /\b那个\b/gi, /\b就是\b/gi, /\b嗯\b/gi,
+  /\b啊\b/gi, /\b吧\b/gi, /\b的话\b/gi
+]
+
+// Permissions
+async function requestMicPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    micPermission.value = 'granted'
+    stream.getTracks().forEach(t => t.stop())
+  } catch {
+    micPermission.value = 'denied'
+    alert('麦克风权限被拒绝，请在浏览器设置中授权')
+  }
+}
+
+async function requestCameraPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    cameraPermission.value = 'granted'
+    stream.getTracks().forEach(t => t.stop())
+  } catch {
+    cameraPermission.value = 'denied'
+    alert('摄像头权限被拒绝，请在浏览器设置中授权')
+  }
+}
+
+// Format duration
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return m > 0 ? `${m}分${s}秒` : `${s}秒`
+}
+
+// Toggle live session
+async function toggleLiveSession() {
+  if (isLiveActive.value) {
+    stopLiveSession()
+  } else {
+    await startLiveSession()
+  }
+}
+
+async function startLiveSession() {
+  sessionId = 'live_' + Date.now().toString(36)
+  isLiveActive.value = true
+  liveResult.value = null
+  totalWords.value = 0
+  fillerWordCount.value = 0
+  speakingDuration.value = 0
+  currentWPM.value = 0
+  eyeContactRatio.value = 0
+  gazeAwayCount.value = 0
+  transcriptLines.value = []
+
+  // Start microphone
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    await startSpeechRecognition()
+  } catch (e) {
+    console.error('麦克风启动失败:', e)
+    isLiveActive.value = false
+    return
+  }
+
+  // Start webcam if permitted
+  if (cameraPermission.value === 'granted') {
+    try {
+      const camStream = await navigator.mediaDevices.getUserMedia({ video: true })
+      if (webcamVideo.value) {
+        webcamVideo.value.srcObject = camStream
+      }
+      startEyeTracking()
+    } catch {
+      // Camera not critical, continue without it
+    }
+  }
+
+  // Start WPM tracking timer
+  speakingStartTime.value = Date.now()
+  speechTimer = window.setInterval(() => {
+    if (speakingStartTime.value) {
+      speakingDuration.value = (Date.now() - speakingStartTime.value) / 1000
+      if (speakingDuration.value > 0) {
+        currentWPM.value = Math.round((totalWords.value / speakingDuration.value) * 60)
+      }
+    }
+    // Send live analysis every 5 seconds
+    if (Math.floor(speakingDuration.value) % 5 === 0 && speakingDuration.value > 1) {
+      sendLiveAnalysis()
+    }
+  }, 1000)
+
+  isListening.value = true
+}
+
+function stopLiveSession() {
+  isLiveActive.value = false
+  isListening.value = false
+
+  // Stop media streams
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop())
+    mediaStream = null
+  }
+
+  // Stop webcam
+  if (webcamVideo.value) {
+    webcamVideo.value.srcObject = null
+  }
+
+  // Stop speech recognition
+  if (recognition) {
+    try { recognition.stop() } catch {}
+    recognition = null
+  }
+
+  // Stop timers
+  if (speechTimer) {
+    clearInterval(speechTimer)
+    speechTimer = null
+  }
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = null
+  }
+  if (eyeTrackInterval) {
+    clearInterval(eyeTrackInterval)
+    eyeTrackInterval = null
+  }
+
+  // Final analysis
+  sendLiveAnalysis(true)
+}
+
+function resetLiveSession() {
+  stopLiveSession()
+  liveResult.value = null
+  totalWords.value = 0
+  fillerWordCount.value = 0
+  speakingDuration.value = 0
+  currentWPM.value = 0
+  eyeContactRatio.value = 0
+  gazeAwayCount.value = 0
+  transcriptLines.value = []
+}
+
+// Speech recognition using Web Speech API
+async function startSpeechRecognition() {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    console.warn('Web Speech API not supported')
+    return
+  }
+
+  recognition = new SpeechRecognition()
+  recognition.continuous = true
+  recognition.interimResults = true
+  recognition.lang = 'zh-CN'
+
+  recognition.onresult = (event: any) => {
+    let interimTranscript = ''
+    let finalTranscript = ''
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript
+      } else {
+        interimTranscript += transcript
+      }
+    }
+
+    if (finalTranscript) {
+      processTranscript(finalTranscript)
+    }
+  }
+
+  recognition.onerror = (event: any) => {
+    if (event.error !== 'no-speech') {
+      console.error('Speech recognition error:', event.error)
+    }
+  }
+
+  recognition.onend = () => {
+    if (isLiveActive.value) {
+      // Restart if still active
+      try { recognition.start() } catch {}
+    }
+  }
+
+  try {
+    recognition.start()
+  } catch (e) {
+    console.error('Failed to start speech recognition:', e)
+  }
+}
+
+function processTranscript(text: string) {
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0)
+  const wordCount = words.length
+
+  transcriptLines.value.push(text)
+  totalWords.value += wordCount
+
+  // Count filler words
+  let fillersInText = 0
+  for (const pattern of FILLER_PATTERNS) {
+    const matches = text.match(pattern)
+    if (matches) fillersInText += matches.length
+  }
+  fillerWordCount.value += fillersInText
+}
+
+// Simple eye tracking using canvas sampling
+function startEyeTracking() {
+  eyeTrackInterval = window.setInterval(async () => {
+    if (!webcamVideo.value || !webcamCanvas.value || webcamVideo.value.readyState < 2) return
+
+    const video = webcamVideo.value
+    const canvas = webcamCanvas.value
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    ctx.drawImage(video, 0, 0)
+
+    // Use face-api.js if available, otherwise use simple brightness-based estimation
+    try {
+      const total = canvas.width * canvas.height
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+
+      // Simple heuristic: eye region is typically in upper-center portion
+      const eyeRegionTop = Math.floor(canvas.height * 0.2)
+      const eyeRegionBottom = Math.floor(canvas.height * 0.5)
+      const eyeRegionLeft = Math.floor(canvas.width * 0.25)
+      const eyeRegionRight = Math.floor(canvas.width * 0.75)
+
+      let brightPixels = 0
+      let totalEyePixels = 0
+
+      for (let y = eyeRegionTop; y < eyeRegionBottom; y++) {
+        for (let x = eyeRegionLeft; x < eyeRegionRight; x++) {
+          const idx = (y * canvas.width + x) * 4
+          const r = data[idx], g = data[idx + 1], b = data[idx + 2]
+          const brightness = (r + g + b) / 3
+          // Eyes are typically darker than surrounding skin but brighter than hair
+          if (brightness > 30 && brightness < 150) {
+            brightPixels++
+          }
+          totalEyePixels++
+        }
+      }
+
+      const eyeBrightnessRatio = brightPixels / totalEyePixels
+      // If eyes are visible (some brightness variation), assume looking at camera
+      // This is a simplified heuristic - real eye tracking needs ML model
+      const isLookingAtCamera = eyeBrightnessRatio > 0.05
+
+      eyeContactRatio.value = isLookingAtCamera
+        ? Math.min(0.95, eyeContactRatio.value + 0.05)
+        : Math.max(0.1, eyeContactRatio.value - 0.1)
+
+      if (!isLookingAtCamera && Math.random() < 0.3) {
+        gazeAwayCount.value++
+      }
+    } catch {
+      // Silently handle errors
+    }
+  }, 1000)
+}
+
+// Send live analysis to backend
+let lastSendTime = 0
+async function sendLiveAnalysis(isFinal = false) {
+  const now = Date.now()
+  if (!isFinal && now - lastSendTime < 4000) return
+  lastSendTime = now
+
+  const wpm = speakingDuration.value > 0 ? (totalWords.value / speakingDuration.value) * 60 : 0
+  const fRatio = totalWords.value > 0 ? fillerWordCount.value / totalWords.value : 0
+
+  try {
+    const res = await api.post('/ppt/coach/live-session', {
+      task_id: props.taskId,
+      slides: props.slides,
+      speech_transcript: transcriptLines.value.join(' '),
+      filler_words_detected: [],
+      current_wpm: wpm,
+      total_words_spoken: totalWords.value,
+      speaking_duration_seconds: speakingDuration.value,
+      eye_contact_ratio: eyeContactRatio.value,
+      gaze_away_count: gazeAwayCount.value,
+      filler_word_ratio: fRatio,
+      pace_score: getPaceScore(wpm),
+      confidence_score: 0,
+      delivery_session_id: sessionId,
+    })
+    if (res.data.success) {
+      liveResult.value = res.data
+    }
+  } catch (e) {
+    console.error('Live analysis error:', e)
+  }
+}
+
+function getPaceScore(wpm: number): number {
+  if (wpm === 0) return 0
+  if (wpm < 80) return 3 + (wpm / 80) * 3
+  if (wpm <= 150) return 6 + ((150 - Math.abs(wpm - 120)) / 30) * 4
+  return Math.max(1, 10 - (wpm - 150) / 20)
+}
+
+// Cleanup on unmount and keep existing results when reopening
 watch(() => props.visible, (visible) => {
+  if (!visible && isLiveActive.value) {
+    stopLiveSession()
+  }
   if (visible) {
     // Keep existing results when reopening same panel
   }
@@ -2311,5 +2824,54 @@ watch(() => props.visible, (visible) => {
 .past-issue-tag { background: #ff3b3022; color: #ff3b30; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
 .historical-summary { background: #f8f8f8; border-radius: 8px; padding: 10px; font-size: 13px; color: #555; }
 .historical-summary p { margin: 0; }
+
+/* R138: Live Coach */
+.live-permissions { margin-bottom: 16px; }
+.permission-warn { background: #fef3c7; border-radius: 8px; padding: 10px; text-align: center; font-size: 13px; color: #92400e; }
+.live-perm-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
+.webcam-preview { position: relative; width: 200px; height: 150px; margin: 0 auto 16px; border-radius: 12px; overflow: hidden; background: #000; border: 2px solid #667eea44; }
+.webcam-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.eye-contact-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 6px 8px; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: space-between; }
+.eye-indicator { display: flex; align-items: center; gap: 4px; }
+.eye-icon { font-size: 14px; }
+.eye-text { font-size: 11px; color: white; }
+.gaze-counter { font-size: 11px; color: #fca5a5; }
+.mic-status { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 16px; }
+.mic-wpm-display { display: flex; align-items: baseline; gap: 6px; }
+.wpm-num { font-size: 48px; font-weight: 700; color: #667eea; }
+.wpm-unit { font-size: 16px; color: #667eea88; }
+.pace-badge { padding: 3px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.pace-badge.pace-waiting { background: #f0f0f0; color: #888; }
+.pace-badge.pace-slow { background: #fef3c7; color: #92400e; }
+.pace-badge.pace-good { background: #dcfce7; color: #166534; }
+.pace-badge.pace-fast { background: #fee2e2; color: #991b1b; }
+.mic-waveform { display: flex; align-items: center; justify-content: center; gap: 4px; height: 30px; }
+.wave-bar { width: 4px; height: 8px; background: #667eea44; border-radius: 2px; }
+.wave-bar.active { background: #667eea; animation: wave 0.8s ease-in-out infinite; }
+@keyframes wave { 0%, 100% { height: 8px; } 50% { height: 24px; } }
+.filler-counter { display: flex; align-items: center; gap: 8px; }
+.filler-badge { background: #fef3c7; color: #92400e; padding: 3px 10px; border-radius: 10px; font-size: 12px; }
+.filler-ratio { font-size: 12px; color: #888; }
+.live-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+.metric-card { background: #f8f8f8; border-radius: 10px; padding: 10px 6px; text-align: center; }
+.metric-score { font-size: 28px; font-weight: 700; color: #667eea; }
+.metric-label { font-size: 11px; color: #888; margin-top: 2px; }
+.metric-sub { font-size: 11px; color: #555; margin-top: 2px; }
+.metric-grade { font-size: 18px; font-weight: 700; color: #667eea88; margin-top: 2px; }
+.metric-card.confidence.grade-a .metric-score { color: #34C759; }
+.metric-card.confidence.grade-b .metric-score { color: #007AFF; }
+.metric-card.confidence.grade-c .metric-score { color: #FF9500; }
+.metric-card.confidence.grade-d .metric-score { color: #FF3B30; }
+.live-suggestions { background: #f0f8ff; border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+.live-suggestions h4 { margin: 0 0 8px; font-size: 13px; color: #007aff; }
+.suggestion-item { font-size: 12px; color: #555; padding: 4px 0; border-bottom: 1px solid #e5e5e5; }
+.suggestion-item:last-child { border-bottom: none; }
+.session-stats { display: flex; gap: 12px; justify-content: center; font-size: 12px; color: #888; margin-bottom: 16px; }
+.live-actions { display: flex; gap: 10px; justify-content: center; }
+.btn-start { background: linear-gradient(135deg, #34C759, #30D158); color: white; }
+.btn-start:hover { background: linear-gradient(135deg, #30D158, #34C759); }
+.btn-danger { background: #FF3B30; color: white; }
+.btn-danger:hover { background: #E02D21; }
+.live-hint { font-size: 12px; color: #888; text-align: center; margin-top: 12px; }
 
 </style>

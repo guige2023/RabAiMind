@@ -112,7 +112,9 @@ class PPTGenerator:
         layout_mode: str = "auto",  # auto/manual
         unified_layout: bool = True,  # 是否统一布局
         # 两阶段生成：预生成的内容（跳过 AI 内容规划步骤）
-        pre_generated_slides: Optional[List[Dict]] = None  # [{title, content, slide_type, layout}, ...]
+        pre_generated_slides: Optional[List[Dict]] = None,  # [{title, content, slide_type, layout}, ...]
+        # R148: AI 脚本内容生成类型
+        script_content_type: Optional[str] = None  # story_arc/data_story/persuasion/audience_persona/competitor_analysis
     ) -> Dict[str, Any]:
         """生成 PPT - okppt方式
 
@@ -190,7 +192,7 @@ class PPTGenerator:
                 # 一次性模式：AI 内容规划 5%~20%
                 logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
                 task_manager.update_progress(task_id, 5, "AI正在构思布局...", "processing")
-                slides_content = self._plan_ppt(user_request, slide_count, scene=scene, style=style)
+                slides_content = self._plan_ppt(user_request, slide_count, scene=scene, style=style, script_content_type=script_content_type)
                 logger.info(f"AI规划了 {len(slides_content)} 页")
                 task_manager.update_progress(task_id, 20, f"已完成内容规划，共{len(slides_content)}页", "processing")
 
@@ -409,10 +411,10 @@ class PPTGenerator:
                 "error": "PPT生成失败，请稍后重试"
             }
 
-    def _plan_ppt(self, user_request: str, slide_count: int, scene: str = "business", style: str = "professional") -> List[Dict]:
-        """AI规划PPT内容，透传 scene/style"""
+    def _plan_ppt(self, user_request: str, slide_count: int, scene: str = "business", style: str = "professional", script_content_type: str = None) -> List[Dict]:
+        """AI规划PPT内容，透传 scene/style/script_content_type"""
         from .ppt_planner import plan_ppt
-        return plan_ppt(user_request, slide_count, scene=scene, style=style)
+        return plan_ppt(user_request, slide_count, scene=scene, style=style, script_content_type=script_content_type)
 
     def _enhance_with_charts(
         self,

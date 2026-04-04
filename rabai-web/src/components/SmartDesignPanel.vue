@@ -90,7 +90,17 @@
             <button class="feature-run-btn beautify-btn" :disabled="loading">✨ 美化</button>
           </div>
 
-          <!-- R93: 6. Smart placeholder (内容类型自动检测 + 布局推荐) -->
+          <!-- R145: 6. Auto-theme (根据内容上下文自动推荐主题) -->
+          <div class="feature-card feature-auto-theme" @click="runAutoTheme">
+            <div class="feature-icon">🎨</div>
+            <div class="feature-info">
+              <div class="feature-name">智能主题</div>
+              <div class="feature-desc">分析内容上下文，AI 推荐最佳配色方案</div>
+            </div>
+            <button class="feature-run-btn auto-theme-btn" :disabled="loading">✨ 自动</button>
+          </div>
+
+          <!-- R93: 7. Smart placeholder (内容类型自动检测 + 布局推荐) -->
           <div class="feature-card feature-smart-placeholder" @click="detectContentType">
             <div class="feature-icon">🔮</div>
             <div class="feature-info">
@@ -127,6 +137,32 @@
             <div v-if="beautifyResult.suggested_spacing" class="result-item">
               <span class="result-label">间距建议</span>
               <span class="result-value">{{ beautifyResult.suggested_spacing }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- R145: Auto-theme result -->
+        <div v-if="autoThemeResult" class="auto-theme-result">
+          <div class="result-header">
+            <span>🎨 智能主题推荐</span>
+            <button class="apply-btn" @click="applyAutoTheme">✅ 应用主题</button>
+            <button class="dismiss-btn" @click="autoThemeResult = null">✕</button>
+          </div>
+          <div class="result-body">
+            <div class="auto-theme-preview" :style="{ background: autoThemeResult.theme.primary + '22', borderColor: autoThemeResult.theme.primary }">
+              <div class="theme-style-badge">{{ autoThemeResult.theme.name }}</div>
+              <div class="theme-colors-row">
+                <div class="theme-color-dot" :style="{ background: autoThemeResult.theme.primary }" title="主色"></div>
+                <div class="theme-color-dot" :style="{ background: autoThemeResult.theme.secondary }" title="辅色"></div>
+                <div class="theme-color-dot" :style="{ background: autoThemeResult.theme.accent }" title="强调色"></div>
+              </div>
+            </div>
+            <div v-if="autoThemeResult.reasons?.length > 0" class="reasons-list">
+              <span v-for="reason in autoThemeResult.reasons" :key="reason" class="reason-chip">{{ reason }}</span>
+            </div>
+            <div class="content-analysis-info">
+              <span class="content-type-tag">{{ autoThemeResult.content_analysis?.type }}</span>
+              <span v-for="kw in (autoThemeResult.content_analysis?.keywords || []).slice(0, 3)" :key="kw" class="keyword-chip">{{ kw }}</span>
             </div>
           </div>
         </div>
@@ -225,6 +261,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import api from '../api/client'
+import { useInteractionFeedback } from '../composables/useInteractionFeedback'
 
 const props = defineProps<{
   show: boolean
@@ -249,6 +286,9 @@ const resizeMode = ref('auto')
 // R93: Smart placeholder - 内容类型检测结果
 const contentTypeResult = ref<any>(null)
 const selectedSuggestionIdx = ref(0)
+
+// R145: Auto-theme - 基于内容上下文推荐主题
+const autoThemeResult = ref<any>(null)
 
 const spacingPresets = [
   { value: 'compact', label: '紧凑' },
@@ -482,7 +522,54 @@ const closePanel = () => {
   resizeResult.value = null
   contentTypeResult.value = null
   selectedSuggestionIdx.value = 0
+  autoThemeResult.value = null
   emit('close')
+}
+
+const { showSuccess } = useInteractionFeedback()
+
+// R145: Auto-theme - 根据内容上下文自动推荐主题配色
+const runAutoTheme = async () => {
+  if (!props.slides || props.slides.length === 0) return
+  loading.value = true
+  loadingText.value = '✨ AI 分析内容匹配主题中...'
+  try {
+    const slideIndex = props.currentSlideIndex ?? 0
+    const slide = props.slides[slideIndex] ?? props.slides[0]
+    const elements = slide?.elements ?? []
+    const slideContent = elements.map((e: any) => e.content || '').join(' ')
+    const title = slide?.title || ''
+
+    // 从 props 获取 scene/style 信息
+    const scene = (props as any).taskScene || ''
+    const style = (props as any).taskStyle || ''
+
+    const res = await api.ppt.suggestTheme({ content: slideContent, title, scene, style })
+    if (res.data.success) {
+      autoThemeResult.value = res.data
+    } else {
+      alert('主题推荐失败')
+    }
+  } catch (e: any) {
+    console.error('Auto-theme failed', e)
+    alert('主题推荐失败: ' + (e?.message || '未知错误'))
+  } finally {
+    loading.value = false
+    loadingText.value = ''
+  }
+}
+
+// R145: 应用自动推荐的主题
+const applyAutoTheme = () => {
+  if (!autoThemeResult.value) return
+  emit('theme-change', {
+    primary: autoThemeResult.value.theme.primary,
+    secondary: autoThemeResult.value.theme.secondary,
+    accent: autoThemeResult.value.theme.accent,
+  })
+  showSuccess('主题已应用', autoThemeResult.value.theme.name)
+  autoThemeResult.value = null
+  closePanel()
 }
 </script>
 
@@ -1131,4 +1218,96 @@ const closePanel = () => {
   border-color: #667eea;
   color: #667eea;
 }
+
+
+/* R145: Auto-theme feature */
+.feature-auto-theme {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #f8f8ff 0%, #fff 100%);
+}
+
+.feature-run-btn.auto-theme-btn {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.feature-run-btn.auto-theme-btn:hover {
+  opacity: 0.85;
+}
+
+.feature-run-btn.auto-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* R145: Auto-theme result */
+.auto-theme-result {
+  margin-top: 16px;
+  border: 1.5px solid #11998e;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.auto-theme-preview {
+  margin: 14px 16px;
+  border: 2px solid;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theme-style-badge {
+  background: rgba(255,255,255,0.9);
+  color: #333;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-colors-row {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-color-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.1);
+}
+
+.reasons-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+
+.reason-chip {
+  background: #f0f5ff;
+  color: #667eea;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.content-analysis-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 14px;
+  flex-wrap: wrap;
+}
+
+.content-type-tag {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  color: white;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 </style>

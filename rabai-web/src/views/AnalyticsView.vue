@@ -326,7 +326,267 @@
                 </div>
               </div>
             </div>
+          
+          <!-- R156: Story Flow Analysis -->
+          <div class="panel" v-if="storyFlowData">
+            <div class="panel-header">
+              <h3>📖 故事线分析</h3>
+              <span class="coherence-badge" :style="{ color: storyFlowData.coherence_score >= 80 ? '#00B42A' : storyFlowData.coherence_score >= 60 ? '#165DFF' : '#FF7D00' }">
+                叙事连贯性 {{ storyFlowData.coherence_score }}分
+              </span>
+            </div>
+            <div class="story-flow-content">
+              <!-- Flow chart -->
+              <div class="story-flow-chart" v-if="storyFlowData.flow && storyFlowData.flow.length > 0">
+                <svg :viewBox="`0 0 ${storyFlowW} ${storyFlowH}`" class="story-flow-svg">
+                  <!-- Grid lines -->
+                  <line v-for="i in storyFlowData.flow.length + 1" :key="'sg-' + i"
+                    :x1="storyFlowPad.left + (i-1) * ((storyFlowW - storyFlowPad.left - storyFlowPad.right) / Math.max(storyFlowData.flow.length, 1))"
+                    :x2="storyFlowPad.left + (i-1) * ((storyFlowW - storyFlowPad.left - storyFlowPad.right) / Math.max(storyFlowData.flow.length, 1))"
+                    :y1="storyFlowPad.top"
+                    :y2="storyFlowH - storyFlowPad.bottom"
+                    stroke="#f0f0f0" stroke-width="1"/>
+                  <!-- Engagement line -->
+                  <polyline
+                    :points="storyFlowPolyline"
+                    fill="none" stroke="#165DFF" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+                  <!-- Data points -->
+                  <circle v-for="(pt, i) in storyFlowData.flow" :key="'sp-' + i"
+                    :cx="storyFlowX(i)" :cy="storyFlowY(pt.engagement_score)"
+                    r="5" :fill="phaseColor(pt.phase)" stroke="white" stroke-width="2">
+                    <title>{{ (pt.slide_index + 1) }}页 ({{ pt.phase }}): {{ pt.engagement_score }}分 | 流失率{{ Math.round(pt.drop_rate * 100) }}%</title>
+                  </circle>
+                  <!-- Phase labels -->
+                  <text v-for="(pt, i) in storyFlowData.flow" :key="'sph-' + i"
+                    :x="storyFlowX(i)" :y="storyFlowH - 4"
+                    text-anchor="middle" font-size="9" fill="#8c8c8c">
+                    {{ phaseLabel(pt.phase) }}
+                  </text>
+                  <!-- Y axis -->
+                  <line :x1="storyFlowPad.left" :x2="storyFlowPad.left"
+                    :y1="storyFlowPad.top" :y2="storyFlowH - storyFlowPad.bottom" stroke="#e8e8e8" stroke-width="1"/>
+                  <text v-for="tick in [0, 50, 100]" :key="'syt-' + tick"
+                    :x="storyFlowPad.left - 4"
+                    :y="storyFlowY(tick) + 4"
+                    text-anchor="end" font-size="9" fill="#8c8c8c">{{ tick }}</text>
+                </svg>
+              </div>
+              <!-- Peak and bottleneck slides -->
+              <div class="story-highlights" v-if="storyFlowData.peak_slides && storyFlowData.peak_slides.length">
+                <div class="story-highlight-item highlight-peak">
+                  <span class="highlight-icon">🔥</span>
+                  <span class="highlight-label">高峰页：</span>
+                  <span class="highlight-value">第{{ storyFlowData.peak_slides[0].slide_index + 1 }}页 ({{ storyFlowData.peak_slides[0].engagement_score }}分)</span>
+                </div>
+                <div class="story-highlight-item highlight-bottleneck" v-if="storyFlowData.bottleneck_slides && storyFlowData.bottleneck_slides.length">
+                  <span class="highlight-icon">⚠️</span>
+                  <span class="highlight-label">流失页：</span>
+                  <span class="highlight-value">第{{ storyFlowData.bottleneck_slides[0].slide_index + 1 }}页 (流失率{{ Math.round(storyFlowData.bottleneck_slides[0].drop_rate * 100) }}%)</span>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <!-- R156: Predicted Conversion Score -->
+          <div class="panel" v-if="conversionScore">
+            <div class="panel-header">
+              <h3>🎯 预测转化分数</h3>
+              <span class="conv-label">
+                <span class="confidence-dot" :class="conversionScore.confidence"></span>
+                置信度: {{ conversionScore.confidence === 'high' ? '高' : conversionScore.confidence === 'medium' ? '中' : '低' }}
+              </span>
+            </div>
+            <div class="conversion-content">
+              <div class="conv-score-display">
+                <svg viewBox="0 0 120 120" class="score-ring">
+                  <circle cx="60" cy="60" r="52" fill="none" stroke="#f0f0f0" stroke-width="10"/>
+                  <circle cx="60" cy="60" r="52" fill="none"
+                    :stroke="convScoreColor(conversionScore.predicted_conversion_score)"
+                    stroke-width="10" stroke-linecap="round"
+                    :stroke-dasharray="`${convCircumference}`"
+                    :stroke-dashoffset="`${convScoreOffset(conversionScore.predicted_conversion_score)}`"
+                    transform="rotate(-90 60 60)"
+                    style="transition: stroke-dashoffset 1s ease"/>
+                </svg>
+                <div class="conv-score-number">
+                  <span class="big-conv-score">{{ conversionScore.predicted_conversion_score }}</span>
+                  <span class="score-max">/100</span>
+                </div>
+              </div>
+              <!-- Factor breakdown -->
+              <div class="conv-factors">
+                <div v-for="factor in conversionScore.factors" :key="factor.name" class="conv-factor-item">
+                  <div class="conv-factor-header">
+                    <span class="conv-factor-name">{{ factor.name }}</span>
+                    <span class="conv-factor-score">{{ factor.score }}<span class="conv-factor-max">/{{ factor.max }}</span></span>
+                  </div>
+                  <div class="conv-bar-bg">
+                    <div class="conv-bar-fill"
+                      :style="{ width: (factor.score / factor.max * 100) + '%', background: convFactorColor(factor.score, factor.max) }">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Percentile -->
+              <div class="conv-percentile" v-if="conversionScore.percentile_vs_industry">
+                <span class="pct-badge"
+                  :style="{ background: pctBadgeColor(conversionScore.percentile_vs_industry.percentile_label) }">
+                  {{ conversionScore.percentile_vs_industry.percentile_label }}
+                </span>
+                <span class="pct-desc">vs 行业平均 {{ conversionScore.percentile_vs_industry.diff >= 0 ? '+' : '' }}{{ conversionScore.percentile_vs_industry.diff }}分</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- R156: Comparative Benchmarks -->
+          <div class="panel" v-if="benchmarkData">
+            <div class="panel-header">
+              <h3>📊 行业基准对比</h3>
+              <div class="benchmark-category-tabs">
+                <button v-for="cat in benchmarkCategories" :key="cat.key"
+                  class="cat-tab" :class="{ active: benchmarkCategory === cat.key }"
+                  @click="loadBenchmarks(cat.key)">
+                  {{ cat.label }}
+                </button>
+              </div>
+            </div>
+            <div class="benchmark-content">
+              <!-- Overall rating -->
+              <div class="benchmark-overall">
+                <span class="benchmark-overall-stars">
+                  <span v-for="s in 5" :key="s"
+                    class="star" :class="{ filled: s <= benchmarkData.overall_rating.stars }">★</span>
+                </span>
+                <span class="benchmark-overall-label">{{ benchmarkData.overall_rating.rating }}</span>
+                <span class="benchmark-industry-avg">行业均值: {{ benchmarkData.industry_avg }}</span>
+              </div>
+              <!-- Metric comparisons -->
+              <div class="benchmark-metrics">
+                <div v-for="metric in benchmarkData.metrics" :key="metric.label" class="benchmark-metric-row">
+                  <span class="benchmark-metric-label">{{ metric.label }}</span>
+                  <div class="benchmark-bar-wrapper">
+                    <div class="benchmark-bar-bg">
+                      <!-- Actual bar (blue) -->
+                      <div class="benchmark-bar-actual"
+                        :style="{ width: Math.min(100, (metric.actual / Math.max(metric.industry, 0.01)) * 50) + '%' }">
+                      </div>
+                      <!-- Industry line marker -->
+                      <div class="benchmark-industry-marker"
+                        :style="{ left: '50%' }"
+                        title="行业均值: {{ metric.industry }}{{ metric.unit }}">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="benchmark-metric-stars">
+                    <span v-for="s in 5" :key="s" class="star sm" :class="{ filled: s <= metric.stars }">★</span>
+                    <span class="metric-rating-label">{{ metric.rating }}</span>
+                  </div>
+                </div>
+              </div>
+              <!-- Recommendation -->
+              <div class="benchmark-recommendation">
+                <span class="rec-icon">💡</span>
+                <span class="rec-text">{{ benchmarkData.recommendation }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- R156: Per-Slide Heatmaps -->
+          <div class="panel" v-if="slideHeatmaps && Object.keys(slideHeatmaps.slide_heatmaps || {}).length > 0">
+            <div class="panel-header">
+              <h3>🔥 每页注意力热力图</h3>
+              <span class="heatmap-label">选择幻灯片查看注意力分布</span>
+            </div>
+            <div class="per-slide-heatmaps">
+              <div class="slide-selector">
+                <button v-for="(heatmap, slideIdx) in slideHeatmaps.slide_heatmaps" :key="slideIdx"
+                  class="slide-heat-btn"
+                  :class="{ active: selectedHeatmapSlide === Number(slideIdx) }"
+                  @click="selectedHeatmapSlide = Number(slideIdx)">
+                  {{ Number(slideIdx) + 1 }}页
+                </button>
+              </div>
+              <div class="slide-heatmap-display" v-if="selectedHeatmapSlide !== null">
+                <div class="slide-heatmap-grid"
+                  :style="{ '--grid-size': slideHeatmaps.grid_size }">
+                  <div v-for="cell in currentSlideHeatmapCells" :key="cell.key"
+                    class="heatmap-cell"
+                    :style="{ background: heatmapColor(cell.weight) }"
+                    :title="`区域 ${cell.key}: ${(cell.weight * 100).toFixed(0)}%`">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- R156: A/B Testing -->
+          <div class="panel" v-if="abTestData">
+            <div class="panel-header">
+              <h3>🧪 A/B 测试</h3>
+              <div class="ab-slide-selector">
+                <input v-model="abSlideIndex" type="number" min="0"
+                  :placeholder="'幻灯片号'" class="ab-slide-input"
+                  @keydown.enter="loadABTest" />
+                <button class="btn btn-outline" @click="loadABTest">查询</button>
+              </div>
+            </div>
+            <div class="ab-test-content" v-if="abTestData.versions">
+              <!-- Winner banner -->
+              <div class="ab-winner-banner" :class="'winner-' + abTestData.winner">
+                <span class="winner-icon">
+                  {{ abTestData.winner === 'A' ? '🅰️' : abTestData.winner === 'B' ? '🅱️' : '🤝' }}
+                </span>
+                <span class="winner-text">
+                  优胜版本: <strong>{{ abTestData.winner === 'tie' ? '持平' : abTestData.winner }}</strong>
+                  ({{ Math.round(abTestData.confidence * 100) }}% 置信度)
+                </span>
+              </div>
+              <!-- Version comparison -->
+              <div class="ab-versions-grid">
+                <div v-for="vk in ['A', 'B']" :key="vk" class="ab-version-card"
+                  :class="{ 'is-winner': abTestData.winner === vk }">
+                  <div class="ab-version-header">
+                    <span class="ab-version-badge" :class="'badge-' + vk.toLowerCase()">{{ vk }}</span>
+                    <span class="ab-version-title">
+                      {{ vk === 'A' ? '版本 A' : '版本 B' }}
+                    </span>
+                  </div>
+                  <div class="ab-version-stats">
+                    <div class="ab-stat-item">
+                      <span class="ab-stat-label">样本量</span>
+                      <span class="ab-stat-value">{{ abTestData.versions[vk]?.sample_size || 0 }}</span>
+                    </div>
+                    <div class="ab-stat-item">
+                      <span class="ab-stat-label">平均时长</span>
+                      <span class="ab-stat-value">{{ abTestData.versions[vk]?.avg_time_seconds || 0 }}s</span>
+                    </div>
+                    <div class="ab-stat-item">
+                      <span class="ab-stat-label">热力权重</span>
+                      <span class="ab-stat-value">{{ abTestData.versions[vk]?.avg_heatmap_weight || 0 }}</span>
+                    </div>
+                    <div class="ab-stat-item">
+                      <span class="ab-stat-label">滚动深度</span>
+                      <span class="ab-stat-value">{{ abTestData.versions[vk]?.avg_scroll_depth || 0 }}%</span>
+                    </div>
+                  </div>
+                  <!-- Time comparison bar -->
+                  <div class="ab-time-bar-wrapper">
+                    <div class="ab-time-bar-bg">
+                      <div class="ab-time-bar" :class="'bar-' + vk.toLowerCase()"
+                        :style="{ width: abTimeWidth(vk) + '%' }">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-ab-data">
+              <p>暂无A/B测试数据。请先保存两个版本的幻灯片内容。</p>
+            </div>
+          </div>
+
+</div>
         </div>
       </div>
 
@@ -902,9 +1162,206 @@ const recentTasks = computed(() => {
   return history.slice(0, 5).map((t: any) => ({ task_id: t.task_id || t.id || '' }))
 })
 
+
+// R156: Advanced Presentation Analytics
+const abSlideIndex = ref(0)
+const abTestData = ref<Record<string, any> | null>(null)
+const storyFlowData = ref<Record<string, any> | null>(null)
+const conversionScore = ref<Record<string, any> | null>(null)
+const benchmarkData = ref<Record<string, any> | null>(null)
+const benchmarkCategory = ref('business')
+const slideHeatmaps = ref<Record<string, any> | null>(null)
+const selectedHeatmapSlide = ref<number | null>(null)
+
+const benchmarkCategories = [
+  { key: 'business', label: '商务' },
+  { key: 'marketing', label: '营销' },
+  { key: 'education', label: '教育' },
+  { key: 'tech', label: '科技' },
+  { key: 'creative', label: '创意' },
+  { key: 'finance', label: '金融' },
+  { key: 'medical', label: '医疗' },
+  { key: 'government', label: '政府' },
+]
+
+// A/B Testing
+const loadABTest = async () => {
+  if (!presTaskId.value.trim()) return
+  try {
+    const res = await fetch(`/api/v1/presentation-analytics/ab/results/${presTaskId.value.trim()}/${abSlideIndex.value}`)
+    if (res.ok) {
+      abTestData.value = await res.json()
+    }
+  } catch (e) {
+    console.warn('loadABTest failed:', e)
+  }
+}
+
+const abTimeWidth = (vk: string) => {
+  if (!abTestData.value?.versions) return 50
+  const aTime = abTestData.value.versions['A']?.avg_time_seconds || 1
+  const bTime = abTestData.value.versions['B']?.avg_time_seconds || 1
+  const maxTime = Math.max(aTime, bTime)
+  return vk === 'A' ? Math.round((aTime / maxTime) * 100) : Math.round((bTime / maxTime) * 100)
+}
+
+// Story Flow
+const loadStoryFlow = async () => {
+  if (!presTaskId.value.trim()) return
+  try {
+    const res = await fetch(`/api/v1/presentation-analytics/story-flow/${presTaskId.value.trim()}`)
+    if (res.ok) {
+      storyFlowData.value = await res.json()
+    }
+  } catch (e) {
+    console.warn('loadStoryFlow failed:', e)
+  }
+}
+
+const storyFlowW = 500
+const storyFlowH = 160
+const storyFlowPad = { top: 15, right: 20, bottom: 30, left: 40 }
+
+const storyFlowX = (i: number) => {
+  if (!storyFlowData.value?.flow?.length) return storyFlowPad.left
+  const n = storyFlowData.value.flow.length
+  const innerW = storyFlowW - storyFlowPad.left - storyFlowPad.right
+  return storyFlowPad.left + (i / Math.max(n - 1, 1)) * innerW
+}
+
+const storyFlowY = (score: number) => {
+  const innerH = storyFlowH - storyFlowPad.top - storyFlowPad.bottom
+  return storyFlowPad.top + innerH - (score / 100) * innerH
+}
+
+const storyFlowPolyline = computed(() => {
+  if (!storyFlowData.value?.flow) return ''
+  return storyFlowData.value.flow
+    .map((pt: any, i: number) => `${storyFlowX(i)},${storyFlowY(pt.engagement_score)}`)
+    .join(' ')
+})
+
+const phaseColor = (phase: string) => {
+  const map: Record<string, string> = {
+    opening: '#165DFF', setup: '#722ED1',
+    development: '#FF7D00', climax: '#F53FAD', resolution: '#00B42A'
+  }
+  return map[phase] || '#8c8c8c'
+}
+
+const phaseLabel = (phase: string) => {
+  const map: Record<string, string> = {
+    opening: '开场', setup: '铺陈', development: '发展',
+    climax: '高潮', resolution: '收尾'
+  }
+  return map[phase] || phase
+}
+
+// Conversion Score
+const loadConversionScore = async () => {
+  if (!presTaskId.value.trim()) return
+  try {
+    const res = await fetch(`/api/v1/presentation-analytics/conversion-score/${presTaskId.value.trim()}`)
+    if (res.ok) {
+      conversionScore.value = await res.json()
+    }
+  } catch (e) {
+    console.warn('loadConversionScore failed:', e)
+  }
+}
+
+const convCircumference = 2 * Math.PI * 52
+
+const convScoreOffset = (score: number) => {
+  return convCircumference - (convCircumference * score / 100)
+}
+
+const convScoreColor = (score: number) => {
+  if (score >= 80) return '#00B42A'
+  if (score >= 60) return '#165DFF'
+  if (score >= 40) return '#FF7D00'
+  return '#EB5757'
+}
+
+const convFactorColor = (score: number, max: number) => {
+  const ratio = score / max
+  if (ratio >= 0.8) return '#00B42A'
+  if (ratio >= 0.5) return '#165DFF'
+  return '#FF7D00'
+}
+
+const pctBadgeColor = (label: string) => {
+  if (label === 'Top 10%' || label === 'Top 25%') return '#00B42A'
+  if (label === 'Above Average') return '#165DFF'
+  if (label === 'Average') return '#FF7D00'
+  return '#EB5757'
+}
+
+// Benchmarks
+const loadBenchmarks = async (cat?: string) => {
+  if (!presTaskId.value.trim()) return
+  const category = cat || benchmarkCategory.value
+  try {
+    const res = await fetch(`/api/v1/presentation-analytics/benchmarks/${presTaskId.value.trim()}?category=${category}`)
+    if (res.ok) {
+      benchmarkData.value = await res.json()
+    }
+  } catch (e) {
+    console.warn('loadBenchmarks failed:', e)
+  }
+}
+
+// Per-Slide Heatmaps
+const loadSlideHeatmaps = async () => {
+  if (!presTaskId.value.trim()) return
+  try {
+    const res = await fetch(`/api/v1/presentation-analytics/slide-heatmaps/${presTaskId.value.trim()}`)
+    if (res.ok) {
+      slideHeatmaps.value = await res.json()
+      if (slideHeatmaps.value?.slide_heatmaps) {
+        const keys = Object.keys(slideHeatmaps.value.slide_heatmaps)
+        if (keys.length > 0) {
+          selectedHeatmapSlide.value = Number(keys[0])
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('loadSlideHeatmaps failed:', e)
+  }
+}
+
+const currentSlideHeatmapCells = computed(() => {
+  if (!slideHeatmaps.value?.slide_heatmaps || selectedHeatmapSlide.value === null) return []
+  const grid = slideHeatmaps.value.grid_size || 8
+  const data = slideHeatmaps.value.slide_heatmaps[selectedHeatmapSlide.value] || {}
+  const cells = []
+  for (let y = 0; y < grid; y++) {
+    for (let x = 0; x < grid; x++) {
+      const key = `${x},${y}`
+      cells.push({ key, weight: data[key] ?? 0 })
+    }
+  }
+  return cells
+})
+
+// Enhanced loadPresAnalytics - also loads new R156 data
+const loadPresAnalyticsR156 = async () => {
+  if (!presTaskId.value.trim()) return
+  await loadAnalytics(presTaskId.value.trim())
+  await Promise.all([
+    loadStoryFlow(),
+    loadConversionScore(),
+    loadBenchmarks(),
+    loadSlideHeatmaps(),
+  ])
+}
+
+
+// Original loadPresAnalytics - replaced with enhanced version
 const loadPresAnalytics = async () => {
   if (!presTaskId.value.trim()) return
   await loadAnalytics(presTaskId.value.trim())
+  await Promise.all([loadStoryFlow(), loadConversionScore(), loadBenchmarks(), loadSlideHeatmaps()])
 }
 
 const selectPresTask = (taskId: string) => {
@@ -2324,4 +2781,101 @@ onMounted(() => {
   max-height: 300px;
   margin: 0;
 }
+
+
+/* R156: Story Flow Analysis */
+.story-flow-content { padding: 12px 0; }
+.story-flow-chart { width: 100%; max-width: 520px; margin: 0 auto; }
+.story-flow-svg { width: 100%; height: auto; }
+.story-highlights { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.story-highlight-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.highlight-peak { color: #F53FAD; }
+.highlight-bottleneck { color: #FF7D00; }
+.coherence-badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #f5f5f5; }
+
+/* R156: Predicted Conversion Score */
+.conversion-content { display: flex; align-items: center; gap: 24px; padding: 12px 0; flex-wrap: wrap; }
+.conv-score-display { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+.score-ring { width: 120px; height: 120px; }
+.conv-score-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+.big-conv-score { font-size: 28px; font-weight: 700; color: #165DFF; }
+.score-max { font-size: 12px; color: #8c8c8c; }
+.conv-factors { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.conv-factor-item { }
+.conv-factor-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.conv-factor-name { color: #333; }
+.conv-factor-score { font-weight: 600; color: #165DFF; }
+.conv-factor-max { color: #8c8c8c; }
+.conv-bar-bg { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+.conv-bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+.conv-percentile { display: flex; align-items: center; gap: 8px; width: 100%; }
+.pct-badge { padding: 3px 10px; border-radius: 10px; color: white; font-size: 12px; font-weight: 600; }
+.pct-desc { font-size: 12px; color: #666; }
+.confidence-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.confidence-dot.high { background: #00B42A; }
+.confidence-dot.medium { background: #FF7D00; }
+.confidence-dot.low { background: #EB5757; }
+
+/* R156: Comparative Benchmarks */
+.benchmark-category-tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.cat-tab { padding: 3px 10px; border: 1px solid #e8e8e8; border-radius: 14px; background: white; cursor: pointer; font-size: 12px; color: #666; transition: all 0.2s; }
+.cat-tab.active { background: #165DFF; color: white; border-color: #165DFF; }
+.cat-tab:hover:not(.active) { border-color: #165DFF; color: #165DFF; }
+.benchmark-content { padding: 12px 0; }
+.benchmark-overall { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.benchmark-overall-stars { font-size: 18px; color: #ddd; }
+.star.filled { color: #FF7D00; }
+.benchmark-overall-label { font-weight: 600; color: #165DFF; }
+.benchmark-industry-avg { font-size: 12px; color: #8c8c8c; margin-left: auto; }
+.benchmark-metrics { display: flex; flex-direction: column; gap: 10px; }
+.benchmark-metric-row { display: grid; grid-template-columns: 90px 1fr 120px; align-items: center; gap: 12px; }
+.benchmark-metric-label { font-size: 12px; color: #333; }
+.benchmark-bar-wrapper { }
+.benchmark-bar-bg { position: relative; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: visible; }
+.benchmark-bar-actual { height: 100%; background: #165DFF; border-radius: 4px; max-width: 100%; }
+.benchmark-industry-marker { position: absolute; top: -4px; width: 2px; height: 16px; background: #FF7D00; border-radius: 1px; transform: translateX(-50%); }
+.benchmark-metric-stars { display: flex; align-items: center; gap: 2px; }
+.star.sm { font-size: 12px; color: #ddd; }
+.metric-rating-label { font-size: 11px; color: #8c8c8c; margin-left: 4px; }
+.benchmark-recommendation { margin-top: 14px; padding: 10px 12px; background: #f8f9fa; border-radius: 8px; font-size: 13px; color: #333; line-height: 1.6; }
+.rec-icon { margin-right: 6px; }
+.rec-text { }
+
+/* R156: Per-Slide Heatmaps */
+.per-slide-heatmaps { }
+.slide-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.slide-heat-btn { padding: 4px 12px; border: 1px solid #e8e8e8; border-radius: 14px; background: white; cursor: pointer; font-size: 12px; color: #666; transition: all 0.2s; }
+.slide-heat-btn.active { background: #165DFF; color: white; border-color: #165DFF; }
+.slide-heatmap-display { }
+.slide-heatmap-grid { display: grid; grid-template-columns: repeat(var(--grid-size, 8), 1fr); gap: 2px; max-width: 300px; aspect-ratio: 16/9; margin: 0 auto; }
+.heatmap-cell { border-radius: 2px; transition: background 0.3s; cursor: default; min-width: 0; aspect-ratio: 1; }
+
+/* R156: A/B Testing */
+.ab-test-content { padding: 12px 0; }
+.ab-winner-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+.winner-A { background: linear-gradient(135deg, #e8f4ff, #d9ecff); border: 1px solid #91d5ff; }
+.winner-B { background: linear-gradient(135deg, #fff7e6, #ffe7c4); border: 1px solid #ffc106; }
+.winner-tie { background: #f5f5f5; border: 1px solid #d9d9d9; }
+.winner-icon { font-size: 20px; }
+.winner-text { font-weight: 600; }
+.ab-versions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ab-version-card { padding: 14px; border: 2px solid #f0f0f0; border-radius: 10px; transition: border-color 0.2s; }
+.ab-version-card.is-winner { border-color: #00B42A; background: #f6fff6; }
+.ab-version-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ab-version-badge { font-size: 18px; }
+.badge-a { }
+.badge-b { }
+.ab-version-title { font-weight: 600; font-size: 14px; }
+.ab-version-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.ab-stat-item { text-align: center; }
+.ab-stat-label { display: block; font-size: 10px; color: #8c8c8c; margin-bottom: 2px; }
+.ab-stat-value { font-size: 14px; font-weight: 700; color: #333; }
+.ab-time-bar-wrapper { }
+.ab-time-bar-bg { height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+.ab-time-bar { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+.bar-a { background: #165DFF; }
+.bar-b { background: #FF7D00; }
+.no-ab-data { text-align: center; padding: 30px; color: #8c8c8c; font-size: 13px; }
+
+
 </style>

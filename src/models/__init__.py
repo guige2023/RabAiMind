@@ -87,6 +87,15 @@ class TextStyleType(str, Enum):
     NEON = "neon"  # 霓虹灯效
 
 
+class ScriptContentType(str, Enum):
+    """AI 脚本内容生成类型 - R148 AI Script & Content Generation 2.0"""
+    STORY_ARC = "story_arc"  # 故事弧线生成器 - 叙事结构
+    DATA_STORY = "data_story"  # 数据故事讲述者 - 数据驱动的叙事
+    PERSUASION = "persuasion"  # 说服技巧 - 修辞框架
+    AUDIENCE_PERSONA = "audience_persona"  # 受众画像 - 精准内容定制
+    COMPETITOR_ANALYSIS = "competitor_analysis"  # 竞品分析 - 竞争格局幻灯片
+
+
 class LayoutType(str, Enum):
     """布局类型 - 与前端 constants.ts 保持同步"""
     TITLE_SLIDE = "title_slide"  # 封面
@@ -219,6 +228,22 @@ class GenerateRequest(BaseModel):
         description="预生成的大纲内容，用于两阶段模式跳过 AI 内容规划步骤",
         validation_alias=AliasChoices("pre_generated_slides", "pre-generated-slides")
     )
+    # R148: AI 脚本内容生成类型
+    script_content_type: Optional[ScriptContentType] = Field(
+        default=None,
+        description="AI 脚本内容生成类型: story_arc/data_story/persuasion/audience_persona/competitor_analysis"
+    )
+
+    @field_validator('script_content_type', mode='before')
+    @classmethod
+    def validate_script_content_type(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str) and v not in [s.value for s in ScriptContentType]:
+            raise ValueError(f'Invalid script_content_type: {v}. Must be one of {[s.value for s in ScriptContentType]}')
+        if isinstance(v, ScriptContentType):
+            return v
+        return ScriptContentType(v)
 
     @field_validator('pre_generated_slides', mode='before')
     @classmethod
@@ -300,6 +325,12 @@ class SlideData(BaseModel):
     content: str
     image_url: Optional[str] = None
     svg_content: Optional[str] = None
+    # R152: Advanced Slide Notes & Annotations
+    notes: Optional[str] = Field(default=None, description="备注（纯文本）")
+    rich_notes: Optional[str] = Field(default=None, description="富文本备注（HTML格式）")
+    speaker_notes: Optional[str] = Field(default=None, description="演讲者私有备注")
+    annotations: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片标注数据")
+    sticky_notes: Optional[List[Dict[str, Any]]] = Field(default=None, description="便签协作数据")
 
 
 class PPTData(BaseModel):

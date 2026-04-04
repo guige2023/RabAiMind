@@ -1203,3 +1203,387 @@ async def verify_download_access(
         "expires_in_seconds": 300,
         "task_id": task_id,
     }
+
+
+# ==================== Org-Level IP Allowlist Routes ====================
+
+class OrgIPAllowlistRequest(BaseModel):
+    allowed_ips: List[str] = Field(default_factory=list, description="允许的IP地址或CIDR列表，空列表表示清除限制")
+    mode: str = Field(default="allow", pattern="^(allow|deny)$")
+
+
+class OrgIPDenyRequest(BaseModel):
+    denied_ips: List[str] = Field(default_factory=list, description="禁止的IP地址或CIDR列表")
+
+
+@router.post("/org/ip-allowlist")
+async def set_org_ip_allowlist(
+    req: OrgIPAllowlistRequest,
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Set organization-level IP allowlist (admin only).
+    
+    When an IP allowlist is set, only requests from allowed IP addresses
+    will be permitted for all users in the organization.
+    """
+    from ...core.org_security import get_org_ip_allowlist_manager
+    manager = get_org_ip_allowlist_manager()
+
+    try:
+        result = manager.set_allowed_ips(
+            org_id="default",
+            allowed_ips=req.allowed_ips,
+            updated_by=current_user.user_id,
+        )
+        get_audit_logger().log(
+            action="org:ip_allowlist_updated",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path="/api/v1/security/org/ip-allowlist",
+            extra={"allowed_ips": req.allowed_ips, "mode": req.mode}
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_IP", "message": str(e)})
+
+
+@router.post("/org/ip-denylist")
+async def set_org_ip_denylist(
+    req: OrgIPDenyRequest,
+    current_user: User = Depends(get_current_admin),
+):
+    """Set organization-level IP denylist (blacklist) (admin only)."""
+    from ...core.org_security import get_org_ip_allowlist_manager
+    manager = get_org_ip_allowlist_manager()
+
+    try:
+        result = manager.set_denied_ips(
+            org_id="default",
+            denied_ips=req.denied_ips,
+            updated_by=current_user.user_id,
+        )
+        get_audit_logger().log(
+            action="org:ip_denylist_updated",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path="/api/v1/security/org/ip-denylist",
+            extra={"denied_ips": req.denied_ips}
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_IP", "message": str(e)})
+
+
+@router.delete("/org/ip-allowlist")
+async def clear_org_ip_allowlist(
+    current_user: User = Depends(get_current_admin),
+):
+    """Clear all organization-level IP restrictions (admin only)."""
+    from ...core.org_security import get_org_ip_allowlist_manager
+    manager = get_org_ip_allowlist_manager()
+    result = manager.clear_restrictions(org_id="default")
+    get_audit_logger().log(
+        action="org:ip_allowlist_cleared",
+        user_id=current_user.user_id,
+        role=current_user.role.value,
+        path="/api/v1/security/org/ip-allowlist",
+    )
+    return result
+
+
+@router.get("/org/ip-allowlist")
+async def get_org_ip_allowlist(
+    current_user: User = Depends(get_current_admin),
+):
+    """Get organization-level IP allowlist configuration (admin only)."""
+    from ...core.org_security import get_org_ip_allowlist_manager
+    manager = get_org_ip_allowlist_manager()
+    return manager.get_ip_config(org_id="default")
+
+
+@router.get("/org/ip-allowlist/check")
+async def check_my_ip_allowlist(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Check if the current request's IP is allowed under org IP policy."""
+    from ...core.org_security import get_org_ip_allowlist_manager
+    manager = get_org_ip_allowlist_manager()
+
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                request.headers.get("X-Real-IP", "")
+    if not client_ip:
+        client_ip = request.client.host if request.client else "unknown"
+
+    allowed = manager.is_ip_allowed(org_id="default", client_ip=client_ip)
+    config = manager.get_ip_config(org_id="default")
+
+    return {
+        "client_ip": client_ip,
+        "is_allowed": allowed,
+        "has_restrictions": config.get("has_restrictions", False),
+        "mode": config.get("mode", "allow"),
+    }
+
+
+# ==================== Custom Role Management Routes ====================
+
+class CustomRoleCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50)
+    description: str = Field(default="", max_length=200)
+    permissions: List[str] = Field(..., min_items=1)
+
+
+class CustomRoleUpdateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=50)
+    description: Optional[str] = Field(None, max_length=200)
+    permissions: Optional[List[str]] = Field(None, min_items=1)
+    is_active: Optional[bool] = None
+
+
+class CustomRoleAssignRequest(BaseModel):
+    user_id: str
+    role_id: str
+
+
+@router.post("/roles")
+async def create_custom_role(
+    req: CustomRoleCreateRequest,
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Create a new custom role with a custom permission set (admin only).
+    
+    Custom roles can be assigned to users to grant fine-grained permissions.
+    """
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+
+    try:
+        role = manager.create_role(
+            name=req.name,
+            description=req.description,
+            permissions=req.permissions,
+            created_by=current_user.user_id,
+        )
+        get_audit_logger().log(
+            action="rbac:custom_role_created",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path="/api/v1/security/roles",
+            extra={"role_id": role["role_id"], "name": req.name, "permissions": req.permissions}
+        )
+        return role
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_ROLE", "message": str(e)})
+
+
+@router.get("/roles", response_model=List[dict])
+async def list_custom_roles(
+    include_inactive: bool = Query(False),
+    current_user: User = Depends(get_current_admin),
+):
+    """List all custom roles (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+    return manager.list_roles(include_inactive=include_inactive)
+
+
+@router.get("/roles/{role_id}", response_model=dict)
+async def get_custom_role(
+    role_id: str,
+    current_user: User = Depends(get_current_admin),
+):
+    """Get a specific custom role (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+    try:
+        return manager.get_role(role_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/roles/{role_id}")
+async def update_custom_role(
+    role_id: str,
+    req: CustomRoleUpdateRequest,
+    current_user: User = Depends(get_current_admin),
+):
+    """Update a custom role (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+
+    try:
+        role = manager.update_role(
+            role_id=role_id,
+            name=req.name,
+            description=req.description,
+            permissions=req.permissions,
+            is_active=req.is_active,
+        )
+        get_audit_logger().log(
+            action="rbac:custom_role_updated",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path=f"/api/v1/security/roles/{role_id}",
+            extra={"changes": {k: v for k, v in req.model_dump().items() if v is not None}}
+        )
+        return role
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_ROLE", "message": str(e)})
+
+
+@router.delete("/roles/{role_id}")
+async def delete_custom_role(
+    role_id: str,
+    current_user: User = Depends(get_current_admin),
+):
+    """Soft-delete a custom role (marks as inactive) (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+
+    try:
+        result = manager.delete_role(role_id)
+        get_audit_logger().log(
+            action="rbac:custom_role_deleted",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path=f"/api/v1/security/roles/{role_id}",
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_ROLE", "message": str(e)})
+
+
+@router.post("/roles/assign")
+async def assign_custom_role_to_user(
+    req: CustomRoleAssignRequest,
+    current_user: User = Depends(get_current_admin),
+):
+    """Assign a custom role to a user (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+
+    try:
+        result = manager.assign_role_to_user(user_id=req.user_id, role_id=req.role_id)
+        get_audit_logger().log(
+            action="rbac:role_assigned",
+            user_id=current_user.user_id,
+            role=current_user.role.value,
+            path="/api/v1/security/roles/assign",
+            extra={"target_user": req.user_id, "role_id": req.role_id}
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": "INVALID_ASSIGNMENT", "message": str(e)})
+
+
+@router.get("/roles/assign/{user_id}")
+async def get_user_custom_roles(
+    user_id: str,
+    current_user: User = Depends(get_current_admin),
+):
+    """Get all custom roles assigned to a user (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+    return manager.get_user_roles(user_id)
+
+
+@router.get("/roles/permissions")
+async def get_available_permissions(
+    current_user: User = Depends(get_current_admin),
+):
+    """Get all available permissions that can be assigned to custom roles (admin only)."""
+    from ...core.org_security import get_custom_role_manager
+    manager = get_custom_role_manager()
+    return {
+        "valid_permissions": sorted(manager.VALID_PERMISSIONS),
+        "categories": {
+            "ppt": [p for p in manager.VALID_PERMISSIONS if p.startswith("ppt:")],
+            "template": [p for p in manager.VALID_PERMISSIONS if p.startswith("template:")],
+            "favorites": [p for p in manager.VALID_PERMISSIONS if p.startswith("favorites:")],
+            "brand": [p for p in manager.VALID_PERMISSIONS if p.startswith("brand:")],
+            "images": [p for p in manager.VALID_PERMISSIONS if p.startswith("images:")],
+            "analytics": [p for p in manager.VALID_PERMISSIONS if p.startswith("analytics:")],
+            "admin": [p for p in manager.VALID_PERMISSIONS if p in ("users:manage", "apikeys:manage", "audit:view", "settings:manage")],
+            "org": [p for p in manager.VALID_PERMISSIONS if p.startswith("org:")],
+            "gdpr": [p for p in manager.VALID_PERMISSIONS if p.startswith("gdpr:")],
+            "sso": [p for p in manager.VALID_PERMISSIONS if p.startswith("sso:")],
+            "share": [p for p in manager.VALID_PERMISSIONS if p.startswith("share:")],
+            "data": [p for p in manager.VALID_PERMISSIONS if p.startswith("data:")],
+        }
+    }
+
+
+# ==================== SOC2 Compliance Routes ====================
+
+@router.get("/soc2/attestation")
+async def get_soc2_attestation(
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get SOC2 compliance attestation document (admin only).
+    
+    This document summarizes the compliance posture across all
+    Trust Service Criteria (TSC) for SOC2 Type II reporting.
+    """
+    from ...core.org_security import get_soc2_compliance_manager
+    manager = get_soc2_compliance_manager()
+    return manager.generate_compliance_attestation()
+
+
+@router.get("/soc2/data-inventory")
+async def get_soc2_data_inventory(
+    user_id: str = Query("", description="Filter by user_id (admin sees all)"),
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get data inventory report (SOC2 CC6.1) (admin only).
+    
+    Lists all data stores, file types, sizes, and retention status.
+    """
+    from ...core.org_security import get_soc2_compliance_manager
+    manager = get_soc2_compliance_manager()
+    return manager.get_data_inventory(user_id=user_id or current_user.user_id)
+
+
+@router.get("/soc2/access-controls")
+async def get_soc2_access_controls(
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get access controls report (SOC2 CC6.2) (admin only).
+    
+    Shows all users, their roles, and permission sets.
+    """
+    from ...core.org_security import get_soc2_compliance_manager
+    manager = get_soc2_compliance_manager()
+    return manager.get_access_controls_report()
+
+
+@router.get("/soc2/encryption")
+async def get_soc2_encryption_report(
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get encryption status report (SOC2 CC6.7) (admin only).
+    """
+    from ...core.org_security import get_soc2_compliance_manager
+    manager = get_soc2_compliance_manager()
+    return manager.get_encryption_report()
+
+
+@router.get("/soc2/audit-trail")
+async def get_soc2_audit_trail_report(
+    days: int = Query(90, ge=1, le=365),
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get audit trail report (SOC2 CC7.2) (admin only).
+    
+    Shows comprehensive audit statistics for the specified period.
+    """
+    from ...core.org_security import get_soc2_compliance_manager
+    manager = get_soc2_compliance_manager()
+    return manager.get_audit_trail_report(days=days)
