@@ -1628,6 +1628,9 @@ class PPTGenerator:
             # 文件压缩优化
             self._compress_pptx(output_path)
 
+            # R46: 品牌注入（LOGO、页脚、Powered by）
+            self._inject_branding_to_pptx(output_path, user_id="default")
+
             return True
 
         except Exception as e:
@@ -1949,6 +1952,133 @@ class PPTGenerator:
 
         except Exception as e:
             logger.error(f"SVG转PDF失败: {e}")
+            return False
+
+    def _inject_branding_to_pptx(self, pptx_path: str, user_id: str = "default") -> bool:
+        """向 PPTX 尾页注入品牌元素（LOGO、页脚、Powered by）
+        
+        R46: Custom Branding & White-label
+        """
+        try:
+            from pptx import Presentation
+            from pptx.util import Inches, Pt
+            from pptx.dml.color import RGBColor
+            from PIL import Image
+            import io
+            import base64
+
+            if not os.path.exists(pptx_path):
+                logger.warning(f"PPT文件不存在，跳过品牌注入: {pptx_path}")
+                return False
+
+            # 获取品牌配置
+            from ..services.brand_manager import get_brand_manager
+            bm = get_brand_manager()
+            brand = bm.get_brand(user_id)
+            if not brand:
+                logger.info("无品牌配置，跳过品牌注入")
+                return True
+
+            # White-label 模式 + 无品牌内容 → 跳过
+            if brand.white_label_mode and not brand.logo_data and not brand.footer_text:
+                logger.info("White-label 模式，无自定义品牌，跳过")
+                return True
+
+            prs = Presentation(pptx_path)
+            if not prs.slides:
+                return False
+
+            # 获取尾页（最后一页）
+            last_slide = prs.slides[-1]
+            slide_w = prs.slide_width
+            slide_h = prs.slide_height
+
+            # LOGO 位置映射
+            logo_positions = {
+                "top-left":     (Inches(0.3), Inches(0.3)),
+                "top-right":    (slide_w - Inches(1.5), Inches(0.3)),
+                "bottom-left":  (Inches(0.3), slide_h - Inches(1.0)),
+                "bottom-right": (slide_w - Inches(1.5), slide_h - Inches(1.0)),
+                "center":       ((slide_w - Inches(1.5)) / 2, (slide_h - Inches(0.8)) / 2),
+            }
+            logo_size = (Inches(1.2), Inches(0.8))
+
+            # 添加 LOGO
+            if brand.logo_data:
+                try:
+                    logo_data = brand.logo_data
+                    if logo_data.startswith("data:"):
+                        import re
+                        match = re.search(r'data:image/[^;]+;base64,(.+)', logo_data)
+                        if match:
+                            logo_data = match.group(1)
+                    binary = base64.b64decode(logo_data + "==")
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                        tmp.write(binary)
+                        tmp_path = tmp.name
+
+                    pos = logo_positions.get(brand.logo_position, logo_positions["bottom-right"])
+                    if isinstance(pos[0], float):
+                        # center position (as float Inches)
+                        from pptx.util import Emu
+                        left = int(pos[0])
+                        top = int(pos[1])
+                    else:
+                        left, top = pos
+                    last_slide.shapes.add_picture(tmp_path, left, top, *logo_size)
+                    os.unlink(tmp_path)
+                    logger.info(f"品牌 LOGO 已注入，位置: {brand.logo_position}")
+                except Exception as e:
+                    logger.warning(f"LOGO 注入失败: {e}")
+
+            # 添加页脚文本
+            if brand.footer_text:
+                try:
+                    footer_box = last_slide.shapes.add_textbox(
+                        Inches(0.3),
+                        slide_h - Inches(0.6),
+                        slide_w - Inches(0.6),
+                        Inches(0.4)
+                    )
+                    tf = footer_box.text_frame
+                    tf.word_wrap = True
+                    p = tf.paragraphs[0]
+                    p.text = brand.footer_text
+                    p.font.size = Pt(10)
+                    p.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+                    p.alignment = 1  # center
+                except Exception as e:
+                    logger.warning(f"页脚文本注入失败: {e}")
+
+            # 添加 Powered by（仅在非 White-label 模式）
+            if brand.powered_by_toggle and not brand.white_label_mode:
+                try:
+                    pb_box = last_slide.shapes.add_textbox(
+                        Inches(0.3),
+                        slide_h - Inches(0.95),
+                        slide_w - Inches(0.6),
+                        Inches(0.35)
+                    )
+                    tf = pb_box.text_frame
+                    p = tf.paragraphs[0]
+                    p.text = "Powered by RabAiMind"
+                    p.font.size = Pt(9)
+                    p.font.color.rgb = RGBColor(0xbb, 0xbb, 0xbb)
+                    p.alignment = 1  # center
+                except Exception as e:
+                    logger.warning(f"Powered by 注入失败: {e}")
+
+            # 保存
+            prs.save(pptx_path)
+            logger.info(f"品牌注入完成: {pptx_path}")
+            return True
+
+        except ImportError as e:
+            logger.warning(f"品牌注入依赖缺失（python-pptx 或 Pillow）: {e}")
+            return False
+        except Exception as e:
+            logger.warning(f"品牌注入失败: {e}")
             return False
 
 

@@ -1,5 +1,26 @@
 <template>
   <div class="template-selector">
+    <!-- R63: Quick-Start Templates Section -->
+    <div class="quick-start-section">
+      <div class="qs-header">
+        <span class="qs-icon">⚡</span>
+        <span class="qs-title">快速开始</span>
+        <span class="qs-hint">选择场景，快速生成</span>
+      </div>
+      <div class="qs-buttons">
+        <button
+          v-for="qs in quickStartOptions"
+          :key="qs.id"
+          class="qs-btn"
+          :class="{ active: activeQuickStart === qs.id }"
+          @click="selectQuickStart(qs)"
+        >
+          <span class="qs-btn-icon">{{ qs.icon }}</span>
+          <span class="qs-btn-name">{{ qs.name }}</span>
+        </button>
+      </div>
+    </div>
+
     <!-- R35: 内容匹配推荐 -->
     <div v-if="contentMatchedTemplates.length > 0" class="content-matched-section">
       <div class="matched-header">
@@ -117,6 +138,60 @@
       </div>
     </div>
 
+    <!-- R55: Similar Presentations Section -->
+    <div v-if="similarTemplates.length > 0" class="similar-section">
+      <div class="similar-header">
+        <span class="similar-icon">🔗</span>
+        <span class="similar-title">相似模板推荐</span>
+        <span class="similar-hint">用过这个模板的人还喜欢</span>
+      </div>
+      <div class="similar-grid">
+        <div
+          v-for="tpl in similarTemplates"
+          :key="tpl.id"
+          class="template-card similar-card"
+          :class="{ selected: selectedTemplate?.id === tpl.id }"
+          @click="selectTemplateById(tpl)"
+        >
+          <div class="card-preview" :style="{ background: getMatchedBackground(tpl) }">
+            <div class="preview-content">
+              <span class="preview-title">{{ tpl.name }}</span>
+            </div>
+          </div>
+          <div class="card-info">
+            <h4 class="card-title">{{ tpl.name }}</h4>
+            <p class="card-scene">{{ tpl.description || tpl.category }}</p>
+          </div>
+          <div v-if="selectedTemplate?.id === tpl.id" class="check-mark">✓</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- R55: User Layout Preferences Section -->
+    <div v-if="userLayoutPreferences.length > 0" class="preferences-section">
+      <div class="preferences-header">
+        <span class="preferences-icon">🎯</span>
+        <span class="preferences-title">你的布局偏好</span>
+        <span class="preferences-hint">系统学习自你的使用习惯</span>
+      </div>
+      <div class="preferences-list">
+        <div
+          v-for="pref in userLayoutPreferences"
+          :key="pref.layout_type"
+          class="preference-item"
+        >
+          <span class="preference-layout">{{ getLayoutDisplayName(pref.layout_type) }}</span>
+          <div class="preference-bar-container">
+            <div
+              class="preference-bar"
+              :style="{ width: (pref.count / maxPreferenceCount * 100) + '%' }"
+            ></div>
+          </div>
+          <span class="preference-count">{{ pref.count }}次</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 大预览弹窗 -->
     <Teleport to="body">
       <div v-if="previewTemplate" class="preview-modal" @click.self="closePreview">
@@ -203,6 +278,27 @@ const props = defineProps<{
 const emit = defineEmits(['select'])
 
 const activeCategory = ref('all')
+const activeQuickStart = ref<string | null>(null)
+
+// R63: Quick-start template options
+const quickStartOptions = [
+  { id: 'product', name: '🚀 产品发布', icon: '🚀', scene: 'business', style: 'modern' },
+  { id: 'annual', name: '📊 年度总结', icon: '📊', scene: 'business', style: 'professional' },
+  { id: 'company', name: '🏢 公司介绍', icon: '🏢', scene: 'business', style: 'professional' },
+  { id: 'business', name: '💼 商业计划', icon: '💼', scene: 'business', style: 'premium' },
+  { id: 'education', name: '📚 教育培训', icon: '📚', scene: 'education', style: 'simple' },
+  { id: 'data', name: '📈 数据分析', icon: '📈', scene: 'data', style: 'professional' },
+  { id: 'marketing', name: '📢 营销推广', icon: '📢', scene: 'marketing', style: 'energetic' },
+  { id: 'creative', name: '💡 创意展示', icon: '💡', scene: 'creative', style: 'creative' },
+]
+
+const selectQuickStart = (qs: typeof quickStartOptions[0]) => {
+  activeQuickStart.value = qs.id
+  // Filter templates by scene
+  activeCategory.value = qs.scene
+  // Emit selection with scene/style info for parent to handle
+  emit('select-quickstart', { scene: qs.scene, style: qs.style })
+}
 
 // R35: Content-based matched templates
 const contentMatchedTemplates = ref<any[]>([])
@@ -246,6 +342,81 @@ watch(() => [props.userRequest, props.scene, props.style], () => {
     contentMatchedTemplates.value = []
   }
 }, { immediate: true })
+
+// R55: Similar Templates (from same-usage recommendations)
+const similarTemplates = ref<any[]>([])
+const isLoadingSimilar = ref(false)
+
+const loadSimilarTemplates = async () => {
+  if (!selectedTemplate.value?.id) return
+  isLoadingSimilar.value = true
+  try {
+    const res = await api.template.getSimilar(selectedTemplate.value.id, 4)
+    if (res.data?.success) {
+      similarTemplates.value = res.data.templates || []
+    }
+  } catch (e) {
+    similarTemplates.value = []
+  } finally {
+    isLoadingSimilar.value = false
+  }
+}
+
+// Watch selected template to load similar
+watch(selectedTemplate, (newVal) => {
+  if (newVal?.id) {
+    loadSimilarTemplates()
+  }
+})
+
+// R55: User Layout Preferences (learned from usage)
+interface LayoutPreference {
+  layout_type: string
+  count: number
+  content_type?: string
+}
+
+const userLayoutPreferences = ref<LayoutPreference[]>([])
+const maxPreferenceCount = ref(1)
+
+const LAYOUT_DISPLAY_NAMES: Record<string, string> = {
+  title_slide: '封面布局',
+  content_card: '卡片布局',
+  two_column: '双栏布局',
+  center_radiation: '中心辐射',
+  timeline: '时间线',
+  data_visualization: '数据图表',
+  quote: '金句布局',
+  comparison: '对比布局',
+  left_text_right_image: '左文右图',
+  left_image_right_text: '左图右文',
+  center: '居中布局',
+}
+
+const getLayoutDisplayName = (layoutType: string) => {
+  return LAYOUT_DISPLAY_NAMES[layoutType] || layoutType
+}
+
+const loadUserPreferences = async () => {
+  try {
+    const res = await api.template.getLayoutPreferences({
+      user_id: 'anonymous',
+      limit: 5
+    })
+    if (res.data?.success) {
+      userLayoutPreferences.value = res.data.preferences || []
+      maxPreferenceCount.value = Math.max(
+        ...userLayoutPreferences.value.map(p => p.count),
+        1
+      )
+    }
+  } catch (e) {
+    userLayoutPreferences.value = []
+  }
+}
+
+loadUserPreferences()
+
 const selectedTemplate = ref<Template | null>(null)
 const previewTemplate = ref<Template | null>(null)
 
@@ -434,6 +605,97 @@ const confirmSelect = () => {
 </script>
 
 <style scoped>
+/* R63: Quick-Start Templates Section */
+.quick-start-section {
+  background: linear-gradient(135deg, #fff8f0 0%, #fff0f5 100%);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border: 1px solid #ffe0b2;
+}
+
+:global(.dark) .quick-start-section {
+  background: linear-gradient(135deg, #2a1f1a 0%, #2a1a20 100%);
+  border-color: #5a3a2a;
+}
+
+.qs-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.qs-icon {
+  font-size: 18px;
+}
+
+.qs-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e65100;
+}
+
+:global(.dark) .qs-title {
+  color: #ffb74d;
+}
+
+.qs-hint {
+  font-size: 12px;
+  color: #999;
+  margin-left: auto;
+}
+
+.qs-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qs-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+  transition: all 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+:global(.dark) .qs-btn {
+  background: #2a2a2a;
+  color: #ddd;
+}
+
+.qs-btn:hover {
+  border-color: #ff9800;
+  background: #fff3e0;
+}
+
+:global(.dark) .qs-btn:hover {
+  background: #3a2a1a;
+}
+
+.qs-btn.active {
+  background: linear-gradient(135deg, #ff9800, #ff6d00);
+  border-color: #ff6d00;
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+
+.qs-btn-icon {
+  font-size: 14px;
+}
+
+.qs-btn-name {
+  font-weight: 500;
+}
+
 /* R35: Content Matched Section */
 .content-matched-section {
   background: linear-gradient(135deg, #f0f5ff 0%, #e8f0fe 100%);

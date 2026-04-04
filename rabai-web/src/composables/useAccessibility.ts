@@ -1,6 +1,8 @@
 /**
  * useAccessibility - Accessibility utilities
  * - Reduce motion preference
+ * - High contrast mode
+ * - Font size control
  * - Keyboard focus management
  * - ARIA helpers
  */
@@ -8,9 +10,21 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 // Singleton state
 const reduceMotion = ref(localStorage.getItem('reduceMotion') === 'true')
+const highContrast = ref(localStorage.getItem('highContrast') === 'true')
+
+type FontSize = 'small' | 'medium' | 'large'
+const fontSize = ref<FontSize>((localStorage.getItem('fontSize') as FontSize) || 'medium')
+
 const focusedElement = ref<HTMLElement | null>(null)
 
-// Internal apply function
+// Font size base multipliers
+const FONT_SIZE_MAP: Record<FontSize, string> = {
+  small: '13px',
+  medium: '15px',
+  large: '17px',
+}
+
+// Apply reduce motion setting to document
 const applyReduceMotion = () => {
   if (typeof document === 'undefined') return
   const root = document.documentElement
@@ -25,25 +39,64 @@ const applyReduceMotion = () => {
   }
 }
 
+// Apply high contrast mode to document
+const applyHighContrast = () => {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  if (highContrast.value) {
+    root.classList.add('high-contrast')
+  } else {
+    root.classList.remove('high-contrast')
+  }
+}
+
+// Apply font size to document root
+const applyFontSize = () => {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  root.style.setProperty('--base-font-size', FONT_SIZE_MAP[fontSize.value])
+  root.style.fontSize = FONT_SIZE_MAP[fontSize.value]
+}
+
 /**
- * Apply reduce motion setting to document.
+ * Apply all early accessibility settings to document.
  * Call this early in main.ts BEFORE mounting the Vue app.
  */
-export function applyReduceMotionEarly() {
-  const prefersReduced = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false
-  const stored = localStorage.getItem('reduceMotion')
-  if (stored !== null) {
-    reduceMotion.value = stored === 'true'
+export function applyAccessibilityEarly() {
+  if (typeof window === 'undefined') return
+
+  // Reduce motion
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const storedMotion = localStorage.getItem('reduceMotion')
+  if (storedMotion !== null) {
+    reduceMotion.value = storedMotion === 'true'
   } else if (prefersReduced) {
     reduceMotion.value = true
   }
   applyReduceMotion()
+
+  // High contrast
+  const storedContrast = localStorage.getItem('highContrast')
+  if (storedContrast !== null) {
+    highContrast.value = storedContrast === 'true'
+  }
+  applyHighContrast()
+
+  // Font size
+  const storedFontSize = localStorage.getItem('fontSize') as FontSize
+  if (storedFontSize && FONT_SIZE_MAP[storedFontSize]) {
+    fontSize.value = storedFontSize
+  }
+  applyFontSize()
 }
+
+// Backward compatibility alias
+export const applyReduceMotionEarly = applyAccessibilityEarly
 
 export function useAccessibility() {
   const isReduceMotion = computed(() => reduceMotion.value)
+  const isHighContrast = computed(() => highContrast.value)
+  const currentFontSize = computed(() => fontSize.value)
 
   const toggleReduceMotion = () => {
     reduceMotion.value = !reduceMotion.value
@@ -55,6 +108,24 @@ export function useAccessibility() {
     reduceMotion.value = value
     localStorage.setItem('reduceMotion', String(value))
     applyReduceMotion()
+  }
+
+  const toggleHighContrast = () => {
+    highContrast.value = !highContrast.value
+    localStorage.setItem('highContrast', String(highContrast.value))
+    applyHighContrast()
+  }
+
+  const setHighContrast = (value: boolean) => {
+    highContrast.value = value
+    localStorage.setItem('highContrast', String(value))
+    applyHighContrast()
+  }
+
+  const setFontSize = (size: FontSize) => {
+    fontSize.value = size
+    localStorage.setItem('fontSize', size)
+    applyFontSize()
   }
 
   // Trap focus within a container (modal/dialog)
@@ -114,7 +185,6 @@ export function useAccessibility() {
     el.className = 'sr-only'
     el.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);'
     document.body.appendChild(el)
-    // Small delay to ensure screen reader picks it up
     setTimeout(() => {
       el.textContent = message
       setTimeout(() => document.body.removeChild(el), 1000)
@@ -132,28 +202,34 @@ export function useAccessibility() {
     }
   }
 
-  // Listen for system preference changes (only in browser)
+  // Listen for system preference changes
   onMounted(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const handleChange = (e: MediaQueryListEvent) => {
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handleMotionChange = (e: MediaQueryListEvent) => {
       if (localStorage.getItem('reduceMotion') === null) {
         reduceMotion.value = e.matches
         applyReduceMotion()
       }
     }
-    mediaQuery.addEventListener('change', handleChange)
-    ;(window as any).__reduceMotionMediaQuery = mediaQuery
+    motionQuery.addEventListener('change', handleMotionChange)
+    ;(window as any).__reduceMotionMediaQuery = motionQuery
   })
 
   onUnmounted(() => {
     const mq = (window as any).__reduceMotionMediaQuery
-    if (mq) mq.removeEventListener('change', handleChange)
+    if (mq) mq.removeEventListener('change', handleMotionChange)
   })
 
   return {
     isReduceMotion,
+    isHighContrast,
+    currentFontSize,
     toggleReduceMotion,
     setReduceMotion,
+    toggleHighContrast,
+    setHighContrast,
+    setFontSize,
+    applyHighContrast,
     applyReduceMotion,
     trapFocus,
     handleEscape,

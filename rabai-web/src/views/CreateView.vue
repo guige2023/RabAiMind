@@ -32,12 +32,57 @@
           <!-- 快速示例 -->
           <div class="quick-examples" v-if="!formData.userRequest">
             <span class="tip-label">试试这些：</span>
-            <button class="example-btn" @click="formData.userRequest = '创建一份产品发布会的PPT，包含产品介绍、功能演示、定价策略、市场目标等，10页左右'">产品发布会</button>
-            <button class="example-btn" @click="formData.userRequest = '制作年度工作总结PPT，包含年度回顾、业绩数据、团队成就、明年计划，8页'">年度总结</button>
-            <button class="example-btn" @click="formData.userRequest = '创建公司介绍PPT，包含公司背景、核心业务、竞争优势、发展愿景，12页'">公司介绍</button>
-            <button class="example-btn" @click="formData.userRequest = '制作商业计划书PPT，包含市场分析、商业模式、竞争优势、融资计划，15页'">商业计划书</button>
-            <button class="example-btn" @click="formData.userRequest = '创建教育培训课程PPT，包含课程目标、教学内容、学习成果、案例分析，20页'">教育培训</button>
-            <button class="example-btn" @click="formData.userRequest = '制作数据分析报告PPT，包含数据概览、关键发现、深度分析、建议行动，12页'">数据分析报告</button>
+            <Tooltip text="点击使用产品发布会模板">
+              <button class="example-btn" @click="formData.userRequest = '创建一份产品发布会的PPT，包含产品介绍、功能演示、定价策略、市场目标等，10页左右'">产品发布会</button>
+            </Tooltip>
+            <Tooltip text="点击使用年度总结模板">
+              <button class="example-btn" @click="formData.userRequest = '制作年度工作总结PPT，包含年度回顾、业绩数据、团队成就、明年计划，8页'">年度总结</button>
+            </Tooltip>
+            <Tooltip text="点击使用公司介绍模板">
+              <button class="example-btn" @click="formData.userRequest = '创建公司介绍PPT，包含公司背景、核心业务、竞争优势、发展愿景，12页'">公司介绍</button>
+            </Tooltip>
+            <Tooltip text="点击使用商业计划书模板">
+              <button class="example-btn" @click="formData.userRequest = '制作商业计划书PPT，包含市场分析、商业模式、竞争优势、融资计划，15页'">商业计划书</button>
+            </Tooltip>
+            <Tooltip text="点击使用教育培训模板">
+              <button class="example-btn" @click="formData.userRequest = '创建教育培训课程PPT，包含课程目标、教学内容、学习成果、案例分析，20页'">教育培训</button>
+            </Tooltip>
+            <Tooltip text="点击使用数据分析模板">
+              <button class="example-btn" @click="formData.userRequest = '制作数据分析报告PPT，包含数据概览、关键发现、深度分析、建议行动，12页'">数据分析报告</button>
+            </Tooltip>
+          </div>
+
+          <!-- 导入选项 -->
+          <div class="import-section">
+            <span class="tip-label">或从以下来源导入：</span>
+            <div class="import-buttons">
+              <button class="import-btn" @click="triggerPdfImport" title="导入 PDF">
+                <span class="import-icon">📕</span>
+                <span>PDF</span>
+              </button>
+              <button class="import-btn" @click="triggerDocxImport" title="导入 Word">
+                <span class="import-icon">📘</span>
+                <span>Word</span>
+              </button>
+              <button class="import-btn" @click="showUrlImportModal = true" title="导入网页">
+                <span class="import-icon">🌐</span>
+                <span>网页 URL</span>
+              </button>
+            </div>
+            <input
+              type="file"
+              ref="pdfFileInput"
+              accept=".pdf"
+              style="display:none"
+              @change="handlePdfFileChange"
+            />
+            <input
+              type="file"
+              ref="docxFileInput"
+              accept=".docx,.doc"
+              style="display:none"
+              @change="handleDocxFileChange"
+            />
           </div>
 
           <!-- AI智能推荐 -->
@@ -655,6 +700,43 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- URL 导入弹窗 -->
+  <Teleport to="body">
+    <div v-if="showUrlImportModal" class="error-modal-overlay" @click.self="showUrlImportModal = false">
+      <div class="error-modal url-import-modal">
+        <div class="modal-header">
+          <h3>🌐 导入网页内容</h3>
+          <button class="modal-close" @click="showUrlImportModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-desc">输入网页 URL，系统将提取内容并自动生成 PPT 大纲</p>
+          <input
+            v-model="importUrl"
+            type="url"
+            class="input"
+            placeholder="https://example.com/article"
+            @keyup.enter="handleUrlImport"
+          />
+          <div v-if="importLoading" class="import-loading">
+            <div class="spinner"></div>
+            <span>正在提取网页内容...</span>
+          </div>
+          <div v-if="importError" class="import-error">
+            {{ importError }}
+          </div>
+        </div>
+        <div class="error-actions">
+          <button class="btn btn-primary" @click="handleUrlImport" :disabled="importLoading">
+            📥 开始导入
+          </button>
+          <button class="btn btn-secondary" @click="showUrlImportModal = false" :disabled="importLoading">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -667,6 +749,7 @@ import { useInteractionFeedback } from '../composables/useInteractionFeedback'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import ThemePanel from '../components/ThemePanel.vue'
+import Tooltip from '../components/Tooltip.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -874,6 +957,157 @@ const getCurrentFont = () => {
 const showErrorModal = ref(false)
 const errorMessage = ref('')
 const errorType = ref<'network' | 'validation' | 'server'>('network')
+
+// 导入状态
+const showUrlImportModal = ref(false)
+const importUrl = ref('')
+const importLoading = ref(false)
+const importError = ref('')
+const pdfFileInput = ref<HTMLInputElement | null>(null)
+const docxFileInput = ref<HTMLInputElement | null>(null)
+
+// 触发 PDF 导入
+const triggerPdfImport = () => {
+  pdfFileInput.value?.click()
+}
+
+// 触发 Word 导入
+const triggerDocxImport = () => {
+  docxFileInput.value?.click()
+}
+
+// 处理 PDF 文件选择
+const handlePdfFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  
+  importLoading.value = true
+  importError.value = ''
+  
+  try {
+    const formData_import = new FormData()
+    formData_import.append('file', file)
+    
+    const response = await fetch('/api/v1/ppt/import/pdf', {
+      method: 'POST',
+      body: formData_import
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      // Use extracted content as user request
+      const outline = result.outline
+      if (outline?.slides?.length > 0) {
+        const slideTexts = outline.slides
+          .filter((s: any) => s.slide_type !== 'title')
+          .map((s: any) => `${s.title || ''}${s.content ? '\n' + s.content : ''}`)
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        
+        formData.value.userRequest = slideTexts || outline.title || '导入的内容'
+      }
+      showSuccess('PDF 导入成功', `提取了 ${result.page_count || 0} 页内容`)
+    } else {
+      importError.value = result.error || 'PDF 解析失败'
+    }
+  } catch (err) {
+    importError.value = 'PDF 导入失败，请稍后重试'
+    console.error('PDF import error:', err)
+  } finally {
+    importLoading.value = false
+    target.value = '' // Reset input
+  }
+}
+
+// 处理 Word 文件选择
+const handleDocxFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  
+  importLoading.value = true
+  importError.value = ''
+  
+  try {
+    const formData_import = new FormData()
+    formData_import.append('file', file)
+    
+    const response = await fetch('/api/v1/ppt/import/docx', {
+      method: 'POST',
+      body: formData_import
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      const outline = result.outline
+      if (outline?.slides?.length > 0) {
+        const slideTexts = outline.slides
+          .filter((s: any) => s.slide_type !== 'title')
+          .map((s: any) => `${s.title || ''}${s.content ? '\n' + s.content : ''}`)
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        
+        formData.value.userRequest = slideTexts || outline.title || '导入的内容'
+      }
+      showSuccess('Word 导入成功', `提取了 ${result.paragraph_count || 0} 段内容`)
+    } else {
+      importError.value = result.error || 'Word 文档解析失败'
+    }
+  } catch (err) {
+    importError.value = 'Word 导入失败，请稍后重试'
+    console.error('DOCX import error:', err)
+  } finally {
+    importLoading.value = false
+    target.value = '' // Reset input
+  }
+}
+
+// 处理 URL 导入
+const handleUrlImport = async () => {
+  if (!importUrl.value.trim()) {
+    importError.value = '请输入有效的 URL'
+    return
+  }
+  
+  importLoading.value = true
+  importError.value = ''
+  
+  try {
+    const response = await fetch('/api/v1/ppt/import/url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: importUrl.value })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      const outline = result.outline
+      if (outline?.slides?.length > 0) {
+        const slideTexts = outline.slides
+          .filter((s: any) => s.slide_type !== 'title')
+          .map((s: any) => `${s.title || ''}${s.content ? '\n' + s.content : ''}`)
+          .filter((t: string) => t.trim())
+          .join('\n\n')
+        
+        formData.value.userRequest = slideTexts || outline.title || '导入的内容'
+      }
+      showUrlImportModal.value = false
+      importUrl.value = ''
+      showSuccess('网页导入成功', `提取了 ${result.block_count || 0} 个内容块`)
+    } else {
+      importError.value = result.error || '网页内容提取失败'
+    }
+  } catch (err) {
+    importError.value = '网页导入失败，请稍后重试'
+    console.error('URL import error:', err)
+  } finally {
+    importLoading.value = false
+  }
+}
 
 // API加载的配置数据（模板/场景/风格）
 // BUG修复: 从后端API加载，而不是硬编码
@@ -2543,5 +2777,116 @@ useKeyboardShortcuts([
   background: transparent;
   box-shadow: none;
   border: none;
+}
+
+/* 导入选项 */
+.import-section {
+  margin-top: 12px;
+  padding: 12px 0;
+  border-top: 1px dashed #E5E7EB;
+}
+
+.import-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.import-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #F5F7FA;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.import-btn:hover {
+  background: #EEF2FF;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.import-icon {
+  font-size: 16px;
+}
+
+/* URL 导入弹窗 */
+.url-import-modal {
+  min-width: 420px;
+}
+
+.url-import-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.url-import-modal .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.url-import-modal .modal-body {
+  margin-bottom: 16px;
+}
+
+.url-import-modal .modal-desc {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.import-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: #165DFF;
+  font-size: 14px;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #E5E7EB;
+  border-top-color: #165DFF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.import-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 6px;
+  color: #DC2626;
+  font-size: 13px;
 }
 </style>

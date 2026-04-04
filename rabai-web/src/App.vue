@@ -7,10 +7,12 @@
     <GlobalSearch ref="globalSearchRef" />
     <ToastNotifications />
     <UserOnboarding />
+    <TipsPanel ref="tipsRef" />
     <AIChatPanel />
     <MobileNavDrawer ref="mobileNavRef" />
     <UserExperience ref="uxRef" />
     <HelpCenter ref="helpRef" />
+    <PWAInstallPrompt />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading" role="status" :aria-label="t('loading')">
@@ -51,6 +53,7 @@
               <span class="nav-badge" v-if="favoritesCount > 0" :aria-label="`${favoritesCount}`">{{ favoritesCount }}</span>
             </router-link>
             <router-link to="/history" class="nav-link" :aria-label="t('nav.history')">{{ t('nav.history') }}</router-link>
+            <router-link to="/brand" class="nav-link" aria-label="品牌中心">🛡️</router-link>
           </nav>
           <button
             class="search-trigger"
@@ -65,7 +68,19 @@
           </button>
           <LangSwitch />
           <ReduceMotionToggle />
+          <HighContrastToggle />
           <ThemeSwitch />
+          <!-- Performance Mode Indicator -->
+          <div v-if="isPerformanceMode" class="perf-mode-indicator" title="流量节省模式已开启">
+            <span>📡</span>
+            <span class="hide-mobile">省流</span>
+          </div>
+          <router-link to="/settings" class="settings-btn" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </router-link>
           <Feedback />
           <button
             class="help-btn hide-mobile"
@@ -99,11 +114,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
 import ReduceMotionToggle from './components/ReduceMotionToggle.vue'
+import HighContrastToggle from './components/HighContrastToggle.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
@@ -111,18 +127,23 @@ import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import UserExperience from './components/UserExperience.vue'
 import HelpCenter from './components/HelpCenter.vue'
 import ToastNotifications from './components/ToastNotifications.vue'
+import PWAInstallPrompt from './components/PWAInstallPrompt.vue'
+import TipsPanel from './components/TipsPanel.vue'
 import { useTemplateStore } from './composables/useTemplateStore'
 import { useDeviceMode, initDeviceMode, getDeviceMode } from './composables/useDeviceMode'
 import { useI18n } from './composables/useI18n'
 import { useAccessibility } from './composables/useAccessibility'
+import { usePerformanceMode, applyPerformanceModeCSS } from './composables/usePerformanceMode'
 
 const isLoading = ref(true)
 const { t } = useI18n()
-const { isReduceMotion, toggleReduceMotion } = useAccessibility()
+const { isReduceMotion, toggleReduceMotion, toggleHighContrast } = useAccessibility()
+const { isPerformanceMode } = usePerformanceMode()
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
 const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
+const tipsRef = ref<InstanceType<typeof TipsPanel> | null>(null)
 
 // Device mode
 const deviceMode = getDeviceMode()
@@ -170,6 +191,11 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
     e.preventDefault()
     openHelp('shortcuts')
   }
+  // Ctrl/Cmd + Shift + H → toggle high contrast
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'H') {
+    e.preventDefault()
+    toggleHighContrast()
+  }
 }
 
 onMounted(() => {
@@ -180,6 +206,9 @@ onMounted(() => {
   // Load favorites
   templateStore.loadFavorites()
 
+  // Apply performance mode CSS on load
+  applyPerformanceModeCSS(isPerformanceMode.value)
+
   // Simulate initial load
   setTimeout(() => {
     isLoading.value = false
@@ -188,6 +217,11 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+})
+
+// Watch performance mode and apply CSS class to root
+watch(isPerformanceMode, (enabled) => {
+  applyPerformanceModeCSS(enabled)
 })
 </script>
 
@@ -464,6 +498,44 @@ onUnmounted(() => {
   color: #666;
 }
 
+.settings-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.settings-btn:hover {
+  background: #f0f0f0;
+}
+
+.settings-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.settings-btn svg {
+  width: 20px;
+  height: 20px;
+  color: #666;
+}
+
+:global(.dark) .settings-btn:hover {
+  background: #2a2a2a;
+}
+
+:global(.dark) .settings-btn svg {
+  color: #aaa;
+}
+
 :global(.dark) .help-btn:hover {
   background: #2a2a2a;
 }
@@ -522,6 +594,34 @@ onUnmounted(() => {
   .view-mode-toggle {
     display: none;
   }
+}
+
+/* Performance Mode Indicator */
+.perf-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: #fff3e0;
+  border: 1px solid #ff9800;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e65100;
+  cursor: default;
+  flex-shrink: 0;
+  animation: fadeIn 0.3s ease;
+}
+
+:global(.dark) .perf-mode-indicator {
+  background: rgba(255, 152, 0, 0.15);
+  border-color: #ff9800;
+  color: #ffb74d;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* Hide on mobile but show in tablet+ */

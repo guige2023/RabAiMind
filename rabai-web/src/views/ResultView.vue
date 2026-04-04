@@ -111,8 +111,20 @@
                 <button @click="showVersionPanel = true; showMoreMenu = false; loadVersionHistory()">
                   <span>📜</span> 版本历史
                 </button>
+                <button @click="handleRecordPresentation">
+                  <span>🎬</span> 录制成视频
+                </button>
+                <button @click="showEmbedCode = true; showMoreMenu = false">
+                  <span>🔗</span> 嵌入代码
+                </button>
                 <button @click="handleNew">
                   <span>✨</span> 创建新的
+                </button>
+                <button @click="startReadAloud(); showMoreMenu = false">
+                  <span>🔊</span> 朗读当前页
+                </button>
+                <button @click="openVoicePanel(); showMoreMenu = false">
+                  <span>🎙️</span> 语音设置 / 配音
                 </button>
               </div>
             </div>
@@ -131,6 +143,30 @@
             </button>
             <button class="toolbar-btn" @click="showTransitionPanel = true" title="幻灯片过渡">
               🔀
+            </button>
+            <button class="toolbar-btn" @click="openMasterEditor()" title="母版编辑">
+              🎚️
+            </button>
+            <button class="toolbar-btn" @click="openAnimationComposer(currentEditingSlide - 1)" title="动画设置">
+              🎬
+            </button>
+            <button class="toolbar-btn" @click="replayCurrentSlideAnimation()" title="重播当前页动画">
+              🔄
+            </button>
+            <button class="toolbar-btn" @click="showBatchThemeModal = true" title="批量主题">
+              🌈
+            </button>
+            <button class="toolbar-btn" @click="showTeamWorkspace = !showTeamWorkspace" title="团队协作" :class="{ active: showTeamWorkspace }">
+              👥
+            </button>
+            <button class="toolbar-btn" @click="showActivityFeed = !showActivityFeed" title="团队动态" :class="{ active: showActivityFeed }">
+              📋
+            </button>
+            <button class="toolbar-btn" @click="showCommentsPanel = !showCommentsPanel" title="评论/建议" :class="{ active: showCommentsPanel }">
+              💬
+            </button>
+            <button class="toolbar-btn ai-toolbar-btn" @click="showAdvancedAIPanel = true" title="AI高级功能" :class="{ active: showAdvancedAIPanel }">
+              🤖
             </button>
           </div>
 
@@ -215,11 +251,78 @@
             </div>
           </div>
 
+          <!-- 批量主题弹窗 -->
+          <div v-if="showBatchThemeModal" class="modal-mask" @click.self="showBatchThemeModal = false">
+            <div class="batch-theme-modal">
+              <div class="modal-title">🌈 批量应用主题</div>
+              <p class="modal-desc">选择主题颜色，将应用到当前PPT的所有幻灯片</p>
+              <div class="form-item">
+                <label class="form-label">主题预设</label>
+                <div class="theme-presets">
+                  <button v-for="preset in colorSchemes" :key="preset.name" class="preset-btn" @click="applyPresetTheme(preset)">
+                    <div class="preset-colors">
+                      <span v-for="c in preset.colors" :key="c" class="preset-dot" :style="{ background: c }"></span>
+                    </div>
+                    <span>{{ preset.name }}</span>
+                  </button>
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">主色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="batchThemePrimary" class="color-picker" />
+                  <input type="text" v-model="batchThemePrimary" maxlength="7" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">副色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="batchThemeSecondary" class="color-picker" />
+                  <input type="text" v-model="batchThemeSecondary" maxlength="7" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">强调色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="batchThemeAccent" class="color-picker" />
+                  <input type="text" v-model="batchThemeAccent" maxlength="7" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="theme-preview-strip">
+                <div class="strip-primary" :style="{ background: batchThemePrimary }"></div>
+                <div class="strip-secondary" :style="{ background: batchThemeSecondary }"></div>
+                <div class="strip-accent" :style="{ background: batchThemeAccent }"></div>
+              </div>
+              <div class="modal-actions">
+                <button class="btn btn-outline" @click="showBatchThemeModal = false">取消</button>
+                <button class="btn btn-primary" @click="handleBatchApplyTheme">应用主题</button>
+              </div>
+            </div>
+          </div>
+
           <!-- 内容编辑面板 -->
-          <div v-if="isEditMode" class="content-edit-panel">
+          <div
+            v-if="isEditMode"
+            class="content-edit-panel"
+            :class="{ 'drag-over': isDragOver }"
+            @dragover.prevent="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop.prevent="handleDrop"
+          >
+            <!-- 拖拽提示层 -->
+            <div v-if="isDragOver" class="drag-overlay">
+              <div class="drag-hint">
+                <span class="drag-icon">📥</span>
+                <p>释放文件以导入为新页面</p>
+                <p class="drag-tip">支持图片、文本文件</p>
+              </div>
+            </div>
             <div class="edit-header">
               <h3>编辑幻灯片内容</h3>
-              <p class="edit-tip">点击下方标题或内容进行编辑，修改后可重新生成</p>
+              <p class="edit-tip">
+                点击下方标题或内容进行编辑，修改后可重新生成
+                <span class="clip-tip">| 按 ⌘V / Ctrl+V 粘贴 · 拖拽文件导入</span>
+              </p>
             </div>
             <div class="edit-slides">
               <div
@@ -256,6 +359,13 @@
                   class="edit-slide-content"
                   placeholder="幻灯片内容，每行一个要点"
                   rows="4"
+                ></textarea>
+                <!-- 演讲者备注 -->
+                <textarea
+                  v-model="slide.presenterNotes"
+                  class="edit-slide-notes"
+                  placeholder="💬 演讲者备注（仅演示模式可见）"
+                  rows="2"
                 ></textarea>
                 <!-- 单页预览按钮 -->
                 <button class="btn btn-sm btn-preview" @click="previewSlide(index)">
@@ -294,9 +404,85 @@
               <button class="btn btn-outline" @click="addEditSlide">
                 + 添加页面
               </button>
+              <button class="btn btn-outline btn-clip" @click="showClipboardHistory = true" title="剪贴板历史">
+                📋 历史
+              </button>
+              <button class="btn btn-outline btn-clip" @click="importFromScreenshot" :disabled="isProcessingOCR" :title="'OCR识别截图文字'">
+                {{ isProcessingOCR ? '🔍 识别中...' : '📸 导入截图' }}
+              </button>
               <button class="btn btn-primary" @click="regenerateWithEdits" :disabled="isRegenerating">
                 {{ isRegenerating ? '重新生成中...' : '💾 重新生成PPT' }}
               </button>
+            </div>
+          </div>
+
+          <!-- 剪贴板历史面板 -->
+          <div v-if="showClipboardHistory" class="clipboard-history-overlay" @click.self="showClipboardHistory = false">
+            <div class="clipboard-history-panel">
+              <div class="clip-panel-header">
+                <h3>📋 剪贴板历史</h3>
+                <div class="clip-panel-actions">
+                  <button class="btn btn-sm btn-outline" @click="clearClipboardHistory" :disabled="clipboardHistory.length === 0">
+                    🗑️ 清空
+                  </button>
+                  <button class="btn btn-sm" @click="showClipboardHistory = false">✕</button>
+                </div>
+              </div>
+              <div v-if="clipboardHistory.length === 0" class="clip-empty">
+                <p>暂无剪贴板记录</p>
+                <p class="clip-empty-tip">在编辑模式下按 ⌘V / Ctrl+V 复制内容将自动记录</p>
+              </div>
+              <div v-else class="clip-list">
+                <div
+                  v-for="item in clipboardHistory"
+                  :key="item.id"
+                  class="clip-item"
+                  @click="applyHistoryItem(item)"
+                >
+                  <div class="clip-item-type">
+                    <span v-if="item.type === 'image'">🖼️ 图片</span>
+                    <span v-else>📝 文本</span>
+                  </div>
+                  <div v-if="item.type === 'image'" class="clip-item-preview">
+                    <img :src="item.content" alt="剪贴板图片" />
+                  </div>
+                  <div v-else class="clip-item-text">{{ item.preview }}</div>
+                  <div class="clip-item-time">{{ formatClipboardTime(item.timestamp) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 粘贴预览弹窗 -->
+          <div v-if="showPastePreview && pendingPasteContent" class="paste-preview-overlay" @click.self="showPastePreview = false; pendingPasteContent = null">
+            <div class="paste-preview-panel">
+              <div class="paste-panel-header">
+                <h3>{{ pendingPasteContent.type === 'image' ? '🖼️ 粘贴图片' : '📋 粘贴为新页面' }}</h3>
+                <button class="btn btn-sm" @click="showPastePreview = false; pendingPasteContent = null">✕</button>
+              </div>
+              <div class="paste-panel-body">
+                <div v-if="pendingPasteContent.type === 'image'" class="paste-image-preview">
+                  <img :src="pendingPasteContent.content" alt="待粘贴图片" />
+                </div>
+                <div v-else class="paste-text-preview">
+                  <div class="paste-preview-title">预览</div>
+                  <div class="paste-text-content">{{ smartParseText(pendingPasteContent.content).title }}</div>
+                  <div class="paste-text-bullets" v-if="smartParseText(pendingPasteContent.content).content.length">
+                    <div v-for="(line, i) in smartParseText(pendingPasteContent.content).content" :key="i">
+                      • {{ line }}
+                    </div>
+                  </div>
+                  <div class="paste-layout-hint">
+                    推荐布局: <span>{{ smartParseText(pendingPasteContent.content).layout }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="paste-panel-footer">
+                <button class="btn btn-outline" @click="showPastePreview = false; pendingPasteContent = null">取消</button>
+                <button class="btn btn-primary" @click="confirmPasteAsNewSlide">
+                  ✓ 确认为新页面
+                </button>
+              </div>
             </div>
           </div>
 
@@ -368,6 +554,89 @@
                 </label>
               </div>
               <p class="quality-note">（当前版本基于同一源文件，quality 仅影响文件名后缀）</p>
+            </div>
+
+            <!-- PDF打印增强选项 -->
+            <div v-if="selectedFormat === 'pdf'" class="pdf-options-section">
+              <div class="export-section-title">📄 PDF打印选项</div>
+              
+              <!-- PDF布局模式 -->
+              <div class="pdf-mode-group">
+                <div class="pdf-mode-label">布局模式</div>
+                <div class="pdf-mode-buttons">
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.mode === 'slides' }" @click="pdfOptions.mode = 'slides'">幻灯片</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.mode === 'notes' }" @click="pdfOptions.mode = 'notes'">备注页</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.mode === 'handout' }" @click="pdfOptions.mode = 'handout'">讲义</button>
+                </div>
+              </div>
+
+              <!-- 讲义布局 (仅在handout模式下显示) -->
+              <div v-if="pdfOptions.mode === 'handout'" class="pdf-handout-group">
+                <div class="pdf-mode-label">每页幻灯片数</div>
+                <div class="pdf-mode-buttons">
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.handoutLayout === '1' }" @click="pdfOptions.handoutLayout = '1'">1张</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.handoutLayout === '2' }" @click="pdfOptions.handoutLayout = '2'">2张</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.handoutLayout === '3' }" @click="pdfOptions.handoutLayout = '3'">3张</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.handoutLayout === '6' }" @click="pdfOptions.handoutLayout = '6'">6张</button>
+                </div>
+              </div>
+
+              <!-- 页面尺寸 -->
+              <div class="pdf-size-group">
+                <div class="pdf-mode-label">页面尺寸</div>
+                <div class="pdf-mode-buttons">
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.pageSize === 'A4' }" @click="pdfOptions.pageSize = 'A4'">A4</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.pageSize === 'Letter' }" @click="pdfOptions.pageSize = 'Letter'">Letter</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.pageSize === '16:9' }" @click="pdfOptions.pageSize = '16:9'">16:9</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.pageSize === '4:3' }" @click="pdfOptions.pageSize = '4:3'">4:3</button>
+                </div>
+              </div>
+
+              <!-- 方向 -->
+              <div class="pdf-orientation-group">
+                <div class="pdf-mode-label">方向</div>
+                <div class="pdf-mode-buttons">
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.orientation === 'landscape' }" @click="pdfOptions.orientation = 'landscape'">横向</button>
+                  <button class="pdf-mode-btn" :class="{ active: pdfOptions.orientation === 'portrait' }" @click="pdfOptions.orientation = 'portrait'">纵向</button>
+                </div>
+              </div>
+
+              <!-- 水印设置 -->
+              <div class="pdf-watermark-group">
+                <label class="pdf-toggle-row">
+                  <span class="pdf-toggle-label">🔒 启用水印</span>
+                  <switch :checked="pdfOptions.watermarkEnabled" @change="pdfOptions.watermarkEnabled = $event.detail.value" class="pdf-switch" />
+                </label>
+                <div v-if="pdfOptions.watermarkEnabled" class="pdf-watermark-options">
+                  <input v-model="pdfOptions.watermarkText" placeholder="水印文字" class="pdf-input" />
+                  <div class="pdf-slider-row">
+                    <span class="pdf-slider-label">透明度</span>
+                    <input type="range" v-model="pdfOptions.watermarkOpacity" min="0.05" max="0.5" step="0.05" class="pdf-slider" />
+                    <span class="pdf-slider-value">{{ Math.round(pdfOptions.watermarkOpacity * 100) }}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 页眉页脚 -->
+              <div class="pdf-header-footer-group">
+                <label class="pdf-toggle-row">
+                  <span class="pdf-toggle-label">📌 启用页眉页脚</span>
+                  <switch :checked="pdfOptions.headerFooterEnabled" @change="pdfOptions.headerFooterEnabled = $event.detail.value" class="pdf-switch" />
+                </label>
+                <div v-if="pdfOptions.headerFooterEnabled" class="pdf-hf-options">
+                  <input v-model="pdfOptions.headerText" placeholder="页眉文字(可选)" class="pdf-input" />
+                  <input v-model="pdfOptions.footerText" placeholder="页脚文字(可选)" class="pdf-input" />
+                  <div class="pdf-page-format-row">
+                    <span class="pdf-slider-label">页码格式</span>
+                    <select v-model="pdfOptions.pageNumberFormat" class="pdf-select">
+                      <option value="Page {current} of {total}">Page 1 of 10</option>
+                      <option value="{current}/{total}">1/10</option>
+                      <option value="第 {current} 页">第 1 页</option>
+                      <option value="{current}">1</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- 图表配置 -->
@@ -557,6 +826,7 @@
       v-model:active="showPresentation"
       :slides="presentationSlides"
       :transition-settings="transitionSettings"
+      :replay-animation-signal="replayAnimationSignal"
     />
 
     <!-- 版本历史侧边面板 -->
@@ -566,6 +836,7 @@
           <text class="panel-title">📜 版本历史</text>
           <view class="panel-actions">
             <button class="btn btn-sm btn-snapshot" @click="createSnapshot">💾 快照</button>
+            <button class="btn btn-sm btn-recover" @click="checkRecoveryState">🔄 恢复</button>
             <button class="btn btn-sm btn-close-panel" @click="showVersionPanel = false">✕</button>
           </view>
         </view>
@@ -592,6 +863,7 @@
             </view>
             <view class="version-actions">
               <button class="btn btn-mini" @click="compareVersion(v.version_id)">对比</button>
+              <button class="btn btn-mini btn-branch" @click="branchFromVersion(v.version_id)">📌 分支</button>
               <button class="btn btn-mini btn-rollback" @click="rollbackToVersion(v.version_id)">回滚</button>
             </view>
           </view>
@@ -600,10 +872,13 @@
         
         <!-- 操作日志列表 -->
         <view v-if="showActionLog" class="action-log-container">
-          <!-- 撤销按钮 -->
-          <view class="undo-bar" v-if="undoStack.length > 0">
-            <button class="btn btn-sm btn-undo" @click="undoLastAction">
+          <!-- 撤销/重做按钮 -->
+          <view class="undo-bar" v-if="undoStack.length > 0 || redoStack.length > 0">
+            <button class="btn btn-sm btn-undo" @click="undoLastAction" v-if="undoStack.length > 0">
               ↩️ 撤销 ({{ undoStack.length }})
+            </button>
+            <button class="btn btn-sm btn-redo" @click="redoLastAction" v-if="redoStack.length > 0">
+              ↪️ 重做 ({{ redoStack.length }})
             </button>
           </view>
           <view class="action-log-list">
@@ -645,6 +920,56 @@
             <button class="btn btn-sm" @click="showDiffView = false">关闭对比</button>
           </view>
         </view>
+
+        <!-- 自动保存设置 -->
+        <view class="auto-save-section">
+          <view class="auto-save-header" @click="showAutoSaveSettings = !showAutoSaveSettings">
+            <text class="auto-save-title">⚙️ 自动保存设置</text>
+            <text class="auto-save-toggle">{{ showAutoSaveSettings ? '▲' : '▼' }}</text>
+          </view>
+          <view v-if="showAutoSaveSettings" class="auto-save-content">
+            <view class="auto-save-row">
+              <text class="auto-save-label">自动保存</text>
+              <label class="switch">
+                <input type="checkbox" v-model="autoSaveEnabled" @change="saveAutoSaveSettings" />
+                <span class="slider"></span>
+              </label>
+            </view>
+            <view class="auto-save-row" v-if="autoSaveEnabled">
+              <text class="auto-save-label">保存间隔</text>
+              <select v-model="autoSaveInterval" @change="saveAutoSaveSettings" class="auto-save-select">
+                <option value="10000">10秒</option>
+                <option value="30000">30秒</option>
+                <option value="60000">1分钟</option>
+                <option value="120000">2分钟</option>
+                <option value="300000">5分钟</option>
+              </select>
+            </view>
+            <view class="auto-save-row" v-if="autoSaveEnabled && lastAutoSaveTime">
+              <text class="auto-save-label">上次保存</text>
+              <text class="auto-save-time">{{ formatTime(lastAutoSaveTime) }}</text>
+            </view>
+            <button class="btn btn-sm btn-save-now" @click="triggerAutoSave" v-if="autoSaveEnabled">
+              💾 立即保存
+            </button>
+          </view>
+        </view>
+      </div>
+    </div>
+
+    <!-- 崩溃恢复模态框 -->
+    <div v-if="showRecoveryModal" class="recovery-modal-overlay" @click="dismissRecovery">
+      <div class="recovery-modal" @click.stop>
+        <div class="recovery-icon">🛟</div>
+        <h3 class="recovery-title">检测到未保存的编辑</h3>
+        <p class="recovery-desc" v-if="recoveryInfo">
+          上次编辑时间: {{ formatTime(recoveryInfo.savedAt) }}
+        </p>
+        <p class="recovery-desc" v-else>是否要恢复未保存的编辑？</p>
+        <div class="recovery-actions">
+          <button class="btn btn-primary" @click="recoverFromCrash">✅ 恢复编辑</button>
+          <button class="btn" @click="dismissRecovery">❌ 放弃</button>
+        </div>
       </div>
     </div>
 
@@ -821,9 +1146,31 @@
           <!-- 预览效果 -->
           <div class="panel-section">
             <h4 class="section-title">效果预览</h4>
-            <div class="transition-preview" :class="'preview-' + transitionSettings.type">
-              <div class="preview-box"></div>
-              <span class="preview-label">{{ getTransitionLabel(transitionSettings.type) }}</span>
+            <div class="timeline-transition-preview-container">
+              <div class="timeline-slide-thumb" style="background:#e2e8f0; border-radius:4px;">
+                <span style="font-size:10px; color:#64748b">页 N</span>
+              </div>
+              <div
+                class="timeline-transition-arrow"
+                :class="'tl-trans-' + transitionSettings.type"
+                :style="{ animationDuration: transitionSettings.duration === 'fast' ? '0.3s' : transitionSettings.duration === 'slow' ? '0.8s' : '0.5s' }"
+              >
+                <div class="tl-arrow-line"></div>
+                <div class="tl-arrow-head">▶</div>
+              </div>
+              <div
+                class="timeline-slide-thumb next-thumb"
+                :class="'tl-next-' + transitionSettings.type"
+                :style="{ animationDuration: transitionSettings.duration === 'fast' ? '0.3s' : transitionSettings.duration === 'slow' ? '0.8s' : '0.5s' }"
+              >
+                <span style="font-size:10px; color:#64748b">页 N+1</span>
+              </div>
+            </div>
+            <div class="transition-duration-hint">
+              <span class="transition-label-text">{{ getTransitionLabel(transitionSettings.type) }}</span>
+              <span class="transition-speed-badge" :class="'speed-' + transitionSettings.duration">
+                {{ transitionSettings.duration === 'fast' ? '快' : transitionSettings.duration === 'slow' ? '慢' : '中' }}
+              </span>
             </div>
           </div>
         </div>
@@ -833,6 +1180,280 @@
         </div>
       </div>
     </div>
+
+    <!-- 母版编辑面板 -->
+    <div v-if="showMasterEditor" class="transition-panel-overlay" @click="showMasterEditor = false">
+      <div class="transition-panel" @click.stop>
+        <div class="panel-header">
+          <h3>🎚️ 母版编辑</h3>
+          <button class="panel-close" @click="showMasterEditor = false">✕</button>
+        </div>
+        <div class="panel-content">
+          <!-- 母版选择 -->
+          <div class="panel-section">
+            <h4 class="section-title">选择母版</h4>
+            <div class="transition-options">
+              <div
+                v-for="m in masterSlides"
+                :key="m.id"
+                class="transition-item"
+                :class="{ active: selectedMasterId === m.id }"
+                @click="selectedMasterId = m.id; Object.assign(editingMaster, m)"
+              >
+                <span class="transition-icon" :style="{ background: m.background, color: m.primaryColor }">A</span>
+                <span class="transition-name">{{ m.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 母版属性编辑 -->
+          <div class="panel-section">
+            <h4 class="section-title">母版属性</h4>
+            <div class="form-grid">
+              <div class="form-item">
+                <label class="form-label">母版名称</label>
+                <input v-model="editingMaster.name" class="form-input" placeholder="母版名称" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">背景色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="editingMaster.background" class="color-picker" />
+                  <input type="text" v-model="editingMaster.background" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">主色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="editingMaster.primaryColor" class="color-picker" />
+                  <input type="text" v-model="editingMaster.primaryColor" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">强调色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="editingMaster.accentColor" class="color-picker" />
+                  <input type="text" v-model="editingMaster.accentColor" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">次要色</label>
+                <div class="color-input-row">
+                  <input type="color" v-model="editingMaster.secondaryColor" class="color-picker" />
+                  <input type="text" v-model="editingMaster.secondaryColor" class="form-input color-text" />
+                </div>
+              </div>
+              <div class="form-item">
+                <label class="form-label">字体</label>
+                <select v-model="editingMaster.fontFamily" class="form-select">
+                  <option value="Microsoft YaHei">微软雅黑</option>
+                  <option value="SimSun">宋体</option>
+                  <option value="KaiTi">楷体</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Georgia">Georgia</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label class="form-label">标题字号</label>
+                <input type="number" v-model.number="editingMaster.fontSizeTitle" class="form-input" min="20" max="72" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">正文字号</label>
+                <input type="number" v-model.number="editingMaster.fontSizeBody" class="form-input" min="12" max="36" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">默认过渡</label>
+                <select v-model="editingMaster.defaultTransition" class="form-select">
+                  <option value="slide">滑动</option>
+                  <option value="fade">淡入淡出</option>
+                  <option value="zoom">缩放</option>
+                  <option value="flip">翻转</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label class="form-label">过渡速度</label>
+                <select v-model="editingMaster.defaultTransitionDuration" class="form-select">
+                  <option value="fast">快 (0.3s)</option>
+                  <option value="normal">中 (0.5s)</option>
+                  <option value="slow">慢 (0.8s)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 预览 -->
+          <div class="panel-section">
+            <h4 class="section-title">预览效果</h4>
+            <div class="master-preview-box" :style="{
+              background: editingMaster.background,
+              fontFamily: editingMaster.fontFamily,
+              color: editingMaster.primaryColor
+            }">
+              <div class="master-preview-title" :style="{ fontSize: (editingMaster.fontSizeTitle || 32) + 'px' }">
+                标题文字
+              </div>
+              <div class="master-preview-body" :style="{ fontSize: (editingMaster.fontSizeBody || 18) + 'px', color: editingMaster.secondaryColor }">
+                正文内容示例
+              </div>
+            </div>
+          </div>
+
+          <!-- 应用范围 -->
+          <div class="panel-section">
+            <h4 class="section-title">应用到</h4>
+            <div class="apply-options">
+              <button class="btn btn-sm btn-outline" @click="applyMasterToAllSlides(selectedMasterId)">
+                全部页面
+              </button>
+              <span class="apply-tip">将母版应用到所有幻灯片</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <button class="btn btn-outline" @click="showMasterEditor = false">关闭</button>
+          <button class="btn btn-primary" @click="saveMaster">保存母版</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 动画编辑器面板 -->
+    <div v-if="showAnimationComposer" class="transition-panel-overlay" @click="showAnimationComposer = false">
+      <div class="transition-panel" @click.stop>
+        <div class="panel-header">
+          <h3>🎬 动画编辑器 — 第 {{ currentAnimatingSlide + 1 }} 页</h3>
+          <button class="panel-close" @click="showAnimationComposer = false">✕</button>
+        </div>
+        <div class="panel-content">
+          <!-- 预设动画 -->
+          <div class="panel-section">
+            <h4 class="section-title">预设动画</h4>
+            <div class="transition-options">
+              <div
+                v-for="anim in animationPresets"
+                :key="anim.id"
+                class="transition-item"
+                :class="{ active: editingAnimation.type === anim.type }"
+                @click="Object.assign(editingAnimation, anim)"
+              >
+                <span class="transition-icon">✦</span>
+                <span class="transition-name">{{ anim.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 自定义参数 -->
+          <div class="panel-section">
+            <h4 class="section-title">自定义参数</h4>
+            <div class="form-grid">
+              <div class="form-item">
+                <label class="form-label">动画名称</label>
+                <input v-model="editingAnimation.name" class="form-input" placeholder="自定义动画" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">动画类型</label>
+                <select v-model="editingAnimation.type" class="form-select">
+                  <option value="fade">淡入</option>
+                  <option value="slide">滑动</option>
+                  <option value="zoom">缩放</option>
+                  <option value="bounce">弹跳</option>
+                  <option value="flip">翻转</option>
+                  <option value="rotate">旋转</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label class="form-label">持续时间 (ms)</label>
+                <input type="number" v-model.number="editingAnimation.duration" class="form-input" min="100" max="3000" step="50" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">延迟 (ms)</label>
+                <input type="number" v-model.number="editingAnimation.delay" class="form-input" min="0" max="2000" step="100" />
+              </div>
+              <div class="form-item">
+                <label class="form-label">缓动函数</label>
+                <select v-model="editingAnimation.easing" class="form-select">
+                  <option value="linear">linear</option>
+                  <option value="ease">ease</option>
+                  <option value="ease-in">ease-in</option>
+                  <option value="ease-out">ease-out</option>
+                  <option value="ease-in-out">ease-in-out</option>
+                </select>
+              </div>
+              <div class="form-item" v-if="['slide'].includes(editingAnimation.type as string)">
+                <label class="form-label">滑动方向</label>
+                <select v-model="editingAnimation.direction" class="form-select">
+                  <option value="up">向上</option>
+                  <option value="down">向下</option>
+                  <option value="left">向左</option>
+                  <option value="right">向右</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- 动画预览 -->
+          <div class="panel-section">
+            <h4 class="section-title">动画预览</h4>
+            <div class="animation-preview-stage" :class="'anim-type-' + editingAnimation.type">
+              <div
+                class="animation-preview-box"
+                :style="{
+                  animationDuration: (editingAnimation.duration || 600) + 'ms',
+                  animationDelay: (editingAnimation.delay || 0) + 'ms',
+                  animationTimingFunction: editingAnimation.easing || 'ease',
+                  animationFillMode: 'both',
+                  animationName: 'preview-' + editingAnimation.type
+                }"
+              >
+                Aa
+              </div>
+              <p class="preview-desc">{{ editingAnimation.name || '自定义动画' }} · {{ editingAnimation.duration }}ms · {{ editingAnimation.easing }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <button class="btn btn-outline" @click="showAnimationComposer = false">关闭</button>
+          <button class="btn btn-primary" @click="applyAnimationToSlide">应用到当前页</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 团队工作空间面板 -->
+    <div v-if="showTeamWorkspace" class="workspace-panel-overlay" @click="showTeamWorkspace = false">
+      <div class="workspace-panel" @click.stop>
+        <TeamWorkspacePanel :ppt-id="taskId" />
+      </div>
+    </div>
+
+    <!-- 团队活动动态面板 -->
+    <div v-if="showActivityFeed" class="activity-panel-overlay" @click="showActivityFeed = false">
+      <div class="activity-panel" @click.stop>
+        <ActivityFeedPanel :ppt-id="taskId" />
+      </div>
+    </div>
+
+    <!-- 幻灯片评论/建议面板 -->
+    <div v-if="showCommentsPanel" class="comments-panel-overlay" @click="showCommentsPanel = false">
+      <div class="comments-panel" @click.stop>
+        <SlideCommentsPanel :ppt-id="taskId" :slide-num="currentVisibleSlide + 1" />
+      </div>
+    </div>
+
+    <!-- AI高级功能面板 -->
+    <AdvancedAIPanel
+      :show="showAdvancedAIPanel"
+      :task-id="taskId"
+      @close="showAdvancedAIPanel = false"
+    />
+
+    <!-- 自定义分享链接弹窗 -->
+    <ShareLinkModal
+      :show="showShareLinkModal"
+      :task-id="taskId"
+      :initial-title="shareLinkTitle"
+      :initial-description="shareLinkDescription"
+      :initial-thumbnail="shareLinkThumbnail"
+      @close="showShareLinkModal = false"
+      @saved="onShareLinkSaved"
+    />
   </div>
 </template>
 
@@ -843,12 +1464,20 @@ import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
 import ChartEditor from '../components/ChartEditor.vue'
+import TeamWorkspacePanel from '../components/TeamWorkspacePanel.vue'
+import ActivityFeedPanel from '../components/ActivityFeedPanel.vue'
+import SlideCommentsPanel from '../components/SlideCommentsPanel.vue'
+import AdvancedAIPanel from '../components/AdvancedAIPanel.vue'
+import ReactionButtons from '../components/ReactionButtons.vue'
+import ShareLinkModal from '../components/ShareLinkModal.vue'
 import { useSwipeGesture } from '../composables/useSwipeGesture'
 import { getDeviceMode } from '../composables/useDeviceMode'
 import { useInteractionFeedback } from '../composables/useInteractionFeedback'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useImageCompressor } from '../composables/useImageCompressor'
 import { usePerformanceMode } from '../composables/usePerformanceMode'
+import { useEngagement } from '../composables/useEngagement'
+import { useClipboardAndContent } from '../composables/useClipboardAndContent'
 
 const router = useRouter()
 const route = useRoute()
@@ -863,6 +1492,212 @@ const { showSuccess, showError, showWarning, showInfo } = useInteractionFeedback
 // Image compression
 const { compressImage } = useImageCompressor()
 const { isPerformanceMode: isPerfMode } = usePerformanceMode()
+
+// Clipboard & Content Integration
+const {
+  clipboardHistory,
+  isDragOver,
+  pendingPasteContent,
+  showClipboardHistory,
+  showPastePreview,
+  isProcessingOCR,
+  loadHistory: loadClipboardHistory,
+  clearHistory: clearClipboardHistory,
+  readClipboardText,
+  readClipboardImage,
+  addToHistory: addToClipboardHistory,
+  createClipboardItem,
+  processDroppedFiles,
+  performOCR,
+  smartParseText,
+} = useClipboardAndContent()
+
+// Load clipboard history on mount
+loadClipboardHistory()
+
+// Global paste event handler
+async function handleGlobalPaste(e: ClipboardEvent) {
+  if (!isEditMode.value) return
+  // Don't intercept if focus is in an input/textarea
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+
+  e.preventDefault()
+
+  // Try image first, then text
+  const imageData = await readClipboardImage()
+  if (imageData) {
+    const item = createClipboardItem('image', imageData)
+    addToClipboardHistory(item)
+    showImagePastePreview(item)
+    return
+  }
+
+  const text = await readClipboardText()
+  if (text && text.trim()) {
+    const item = createClipboardItem('text', text.trim())
+    addToClipboardHistory(item)
+    showTextPastePreview(item)
+  }
+}
+
+// Show paste preview for image
+function showImagePastePreview(item: any) {
+  pendingPasteContent.value = item
+  showPastePreview.value = true
+}
+
+// Show paste preview for text
+function showTextPastePreview(item: any) {
+  pendingPasteContent.value = item
+  showPastePreview.value = true
+}
+
+// Confirm paste - add as new slide
+async function confirmPasteAsNewSlide() {
+  if (!pendingPasteContent.value) return
+
+  const item = pendingPasteContent.value
+  if (item.type === 'image') {
+    // Upload image and add as image slide
+    try {
+      const formData = new FormData()
+      const blob = await fetch(item.content).then(r => r.blob())
+      formData.append('file', blob, 'pasted_image.png')
+
+      const res = await fetch(`/api/v1/ppt/image/${taskId.value}/${editableSlides.value.length + 1}/upload`, {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (data.success) {
+        editableSlides.value.push({
+          title: '粘贴的图片',
+          content: '',
+          layout: 'left_image_right_text',
+          imageUrl: data.image_url,
+        })
+        showSuccess('图片已粘贴', '新页面已添加')
+      } else {
+        showError('图片上传失败', data.detail || '请重试')
+      }
+    } catch (e) {
+      showError('图片处理失败', '请重试')
+    }
+  } else {
+    // Parse text and add as new slide
+    const parsed = smartParseText(item.content)
+    editableSlides.value.push({
+      title: parsed.title,
+      content: parsed.content.join('\n'),
+      layout: parsed.layout,
+    })
+    showSuccess('文本已粘贴', `新页面「${parsed.title}」已添加`)
+  }
+
+  showPastePreview.value = false
+  pendingPasteContent.value = null
+}
+
+// Import from screenshot (OCR)
+async function importFromScreenshot() {
+  // Read screenshot from clipboard
+  const imageData = await readClipboardImage()
+  if (!imageData) {
+    showError('未检测到截图', '请先截图，然后点击「导入截图」按钮')
+    return
+  }
+
+  isProcessingOCR.value = true
+  try {
+    const text = await performOCR(imageData)
+    if (!text || !text.trim()) {
+      showWarning('OCR未提取到文字', '截图内容可能不包含可识别的文字')
+      return
+    }
+    const item = createClipboardItem('text', text.trim())
+    addToClipboardHistory(item)
+    showTextPastePreview(item)
+  } catch (e) {
+    showError('OCR识别失败', '请尝试手动粘贴文本内容')
+  } finally {
+    isProcessingOCR.value = false
+  }
+}
+
+// Apply clipboard history item as new slide
+async function applyHistoryItem(item: any) {
+  showClipboardHistory.value = false
+  if (item.type === 'image') {
+    const tmpItem = { ...item, content: item.content }
+    showImagePastePreview(tmpItem)
+  } else {
+    showTextPastePreview(item)
+  }
+}
+
+// Drag & drop handlers for the edit panel
+function handleDragOver(e: DragEvent) {
+  if (!isEditMode.value) return
+  e.preventDefault()
+  isDragOver.value = true
+}
+
+function handleDragLeave(e: DragEvent) {
+  isDragOver.value = false
+}
+
+async function handleDrop(e: DragEvent) {
+  if (!isEditMode.value) return
+  e.preventDefault()
+  isDragOver.value = false
+
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+
+  const { text, images } = await processDroppedFiles(files)
+
+  // Handle images
+  for (const img of images) {
+    try {
+      const formData = new FormData()
+      const blob = await fetch(img.dataURL).then(r => r.blob())
+      formData.append('file', blob, img.name)
+
+      const res = await fetch(`/api/v1/ppt/image/${taskId.value}/${editableSlides.value.length + 1}/upload`, {
+        method: 'POST',
+        body: formData
+      })
+      const data = await res.json()
+      if (data.success) {
+        const historyItem = createClipboardItem('image', data.image_url, img.name)
+        addToClipboardHistory(historyItem)
+        editableSlides.value.push({
+          title: img.name.replace(/\.[^.]+$/, ''),
+          content: '',
+          layout: 'left_image_right_text',
+          imageUrl: data.image_url,
+        })
+      }
+    } catch (err) {
+      console.error('拖拽图片上传失败:', err)
+    }
+  }
+
+  // Handle text files
+  for (const txt of text) {
+    const parsed = smartParseText(txt)
+    editableSlides.value.push({
+      title: parsed.title,
+      content: parsed.content.join('\n'),
+      layout: parsed.layout,
+    })
+  }
+
+  if (images.length > 0 || text.length > 0) {
+    showSuccess('文件已导入', `${images.length}张图片、${text.length}个文本已添加为新页面`)
+  }
+}
 
 // Swipe navigation for preview slides
 const currentVisibleSlide = ref(0)
@@ -921,6 +1756,208 @@ const showChartEditor = ref(false)
 const showTransitionPanel = ref(false)
 const transitionApplyScope = ref<'current' | 'all'>('all')
 
+// ===== Master Slide System =====
+interface MasterSlide {
+  id: string
+  name: string
+  background: string
+  fontFamily: string
+  primaryColor: string
+  accentColor: string
+  secondaryColor: string
+  fontSizeTitle: number
+  fontSizeBody: number
+  logoUrl?: string
+  defaultTransition: 'slide' | 'fade' | 'zoom' | 'flip'
+  defaultTransitionDuration: 'fast' | 'normal' | 'slow'
+}
+
+const masterSlides = ref<MasterSlide[]>([
+  {
+    id: 'master-default',
+    name: '默认风格',
+    background: '#ffffff',
+    fontFamily: 'Microsoft YaHei',
+    primaryColor: '#2563eb',
+    accentColor: '#3b82f6',
+    secondaryColor: '#64748b',
+    fontSizeTitle: 32,
+    fontSizeBody: 18,
+    defaultTransition: 'slide',
+    defaultTransitionDuration: 'normal'
+  },
+  {
+    id: 'master-dark',
+    name: '深色主题',
+    background: '#1e293b',
+    fontFamily: 'Microsoft YaHei',
+    primaryColor: '#60a5fa',
+    accentColor: '#93c5fd',
+    secondaryColor: '#94a3b8',
+    fontSizeTitle: 34,
+    fontSizeBody: 18,
+    defaultTransition: 'fade',
+    defaultTransitionDuration: 'slow'
+  },
+  {
+    id: 'master-minimal',
+    name: '简约商务',
+    background: '#f8fafc',
+    fontFamily: 'Microsoft YaHei',
+    primaryColor: '#0f172a',
+    accentColor: '#334155',
+    secondaryColor: '#94a3b8',
+    fontSizeTitle: 30,
+    fontSizeBody: 16,
+    defaultTransition: 'slide',
+    defaultTransitionDuration: 'fast'
+  },
+  {
+    id: 'master-creative',
+    name: '创意彩色',
+    background: '#fef9c3',
+    fontFamily: 'Microsoft YaHei',
+    primaryColor: '#d97706',
+    accentColor: '#f59e0b',
+    secondaryColor: '#92400e',
+    fontSizeTitle: 36,
+    fontSizeBody: 20,
+    defaultTransition: 'zoom',
+    defaultTransitionDuration: 'normal'
+  }
+])
+
+const showMasterEditor = ref(false)
+const selectedMasterId = ref('master-default')
+const editingMaster = reactive<Partial<MasterSlide>>({})
+
+const getSelectedMaster = () => masterSlides.value.find(m => m.id === selectedMasterId.value)
+
+const openMasterEditor = (masterId?: string) => {
+  const id = masterId || selectedMasterId.value
+  selectedMasterId.value = id
+  const master = getSelectedMaster()
+  if (master) {
+    Object.assign(editingMaster, { ...master })
+  }
+  showMasterEditor.value = true
+}
+
+const applyMasterToSlide = (slideIndex: number, masterId: string) => {
+  if (editableSlides.value[slideIndex]) {
+    editableSlides.value[slideIndex].masterId = masterId
+    showSuccess('母版已应用', `第${slideIndex + 1}页已应用母版样式`)
+  }
+}
+
+const applyMasterToAllSlides = (masterId: string) => {
+  const master = masterSlides.value.find(m => m.id === masterId)
+  if (!master) return
+  editableSlides.value.forEach((slide, i) => {
+    editableSlides.value[i].masterId = masterId
+  })
+  // Apply master transition to global settings
+  transitionSettings.type = master.defaultTransition
+  transitionSettings.duration = master.defaultTransitionDuration
+  showSuccess('母版已应用', `全部${editableSlides.value.length}页已应用「${master.name}」母版`)
+}
+
+const saveMaster = () => {
+  const idx = masterSlides.value.findIndex(m => m.id === selectedMasterId.value)
+  if (idx >= 0) {
+    Object.assign(masterSlides.value[idx], editingMaster as MasterSlide)
+    showSuccess('母版已保存', `「${masterSlides.value[idx].name}」更新已保存`)
+  }
+  showMasterEditor.value = false
+}
+
+// ===== Custom Animation System =====
+interface SlideAnimation {
+  id: string
+  name: string
+  type: 'fade' | 'slide' | 'zoom' | 'bounce' | 'flip' | 'rotate' | 'custom'
+  duration: number  // ms
+  delay: number     // ms
+  easing: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out'
+  direction?: 'left' | 'right' | 'up' | 'down'
+  keyframeCSS?: string  // custom CSS keyframes
+}
+
+const animationPresets: SlideAnimation[] = [
+  { id: 'anim-fade', name: '淡入', type: 'fade', duration: 600, delay: 0, easing: 'ease' },
+  { id: 'anim-slide-up', name: '上滑进入', type: 'slide', duration: 500, delay: 0, easing: 'ease-out', direction: 'up' },
+  { id: 'anim-slide-left', name: '左滑进入', type: 'slide', duration: 500, delay: 0, easing: 'ease-out', direction: 'left' },
+  { id: 'anim-zoom', name: '缩放进入', type: 'zoom', duration: 400, delay: 0, easing: 'ease-out' },
+  { id: 'anim-bounce', name: '弹跳进入', type: 'bounce', duration: 600, delay: 0, easing: 'ease' },
+  { id: 'anim-flip', name: '翻转进入', type: 'flip', duration: 600, delay: 0, easing: 'ease-in-out' },
+  { id: 'anim-rotate', name: '旋转进入', type: 'rotate', duration: 700, delay: 0, easing: 'ease-in-out' },
+]
+
+const showAnimationComposer = ref(false)
+const currentAnimatingSlide = ref(0)
+const editingAnimation = reactive<Partial<SlideAnimation>>({
+  id: '',
+  name: '',
+  type: 'fade',
+  duration: 600,
+  delay: 0,
+  easing: 'ease',
+  direction: 'up'
+})
+const customAnimations = ref<SlideAnimation[]>([])
+
+const openAnimationComposer = (slideIndex: number) => {
+  currentAnimatingSlide.value = slideIndex
+  const slideAnim = editableSlides.value[slideIndex]?.animation
+  if (slideAnim) {
+    Object.assign(editingAnimation, slideAnim)
+  } else {
+    Object.assign(editingAnimation, { id: '', name: '', type: 'fade', duration: 600, delay: 0, easing: 'ease', direction: 'up' })
+  }
+  showAnimationComposer.value = true
+}
+
+const applyAnimationToSlide = () => {
+  const idx = currentAnimatingSlide.value
+  if (!editableSlides.value[idx]) return
+  const anim: SlideAnimation = {
+    id: editingAnimation.id || `custom-${Date.now()}`,
+    name: editingAnimation.name || '自定义动画',
+    type: editingAnimation.type as SlideAnimation['type'],
+    duration: editingAnimation.duration || 600,
+    delay: editingAnimation.delay || 0,
+    easing: editingAnimation.easing as SlideAnimation['easing'],
+    direction: editingAnimation.direction as SlideAnimation['direction']
+  }
+  editableSlides.value[idx].animation = anim
+  // Also add to customAnimations if new
+  if (!customAnimations.value.find(a => a.id === anim.id)) {
+    customAnimations.value.push(anim)
+  }
+  showAnimationComposer.value = false
+  showSuccess('动画已应用', `第${idx + 1}页已应用「${anim.name}」动画`)
+}
+
+const replayCurrentSlideAnimation = () => {
+  currentAnimatingSlide.value = currentEditingSlide.value - 1
+  showPresentation.value = true
+  // Will signal PresentationMode to replay via a dedicated mechanism
+  replayAnimationSignal.value = Date.now()
+}
+
+const replayAnimationSignal = ref(0)
+
+const getSlideAnimation = (slideIndex: number): SlideAnimation | undefined => {
+  return editableSlides.value[slideIndex]?.animation
+}
+
+// 团队协作相关
+const showTeamWorkspace = ref(false)
+const showActivityFeed = ref(false)
+const showCommentsPanel = ref(false)
+const showAdvancedAIPanel = ref(false)
+const currentEditingSlide = ref(1)
+
 const transitionTypes = [
   { value: 'slide', name: '滑动', icon: '→' },
   { value: 'fade', name: '淡入淡出', icon: '◐' },
@@ -961,6 +1998,13 @@ const showDiffView = ref(false)
 // 操作日志 & 撤销相关
 const actionLog = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
 const undoStack = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const redoStack = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const showAutoSaveSettings = ref(false)
+const autoSaveEnabled = ref(true)
+const autoSaveInterval = ref(30000) // 默认30秒
+const lastAutoSaveTime = ref<number | null>(null)
+const showRecoveryModal = ref(false)
+const recoveryInfo = ref<{savedAt: number; state: any} | null>(null)
 const showActionLog = ref(false)  // 是否显示操作日志tab
 const diffData = ref<{
   version_a: string
@@ -984,6 +2028,11 @@ const regeneratingSlideIndex = ref<number | null>(null)
 
 // 存为模板相关
 const showSaveTemplateModal = ref(false)
+const showBatchThemeModal = ref(false)
+const batchThemePrimary = ref('#165DFF')
+const batchThemeSecondary = ref('#0E42D2')
+const batchThemeAccent = ref('#64D2FF')
+
 const newTemplate = ref({
   name: '',
   description: '',
@@ -1056,6 +2105,32 @@ async function saveAsTemplate() {
   }
 }
 
+// R40: 批量主题应用
+const applyPresetTheme = (preset: { name: string; colors: string[] }) => {
+  batchThemePrimary.value = preset.colors[0] || '#165DFF'
+  batchThemeSecondary.value = preset.colors[1] || '#0E42D2'
+  batchThemeAccent.value = preset.colors[2] || '#64D2FF'
+}
+
+const handleBatchApplyTheme = async () => {
+  try {
+    const res = await api.batch.applyTheme({
+      task_ids: [taskId.value],
+      theme_primary: batchThemePrimary.value,
+      theme_secondary: batchThemeSecondary.value,
+      theme_accent: batchThemeAccent.value
+    })
+    if (res.data.success) {
+      showSuccess('主题已应用', `成功更新 ${res.data.updated?.length || 1} 个幻灯片`)
+      showBatchThemeModal.value = false
+      // 刷新预览
+      await loadTaskPreview()
+    }
+  } catch (e) {
+    showError('应用失败', (e as Error).message)
+  }
+}
+
 const layoutOptions = [
   { value: '左图右文', icon: '🖼️', name: '左图右文' },
   { value: '上图下文', icon: '⬆️', name: '上图下文' },
@@ -1093,6 +2168,28 @@ const chartConfig = ref({
   include_pie_chart: true,
   include_bar_chart: true,
   include_line_chart: false,
+})
+
+// PDF导出增强选项
+const pdfOptions = ref({
+  mode: 'slides', // slides | notes | handout
+  pageSize: 'A4', // A4 | Letter | 16:9 | 4:3
+  orientation: 'landscape', // portrait | landscape
+  handoutLayout: '3', // 1 | 2 | 3 | 6
+  notesPosition: 'below',
+  notesFontSize: 10,
+  watermarkEnabled: false,
+  watermarkText: 'CONFIDENTIAL',
+  watermarkOpacity: 0.15,
+  watermarkAngle: 45,
+  watermarkFontSize: 48,
+  watermarkColor: '#888888',
+  headerFooterEnabled: false,
+  headerText: '',
+  footerText: '',
+  pageNumberFormat: 'Page {current} of {total}',
+  headerFooterFontSize: 10,
+  headerFooterColor: '#666666',
 })
 
 const handleElementApply = (editedSlides: any) => {
@@ -1257,6 +2354,9 @@ const editableSlides = ref<{
   content: string
   layout: string
   imageUrl?: string
+  presenterNotes?: string  // 演讲者备注
+  masterId?: string         // 关联的母版ID
+  animation?: SlideAnimation  // 自定义动画
 }[]>([])
 
 // 切换编辑模式
@@ -1305,7 +2405,8 @@ const initEditableSlides = async () => {
       if (outline.slides && outline.slides.length > 0) {
         editableSlides.value = outline.slides.map((s: any) => ({
           ...s,
-          layout: normalizeLayout(s.layout)
+          layout: normalizeLayout(s.layout),
+          masterId: s.masterId || 'master-default'
         }))
         // BUG修复: 验证并同步数量
         if (editableSlides.value.length !== slideCount.value) {
@@ -1337,7 +2438,8 @@ const initEditableSlides = async () => {
       if (res.data && res.data.slides && res.data.slides.length > 0) {
         editableSlides.value = res.data.slides.map((s: any) => ({
           ...s,
-          layout: normalizeLayout(s.layout)
+          layout: normalizeLayout(s.layout),
+          masterId: s.masterId || 'master-default'
         }))
         // 缓存到localStorage
         localStorage.setItem(taskBasedKey, JSON.stringify(res.data))
@@ -1368,7 +2470,8 @@ const initEditableSlides = async () => {
   editableSlides.value = Array.from({ length: slideCount.value }, (_, i) => ({
     title: i === 0 ? '封面标题' : `第 ${i + 1} 页标题`,
     content: i === 0 ? '副标题\n演讲者信息' : '内容要点1\n内容要点2\n内容要点3',
-    layout: i === 0 ? 'title' : 'content'
+    layout: i === 0 ? 'title' : 'content',
+    masterId: 'master-default'
   }))
 }
 
@@ -1725,6 +2828,15 @@ const formatExportTime = (isoString: string): string => {
   }
 }
 
+const formatClipboardTime = (timestamp: number): string => {
+  const now = Date.now()
+  const diff = now - timestamp
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return new Date(timestamp).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
 const downloadExportHistoryItem = (item: ExportHistoryItem) => {
   // 根据历史记录重新触发导出
   const formatMap: Record<string, ExportFormat> = {
@@ -1747,7 +2859,9 @@ const exportFormats = [
   { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx', quality: true },
   { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf', quality: true },
   { id: 'png', name: 'PNG', icon: '🖼️', desc: 'PNG高清图片', ext: '.png', quality: true },
-  { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true }
+  { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true },
+  { id: 'google-slides', name: 'Google Slides', icon: '📽️', desc: '导出到 Google Slides', ext: '', quality: false, platform: true },
+  { id: 'notion', name: 'Notion', icon: '📒', desc: '导出到 Notion', ext: '', quality: false, platform: true }
 ]
 
 const qualityOptions = [
@@ -1779,6 +2893,12 @@ const handleExport = () => {
       }
       handleExportImages()
       break
+    case 'google-slides':
+      handleExportGoogleSlides()
+      break
+    case 'notion':
+      handleExportNotion()
+      break
   }
 }
 
@@ -1787,11 +2907,12 @@ const handleExport = () => {
 // 演示模式使用的幻灯片数据（从真实预览数据获取）
 const presentationSlides = computed(() => {
   if (previewSlides.value && previewSlides.value.length > 0) {
-    return previewSlides.value.map(s => ({
+    return previewSlides.value.map((s, idx) => ({
       title: `第 ${s.slideNum} 页`,
       content: '',
       background: '#ffffff',
-      svgUrl: s.url  // 真实 SVG URL
+      svgUrl: s.url,  // 真实 SVG URL
+      presenterNotes: editableSlides.value[idx]?.presenterNotes || ''
     }))
   }
   return []
@@ -2006,17 +3127,51 @@ const handleExportPDF = async () => {
 
   try {
     exportStatusText.value = '正在转换PDF...'
+    exportProgress.value = 10
+
+    // 使用增强PDF导出API
+    const pdfOpts = pdfOptions.value
+    const exportPayload = {
+      mode: pdfOpts.mode,
+      page_size: pdfOpts.pageSize,
+      orientation: pdfOpts.orientation,
+      handout_layout: pdfOpts.handoutLayout,
+      notes_position: pdfOpts.notesPosition,
+      notes_font_size: pdfOpts.notesFontSize,
+      watermark_enabled: pdfOpts.watermarkEnabled,
+      watermark_text: pdfOpts.watermarkText,
+      watermark_opacity: parseFloat(pdfOpts.watermarkOpacity),
+      watermark_angle: parseInt(pdfOpts.watermarkAngle),
+      watermark_font_size: parseInt(pdfOpts.watermarkFontSize),
+      watermark_color: pdfOpts.watermarkColor,
+      header_footer_enabled: pdfOpts.headerFooterEnabled,
+      header_text: pdfOpts.headerText,
+      footer_text: pdfOpts.footerText,
+      page_number_format: pdfOpts.pageNumberFormat,
+      header_footer_font_size: parseInt(pdfOpts.headerFooterFontSize),
+      header_footer_color: pdfOpts.headerFooterColor,
+      theme: exportTheme.value,
+    }
+
     exportProgress.value = 20
 
-    // 尝试调用后端API
-    const response = await api.ppt.exportPdf(taskId.value).catch(() => null)
+    // 调用增强PDF导出API
+    const apiBase = window.location.origin
+    const response = await fetch(`${apiBase}/api/v1/ppt/export/enhanced-pdf/${taskId.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(exportPayload),
+    }).catch(() => null)
 
-    if (response) {
+    if (response && response.ok) {
       exportStatusText.value = '正在下载...'
       exportProgress.value = 70
 
-      const fileName = `presentation_${taskId.value}.pdf`
-      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const blob = await response.blob()
+      const modeLabel = pdfOpts.mode === 'notes' ? '备注' : pdfOpts.mode === 'handout' ? `讲义${pdfOpts.handoutLayout}up` : '幻灯片'
+      const fileName = `presentation_${taskId.value}_${modeLabel}.pdf`
+      
+      const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
       link.download = fileName
@@ -2026,18 +3181,39 @@ const handleExportPDF = async () => {
       window.URL.revokeObjectURL(url)
 
       // 记录到导出历史
-      const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
-      addExportHistory('PDF', qualityName, fileName, formatSize(response.data.size || 0))
+      const sizeLabel = pdfOpts.pageSize
+      addExportHistory('PDF', `${modeLabel} ${sizeLabel}`, fileName, formatSize(blob.size || 0))
 
       exportProgress.value = 100
       exportStatusText.value = '导出完成!'
     } else {
-      // 后端不可用，使用浏览器打印功能
-      exportViaPrint()
+      // 后端API不可用，降级到旧版API
+      exportStatusText.value = '使用兼容模式...'
+      exportProgress.value = 30
+      const legacyResponse = await api.ppt.exportPdf(taskId.value).catch(() => null)
+      
+      if (legacyResponse) {
+        exportStatusText.value = '正在下载...'
+        exportProgress.value = 70
+        const fileName = `presentation_${taskId.value}.pdf`
+        const url = window.URL.createObjectURL(new Blob([legacyResponse.data]))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        addExportHistory('PDF', '标准', fileName, formatSize(legacyResponse.data.size || 0))
+        exportProgress.value = 100
+        exportStatusText.value = '导出完成!'
+      } else {
+        // 最终降级到浏览器打印
+        exportViaPrint()
+      }
     }
   } catch (error) {
     console.error('PDF导出失败，使用打印替代:', error)
-    // 降级到打印
     exportViaPrint()
   } finally {
     setTimeout(() => {
@@ -2241,6 +3417,112 @@ const handleExportPngZip = async () => {
   }
 }
 
+// 导出到 Google Slides
+const handleExportGoogleSlides = async () => {
+  if (taskStatus.value !== 'completed') {
+    alert('请等待 PPT 生成完成')
+    return
+  }
+  
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在连接 Google Slides...'
+  
+  try {
+    const title = slideCount.value > 0 
+      ? `PPT ${new Date().toLocaleDateString('zh-CN')}` 
+      : 'RabAiMind PPT'
+    
+    const response = await fetch(`/api/v1/ppt/export/google-slides/${taskId.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      showSuccess('Google Slides 导出成功', '正在打开...')
+      if (result.presentation_url) {
+        window.open(result.presentation_url, '_blank')
+      }
+    } else {
+      if (result.method === 'manual' && result.guide) {
+        // Show guide for manual export
+        showError('需要手动导出', '请点击确定下载 PPT 文件，然后手动上传到 Google Slides')
+        // Offer to download PPTX instead
+        if (confirm('是否下载 PPTX 文件？\n\n手动导入 Google Slides 方法：\n1. 下载 PPTX 文件\n2. 打开 slides.google.com\n3. 点击"文件"→"打开"→"上传"')) {
+          handleDownload()
+        }
+      } else {
+        showError('Google Slides 导出失败', result.error || '未知错误')
+      }
+    }
+  } catch (err) {
+    console.error('Google Slides export error:', err)
+    showError('导出失败', '网络错误，请稍后重试')
+  } finally {
+    isExporting.value = false
+    exportProgress.value = 0
+    exportStatusText.value = ''
+  }
+}
+
+// 导出到 Notion
+const handleExportNotion = async () => {
+  if (taskStatus.value !== 'completed') {
+    alert('请等待 PPT 生成完成')
+    return
+  }
+  
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在连接 Notion...'
+  
+  try {
+    const title = slideCount.value > 0 
+      ? `PPT ${new Date().toLocaleDateString('zh-CN')}` 
+      : 'RabAiMind PPT'
+    
+    // Extract slide content for Notion page
+    const slidesContent = previewSlides.value.map((slide: any) => ({
+      title: `第 ${slide.slideNum} 页`,
+      content: ''
+    }))
+    
+    const response = await fetch(`/api/v1/ppt/export/notion/${taskId.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, slides_content: slidesContent })
+    })
+    
+    const result = await response.json()
+    
+    if (result.success) {
+      showSuccess('Notion 导出成功', '正在打开...')
+      if (result.page_url) {
+        window.open(result.page_url, '_blank')
+      }
+    } else {
+      if (result.method === 'manual' && result.guide) {
+        showError('需要手动导出', '请先下载 PPTX 文件')
+        if (confirm('是否下载 PPTX 文件？\n\nNotion 导出需要配置 API Token，详见弹窗说明')) {
+          handleDownload()
+        }
+      } else {
+        showError('Notion 导出失败', result.error || '未知错误')
+      }
+    }
+  } catch (err) {
+    console.error('Notion export error:', err)
+    showError('导出失败', '网络错误，请稍后重试')
+  } finally {
+    isExporting.value = false
+    exportProgress.value = 0
+    exportStatusText.value = ''
+  }
+}
+
 // 打印
 const handlePrint = () => {
   showExportMenu.value = false
@@ -2252,9 +3534,20 @@ const showShareMenu = ref(false)
 const showMoreMenu = ref(false)
 const showQRCode = ref(false)
 const shareTitle = ref('RabAi Mind PPT')
+const showShareLinkModal = ref(false)
+const shareLinkTitle = ref('RabAi Mind PPT')
+const shareLinkDescription = ref('来看看我创建的精彩演示文稿')
+const shareLinkThumbnail = ref<string | undefined>(undefined)
+
+const onShareLinkSaved = (data: { title: string; description: string; thumbnail?: string }) => {
+  shareLinkTitle.value = data.title
+  shareLinkDescription.value = data.description
+  shareLinkThumbnail.value = data.thumbnail
+}
 
 const shareOptions = [
   { id: 'native', name: '系统分享', icon: '📤', supported: 'share' in navigator },
+  { id: 'custom', name: '自定义分享', icon: '✏️' },
   { id: 'copy', name: '复制链接', icon: '📋' },
   { id: 'qrcode', name: '二维码', icon: '📱' },
   { id: 'wechat', name: '微信', icon: '💬' },
@@ -2292,6 +3585,11 @@ const handleShare = async (type: string) => {
         alert('您的浏览器不支持系统分享功能')
       }
       break
+
+    case 'custom':
+      showShareLinkModal.value = true
+      showShareMenu.value = false
+      return
 
     case 'copy':
       try {
@@ -2441,6 +3739,7 @@ const undoLastAction = async () => {
       await loadStatus()
       await loadActionLog()
       await loadUndoStack()
+      await loadRedoStack()
       await loadVersionHistory()
     } else {
       showError('撤销失败', res.data?.message || '未知错误')
@@ -2448,6 +3747,67 @@ const undoLastAction = async () => {
   } catch (e: any) {
     console.error('撤销失败:', e)
     showError('撤销失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 加载重做栈
+const loadRedoStack = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getRedoStack(taskId.value)
+    if (res.data && res.data.success) {
+      redoStack.value = res.data.redo_stack || []
+    }
+  } catch (e) {
+    console.warn('加载重做栈失败:', e)
+  }
+}
+
+// 重做上一操作
+const redoLastAction = async () => {
+  if (!taskId.value) return
+  if (redoStack.value.length === 0) {
+    showWarning('无可重做的操作', '重做栈为空')
+    return
+  }
+  if (!confirm(`确认重做「${redoStack.value[redoStack.value.length - 1]?.description}」？`)) return
+  
+  try {
+    const res = await api.ppt.redo(taskId.value)
+    if (res.data && res.data.success) {
+      showSuccess('重做成功', `已重做: ${res.data.redone_action}`)
+      // 刷新状态
+      await loadStatus()
+      await loadActionLog()
+      await loadUndoStack()
+      await loadRedoStack()
+      await loadVersionHistory()
+    } else {
+      showError('重做失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('重做失败:', e)
+    showError('重做失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 从指定版本创建分支
+const branchFromVersion = async (versionId: string) => {
+  if (!taskId.value) return
+  const branchName = prompt('请输入分支名称:', '新分支')
+  if (branchName === null) return // 用户取消
+  
+  try {
+    const res = await api.ppt.branchVersion(taskId.value, versionId, branchName)
+    if (res.data && res.data.success) {
+      showSuccess('分支已创建', `分支「${branchName}」已创建`)
+      await loadVersionHistory()
+    } else {
+      showError('创建分支失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('创建分支失败:', e)
+    showError('创建分支失败', e?.response?.data?.detail || '网络错误')
   }
 }
 
@@ -2530,7 +3890,124 @@ const createSnapshot = async () => {
   }
 }
 
-// Global keyboard shortcuts
+// ========== 自动保存 & 崩溃恢复 ==========
+
+let autoSaveTimer: number | null = null
+
+// 保存自动保存设置到 localStorage
+const saveAutoSaveSettings = () => {
+  localStorage.setItem('ppt_autosave_settings', JSON.stringify({
+    enabled: autoSaveEnabled.value,
+    interval: autoSaveInterval.value,
+  }))
+  // 重启定时器
+  stopAutoSaveTimer()
+  if (autoSaveEnabled.value) {
+    startAutoSaveTimer()
+  }
+}
+
+// 加载自动保存设置
+const loadAutoSaveSettings = () => {
+  try {
+    const saved = localStorage.getItem('ppt_autosave_settings')
+    if (saved) {
+      const settings = JSON.parse(saved)
+      autoSaveEnabled.value = settings.enabled ?? true
+      autoSaveInterval.value = settings.interval ?? 30000
+    }
+  } catch (e) {
+    console.warn('加载自动保存设置失败:', e)
+  }
+}
+
+// 启动自动保存定时器
+const startAutoSaveTimer = () => {
+  if (autoSaveTimer) return
+  autoSaveTimer = window.setInterval(() => {
+    triggerAutoSave()
+  }, autoSaveInterval.value)
+}
+
+// 停止自动保存定时器
+const stopAutoSaveTimer = () => {
+  if (autoSaveTimer) {
+    clearInterval(autoSaveTimer)
+    autoSaveTimer = null
+  }
+}
+
+// 触发一次自动保存
+const triggerAutoSave = async () => {
+  if (!taskId.value || !autoSaveEnabled.value) return
+  try {
+    // 收集当前编辑状态
+    const state = {
+      previewSlides: previewSlides.value,
+      editableSlides: editableSlides.value,
+      slideCount: slideCount.value,
+    }
+    await api.ppt.autoSave(taskId.value, state)
+    lastAutoSaveTime.value = Date.now()
+  } catch (e) {
+    console.warn('自动保存失败:', e)
+  }
+}
+
+// 检查崩溃恢复状态
+const checkRecoveryState = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getAutoSave(taskId.value)
+    if (res.data && res.data.success && res.data.state) {
+      recoveryInfo.value = {
+        savedAt: new Date(res.data.saved_at).getTime(),
+        state: res.data.state,
+      }
+      showRecoveryModal.value = true
+    } else {
+      showInfo('无恢复数据', '当前没有可恢复的编辑状态')
+    }
+  } catch (e) {
+    console.warn('检查恢复状态失败:', e)
+  }
+}
+
+// 从崩溃恢复
+const recoverFromCrash = () => {
+  if (!recoveryInfo.value || !recoveryInfo.value.state) {
+    showError('恢复失败', '无恢复数据')
+    showRecoveryModal.value = false
+    return
+  }
+  const state = recoveryInfo.value.state
+  if (state.previewSlides) {
+    previewSlides.value = state.previewSlides
+  }
+  if (state.editableSlides) {
+    editableSlides.value = state.editableSlides
+  }
+  if (state.slideCount) {
+    slideCount.value = state.slideCount
+  }
+  showRecoveryModal.value = false
+  recoveryInfo.value = null
+  showSuccess('恢复成功', '已恢复至上一次编辑状态')
+}
+
+// 放弃恢复
+const dismissRecovery = () => {
+  showRecoveryModal.value = false
+  recoveryInfo.value = null
+  // 清除后端的自动保存状态
+  if (taskId.value) {
+    api.ppt.autoSave(taskId.value, {}).catch(() => {})
+  }
+}
+
+// ========== Keyboard Shortcuts ==========
+
+// 全局键盘快捷键
 useKeyboardShortcuts([
   {
     key: 's',
@@ -2546,13 +4023,28 @@ useKeyboardShortcuts([
   {
     key: 'z',
     ctrl: true,
+    shift: false,
     handler: () => {
-      if (isEditMode.value) {
-        // Undo last edit - move slide back to previous position (simplified undo)
-        showWarning('撤销', '编辑模式下的撤销功能')
-      }
+      undoLastAction()
     },
     description: '撤销 (Ctrl+Z)'
+  },
+  {
+    key: 'z',
+    ctrl: true,
+    shift: true,
+    handler: () => {
+      redoLastAction()
+    },
+    description: '重做 (Ctrl+Shift+Z)'
+  },
+  {
+    key: 'y',
+    ctrl: true,
+    handler: () => {
+      redoLastAction()
+    },
+    description: '重做 (Ctrl+Y)'
   },
   {
     key: 'Escape',
@@ -2584,6 +4076,20 @@ onMounted(() => {
   loadScenesAndStyles()
   // 加载导出历史
   loadExportHistory()
+  // 初始化自动保存
+  loadAutoSaveSettings()
+  if (autoSaveEnabled.value) {
+    startAutoSaveTimer()
+  }
+  // 检查崩溃恢复
+  checkRecoveryState()
+  // 粘贴事件监听（编辑模式下全局捕获）
+  document.addEventListener('paste', handleGlobalPaste)
+})
+
+onUnmounted(() => {
+  stopAutoSaveTimer()
+  document.removeEventListener('paste', handleGlobalPaste)
 })
 </script>
 
@@ -3168,6 +4674,27 @@ onMounted(() => {
   border-color: #165DFF;
 }
 
+/* 演讲者备注 */
+.edit-slide-notes {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+  background: #f8f9ff;
+  color: #555;
+}
+
+.edit-slide-notes:focus {
+  border-color: #165DFF;
+  background: #f0f4ff;
+}
+
 /* 幻灯片卡片操作按钮 */
 .slide-action-btns {
   display: flex;
@@ -3374,6 +4901,141 @@ onMounted(() => {
   margin: 12px 0;
   padding-bottom: 12px;
   border-bottom: 1px solid #e5e5e5;
+}
+
+.pdf-options-section {
+  margin: 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.pdf-mode-group,
+.pdf-handout-group,
+.pdf-size-group,
+.pdf-orientation-group {
+  margin-bottom: 10px;
+}
+
+.pdf-mode-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.pdf-mode-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pdf-mode-btn {
+  padding: 6px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #333;
+}
+
+.pdf-mode-btn:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.pdf-mode-btn.active {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: #fff;
+}
+
+.pdf-watermark-group,
+.pdf-header-footer-group {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.pdf-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.pdf-toggle-label {
+  font-size: 13px;
+  color: #333;
+}
+
+.pdf-switch {
+  transform: scale(0.8);
+}
+
+.pdf-watermark-options,
+.pdf-hf-options {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pdf-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.pdf-input:focus {
+  outline: none;
+  border-color: #1890ff;
+}
+
+.pdf-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-slider-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 50px;
+}
+
+.pdf-slider {
+  flex: 1;
+  height: 4px;
+  cursor: pointer;
+}
+
+.pdf-slider-value {
+  font-size: 11px;
+  color: #1890ff;
+  min-width: 35px;
+  text-align: right;
+}
+
+.pdf-select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.pdf-page-format-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chart-config-section {
@@ -4722,9 +6384,9 @@ onMounted(() => {
   }
 
   .toolbar-btn {
-    width: 48px !important;
-    height: 48px !important;
-    font-size: 20px !important;
+    width: 52px !important;
+    height: 52px !important;
+    font-size: 22px !important;
   }
 
   /* Mobile: more menu full-width */
@@ -4858,4 +6520,716 @@ onMounted(() => {
   flex: 1;
   border: 1px solid rgba(0,0,0,0.08);
 }
+
+/* 批量主题弹窗 */
+.modal-mask .batch-theme-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: 420px;
+  max-width: 95vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-mask .batch-theme-modal .modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+
+.modal-mask .batch-theme-modal .modal-desc {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 20px;
+}
+
+.theme-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 12px;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.preset-colors {
+  display: flex;
+  gap: 2px;
+}
+
+.preset-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.color-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.color-picker {
+  width: 40px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.color-text {
+  flex: 1;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+/* 团队协作面板 */
+.workspace-panel-overlay,
+.activity-panel-overlay,
+.comments-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease;
+}
+
+.workspace-panel,
+.activity-panel,
+.comments-panel {
+  width: 400px;
+  max-width: 90vw;
+  height: 100%;
+  background: #fff;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease;
+  overflow: hidden;
+}
+
+:global(.dark) .workspace-panel,
+:global(.dark) .activity-panel,
+:global(.dark) .comments-panel {
+  background: #1a1a1a;
+}
+
+.workspace-panel-overlay .panel-close,
+.activity-panel-overlay .panel-close,
+.comments-panel-overlay .panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.workspace-panel-overlay .panel-close:hover,
+.activity-panel-overlay .panel-close:hover,
+.comments-panel-overlay .panel-close:hover {
+  background: #f0f0f0;
+}
+
+/* 工具栏协作按钮激活状态 */
+.function-toolbar .toolbar-btn.active {
+  background: #165DFF;
+  color: white;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.3);
+}
+
+.ai-toolbar-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+}
+
+.ai-toolbar-btn:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%) !important;
+}
+
+.ai-toolbar-btn.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  color: white !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .workspace-panel-overlay,
+  .activity-panel-overlay,
+  .comments-panel-overlay {
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+
+  .workspace-panel,
+  .activity-panel,
+  .comments-panel {
+    width: 100%;
+    max-width: 100vw;
+    height: 85vh;
+    border-radius: 20px 20px 0 0;
+    animation: slideInUp 0.3s ease;
+  }
+
+  .function-toolbar .toolbar-btn.active {
+    background: #165DFF;
+    color: white;
+  }
+
+  .function-toolbar {
+    right: 12px !important;
+    bottom: 160px !important;
+  }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* ===== Master Editor & Animation Composer shared panel styles ===== */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-grid .form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-grid .form-item .form-input,
+.form-grid .form-item .form-select {
+  width: 100%;
+}
+
+/* Master preview box */
+.master-preview-box {
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(128,128,128,0.2);
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.master-preview-title {
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.master-preview-body {
+  line-height: 1.5;
+}
+
+.apply-tip {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 8px;
+}
+
+/* ===== Timeline Transition Preview ===== */
+.timeline-transition-preview-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 12px 0;
+  position: relative;
+}
+
+.timeline-slide-thumb {
+  width: 64px;
+  height: 48px;
+  background: #e2e8f0;
+  border: 2px solid #cbd5e1;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.next-thumb {
+  background: #bfdbfe;
+  border-color: #2563eb;
+}
+
+.timeline-transition-arrow {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+  position: relative;
+  z-index: 0;
+}
+
+.tl-arrow-line {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(to right, #cbd5e1, #94a3b8);
+  position: relative;
+}
+
+.tl-arrow-head {
+  width: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 10px;
+}
+
+/* Transition animations */
+.tl-trans-slide {
+  animation: tl-slide-arrow 0.5s ease-in-out infinite alternate;
+}
+
+.tl-next-slide {
+  animation: tl-slide-next 0.5s ease-in-out infinite alternate;
+}
+
+.tl-trans-fade {
+  animation: tl-fade-arrow 0.5s ease-in-out infinite alternate;
+}
+
+.tl-next-fade {
+  animation: tl-fade-next 0.5s ease-in-out infinite alternate;
+}
+
+.tl-trans-zoom {
+  animation: tl-zoom-arrow 0.5s ease-in-out infinite alternate;
+}
+
+.tl-next-zoom {
+  animation: tl-zoom-next 0.5s ease-in-out infinite alternate;
+}
+
+.tl-trans-flip {
+  animation: tl-flip-arrow 0.5s ease-in-out infinite alternate;
+}
+
+.tl-next-flip {
+  animation: tl-flip-next 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes tl-slide-arrow {
+  0% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+@keyframes tl-slide-next {
+  0% { transform: translateX(-8px); opacity: 0.5; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes tl-fade-arrow {
+  0% { opacity: 0.3; }
+  100% { opacity: 0.8; }
+}
+
+@keyframes tl-fade-next {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes tl-zoom-arrow {
+  0% { opacity: 0.3; transform: scale(0.9); }
+  100% { opacity: 0.8; transform: scale(1); }
+}
+
+@keyframes tl-zoom-next {
+  0% { opacity: 0; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes tl-flip-arrow {
+  0% { opacity: 0.3; }
+  100% { opacity: 0.8; }
+}
+
+@keyframes tl-flip-next {
+  0% { transform: rotateY(0deg); opacity: 0; }
+  100% { transform: rotateY(180deg); opacity: 1; }
+}
+
+.transition-duration-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.transition-label-text {
+  font-size: 13px;
+  color: #475569;
+}
+
+.transition-speed-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.speed-fast { background: #dbeafe; color: #1d4ed8; }
+.speed-normal { background: #dcfce7; color: #166534; }
+.speed-slow { background: #fef9c3; color: #854d0e; }
+
+/* ===== Animation Preview Stage ===== */
+.animation-preview-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  min-height: 90px;
+}
+
+.animation-preview-box {
+  width: 48px;
+  height: 48px;
+  background: #2563eb;
+  color: white;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.preview-desc {
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+}
+
+/* Animation keyframes for preview */
+@keyframes preview-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes preview-slide {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes preview-zoom {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes preview-bounce {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes preview-flip {
+  from { transform: rotateY(0deg); opacity: 0; }
+  to { transform: rotateY(180deg); opacity: 1; }
+}
+
+@keyframes preview-rotate {
+  from { transform: rotate(-90deg) scale(0.8); opacity: 0; }
+  to { transform: rotate(0deg) scale(1); opacity: 1; }
+}
+
+/* ========== Clipboard & Content Integration Styles ========== */
+
+/* Drag overlay */
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(22, 93, 255, 0.08);
+  border: 3px dashed #165DFF;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.15s ease;
+}
+
+.drag-hint {
+  text-align: center;
+}
+
+.drag-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.drag-hint p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #165DFF;
+}
+
+.drag-tip {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #666 !important;
+  margin-top: 4px !important;
+}
+
+.content-edit-panel.drag-over {
+  position: relative;
+}
+
+/* Clip tip */
+.clip-tip {
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+/* Edit actions - new clipboard buttons */
+.edit-actions .btn-clip {
+  font-size: 13px;
+}
+
+/* Clipboard history overlay */
+.clipboard-history-overlay,
+.paste-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease;
+}
+
+.clipboard-history-panel,
+.paste-preview-panel {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.clip-panel-header,
+.paste-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.clip-panel-header h3,
+.paste-panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.clip-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.clip-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+}
+
+.clip-empty p {
+  margin: 0 0 8px;
+}
+
+.clip-empty-tip {
+  font-size: 13px;
+  color: #bbb;
+}
+
+.clip-list {
+  overflow-y: auto;
+  max-height: 60vh;
+  padding: 8px;
+}
+
+.clip-item {
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 8px;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.clip-item:hover {
+  background: #f5f7ff;
+  border-color: #165DFF;
+}
+
+.clip-item-type {
+  font-size: 12px;
+  color: #999;
+}
+
+.clip-item-preview img {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.clip-item-text {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.clip-item-time {
+  font-size: 11px;
+  color: #bbb;
+  text-align: right;
+}
+
+/* Paste preview panel */
+.paste-panel-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.paste-image-preview img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  object-fit: contain;
+  border: 1px solid #eee;
+}
+
+.paste-text-preview {
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.paste-preview-title {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.paste-text-content {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.paste-text-bullets {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.8;
+}
+
+.paste-text-bullets > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-layout-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #999;
+}
+
+.paste-layout-hint span {
+  color: #165DFF;
+  font-weight: 500;
+}
+
+.paste-panel-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .clipboard-history-panel,
+  .paste-preview-panel {
+    width: 95%;
+    max-height: 85vh;
+  }
+
+  .edit-actions .btn-clip span {
+    display: none;
+  }
+}
+
 </style>

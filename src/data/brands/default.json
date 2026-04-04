@@ -1,0 +1,12 @@
+{
+  "user_id": "default",
+  "brand_name": "Test3",
+  "primary_color": "#111111",
+  "secondary_color": "#222222",
+  "accent_color": "#333333",
+  "fonts": [
+    "Arial"
+  ],
+  "logo_url": "",
+  "slogan": ""
+}

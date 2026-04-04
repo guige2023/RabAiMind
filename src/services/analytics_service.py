@@ -142,7 +142,15 @@ class AnalyticsService:
         
         # Daily stats for line chart (last 30 days)
         daily_stats = self._compute_daily_stats(daily_generations)
-        
+
+        # Carbon footprint savings calculation
+        carbon_footprint = self._compute_carbon_savings(total_slides)
+
+        # Most used features ranking (combined score from templates+styles+scenes)
+        most_used_features = self._compute_most_used_features(
+            popular_templates, popular_styles, popular_scenes
+        )
+
         return {
             "summary": {
                 "total_generations": total_generations,
@@ -159,6 +167,8 @@ class AnalyticsService:
             "weekly_activity": heatmap_data,
             "productivity_score": productivity_score,
             "daily_stats": daily_stats,
+            "carbon_footprint": carbon_footprint,
+            "most_used_features": most_used_features,
         }
 
     def _compute_productivity_score(
@@ -238,6 +248,66 @@ class AnalyticsService:
         except Exception:
             return None
 
+    def _compute_carbon_savings(self, total_slides: int) -> Dict[str, Any]:
+        """
+        Compute carbon footprint savings.
+
+        Assumptions:
+        - Traditional PPT creation: ~15 min/slide
+        - Using RabAiMind: ~2 min/slide
+        - Time saved per slide: 13 minutes
+        - Computer power: 50W = 0.05 kW
+        - China grid CO2 intensity: 0.528 kg CO2/kWh
+        - 1 tree absorbs ~22 kg CO2/year
+        """
+        # Time saved in minutes
+        time_saved_minutes = total_slides * 13
+        time_saved_hours = time_saved_minutes / 60.0
+
+        # CO2 saved in kg
+        co2_per_kwh = 0.528  # kg CO2/kWh (China grid average)
+        computer_kw = 0.05   # 50W computer
+        kg_co2_saved = time_saved_hours * computer_kw * co2_per_kwh
+
+        # Trees equivalent (1 tree absorbs ~22kg CO2/year)
+        trees_equivalent = round(kg_co2_saved / 22.0, 3)
+
+        # Water saved (virtual) - 1 sheet traditional paper = ~10ml water
+        # Assuming 2 pages printed per slide average
+        paper_sheets_saved = total_slides * 2
+        liters_water_saved = round(paper_sheets_saved * 0.01, 1)
+
+        return {
+            "total_slides": total_slides,
+            "time_saved_minutes": time_saved_minutes,
+            "time_saved_hours": round(time_saved_hours, 2),
+            "kg_co2_saved": round(kg_co2_saved, 4),
+            "trees_equivalent": trees_equivalent,
+            "paper_sheets_saved": paper_sheets_saved,
+            "liters_water_saved": liters_water_saved,
+        }
+
+    def _compute_most_used_features(self, templates, styles, scenes) -> List[Dict[str, Any]]:
+        """
+        Compute most used features ranking (combined from templates, styles, scenes).
+        Returns top 10 features with usage count and category.
+        """
+        all_features: List[Dict[str, Any]] = []
+
+        for item in templates[:5]:
+            all_features.append({"name": item["name"], "count": item["count"], "category": "template"})
+        for item in styles[:5]:
+            all_features.append({"name": item["name"], "count": item["count"], "category": "style"})
+        for item in scenes[:5]:
+            all_features.append({"name": item["name"], "count": item["count"], "category": "scene"})
+
+        # Sort by count and take top 10
+        all_features.sort(key=lambda x: x["count"], reverse=True)
+        ranked = all_features[:10]
+        for i, f in enumerate(ranked):
+            f["rank"] = i + 1
+        return ranked
+
     def _empty_analytics(self) -> Dict[str, Any]:
         """Return empty analytics structure."""
         empty_heatmap = []
@@ -247,7 +317,13 @@ class AnalyticsService:
             for h in range(24):
                 row[str(h)] = 0
             empty_heatmap.append(row)
-        
+
+        empty_carbon = {
+            "total_slides": 0, "time_saved_minutes": 0, "time_saved_hours": 0,
+            "kg_co2_saved": 0, "trees_equivalent": 0,
+            "paper_sheets_saved": 0, "liters_water_saved": 0,
+        }
+
         return {
             "summary": {
                 "total_generations": 0,
@@ -264,6 +340,8 @@ class AnalyticsService:
             "weekly_activity": empty_heatmap,
             "productivity_score": 0,
             "daily_stats": [],
+            "carbon_footprint": empty_carbon,
+            "most_used_features": [],
         }
 
 

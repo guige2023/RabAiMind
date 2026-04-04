@@ -327,3 +327,66 @@ class APIInfo(BaseModel):
     name: str
     version: str
     features: List[str]
+
+# ==================== Social Engagement Models ====================
+
+class ReactionType(str, Enum):
+    """反应类型"""
+    LIKE = "like"       # 👍
+    FIRE = "fire"       # 🔥
+    HEART = "heart"     # ❤️
+
+
+class ReactionRequest(BaseModel):
+    """添加反应请求"""
+    task_id: str = Field(..., description="PPT任务ID")
+    reaction_type: ReactionType = Field(..., description="反应类型")
+
+
+class ReactionResponse(BaseModel):
+    """反应响应"""
+    success: bool
+    task_id: str
+    reaction_type: ReactionType
+    total_likes: int = 0
+    total_fires: int = 0
+    total_hearts: int = 0
+    user_reaction: Optional[ReactionType] = None
+
+
+class ShareLinkRequest(BaseModel):
+    """自定义分享链接请求"""
+    task_id: str = Field(..., description="PPT任务ID")
+    title: str = Field(default="", max_length=200, description="分享标题")
+    description: str = Field(default="", max_length=500, description="分享描述")
+    thumbnail: Optional[str] = Field(default=None, description="缩略图URL")
+
+
+class ShareLinkResponse(BaseModel):
+    """分享链接响应"""
+    success: bool
+    task_id: str
+    share_url: str
+    title: str
+    description: str
+    thumbnail: Optional[str] = None
+
+
+class ViewCountResponse(BaseModel):
+    """浏览量响应"""
+    success: bool
+    task_id: str
+    view_count: int
+    is_public: bool
+
+
+class EngagementStats(BaseModel):
+    """互动统计数据"""
+    success: bool
+    task_id: str
+    view_count: int = 0
+    likes: int = 0
+    fires: int = 0
+    hearts: int = 0
+    comment_count: int = 0
+    share_count: int = 0

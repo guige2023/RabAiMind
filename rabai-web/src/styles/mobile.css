@@ -299,3 +299,368 @@ html.view-tablet .container {
     height: 90vh !important;
   }
 }
+
+/* ============ R54: Mobile App Preparation Enhancements ============ */
+
+/* ── Phone form factor: extra small screens (320px - 374px) ── */
+@media (max-width: 374px) {
+  h1 { font-size: 22px; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 16px; }
+
+  .btn-lg {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+
+  .function-toolbar {
+    right: 8px !important;
+    bottom: 140px !important;
+  }
+
+  .toolbar-btn {
+    width: 52px !important;
+    height: 52px !important;
+    font-size: 20px !important;
+  }
+}
+
+/* ── Touch-friendly toolbar: larger tap targets on all phones ── */
+@media (max-width: 768px) {
+  /* Floating action toolbar - ensure minimum 48px touch targets */
+  .function-toolbar {
+    gap: 10px;
+  }
+
+  .toolbar-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 20px;
+    /* iOS active highlight */
+    -webkit-tap-highlight-color: rgba(22, 93, 255, 0.15);
+  }
+
+  .toolbar-btn:active {
+    transform: scale(0.93);
+    opacity: 0.85;
+  }
+
+  /* Result action buttons - touch optimized */
+  .result-actions .btn-lg {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 14px 20px;
+    font-size: 15px;
+    touch-action: manipulation;
+  }
+
+  /* Modal/dialog action buttons */
+  .modal-actions .btn {
+    min-height: 48px;
+    padding: 12px 20px;
+  }
+
+  /* More menu items - larger touch targets */
+  .more-menu button {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+
+  /* Panel footers */
+  .panel-footer .btn {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ── Safe area: iPhone X+ and modern phones ── */
+@supports (padding: max(0px)) {
+  /* Extend bottom toolbar to safe area */
+  .function-toolbar {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+
+  /* Result actions sticky bottom bar */
+  .result-actions {
+    padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Mobile bottom nav */
+  .mobile-nav,
+  .bottom-nav {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Reduce Data Mode (perf-mode) CSS ── */
+:root.perf-mode .preview-image {
+  image-rendering: auto;
+  /* Reduce quality hint */
+  filter: none;
+}
+
+:root.perf-mode * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+:root.perf-mode .loading-spinner {
+  animation: none !important;
+}
+
+:root.perf-mode .success-icon {
+  animation: none !important;
+}
+
+/* ── Mobile: Reduce data mode indicator ── */
+.perf-mode-indicator {
+  position: fixed;
+  top: 60px;
+  right: 12px;
+  z-index: 9997;
+  background: #ff9800;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.4);
+}
+
+/* ── Presentation Mode: Touch-friendly controls ── */
+@media (max-width: 768px) {
+  .presentation-toolbar {
+    padding: 10px 12px !important;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .presentation-toolbar .toolbar-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .slide-counter {
+    font-size: 13px !important;
+    padding: 4px 10px !important;
+  }
+
+  .transition-select,
+  .duration-selector .duration-btn {
+    min-height: 36px;
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .timer-display {
+    font-size: 12px !important;
+  }
+
+  /* Presentation slide - fill more of the screen on mobile */
+  .slide {
+    border-radius: 0 !important;
+  }
+
+  .slides-container {
+    border-radius: 0 !important;
+  }
+}
+
+/* ── PWA Install: Mobile-specific prompt improvements ── */
+@media (max-width: 480px) {
+  .pwa-install-prompt {
+    padding: 12px 12px;
+  }
+
+  .pwa-install-content {
+    gap: 10px;
+  }
+
+  .pwa-install-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .pwa-install-title {
+    font-size: 13px;
+  }
+
+  .pwa-btn-primary {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+/* ── Mobile slide grid: horizontal scroll with snap ── */
+@media (max-width: 767px) {
+  .preview-grid {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex !important;
+    flex-direction: row;
+    gap: 0;
+    padding: 0;
+    scroll-padding: 8px;
+  }
+
+  .preview-slide {
+    flex: 0 0 88vw !important;
+    scroll-snap-align: center;
+    margin: 0 6px;
+  }
+
+  .preview-more {
+    flex: 0 0 60px !important;
+  }
+
+  /* Scrollbar hide */
+  .preview-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .preview-grid {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ── Swipe navigation visual feedback ── */
+.swipe-navigable {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.swipe-navigable:active {
+  cursor: grabbing;
+}
+
+/* ── Mobile: edit mode slide cards ── */
+@media (max-width: 767px) {
+  .edit-slides {
+    grid-template-columns: 1fr !important;
+    max-height: 60vh;
+  }
+
+  .edit-slide-card {
+    padding: 14px 12px;
+  }
+
+  .edit-actions {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 12px 0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+  }
+
+  /* Slide action buttons - touch friendly */
+  .slide-action-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 14px;
+  }
+
+  .layout-select {
+    min-height: 36px;
+    font-size: 13px;
+    padding: 4px 8px;
+  }
+}
+
+/* ── Mobile: export/quality options ── */
+@media (max-width: 767px) {
+  .export-menu {
+    padding: 12px 8px;
+  }
+
+  .format-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .format-option {
+    padding: 10px 8px;
+  }
+
+  .format-icon {
+    font-size: 22px;
+  }
+
+  .format-name {
+    font-size: 13px;
+  }
+
+  .quality-option {
+    padding: 10px 12px;
+    min-height: 48px;
+  }
+
+  /* Quality selector - touch friendly */
+  .quality-options {
+    gap: 8px;
+  }
+
+  .export-confirm-btn {
+    min-height: 52px;
+    font-size: 16px;
+  }
+}
+
+/* ── Touch feedback for all interactive elements ── */
+@media (pointer: coarse) {
+  /* Touch device: show active state */
+  .btn:active,
+  .format-option:active,
+  .quality-option:active,
+  .layout-item:active,
+  .transition-item:active,
+  .color-item:active,
+  .style-item:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+
+  /* Prevent double-tap zoom on interactive elements */
+  .btn,
+  .format-option,
+  .quality-option,
+  .layout-item,
+  .transition-item,
+  .color-item,
+  .style-item,
+  .toolbar-btn,
+  .tab-btn {
+    touch-action: manipulation;
+  }
+
+  /* Remove hover-only effects on touch devices */
+  .preview-slide:hover .slide-actions {
+    opacity: 1;
+  }
+}
+
+/* ── Desktop: hide mobile-only elements ── */
+@media (min-width: 769px) {
+  .swipe-hint {
+    display: none !important;
+  }
+
+  .presentation-swipe-hint {
+    display: none !important;
+  }
+}

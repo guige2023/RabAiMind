@@ -242,6 +242,81 @@ class UserHistory:
             return []
         return self.data[user_id].get("viewed", [])[:limit]
 
+    def record_layout_preference(
+        self,
+        user_id: str,
+        template_id: str = "",
+        layout_type: str = "",
+        content_type: str = "",
+        scene: str = "",
+        style: str = "",
+        action: str = "apply",
+    ):
+        """记录用户对布局的偏好（模板学习）"""
+        if user_id == "anonymous":
+            return
+        if user_id not in self.data:
+            self.data[user_id] = {"interactions": [], "viewed": [], "used": [], "layout_preferences": []}
+        self.data[user_id].setdefault("layout_preferences", [])
+
+        entry = {
+            "template_id": template_id,
+            "layout_type": layout_type,
+            "content_type": content_type,
+            "scene": scene,
+            "style": style,
+            "action": action,  # apply, dismiss, regenerate
+            "timestamp": datetime.now().isoformat(),
+        }
+        self.data[user_id]["layout_preferences"].append(entry)
+        # 只保留最近200条
+        self.data[user_id]["layout_preferences"] = self.data[user_id]["layout_preferences"][-200:]
+        self._persist()
+
+    def get_layout_preferences(
+        self,
+        user_id: str,
+        content_type: str = "",
+        limit: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """获取用户对特定内容类型的布局偏好"""
+        if user_id == "anonymous" or user_id not in self.data:
+            return []
+
+        prefs = self.data[user_id].get("layout_preferences", [])
+
+        # 筛选有效记录（action=apply）
+        applied = [p for p in prefs if p.get("action") == "apply"]
+
+        if not applied:
+            return []
+
+        # 如果指定了内容类型，优先返回该类型的偏好
+        if content_type:
+            type_prefs = [p for p in applied if p.get("content_type") == content_type]
+            if type_prefs:
+                # 统计最常用的布局
+                layout_counts: Dict[str, int] = {}
+                for p in type_prefs:
+                    lt = p.get("layout_type", "")
+                    layout_counts[lt] = layout_counts.get(lt, 0) + 1
+                sorted_layouts = sorted(layout_counts.items(), key=lambda x: -x[1])
+                return [
+                    {"layout_type": lt, "count": cnt, "content_type": content_type}
+                    for lt, cnt in sorted_layouts[:limit]
+                ]
+
+        # 通用统计
+        layout_counts: Dict[str, int] = {}
+        for p in applied:
+            lt = p.get("layout_type", "")
+            layout_counts[lt] = layout_counts.get(lt, 0) + 1
+        sorted_layouts = sorted(layout_counts.items(), key=lambda x: -x[1])
+        return [
+            {"layout_type": lt, "count": cnt}
+            for lt, cnt in sorted_layouts[:limit]
+        ]
+
 
 # 全局实例
 _analytics = SearchAnalytics()

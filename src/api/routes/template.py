@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from typing import List, Optional
 from pydantic import BaseModel
 from pathlib import Path
+from dataclasses import asdict
 
 from ...services.template_manager import get_template_manager, Template
 
@@ -182,6 +183,41 @@ async def delete_template(template_id: str):
     manager = get_template_manager()
     manager.remove_user_template(template_id)
     return {"success": True}
+
+
+class BatchRenameItem(BaseModel):
+    template_id: str
+    new_name: str
+
+
+class BatchRenameRequest(BaseModel):
+    renames: List[BatchRenameItem]
+
+
+@router.post("/batch/rename")
+async def batch_rename_templates(request: BatchRenameRequest):
+    """批量重命名模板"""
+    from pydantic import BaseModel
+    manager = get_template_manager()
+    renamed = []
+    errors = []
+
+    for item in request.renames:
+        try:
+            if not item.new_name.strip():
+                errors.append({"template_id": item.template_id, "error": "名称不能为空"})
+                continue
+            manager.rename_user_template(item.template_id, item.new_name.strip())
+            renamed.append({"template_id": item.template_id, "new_name": item.new_name})
+        except Exception as e:
+            errors.append({"template_id": item.template_id, "error": str(e)})
+
+    return {
+        "success": True,
+        "renamed": renamed,
+        "errors": errors,
+        "summary": f"成功重命名 {len(renamed)} 个模板，{len(errors)} 个失败"
+    }
 
 
 # ─── 推荐和搜索分析接口 ────────────────────────────────────────────────
@@ -519,3 +555,186 @@ async def get_trending_queries(limit: int = 10, days: int = 7):
     analytics = get_analytics()
     queries = analytics.get_trending_queries(limit=limit, days=days)
     return {"success": True, "queries": queries, "period_days": days}
+
+
+# ─── Template Marketplace APIs ─────────────────────────────────────────────
+
+# 1. Publish to marketplace
+@router.post("/{template_id}/publish")
+async def publish_template(template_id: str, visibility: str = "public"):
+    """将用户模板发布到市场（设为 public）"""
+    manager = get_template_manager()
+    # 尝试修改用户模板的可见性
+    for t in manager.user_templates:
+        if t["id"] == template_id:
+            t["visibility"] = visibility
+            manager._save_user_templates()
+            return {"success": True, "template_id": template_id, "visibility": visibility}
+    raise HTTPException(status_code=404, detail=f"模板 {template_id} 不存在")
+
+
+# 2. Template reviews & ratings
+class ReviewRequest(BaseModel):
+    user_id: str = "anonymous"
+    user_name: str = "匿名用户"
+    rating: int = 5
+    content: str = ""
+
+
+@router.get("/{template_id}/reviews")
+async def get_template_reviews(template_id: str):
+    """获取模板的所有点评"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    result = ms.get_reviews(template_id)
+    return {"success": True, **result}
+
+
+@router.post("/{template_id}/reviews")
+async def add_template_review(template_id: str, request: ReviewRequest):
+    """添加或更新模板点评"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    review = ms.add_review(
+        template_id=template_id,
+        user_id=request.user_id,
+        user_name=request.user_name,
+        rating=request.rating,
+        content=request.content
+    )
+    # 更新点评后的统计
+    result = ms.get_reviews(template_id)
+    return {"success": True, "review": review, **result}
+
+
+@router.delete("/{template_id}/reviews/{review_id}")
+async def delete_template_review(template_id: str, review_id: str, user_id: str = "anonymous"):
+    """删除模板点评"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    ok = ms.delete_review(template_id, review_id, user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="点评不存在或无权删除")
+    return {"success": True}
+
+
+# 3. Featured templates
+@router.get("/featured")
+async def get_featured_templates(limit: int = 10):
+    """获取精选模板列表（管理员精选）"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    manager = get_template_manager()
+    featured_ids = ms.get_featured_templates()[:limit]
+    templates = []
+    for fid in featured_ids:
+        t = manager.get_template(fid)
+        if t:
+            templates.append({
+                "id": t.id, "name": t.name, "description": t.description,
+                "category": t.category, "style": t.style, "thumbnail": t.thumbnail,
+                "colors": t.colors, "fonts": t.fonts
+            })
+    return {"success": True, "templates": templates}
+
+
+@router.post("/featured/{template_id}")
+async def add_featured_template(template_id: str):
+    """添加精选模板（管理员）"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    ms.add_featured(template_id)
+    return {"success": True, "template_id": template_id}
+
+
+@router.delete("/featured/{template_id}")
+async def remove_featured_template(template_id: str):
+    """移除精选模板（管理员）"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    ms.remove_featured(template_id)
+    return {"success": True}
+
+
+# 4. Template subscription
+@router.post("/subscribe/{category}")
+async def subscribe_category(category: str, user_id: str = "anonymous"):
+    """订阅某分类，有新模板时通知用户"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    sub = ms.subscribe(user_id, category)
+    return {"success": True, "subscription": asdict(sub)}
+
+
+@router.delete("/subscribe/{category}")
+async def unsubscribe_category(category: str, user_id: str = "anonymous"):
+    """取消订阅"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    ms.unsubscribe(user_id, category)
+    return {"success": True}
+
+
+@router.get("/subscriptions")
+async def get_user_subscriptions(user_id: str = "anonymous"):
+    """获取用户订阅的分类列表"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    categories = ms.get_user_subscriptions(user_id)
+    return {"success": True, "categories": categories}
+
+
+# 5. Template bundles
+@router.get("/bundles")
+async def get_bundles():
+    """获取所有模板捆绑包"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    bundles = ms.get_bundles()
+    # 附加模板详情
+    manager = get_template_manager()
+    result = []
+    for b in bundles:
+        template_list = []
+        for tid in b.get("template_ids", []):
+            t = manager.get_template(tid)
+            if t:
+                template_list.append({
+                    "id": t.id, "name": t.name, "thumbnail": t.thumbnail,
+                    "category": t.category, "style": t.style
+                })
+        result.append({**b, "templates": template_list})
+    return {"success": True, "bundles": result}
+
+
+@router.get("/bundles/{bundle_id}")
+async def get_bundle(bundle_id: str):
+    """获取单个捆绑包详情"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    bundle = ms.get_bundle(bundle_id)
+    if not bundle:
+        raise HTTPException(status_code=404, detail="捆绑包不存在")
+    manager = get_template_manager()
+    template_list = []
+    for tid in bundle.get("template_ids", []):
+        t = manager.get_template(tid)
+        if t:
+            template_list.append({
+                "id": t.id, "name": t.name, "thumbnail": t.thumbnail,
+                "category": t.category, "style": t.style
+            })
+    return {"success": True, "bundle": {**bundle, "templates": template_list}}
+
+
+@router.post("/bundles/{bundle_id}/purchase")
+async def purchase_bundle(bundle_id: str, user_id: str = "anonymous"):
+    """购买捆绑包（领取模板）"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    try:
+        purchase = ms.purchase_bundle(bundle_id, user_id)
+        bundle = ms.get_bundle(bundle_id)
+        return {"success": True, "purchase": purchase, "bundle": bundle}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

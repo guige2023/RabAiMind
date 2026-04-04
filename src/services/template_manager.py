@@ -34,12 +34,12 @@ class Template:
 
 class TemplateManager:
     """模板管理器"""
-    
+
     def __init__(self):
         self.template_dir = Path(__file__).parent.parent / "templates"
         self._templates = self._load_templates()
         self._load_user_templates()
-    
+
     def _load_user_templates(self):
         """加载用户模板"""
         if USER_TEMPLATES_FILE.exists():
@@ -47,27 +47,35 @@ class TemplateManager:
                 self.user_templates: List[dict] = json.load(f)
         else:
             self.user_templates = []
-    
+
     def _save_user_templates(self):
         USER_TEMPLATES_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(USER_TEMPLATES_FILE, "w", encoding="utf-8") as f:
             json.dump(self.user_templates, f, indent=2, ensure_ascii=False)
-    
+
     def add_user_template(self, template: dict):
         self.user_templates.append(template)
         self._save_user_templates()
-    
+
     def remove_user_template(self, template_id: str):
         self.user_templates = [t for t in self.user_templates if t["id"] != template_id]
         self._save_user_templates()
-    
+
+    def rename_user_template(self, template_id: str, new_name: str):
+        for t in self.user_templates:
+            if t["id"] == template_id:
+                t["name"] = new_name
+                self._save_user_templates()
+                return True
+        return False
+
     def get_user_templates(self, user_id: str = "current_user") -> list:
         return [t for t in self.user_templates if t.get("author") == user_id or t.get("visibility") == "public"]
-        
+
     def _load_templates(self) -> Dict[str, Template]:
         """加载模板"""
         templates = {}
-        
+
         # 默认模板
         templates["default"] = Template(
             id="default",
@@ -86,7 +94,7 @@ class TemplateManager:
             applicable_scenes=["商务汇报", "项目展示", "会议演讲"],
             example="适用于日常商务汇报"
         )
-        
+
         templates["modern"] = Template(
             id="modern",
             name="现代简约",
@@ -104,7 +112,7 @@ class TemplateManager:
             applicable_scenes=["项目提案", "产品介绍", "个人展示"],
             example="适合现代感的产品发布和项目提案"
         )
-        
+
         templates["tech"] = Template(
             id="tech",
             name="科技风格",
@@ -122,7 +130,7 @@ class TemplateManager:
             applicable_scenes=["技术分享", "AI演示", "科技大会"],
             example="适合科技公司技术分享和产品演示"
         )
-        
+
         templates["classic"] = Template(
             id="classic",
             name="经典商务",
@@ -140,7 +148,7 @@ class TemplateManager:
             applicable_scenes=["政府汇报", "学术答辩", "正式会议"],
             example="适合正式场合的政务和学术汇报"
         )
-        
+
         templates["creative"] = Template(
             id="creative",
             name="创意风格",
@@ -158,7 +166,7 @@ class TemplateManager:
             applicable_scenes=["创意提案", "品牌展示", "营销策划"],
             example="适合创意行业提案和品牌展示"
         )
-        
+
         templates["education"] = Template(
             id="education",
             name="教育风格",
@@ -176,13 +184,13 @@ class TemplateManager:
             applicable_scenes=["教学课件", "培训演示", "学术报告"],
             example="适合学校教学和培训课件"
         )
-        
+
         return templates
-    
+
     def get_template(self, template_id: str) -> Optional[Template]:
         """获取模板"""
         return self._templates.get(template_id)
-    
+
     def list_templates(
         self,
         category: Optional[str] = None,
@@ -209,9 +217,9 @@ class TemplateManager:
         """搜索模板
 
         Args:
-            query: 搜索关键词（匹配名称和描述）
-            category: 可选，按分类筛选
-            style: 可选，按风格筛选
+            query: 搜索关键词(匹配名称和描述)
+            category: 可选,按分类筛选
+            style: 可选,按风格筛选
             limit: 返回数量限制
 
         Returns:
@@ -219,7 +227,7 @@ class TemplateManager:
         """
         result = list(self._templates.values())
 
-        # 关键词搜索（不区分大小写）
+        # 关键词搜索(不区分大小写)
         if query:
             query_lower = query.lower()
             result = [
@@ -241,25 +249,25 @@ class TemplateManager:
     def get_categories(self) -> List[str]:
         """获取所有分类"""
         return list(set(t.category for t in self._templates.values()))
-    
+
     def get_styles(self) -> List[str]:
         """获取所有风格"""
         return list(set(t.style for t in self._templates.values()))
-    
+
     def create_template(self, template: Template) -> bool:
         """创建模板"""
         if template.id in self._templates:
             return False
         self._templates[template.id] = template
         return True
-    
+
     def update_template(self, template: Template) -> bool:
         """更新模板"""
         if template.id not in self._templates:
             return False
         self._templates[template.id] = template
         return True
-    
+
     def delete_template(self, template_id: str) -> bool:
         """删除模板"""
         if template_id not in self._templates:

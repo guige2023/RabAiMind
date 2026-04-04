@@ -99,6 +99,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
+import { usePushNotification } from '../composables/usePushNotification'
 
 const router = useRouter()
 const route = useRoute()
@@ -188,9 +189,12 @@ const pollStatus = async () => {
     }
 
     if (data.status === 'completed') {
+      // 发送完成通知
+      notifyComplete()
       // 跳转到结果页
       router.push({ path: '/result', query: { taskId: taskId.value } })
     } else if (data.status === 'failed') {
+      notifyFailed(data.error?.message)
       showError.value = data.error?.message || '生成失败，请重试'
       showErrorModal.value = true
     }
@@ -288,7 +292,20 @@ const goHome = () => {
 }
 
 // 页面加载时开始轮询
+// 通知相关
+const { prepareForGeneration, notifyGenerationComplete, notifyGenerationFailed, initNotifications } = usePushNotification()
+
+const notifyComplete = () => {
+  notifyGenerationComplete(taskId.value, '您的 PPT 已生成完毕！')
+}
+
+const notifyFailed = (error?: string) => {
+  notifyGenerationFailed(taskId.value, error)
+}
+
 onMounted(() => {
+  initNotifications()
+  prepareForGeneration()
   pollStatus()
   pollPreview()
   pollTimer = window.setInterval(pollStatus, 3000)

@@ -283,4 +283,27 @@ export interface APIClient {
     listMyTemplates: () => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
     deleteTemplate: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
   }
+  // R58: Voice / TTS
+  voice: {
+    listVoices: () => Promise<AxiosResponse<{ success: boolean; data: Array<{ id: string; lang: string; name: string; gender: string }> }>>
+    listLanguages: () => Promise<AxiosResponse<{ success: boolean; data: Array<{ code: string; name: string }> }>>
+    generateTTS: (params: { text: string; voice?: string; rate?: string; volume?: string; pitch?: string }) => Promise<AxiosResponse<{ success: boolean; data: { audio_url: string; filename: string; duration_sec: number; voice: string; voice_name: string; text_length: number } }>>
+    translateText: (params: { text: string; source_lang: string; target_lang: string }) => Promise<AxiosResponse<{ success: boolean; data: { original: string; translated: string; source_lang: string; target_lang: string; source_lang_name: string; target_lang_name: string } }>>
+    batchTTS: (params: { slides: Array<{ index: number; title?: string; content?: string; narration?: string }>; voice?: string; rate?: string }) => Promise<AxiosResponse<{ success: boolean; data: { voice: string; voice_name: string; results: Array<{ index: number; success: boolean; audio_url?: string; filename?: string; text_length?: number; error?: string }> } }>>
+  }
+  // R34/R69: Search
+  search: {
+    inPPT: (query: string, limit?: number) => Promise<AxiosResponse<{
+      success: boolean
+      query: string
+      total: number
+      results: Array<{
+        task_id: string
+        title: string
+        slide_num: number
+        matched_text: string
+        context: string
+      }>
+    }>>
+  }
 }

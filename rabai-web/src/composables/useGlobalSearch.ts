@@ -4,6 +4,91 @@ import { useRouter } from 'vue-router'
 import { useTemplateStore } from './useTemplateStore'
 import { api } from '../api/client'
 
+// R69: Smart Filter Types
+export type FilterType = 'date' | 'theme' | 'size' | 'type'
+export type FilterSize = 'small' | 'medium' | 'large'
+export type FilterSort = 'asc' | 'desc'
+
+export interface SmartFilter {
+  type: FilterType
+  label: string
+  value: string
+  icon: string
+}
+
+// R69: Parse natural language query into filters and keywords
+const parseNaturalLanguage = (query: string): { keywords: string; filters: SmartFilter[] } => {
+  const filters: SmartFilter[] = []
+  let keywords = query
+
+  // 日期过滤
+  const datePatterns = [
+    { pattern: /近(?:一天|1天)/, value: 'today', label: '今天' },
+    { pattern: /近(?:一周|7天|一周)/, value: 'week', label: '近一周' },
+    { pattern: /近(?:一月|30天|一个月)/, value: 'month', label: '近一月' },
+    { pattern: /近(?:一年|365天|一年)/, value: 'year', label: '近一年' },
+  ]
+  for (const dp of datePatterns) {
+    const match = keywords.match(dp.pattern)
+    if (match) {
+      filters.push({ type: 'date', label: dp.label, value: dp.value, icon: '📅' })
+      keywords = keywords.replace(dp.pattern, '').trim()
+    }
+  }
+
+  // 类型过滤
+  const typePatterns = [
+    { pattern: /图表|chart|柱状|折线|饼图/, value: 'chart', label: '图表' },
+    { pattern: /图片|image|照片|photo/, value: 'image', label: '图片' },
+    { pattern: /文字|text|纯文本/, value: 'text', label: '文字' },
+    { pattern: /封面|标题页|title/, value: 'cover', label: '封面' },
+    { pattern: /目录|大纲|outline/, value: 'outline', label: '目录' },
+    { pattern: /总结|结尾|end/, value: 'summary', label: '总结' },
+  ]
+  for (const tp of typePatterns) {
+    if (tp.pattern.test(keywords)) {
+      filters.push({ type: 'type', label: tp.label, value: tp.value, icon: '📄' })
+      keywords = keywords.replace(tp.pattern, '').trim()
+    }
+  }
+
+  // 主题过滤
+  const themePatterns = [
+    { pattern: /商务|business/, value: 'business', label: '商务' },
+    { pattern: /创意|creative/, value: 'creative', label: '创意' },
+    { pattern: /简约|minimal|simple/, value: 'minimal', label: '简约' },
+    { pattern: /科技|tech|科技感/, value: 'tech', label: '科技' },
+    { pattern: /教育|education|培训/, value: 'education', label: '教育' },
+    { pattern: /医疗|medical|健康/, value: 'medical', label: '医疗' },
+    { pattern: /金融|finance|银行/, value: 'finance', label: '金融' },
+  ]
+  for (const thp of themePatterns) {
+    if (thp.pattern.test(keywords)) {
+      filters.push({ type: 'theme', label: thp.label, value: thp.value, icon: '🎨' })
+      keywords = keywords.replace(thp.pattern, '').trim()
+    }
+  }
+
+  // 大小过滤
+  const sizePatterns = [
+    { pattern: /小.*页|少.*页|\d.*?页.*?以内/, value: 'small', label: '小(1-5页)' },
+    { pattern: /中.*页|\d.*?-\d.*?页/, value: 'medium', label: '中(6-15页)' },
+    { pattern: /大.*页|多.*页|\d+.*?页.*?以上/, value: 'large', label: '大(16+页)' },
+  ]
+  for (const sp of sizePatterns) {
+    const match = keywords.match(sp.pattern)
+    if (match) {
+      filters.push({ type: 'size', label: sp.label, value: sp.value, icon: '📏' })
+      keywords = keywords.replace(sp.pattern, '').trim()
+    }
+  }
+
+  // 清理多余空格
+  keywords = keywords.replace(/\s+/g, ' ').trim()
+
+  return { keywords, filters }
+}
+
 interface SearchResult {
   type: 'template' | 'history' | 'page'
   id: string
@@ -70,6 +155,15 @@ export function useGlobalSearch() {
   const pptSearchResults = ref<PPTSearchResult[]>([])
   const pptSearchLoading = ref(false)
 
+  // R69: Smart Filters
+  const activeFilters = ref<SmartFilter[]>([])
+  const showFilterPanel = ref(false)
+
+  // R69: Voice Search
+  const isVoiceSearching = ref(false)
+  const voiceError = ref<string | null>(null)
+  const speechRecognizer = ref<any>(null)
+
   // 搜索历史
   const searchHistory = ref<string[]>([])
 
@@ -133,11 +227,22 @@ export function useGlobalSearch() {
       return
     }
 
+    // R69: Apply smart filters to query
+    let searchQuery = query.trim()
+    const parsed = parseNaturalLanguage(searchQuery)
+    searchQuery = parsed.keywords || searchQuery
+
+    // Apply filters to activeFilters
+    activeFilters.value = parsed.filters
+
     pptSearchLoading.value = true
     try {
-      const res = await api.search.inPPT(query.trim(), 20)
+      const res = await api.search.inPPT(searchQuery, 20)
       if (res.data.success) {
-        pptSearchResults.value = res.data.results
+        let results = res.data.results
+        // Apply local filters if present
+        results = applyFilters(results, activeFilters.value)
+        pptSearchResults.value = results
       } else {
         pptSearchResults.value = []
       }
@@ -147,6 +252,135 @@ export function useGlobalSearch() {
     } finally {
       pptSearchLoading.value = false
     }
+  }
+
+  // R69: Apply smart filters to results
+  const applyFilters = (results: PPTSearchResult[], filters: SmartFilter[]): PPTSearchResult[] => {
+    let filtered = [...results]
+
+    for (const filter of filters) {
+      switch (filter.type) {
+        case 'type':
+          filtered = filtered.filter(r => {
+            const ctx = (r.context || '').toLowerCase()
+            const title = (r.title || '').toLowerCase()
+            switch (filter.value) {
+              case 'chart':
+                return ctx.includes('chart') || ctx.includes('图表') || ctx.includes('柱状') || ctx.includes('折线') || ctx.includes('饼图')
+              case 'image':
+                return ctx.includes('image') || ctx.includes('图片') || ctx.includes('照片')
+              case 'text':
+                return !ctx.includes('chart') && !ctx.includes('image') && !ctx.includes('图片')
+              case 'cover':
+                return title.includes('封面') || title.includes('title') || title.includes('标题')
+              case 'summary':
+                return title.includes('总结') || title.includes('结尾') || title.includes('end')
+              default:
+                return true
+            }
+          })
+          break
+        case 'theme':
+          // Theme filter applied via query context
+          break
+        case 'date':
+          // Date filter - would need task creation date from backend
+          break
+        case 'size':
+          // Size filter based on slide count context
+          break
+      }
+    }
+
+    return filtered
+  }
+
+  // R69: Add or remove a smart filter
+  const toggleFilter = (filter: SmartFilter) => {
+    const idx = activeFilters.value.findIndex(f => f.type === filter.type && f.value === filter.value)
+    if (idx >= 0) {
+      activeFilters.value.splice(idx, 1)
+    } else {
+      // Remove any existing filter of same type
+      activeFilters.value = activeFilters.value.filter(f => f.type !== filter.type)
+      activeFilters.value.push(filter)
+    }
+    // Re-run search with updated filters
+    if (searchQuery.value.trim()) {
+      searchPPTContent(searchQuery.value)
+    }
+  }
+
+  const removeFilter = (filterType: FilterType) => {
+    activeFilters.value = activeFilters.value.filter(f => f.type !== filterType)
+    if (searchQuery.value.trim()) {
+      searchPPTContent(searchQuery.value)
+    }
+  }
+
+  const clearAllFilters = () => {
+    activeFilters.value = []
+    if (searchQuery.value.trim()) {
+      searchPPTContent(searchQuery.value)
+    }
+  }
+
+  // R69: Voice Search using Web Speech API
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      voiceError.value = '当前浏览器不支持语音搜索'
+      return
+    }
+
+    if (isVoiceSearching.value) {
+      stopVoiceSearch()
+      return
+    }
+
+    voiceError.value = null
+    isVoiceSearching.value = true
+
+    speechRecognizer.value = new SpeechRecognition()
+    speechRecognizer.value.lang = 'zh-CN'
+    speechRecognizer.value.continuous = false
+    speechRecognizer.value.interimResults = true
+
+    speechRecognizer.value.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('')
+      searchQuery.value = transcript
+      // Auto-search when voice input is complete
+      if (event.results[0].isFinal) {
+        performSearch()
+        stopVoiceSearch()
+      }
+    }
+
+    speechRecognizer.value.onerror = (event: any) => {
+      console.error('Voice search error:', event.error)
+      voiceError.value = event.error === 'no-speech' ? '未检测到语音输入' : '语音识别出错'
+      stopVoiceSearch()
+    }
+
+    speechRecognizer.value.onend = () => {
+      stopVoiceSearch()
+    }
+
+    speechRecognizer.value.start()
+  }
+
+  const stopVoiceSearch = () => {
+    if (speechRecognizer.value) {
+      try {
+        speechRecognizer.value.stop()
+      } catch (e) {
+        // Ignore
+      }
+      speechRecognizer.value = null
+    }
+    isVoiceSearching.value = false
   }
 
   // 搜索结果
@@ -365,6 +599,12 @@ export function useGlobalSearch() {
     searchInPPT,
     pptSearchResults,
     pptSearchLoading,
+    // R69: Smart Filters
+    activeFilters,
+    showFilterPanel,
+    // R69: Voice Search
+    isVoiceSearching,
+    voiceError,
     // 计算属性
     searchResults,
     suggestions,
@@ -377,8 +617,17 @@ export function useGlobalSearch() {
     clearSearchHistory,
     handleKeyNavigation,
     searchPPTContent,
+    // R69: Smart Filter methods
+    toggleFilter,
+    removeFilter,
+    clearAllFilters,
+    // R69: Voice Search
+    startVoiceSearch,
+    stopVoiceSearch,
     // 快速链接
-    quickLinks
+    quickLinks,
+    // R69: Utilities
+    parseNaturalLanguage
   }
 }
 

@@ -3,11 +3,16 @@
 API Rate Limiting & Quota Management Middleware
 
 Features:
-- Per-user rate limiting (requests per minute)
-- Daily generation quota tracking (stored in data/quotas.json)
+- Per-user rate limiting (requests per minute) — tier-aware
+- Daily generation quota tracking (stored in data/quotas.json) — tier-aware
 - HTTP 429 response with reset time when quota exceeded
 - X-RateLimit-* response headers
 - /api/v1/status endpoint for quota checking
+
+Tier limits (from tiers.py):
+- FREE: 60 req/min, 50 gens/day
+- PRO: 300 req/min, 200 gens/day
+- ENTERPRISE: 1000 req/min, unlimited
 
 Author: Claude
 Date: 2026-04-04
@@ -30,10 +35,46 @@ logger = logging.getLogger("rate_limit")
 
 # ==================== Configuration ====================
 
-RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "60"))  # per window
-RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))  # 1 minute window
-DAILY_QUOTA_GENERATIONS = int(os.getenv("DAILY_QUOTA_GENERATIONS", "50"))  # per day
+# Default (FREE tier) limits — used when tiers module unavailable
+DEFAULT_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "60"))
+DEFAULT_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+DEFAULT_DAILY_QUOTA_GENERATIONS = int(os.getenv("DAILY_QUOTA_GENERATIONS", "50"))
 QUOTA_FILE_PATH = os.getenv("QUOTA_FILE_PATH", "./data/quotas.json")
+
+# ==================== Tier Integration ====================
+
+def _get_tier_limits_fallback() -> Dict[str, int]:
+    """Fallback tier limits when tiers module can't be loaded."""
+    return {
+        "rate_limit_max_requests": DEFAULT_RATE_LIMIT_MAX_REQUESTS,
+        "rate_limit_window_seconds": DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+        "daily_generations": DEFAULT_DAILY_QUOTA_GENERATIONS,
+    }
+
+
+def _get_tier_limits_for_user(user_id: str) -> Dict[str, int]:
+    """Get rate limit and quota limits for a specific user based on their tier."""
+    try:
+        # Import here to avoid circular imports
+        from ..routes.tiers import get_user_tier_limits, Tier, TIER_LIMITS
+        tier, limits = get_user_tier_limits(user_id)
+        return {
+            "rate_limit_max_requests": limits["rate_limit_max_requests"],
+            "rate_limit_window_seconds": limits["rate_limit_window_seconds"],
+            "daily_generations": limits["daily_generations"],
+            "tier": tier.value,
+            "tier_name": limits["name"],
+        }
+    except Exception as e:
+        logger.warning(f"Could not load tier limits for {user_id}: {e}")
+        return {
+            "rate_limit_max_requests": DEFAULT_RATE_LIMIT_MAX_REQUESTS,
+            "rate_limit_window_seconds": DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+            "daily_generations": DEFAULT_DAILY_QUOTA_GENERATIONS,
+            "tier": "free",
+            "tier_name": "免费版",
+        }
+
 
 # ==================== Data Structures ====================
 
@@ -42,8 +83,10 @@ class RateLimitInfo:
     """Rate limit status for a client"""
     requests: int = 0
     window_start: float = field(default_factory=time.time)
-    limit: int = RATE_LIMIT_MAX_REQUESTS
-    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS
+    limit: int = DEFAULT_RATE_LIMIT_MAX_REQUESTS
+    window_seconds: int = DEFAULT_RATE_LIMIT_WINDOW_SECONDS
+    tier: str = "free"
+    tier_name: str = "免费版"
 
     def is_exceeded(self) -> bool:
         return self.requests >= self.limit
@@ -63,13 +106,21 @@ class QuotaInfo:
     """Daily quota status for a user"""
     date: str = ""  # YYYY-MM-DD
     generations_used: int = 0
-    daily_limit: int = DAILY_QUOTA_GENERATIONS
+    daily_limit: int = DEFAULT_DAILY_QUOTA_GENERATIONS
     last_generation_at: Optional[str] = None
+    tier: str = "free"
+    tier_name: str = "免费版"
 
     def is_exceeded(self) -> bool:
+        # -1 means unlimited
+        if self.daily_limit == -1:
+            return False
         return self.generations_used >= self.daily_limit
 
     def remaining(self) -> int:
+        # -1 means unlimited
+        if self.daily_limit == -1:
+            return -1
         return max(0, self.daily_limit - self.generations_used)
 
     def reset_at(self) -> str:
@@ -82,6 +133,9 @@ class QuotaInfo:
         """Check if quota needs to be reset for a new day"""
         today = datetime.utcnow().strftime("%Y-%m-%d")
         return self.date != today
+
+    def is_unlimited(self) -> bool:
+        return self.daily_limit == -1
 
 
 # ==================== Storage ====================
@@ -110,20 +164,24 @@ class QuotaStorage:
 
     def _write(self, data: Dict[str, Any]):
         with self._lock:
-            # Write to temp file then rename (atomic)
             tmp_path = self._file_path + ".tmp"
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             os.replace(tmp_path, self._file_path)
 
     def get_user_quota(self, user_id: str) -> QuotaInfo:
+        tier_info = _get_tier_limits_for_user(user_id)
+        daily_limit = tier_info["daily_generations"]
+
         data = self._read()
         user_data = data.get(user_id, {})
         quota = QuotaInfo(
             date=user_data.get("date", ""),
             generations_used=user_data.get("generations_used", 0),
-            daily_limit=DAILY_QUOTA_GENERATIONS,
-            last_generation_at=user_data.get("last_generation_at")
+            daily_limit=daily_limit,
+            last_generation_at=user_data.get("last_generation_at"),
+            tier=tier_info["tier"],
+            tier_name=tier_info["tier_name"],
         )
         # Reset if new day
         if quota.needs_reset():
@@ -144,6 +202,13 @@ class QuotaStorage:
     def increment_generation(self, user_id: str) -> Tuple[QuotaInfo, bool]:
         """Increment generation count. Returns (quota_info, was_allowed)"""
         quota = self.get_user_quota(user_id)
+        if quota.is_unlimited():
+            # Unlimited — just track usage
+            quota.generations_used += 1
+            quota.date = datetime.utcnow().strftime("%Y-%m-%d")
+            quota.last_generation_at = datetime.utcnow().isoformat()
+            self.save_user_quota(user_id, quota)
+            return quota, True
         if quota.is_exceeded():
             return quota, False
         quota.generations_used += 1
@@ -162,20 +227,38 @@ class RateLimiter:
         self._storage: Dict[str, RateLimitInfo] = {}
         self._lock = threading.Lock()
 
+    def _get_limits_for_user(self, user_id: str) -> Tuple[int, int, str, str]:
+        tier_info = _get_tier_limits_for_user(user_id)
+        return (
+            tier_info["rate_limit_max_requests"],
+            tier_info["rate_limit_window_seconds"],
+            tier_info["tier"],
+            tier_info["tier_name"],
+        )
+
     def check(self, user_id: str) -> Tuple[RateLimitInfo, bool]:
         """Check and update rate limit. Returns (info, allowed)"""
         now = time.time()
+        max_req, window_sec, tier, tier_name = self._get_limits_for_user(user_id)
 
         with self._lock:
             if user_id not in self._storage:
                 self._storage[user_id] = RateLimitInfo(
                     requests=0,
                     window_start=now,
-                    limit=RATE_LIMIT_MAX_REQUESTS,
-                    window_seconds=RATE_LIMIT_WINDOW_SECONDS
+                    limit=max_req,
+                    window_seconds=window_sec,
+                    tier=tier,
+                    tier_name=tier_name,
                 )
 
             info = self._storage[user_id]
+
+            # Update limits if tier changed
+            info.limit = max_req
+            info.window_seconds = window_sec
+            info.tier = tier
+            info.tier_name = tier_name
 
             # Reset window if expired
             if now - info.window_start >= info.window_seconds:
@@ -190,22 +273,35 @@ class RateLimiter:
 
     def get_info(self, user_id: str) -> RateLimitInfo:
         now = time.time()
+        max_req, window_sec, tier, tier_name = self._get_limits_for_user(user_id)
+
         with self._lock:
             if user_id not in self._storage:
                 return RateLimitInfo(
                     requests=0,
                     window_start=now,
-                    limit=RATE_LIMIT_MAX_REQUESTS,
-                    window_seconds=RATE_LIMIT_WINDOW_SECONDS
+                    limit=max_req,
+                    window_seconds=window_sec,
+                    tier=tier,
+                    tier_name=tier_name,
                 )
+
             info = self._storage[user_id]
+            # Update limits if tier changed
+            info.limit = max_req
+            info.window_seconds = window_sec
+            info.tier = tier
+            info.tier_name = tier_name
+
             # Reset if expired
             if now - info.window_start >= info.window_seconds:
                 return RateLimitInfo(
                     requests=0,
                     window_start=now,
-                    limit=RATE_LIMIT_MAX_REQUESTS,
-                    window_seconds=RATE_LIMIT_WINDOW_SECONDS
+                    limit=max_req,
+                    window_seconds=window_sec,
+                    tier=tier,
+                    tier_name=tier_name,
                 )
             return info
 
@@ -264,7 +360,6 @@ def get_user_id_from_request(request: Request) -> str:
     else:
         ip = request.headers.get("X-Real-IP", request.client.host if request.client else "unknown")
 
-    # Normalize: replace dots and colons for safety
     safe_ip = ip.replace(".", "_").replace(":", "_")
     return f"ip_{safe_ip}"
 
@@ -299,7 +394,10 @@ def quota_exceeded_response(quota: QuotaInfo) -> JSONResponse:
                 "used": quota.generations_used,
                 "remaining": quota.remaining(),
                 "reset_at": quota.reset_at(),
-                "reset_in_hours": _hours_until_reset()
+                "reset_in_hours": _hours_until_reset(),
+                "tier": quota.tier,
+                "tier_name": quota.tier_name,
+                "upgrade_url": "/api/v1/tiers",
             }
         },
         headers={
@@ -307,6 +405,8 @@ def quota_exceeded_response(quota: QuotaInfo) -> JSONResponse:
             "X-RateLimit-Remaining": str(quota.remaining()),
             "X-RateLimit-Reset": quota.reset_at(),
             "Retry-After": str(_seconds_until_reset()),
+            "X-Quota-Tier": quota.tier,
+            "X-Quota-Tier-Name": quota.tier_name,
             "Content-Type": "application/json; charset=utf-8"
         }
     )
@@ -324,14 +424,19 @@ def rate_limit_exceeded_response(rate_info: RateLimitInfo) -> JSONResponse:
             "detail": {
                 "limit": rate_info.limit,
                 "window_seconds": rate_info.window_seconds,
-                "reset_in_seconds": reset_in
+                "reset_in_seconds": reset_in,
+                "tier": rate_info.tier,
+                "tier_name": rate_info.tier_name,
+                "upgrade_url": "/api/v1/tiers",
             }
         },
         headers={
             "X-RateLimit-Limit": str(rate_info.limit),
             "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": str(rate_info.reset_at()),
+            "X-RateLimit-Reset": str(int(rate_info.reset_at())),
             "Retry-After": str(reset_in),
+            "X-Quota-Tier": rate_info.tier,
+            "X-Quota-Tier-Name": rate_info.tier_name,
             "Content-Type": "application/json; charset=utf-8"
         }
     )
@@ -359,6 +464,8 @@ def build_rate_limit_headers(rate_info: RateLimitInfo, quota_info: QuotaInfo) ->
         "X-Quota-Limit": str(quota_info.daily_limit),
         "X-Quota-Remaining": str(quota_info.remaining()),
         "X-Quota-Reset": quota_info.reset_at(),
+        "X-Quota-Tier": quota_info.tier,
+        "X-Quota-Tier-Name": quota_info.tier_name,
     }
 
 
@@ -368,3 +475,11 @@ def add_rate_limit_headers(response, rate_info: RateLimitInfo, quota_info: Quota
     for k, v in headers.items():
         response.headers[k] = v
     return response
+
+
+# ==================== Backward-compatible exports ====================
+
+# Keep these for any code that imports directly from this module
+RATE_LIMIT_MAX_REQUESTS = DEFAULT_RATE_LIMIT_MAX_REQUESTS
+RATE_LIMIT_WINDOW_SECONDS = DEFAULT_RATE_LIMIT_WINDOW_SECONDS
+DAILY_QUOTA_GENERATIONS = DEFAULT_DAILY_QUOTA_GENERATIONS

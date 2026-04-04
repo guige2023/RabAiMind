@@ -4,7 +4,7 @@ import App from './App.vue'
 import './styles/main.css'
 import './styles/mobile.css'
 import { initDeviceMode } from './composables/useDeviceMode'
-import { applyReduceMotionEarly } from './composables/useAccessibility'
+import { applyAccessibilityEarly } from './composables/useAccessibility'
 
 const routes = [
   { path: '/', name: 'home', component: () => import('./views/HomeView.vue') },
@@ -17,6 +17,9 @@ const routes = [
   { path: '/favorites', name: 'favorites', component: () => import('./views/FavoritesView.vue') },
   { path: '/templates', name: 'templates', component: () => import('./views/TemplateMarketView.vue') },
   { path: '/analytics', name: 'analytics', component: () => import('./views/AnalyticsView.vue') },
+  { path: '/brand', name: 'brand', component: () => import('./views/BrandCenterView.vue') },
+  { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
+  { path: '/template-editor', name: 'template-editor', component: () => import('./views/TemplateEditorView.vue') },
 ]
 
 const router = createRouter({
@@ -25,7 +28,7 @@ const router = createRouter({
 })
 
 // Initialize accessibility early (before app mounts)
-applyReduceMotionEarly()
+applyAccessibilityEarly()
 
 const app = createApp(App)
 app.use(router)
@@ -40,6 +43,20 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       console.log('SW registered:', registration.scope)
     }).catch((error) => {
       console.log('SW registration failed:', error)
+    })
+  })
+
+  // Watch for back-online to trigger sync
+  window.addEventListener('online', () => {
+    console.log('[App] Back online, triggering offline sync...')
+    navigator.serviceWorker.ready.then((registration) => {
+      if ('sync' in registration) {
+        (registration as any).sync.register('process-offline-queue').catch(() => {
+          registration.active?.postMessage({ type: 'TRIGGER_SYNC' })
+        })
+      } else {
+        registration.active?.postMessage({ type: 'TRIGGER_SYNC' })
+      }
     })
   })
 }

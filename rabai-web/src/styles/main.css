@@ -420,6 +420,149 @@ select {
   transform: none !important;
 }
 
+/* =============================================
+   High Contrast Mode
+   Activated by toggle, keyboard shortcut, or settings
+   ============================================= */
+.high-contrast {
+  /* Force maximum contrast colors */
+  --primary: #0000EE !important;
+  --primary-light: #0000EE !important;
+  --primary-dark: #000099 !important;
+  --secondary: #0070DC !important;
+  --accent: #0070DC !important;
+  --success: #007A00 !important;
+  --warning: #CC7000 !important;
+  --error: #CC0000 !important;
+
+  /* Override background and text for maximum contrast */
+  --white: #FFFFFF !important;
+  --black: #000000 !important;
+  --gray-900: #000000 !important;
+  --gray-700: #000000 !important;
+  --gray-500: #333333 !important;
+  --gray-300: #555555 !important;
+  --gray-200: #000000 !important;
+  --gray-100: #FFFFFF !important;
+
+  background: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+.high-contrast * {
+  border-color: #000000 !important;
+}
+
+.high-contrast .header {
+  background: #FFFFFF !important;
+  border-bottom: 3px solid #000000 !important;
+}
+
+.high-contrast .card,
+.high-contrast .btn,
+.high-contrast .input,
+.high-contrast select,
+.high-contrast textarea {
+  border: 2px solid #000000 !important;
+}
+
+.high-contrast .nav-link {
+  color: #000000 !important;
+}
+
+.high-contrast .nav-link:hover,
+.high-contrast .nav-link.router-link-active {
+  color: #0000EE !important;
+  font-weight: 700 !important;
+}
+
+.high-contrast .btn-primary {
+  background: #0000EE !important;
+  color: #FFFFFF !important;
+  border: 2px solid #000000 !important;
+}
+
+.high-contrast .btn-secondary {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+}
+
+.high-contrast a {
+  color: #0000EE !important;
+  text-decoration: underline !important;
+}
+
+.high-contrast a:focus,
+.high-contrast button:focus,
+.high-contrast input:focus,
+.high-contrast select:focus,
+.high-contrast textarea:focus {
+  outline: 3px solid #000000 !important;
+  outline-offset: 2px !important;
+}
+
+.high-contrast .footer {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+  border-top: 3px solid #000000 !important;
+}
+
+/* Dark + high contrast combination */
+:root.dark.high-contrast {
+  --white: #000000 !important;
+  --black: #FFFFFF !important;
+  --gray-900: #FFFFFF !important;
+  --gray-700: #FFFFFF !important;
+  --gray-500: #CCCCCC !important;
+  --gray-300: #AAAAAA !important;
+  --gray-200: #FFFFFF !important;
+  --gray-100: #000000 !important;
+
+  background: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+:root.dark.high-contrast .header {
+  background: #000000 !important;
+  border-bottom: 3px solid #FFFFFF !important;
+}
+
+:root.dark.high-contrast .card,
+:root.dark.high-contrast .btn,
+:root.dark.high-contrast .input,
+:root.dark.high-contrast select,
+:root.dark.high-contrast textarea {
+  border: 2px solid #FFFFFF !important;
+}
+
+:root.dark.high-contrast .nav-link {
+  color: #FFFFFF !important;
+}
+
+:root.dark.high-contrast .nav-link:hover,
+:root.dark.high-contrast .nav-link.router-link-active {
+  color: #FFFF00 !important;
+  font-weight: 700 !important;
+}
+
+:root.dark.high-contrast .btn-primary {
+  background: #000000 !important;
+  color: #FFFFFF !important;
+  border: 2px solid #FFFFFF !important;
+}
+
+:root.dark.high-contrast a {
+  color: #FFFF00 !important;
+  text-decoration: underline !important;
+}
+
+:root.dark.high-contrast .footer {
+  background: #000000 !important;
+  color: #FFFFFF !important;
+  border-top: 3px solid #FFFFFF !important;
+}
+
 /* Focus visible - improved for keyboard navigation */
 :focus-visible {
   outline: 2px solid var(--primary);

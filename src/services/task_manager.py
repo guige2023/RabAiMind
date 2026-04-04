@@ -84,7 +84,8 @@ class TaskManager:
             "error": None,
             "params": {},  # BUG修复: 存储完整生成参数，用于单页重生成等场景
             "action_log": [],  # 操作日志（最多100条）
-            "undo_stack": [],  # 撤销栈（最多10条）
+            "undo_stack": [],  # 撤销栈（无限）
+            "redo_stack": [],  # 重做栈（无限）
         }
 
         with self._task_lock:
@@ -124,8 +125,8 @@ class TaskManager:
                     if "undo_stack" not in self.tasks[task_id]:
                         self.tasks[task_id]["undo_stack"] = []
                     self.tasks[task_id]["undo_stack"].append(entry)
-                    if len(self.tasks[task_id]["undo_stack"]) > 10:
-                        self.tasks[task_id]["undo_stack"] = self.tasks[task_id]["undo_stack"][-10:]
+                    # 清空重做栈（新操作入栈时）
+                    self.tasks[task_id]["redo_stack"] = []
 
     def get_outline(self, task_id: str) -> Optional[Dict]:
         """获取大纲"""
@@ -245,6 +246,13 @@ class TaskManager:
             self.create_version(task_id, "初始版本")
             self._sync_service.push_task(task_id, task_copy)
 
+        # Track task completion in advanced analytics
+        try:
+            from .advanced_analytics_service import get_advanced_analytics_service
+            get_advanced_analytics_service().update_task_status(task_id, "completed")
+        except Exception:
+            pass  # Non-critical
+
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
         """任务失败，并同步到云端"""
         task_copy = None
@@ -266,6 +274,13 @@ class TaskManager:
         # 云端同步
         if task_copy:
             self._sync_service.push_task(task_id, task_copy)
+
+        # Track task failure in advanced analytics
+        try:
+            from .advanced_analytics_service import get_advanced_analytics_service
+            get_advanced_analytics_service().update_task_status(task_id, "failed")
+        except Exception:
+            pass  # Non-critical
 
     def save_outline(self, task_id: str, outline: dict) -> None:
         """保存大纲到任务"""
@@ -320,6 +335,8 @@ class TaskManager:
                     "name": v["name"],
                     "created_at": v["created_at"],
                     "slide_count": len(v.get("config", {}).get("slides", [])),
+                    "branch_id": v.get("branch_id"),
+                    "branched_from": v.get("branched_from"),
                 }
                 for v in sorted(task.get("versions", []), key=lambda x: x["created_at"])
             ]
@@ -472,8 +489,8 @@ class TaskManager:
                 if "undo_stack" not in task:
                     task["undo_stack"] = []
                 task["undo_stack"].append(entry)
-                if len(task["undo_stack"]) > 10:
-                    task["undo_stack"] = task["undo_stack"][-10:]
+                # 清空重做栈（新操作入栈时）
+                task["redo_stack"] = []
 
     def get_action_log(self, task_id: str, limit: int = 20) -> list:
         """获取操作日志（最近limit条，默认20条）"""
@@ -485,7 +502,7 @@ class TaskManager:
             return log[-limit:] if limit > 0 else log
 
     def get_undo_stack(self, task_id: str) -> list:
-        """获取撤销栈（最近10条）"""
+        """获取撤销栈（无限）"""
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
@@ -569,6 +586,152 @@ class TaskManager:
                 "action_type": action_type,
             }
 
+    def redo(self, task_id: str) -> dict:
+        """重做上一个撤销的操作，返回被重做的操作信息"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            redo_stack = task.get("redo_stack", [])
+            if not redo_stack:
+                return {"success": False, "message": "无可重做的操作"}
+
+            # 弹出最后一个重做操作
+            action = redo_stack.pop()
+
+            # 将操作移回撤销栈（这样可以继续撤销/重做）
+            undo_stack = task.get("undo_stack", [])
+            undo_stack.append(action)
+            task["undo_stack"] = undo_stack
+
+            # 根据操作类型执行重做（与撤销相反的操作）
+            action_type = action.get("action_type")
+            undo_data = action.get("undo_data", {})
+
+            if action_type == "outline_edit":
+                # 重做大纲编辑：恢复新的大纲（undo_data里的new_outline）
+                new_outline = undo_data.get("new_outline")
+                if new_outline:
+                    task["outline"] = new_outline
+                    task["updated_at"] = get_timestamp()
+
+            elif action_type == "slide_regenerate":
+                # 重做幻灯片重生成：重新生成（这里只是标记，需要重新调用生成API）
+                task["updated_at"] = get_timestamp()
+
+            elif action_type == "slide_image":
+                # 重做图片更新：重新应用新图片
+                new_image_path = undo_data.get("new_image_path")
+                slide_index = undo_data.get("slide_index")
+                if new_image_path and slide_index is not None:
+                    if "result" not in task:
+                        task["result"] = {}
+                    svg_paths = task["result"].get("svg_paths", [])
+                    if slide_index <= len(svg_paths):
+                        svg_paths[slide_index - 1] = new_image_path
+                        task["result"]["svg_paths"] = svg_paths
+                    task["updated_at"] = get_timestamp()
+
+            elif action_type == "rollback":
+                # 重做回滚：重新执行回滚
+                rollback_data = undo_data.get("rollback_snapshot")
+                if rollback_data:
+                    task["result"] = rollback_data.get("result", {})
+                    task["outline"] = rollback_data.get("outline", "")
+                    task["updated_at"] = get_timestamp()
+
+            # 记录重做操作到日志
+            redo_log_entry = {
+                "action_type": "redo",
+                "description": f"重做: {action.get('description', '')}",
+                "timestamp": get_timestamp(),
+                "undo_data": None,
+            }
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(redo_log_entry)
+
+            return {
+                "success": True,
+                "redone_action": action.get("description", ""),
+                "action_type": action_type,
+            }
+
+    def get_redo_stack(self, task_id: str) -> list:
+        """获取重做栈"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            return task.get("redo_stack", [])
+
+    def branch_version(self, task_id: str, version_id: str, branch_name: str = None) -> dict:
+        """从指定版本创建分支（版本分支）"""
+        version = self.get_version(task_id, version_id)
+        if not version.get("success"):
+            raise ValueError(f"Cannot branch: version {version_id} not found")
+
+        v = version["version"]
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            branch_id = f"branch_{int(time.time() * 1000)}"
+            branch_version_id = f"v{int(time.time() * 1000)}"
+            branch_version_data = {
+                "version_id": branch_version_id,
+                "task_id": task_id,
+                "name": branch_name or f"分支: {v['name']}",
+                "created_at": get_timestamp(),
+                "config": v.get("config", {}),
+                "svg_paths": v.get("svg_paths", []),
+                "pptx_path": v.get("pptx_path", ""),
+                "outline": v.get("outline", ""),
+                "branched_from": version_id,  # 记录从哪个版本分支
+                "branch_id": branch_id,  # 同一分支的版本共享branch_id
+            }
+            if "versions" not in task:
+                task["versions"] = []
+            task["versions"].append(branch_version_data)
+
+            # 记录操作日志
+            branch_entry = {
+                "action_type": "branch",
+                "description": f"从 {v['name']} 创建分支",
+                "timestamp": get_timestamp(),
+                "undo_data": None,
+            }
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(branch_entry)
+
+            return {"success": True, "version_id": branch_version_id, "branch_id": branch_id}
+
+    def auto_save(self, task_id: str, state: dict) -> dict:
+        """保存自动保存状态（用于崩溃恢复）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+            task["_auto_save"] = {
+                "state": state,
+                "saved_at": get_timestamp(),
+            }
+            return {"success": True, "saved_at": get_timestamp()}
+
+    def get_auto_save(self, task_id: str) -> dict:
+        """获取自动保存状态"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": False, "message": "Task not found"}
+            auto_save = task.get("_auto_save")
+            if not auto_save:
+                return {"success": False, "message": "No auto-save found"}
+            return {"success": True, "state": auto_save["state"], "saved_at": auto_save["saved_at"]}
+
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
         """注册异步任务引用（线程安全）"""
         with self._async_tasks_lock:
@@ -631,13 +794,29 @@ class TaskManager:
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
+        cancelled = False
         with self._task_lock:
             if task_id in self.tasks:
                 task = self.tasks[task_id]
                 if task["status"] in ["pending", "processing"]:
                     task["status"] = "cancelled"
                     task["updated_at"] = get_timestamp()
-                    return True
+                    cancelled = True
+        # Track cancellation in advanced analytics
+        if cancelled:
+            try:
+                from .advanced_analytics_service import get_advanced_analytics_service
+                get_advanced_analytics_service().update_task_status(task_id, "cancelled")
+            except Exception:
+                pass
+        return cancelled
+
+    def delete_task(self, task_id: str) -> bool:
+        """删除任务（批量操作使用）"""
+        with self._task_lock:
+            if task_id in self.tasks:
+                del self.tasks[task_id]
+                return True
         return False
 
     def cleanup_old_tasks(self, max_age_hours: int = 24) -> int:

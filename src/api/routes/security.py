@@ -1,0 +1,654 @@
+# -*- coding: utf-8 -*-
+"""
+Security Routes — API Key Management, Audit Log, Secure Share, User Management
+
+Author: Claude (R42)
+Date: 2026-04-04
+"""
+
+import os
+from datetime import datetime, timedelta
+from typing import Optional, List
+
+from fastapi import APIRouter, HTTPException, Request, Body, Query, Depends
+from pydantic import BaseModel, Field
+from enum import Enum
+
+from ...core.security import (
+    Role, User, RBAC,
+    get_api_key_manager, get_audit_logger, get_secure_share_manager,
+    APIKeyManager, AuditLogger, SecureShareManager,
+)
+from ...core.auth import auth_manager
+from ...api.middleware.auth import get_current_user, get_current_admin
+
+router = APIRouter(prefix="/api/v1/security", tags=["security"])
+
+
+# ==================== Pydantic Models ====================
+
+class RoleEnum(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
+
+
+class APIKeyCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    role: RoleEnum = RoleEnum.USER
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
+    allowed_ips: Optional[List[str]] = None
+    rate_limit: Optional[int] = Field(None, ge=1)
+
+
+class APIKeyCreateResponse(BaseModel):
+    key_id: str
+    name: str
+    role: str
+    raw_key: str  # Only shown once!
+    created_at: str
+    expires_at: Optional[str]
+
+
+class SecureShareCreateRequest(BaseModel):
+    resource_type: str = Field(..., pattern="^(ppt|template)$")
+    resource_id: str
+    password: Optional[str] = Field(None, min_length=4)
+    expires_in_hours: int = Field(default=24, ge=1, le=720)
+    allowed_ips: Optional[List[str]] = None
+    role: RoleEnum = RoleEnum.GUEST
+
+
+class SecureShareCreateResponse(BaseModel):
+    share_id: str
+    access_url: str
+    raw_token: str  # Only shown once!
+    expires_at: str
+    password_required: bool
+
+
+class SecureShareAccessRequest(BaseModel):
+    share_id: str
+    access_token: str
+    password: Optional[str] = None
+
+
+class AuditLogQuery(BaseModel):
+    user_id: str = ""
+    action: str = ""
+    resource: str = ""
+    start_time: str = ""
+    end_time: str = ""
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+
+class UserCreateRequest(BaseModel):
+    username: str = Field(..., min_length=2, max_length=50)
+    email: str = ""
+    role: RoleEnum = RoleEnum.USER
+    password: Optional[str] = Field(None, min_length=6)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    role: str
+    user_id: str
+
+
+# ==================== User Management (Admin) ====================
+
+# In-memory user store (replace with DB in production)
+_user_store: dict = {}
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+async def login(req: LoginRequest, request: Request):
+    """
+    Login with username/password, returns JWT token.
+    For demo: accepts any user in _user_store.
+    """
+    user_info = _user_store.get(req.username)
+    if not user_info:
+        # Auto-create user on first login (demo mode)
+        user_info = {
+            "user_id": f"user_{len(_user_store) + 1}",
+            "username": req.username,
+            "role": Role.USER.value,
+            "is_active": True,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        _user_store[req.username] = user_info
+
+    # Check password if stored
+    if user_info.get("password") and user_info["password"] != req.password:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+
+    role = Role.from_string(user_info.get("role", "user"))
+    token = auth_manager.create_token(
+        user_id=user_info["user_id"],
+        extra_data={
+            "username": req.username,
+            "role": role.value,
+        }
+    )
+    return TokenResponse(
+        access_token=token,
+        expires_in=auth_manager._config.token_expire_hours * 3600,
+        role=role.value,
+        user_id=user_info["user_id"],
+    )
+
+
+@router.post("/users", response_model=dict)
+async def create_user(
+    req: UserCreateRequest,
+    admin: User = Depends(get_current_admin),
+):
+    """Create a new user (admin only)."""
+    if req.username in _user_store:
+        raise HTTPException(status_code=409, detail="用户名已存在")
+
+    user_id = f"user_{len(_user_store) + 1}"
+    user_info = {
+        "user_id": user_id,
+        "username": req.username,
+        "email": req.email,
+        "role": req.role.value,
+        "password": req.password,
+        "is_active": True,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+    }
+    _user_store[req.username] = user_info
+    return {k: v for k, v in user_info.items() if k != "password"}
+
+
+@router.get("/users", response_model=List[dict])
+async def list_users(admin: User = Depends(get_current_admin)):
+    """List all users (admin only)."""
+    return [
+        {k: v for k, v in u.items() if k != "password"}
+        for u in _user_store.values()
+    ]
+
+
+@router.delete("/users/{username}")
+async def delete_user(username: str, admin: User = Depends(get_current_admin)):
+    """Delete a user (admin only)."""
+    if username not in _user_store:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    del _user_store[username]
+    return {"success": True, "message": f"用户 {username} 已删除"}
+
+
+# ==================== API Key Management ====================
+
+@router.post("/apikeys", response_model=APIKeyCreateResponse)
+async def create_api_key(
+    req: APIKeyCreateRequest,
+    user: User = Depends(get_current_user),
+):
+    """
+    Create a new API key for external integrations.
+    Returns the raw key ONCE — it cannot be retrieved again.
+    """
+    manager = get_api_key_manager()
+    key_info, raw_key = manager.create_key(
+        name=req.name,
+        role=Role.from_string(req.role.value),
+        owner_id=user.user_id,
+        expires_in_days=req.expires_in_days,
+        allowed_ips=req.allowed_ips,
+        rate_limit=req.rate_limit,
+    )
+    return APIKeyCreateResponse(
+        key_id=key_info["key_id"],
+        name=key_info["name"],
+        role=key_info["role"],
+        raw_key=raw_key,
+        created_at=key_info["created_at"],
+        expires_at=key_info.get("expires_at"),
+    )
+
+
+@router.get("/apikeys", response_model=List[dict])
+async def list_api_keys(user: User = Depends(get_current_user)):
+    """List all API keys for the current user (admin sees all)."""
+    manager = get_api_key_manager()
+    owner = user.user_id if user.role != Role.ADMIN else ""
+    return manager.list_keys(owner_id=owner)
+
+
+@router.delete("/apikeys/{key_id}")
+async def revoke_api_key(
+    key_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Revoke an API key."""
+    manager = get_api_key_manager()
+    # Non-admin can only revoke their own keys
+    if user.role != Role.ADMIN:
+        keys = manager.list_keys(owner_id=user.user_id)
+        key_ids = [k["key_id"] for k in keys]
+        if key_id not in key_ids:
+            raise HTTPException(status_code=403, detail="只能撤销自己的 API Key")
+    success = manager.revoke_key(key_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="API Key 不存在")
+    return {"success": True, "message": "API Key 已撤销"}
+
+
+# ==================== Secure Share ====================
+
+@router.post("/shares", response_model=SecureShareCreateResponse)
+async def create_secure_share(
+    req: SecureShareCreateRequest,
+    user: User = Depends(get_current_user),
+):
+    """
+    Create a secure share link with optional password and expiration.
+    The raw access_token is returned ONCE and cannot be retrieved.
+    """
+    manager = get_secure_share_manager()
+    share_info, raw_token = manager.create_share(
+        resource_type=req.resource_type,
+        resource_id=req.resource_id,
+        created_by=user.user_id,
+        password=req.password,
+        expires_in_hours=req.expires_in_hours,
+        allowed_ips=req.allowed_ips,
+        role=Role.from_string(req.role.value),
+    )
+
+    base_url = os.getenv("API_BASE_URL", "http://localhost:8003")
+    access_url = f"{base_url}/api/v1/share/{share_info['share_id']}"
+
+    return SecureShareCreateResponse(
+        share_id=share_info["share_id"],
+        access_url=access_url,
+        raw_token=raw_token,
+        expires_at=share_info["expires_at"],
+        password_required=bool(req.password),
+    )
+
+
+@router.get("/shares", response_model=List[dict])
+async def list_secure_shares(user: User = Depends(get_current_user)):
+    """List all secure shares created by the current user (admin sees all)."""
+    manager = get_secure_share_manager()
+    owner = user.user_id if user.role != Role.ADMIN else ""
+    return manager.list_shares(owner_id=owner)
+
+
+@router.post("/shares/verify")
+async def verify_share_access(req: SecureShareAccessRequest, request: Request):
+    """
+    Verify share access (for debugging / testing).
+    Returns whether access is granted and share info.
+    """
+    manager = get_secure_share_manager()
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                request.headers.get("X-Real-IP", "")
+    allowed, reason, share_info = manager.verify_access(
+        share_id=req.share_id,
+        access_token=req.access_token,
+        password=req.password,
+        client_ip=client_ip,
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail={"error": "ACCESS_DENIED", "reason": reason})
+    return {
+        "success": True,
+        "share_id": req.share_id,
+        "resource_type": share_info.get("resource_type"),
+        "resource_id": share_info.get("resource_id"),
+        "role": share_info.get("role"),
+        "expires_at": share_info.get("expires_at"),
+    }
+
+
+@router.get("/shares/{share_id}")
+async def get_share_info(
+    share_id: str,
+    request: Request,
+):
+    """
+    Get share info (unauthenticated — only safe, non-sensitive fields).
+    """
+    manager = get_secure_share_manager()
+    shares = manager.list_shares()
+    for s in shares:
+        if s["share_id"] == share_id:
+            return {
+                "share_id": share_id,
+                "resource_type": s.get("resource_type"),
+                "created_at": s.get("created_at"),
+                "expires_at": s.get("expires_at"),
+                "password_required": bool(s.get("hashed_password")),
+                "is_active": s.get("is_active"),
+                "access_count": s.get("access_count", 0),
+            }
+    raise HTTPException(status_code=404, detail="Share not found")
+
+
+@router.delete("/shares/{share_id}")
+async def revoke_secure_share(
+    share_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Revoke a secure share link."""
+    manager = get_secure_share_manager()
+    shares = manager.list_shares(owner_id=user.user_id)
+    share_ids = [s["share_id"] for s in shares]
+    if user.role != Role.ADMIN and share_id not in share_ids:
+        raise HTTPException(status_code=403, detail="只能撤销自己的 Share Link")
+    success = manager.revoke_share(share_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Share 不存在")
+    return {"success": True, "message": "Share Link 已撤销"}
+
+
+# ==================== Audit Log ====================
+
+@router.get("/audit", response_model=List[dict])
+async def query_audit_log(
+    user_id: str = Query("", description="Filter by user_id"),
+    action: str = Query("", description="Filter by action/path"),
+    resource: str = Query("", description="Filter by resource"),
+    start_time: str = Query("", description="ISO timestamp, e.g. 2026-04-01T00:00:00Z"),
+    end_time: str = Query("", description="ISO timestamp"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_admin),  # admin only
+):
+    """
+    Query audit logs with filters (admin only).
+    """
+    logger_ = get_audit_logger()
+    logs = logger_.query(
+        user_id=user_id,
+        action=action,
+        resource=resource,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        offset=offset,
+    )
+    return logs
+
+
+@router.get("/permissions")
+async def get_my_permissions(user: User = Depends(get_current_user)):
+    """Get current user's permissions based on role."""
+    from ...core.security import ROLE_PERMISSIONS
+    return {
+        "user_id": user.user_id,
+        "role": user.role.value,
+        "permissions": sorted(ROLE_PERMISSIONS.get(user.role, set())),
+    }
+
+
+# ==================== Audit Trail Dashboard (Admin) ====================
+
+
+@router.get("/audit/dashboard")
+async def get_audit_dashboard(
+    days: int = Query(7, ge=1, le=90, description="Time window in days"),
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Audit Trail Dashboard — Admin only.
+
+    Returns aggregated statistics for the admin dashboard:
+    - Total events over time
+    - Events by action type
+    - Most active users
+    - Error rate
+    - Recent critical events
+    """
+    logger_ = get_audit_logger()
+    all_logs = logger_._load()
+
+    # Calculate time window
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff_str = cutoff.isoformat() + "Z"
+
+    # Filter to time window
+    window_logs = [l for l in all_logs if l.get("timestamp", "") >= cutoff_str]
+
+    # Total events
+    total_events = len(window_logs)
+
+    # Events by action (top 20)
+    action_counts: Dict[str, int] = {}
+    for log in window_logs:
+        action = log.get("action", "unknown")
+        action_counts[action] = action_counts.get(action, 0) + 1
+    top_actions = sorted(action_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    # Events by user (top 20)
+    user_counts: Dict[str, int] = {}
+    for log in window_logs:
+        uid = log.get("user_id", "unknown")
+        user_counts[uid] = user_counts.get(uid, 0) + 1
+    top_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    # Events by role
+    role_counts: Dict[str, int] = {}
+    for log in window_logs:
+        role = log.get("role", "unknown")
+        role_counts[role] = role_counts.get(role, 0) + 1
+
+    # Error rate
+    error_count = sum(1 for l in window_logs if l.get("status_code", 200) >= 400 or l.get("error"))
+    error_rate = error_count / max(total_events, 1) * 100
+
+    # Events by day (last N days)
+    daily_counts: Dict[str, int] = {}
+    for log in window_logs:
+        ts = log.get("timestamp", "")
+        if ts:
+            day = ts[:10]  # YYYY-MM-DD
+            daily_counts[day] = daily_counts.get(day, 0) + 1
+
+    # Fill in missing days
+    daily_series = []
+    for i in range(days):
+        day = (cutoff + timedelta(days=i)).strftime("%Y-%m-%d")
+        daily_series.append({"date": day, "count": daily_counts.get(day, 0)})
+
+    # Resource access breakdown
+    resource_counts: Dict[str, int] = {}
+    for log in window_logs:
+        res = log.get("resource", "") or log.get("path", "")
+        if res:
+            # Normalize paths
+            res = res.split("?")[0]  # strip query params
+            resource_counts[res] = resource_counts.get(res, 0) + 1
+    top_resources = sorted(resource_counts.items(), key=lambda x: x[1], reverse=True)[:15]
+
+    # Recent critical events (errors + auth failures)
+    critical_events = [
+        l for l in window_logs
+        if l.get("status_code", 200) >= 400
+        or l.get("error")
+        or l.get("action") in ("login_failed", "auth_failed", "gdpr_delete_request", "tier_changed_by_admin")
+    ][-50:]  # last 50
+
+    # Auth success vs failure
+    auth_events = [l for l in window_logs if "auth" in l.get("action", "").lower() or "login" in l.get("action", "").lower()]
+    auth_success = sum(1 for l in auth_events if l.get("status_code", 200) < 400)
+    auth_failure = sum(1 for l in auth_events if l.get("status_code", 200) >= 400)
+
+    return {
+        "success": True,
+        "period": {
+            "days": days,
+            "from": cutoff_str,
+            "to": datetime.utcnow().isoformat() + "Z",
+        },
+        "summary": {
+            "total_events": total_events,
+            "unique_users": len(user_counts),
+            "unique_actions": len(action_counts),
+            "error_count": error_count,
+            "error_rate_percent": round(error_rate, 2),
+        },
+        "daily_series": daily_series,
+        "top_actions": [{"action": a, "count": c} for a, c in top_actions],
+        "top_users": [{"user_id": u, "count": c} for u, c in top_users],
+        "top_resources": [{"resource": r, "count": c} for r, c in top_resources],
+        "by_role": role_counts,
+        "auth_stats": {
+            "success": auth_success,
+            "failure": auth_failure,
+            "failure_rate_percent": round(auth_failure / max(auth_success + auth_failure, 1) * 100, 2),
+        },
+        "critical_events": critical_events[-20:],  # last 20 critical
+    }
+
+
+@router.get("/audit/stats")
+async def get_audit_stats(
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Quick audit statistics for the admin panel.
+    Returns just the essentials for a dashboard widget.
+    """
+    logger_ = get_audit_logger()
+    all_logs = logger_._load()
+
+    now = datetime.utcnow()
+    today_str = now.strftime("%Y-%m-%d")
+    yesterday = now - timedelta(days=1)
+    yesterday_str = yesterday.strftime("%Y-%m-%d")
+    hour_ago = now - timedelta(hours=1)
+    hour_ago_str = hour_ago.isoformat() + "Z"
+
+    today_logs = [l for l in all_logs if l.get("timestamp", "").startswith(today_str)]
+    yesterday_logs = [l for l in all_logs if l.get("timestamp", "").startswith(yesterday_str)]
+    last_hour = [l for l in all_logs if l.get("timestamp", "") >= hour_ago_str]
+
+    errors_today = sum(1 for l in today_logs if l.get("status_code", 200) >= 400 or l.get("error"))
+
+    return {
+        "total_logs": len(all_logs),
+        "today_events": len(today_logs),
+        "yesterday_events": len(yesterday_logs),
+        "last_hour_events": len(last_hour),
+        "errors_today": errors_today,
+        "error_rate_today_percent": round(errors_today / max(len(today_logs), 1) * 100, 2),
+        "updated_at": now.isoformat() + "Z",
+    }
+
+
+@router.get("/audit/chart")
+async def get_audit_chart_data(
+    metric: str = Query("events", pattern="^(events|errors|users)$"),
+    period: str = Query("7d", pattern="^(24h|7d|30d|90d)$"),
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Chart data for audit dashboard.
+
+    metric: events | errors | users
+    period: 24h (hourly) | 7d (daily) | 30d (daily) | 90d (weekly)
+    """
+    logger_ = get_audit_logger()
+    all_logs = logger_._load()
+
+    period_days = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}[period]
+    cutoff = datetime.utcnow() - timedelta(days=period_days)
+    cutoff_str = cutoff.isoformat() + "Z"
+
+    window_logs = [l for l in all_logs if l.get("timestamp", "") >= cutoff_str]
+
+    # Build time buckets
+    if period == "24h":
+        # Hourly buckets
+        buckets: Dict[str, Dict] = {}
+        for i in range(24):
+            h = (datetime.utcnow() - timedelta(hours=23 - i))
+            key = h.strftime("%Y-%m-%dT%H:00")
+            buckets[key] = {"events": 0, "errors": 0, "users": set()}
+        for log in window_logs:
+            ts = log.get("timestamp", "")
+            if ts:
+                hour_key = ts[:14] + ":00"
+                if hour_key in buckets:
+                    buckets[hour_key]["events"] += 1
+                    if log.get("status_code", 200) >= 400 or log.get("error"):
+                        buckets[hour_key]["errors"] += 1
+                    buckets[hour_key]["users"].add(log.get("user_id", ""))
+        series = [
+            {"timestamp": k, "events": v["events"], "errors": v["errors"], "unique_users": len(v["users"])}
+            for k, v in sorted(buckets.items())
+        ]
+    else:
+        # Daily or weekly buckets
+        is_weekly = period == "90d"
+        buckets: Dict[str, Dict] = {}
+        for i in range(period_days if not is_weekly else (period_days // 7 + 1)):
+            d = datetime.utcnow() - timedelta(days=period_days - 1 - i if not is_weekly else (period_days - 1 - i * 7))
+            if is_weekly:
+                # Align to week start (Monday)
+                days_since_monday = d.weekday()
+                d = d - timedelta(days=days_since_monday)
+            key = d.strftime("%Y-%m-%d")
+            buckets[key] = {"events": 0, "errors": 0, "users": set()}
+
+        for log in window_logs:
+            ts = log.get("timestamp", "")[:10]
+            if ts in buckets:
+                buckets[ts]["events"] += 1
+                if log.get("status_code", 200) >= 400 or log.get("error"):
+                    buckets[ts]["errors"] += 1
+                buckets[ts]["users"].add(log.get("user_id", ""))
+
+        series = [
+            {"timestamp": k, "events": v["events"], "errors": v["errors"], "unique_users": len(v["users"])}
+            for k, v in sorted(buckets.items())
+        ]
+
+    return {
+        "metric": metric,
+        "period": period,
+        "data": series,
+    }
+
+
+@router.get("/audit/users/{user_id}")
+async def get_user_audit_trail(
+    user_id: str,
+    days: int = Query(30, ge=1, le=90),
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: User = Depends(get_current_admin),
+):
+    """
+    Get complete audit trail for a specific user (admin only).
+    """
+    logger_ = get_audit_logger()
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff_str = cutoff.isoformat() + "Z"
+
+    all_logs = logger_._load()
+    user_logs = [
+        l for l in all_logs
+        if l.get("user_id") == user_id and l.get("timestamp", "") >= cutoff_str
+    ]
+    user_logs = sorted(user_logs, key=lambda x: x.get("timestamp", ""), reverse=True)[:limit]
+
+    return {
+        "user_id": user_id,
+        "total_events": len(user_logs),
+        "period_days": days,
+        "events": user_logs,
+    }

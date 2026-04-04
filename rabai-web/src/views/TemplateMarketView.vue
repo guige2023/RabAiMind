@@ -95,13 +95,22 @@
             <button
               v-for="cat in templateCategories"
               :key="cat.id"
-              class="filter-btn"
+              class="filter-btn category-filter-btn"
               :class="{ active: selectedCategory === cat.id }"
               @click="selectedCategory = cat.id"
             >
               <span class="filter-icon">{{ cat.icon }}</span>
               {{ cat.name }}
               <span class="filter-count">{{ categoryStats[cat.id] || 0 }}</span>
+              <!-- R48: 订阅按钮 -->
+              <button
+                class="subscribe-btn"
+                :class="{ subscribed: subscribedCategories.includes(cat.id) }"
+                @click.stop="toggleSubscription(cat.id)"
+                :title="subscribedCategories.includes(cat.id) ? '取消订阅' : '订阅新模板通知'"
+              >
+                {{ subscribedCategories.includes(cat.id) ? '🔔' : '🔕' }}
+              </button>
             </button>
           </div>
         </div>
@@ -199,10 +208,60 @@
               @click="showMyTemplates = false; showFavorites = true">
               ⭐ 收藏
             </button>
+            <button 
+              class="tab-btn" 
+              :class="{ active: showBundles }"
+              @click="showBundles = true; showMyTemplates = false; showFavorites = false">
+              📦 捆绑包
+            </button>
           </div>
           <span class="templates-count">
             {{ displayTemplates.length }} 个模板
           </span>
+        </div>
+
+        <!-- R48: 精选模板（仅"全部模板"标签页显示） -->
+        <div v-if="!showMyTemplates && !showFavorites && featuredTemplates.length > 0" class="recommendation-section featured-section">
+          <div class="recommendation-header">
+            <div class="recommendation-title">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="featured-icon">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span>🏆 精选模板</span>
+            </div>
+            <span class="recommendation-subtitle">管理员精选推荐</span>
+          </div>
+          <div class="recommendation-grid featured-grid">
+            <article
+              v-for="template in featuredTemplates"
+              :key="template.id"
+              class="template-card featured-card"
+              @click="selectTemplate(template)"
+            >
+              <div class="template-thumbnail">
+                <div class="thumbnail-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 9h6M9 12h6M9 15h4"/>
+                  </svg>
+                </div>
+                <span class="featured-badge">🏆</span>
+                <button
+                  class="favorite-btn"
+                  :class="{ active: isFavorite(template.id) }"
+                  @click.stop="toggleFavorite(template.id)"
+                >
+                  <svg viewBox="0 0 24 24" :fill="isFavorite(template.id) ? 'currentColor' : 'none'" stroke="currentColor">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="template-info">
+                <h3 class="template-name">{{ template.name }}</h3>
+                <p class="template-desc">{{ template.description }}</p>
+              </div>
+            </article>
+          </div>
         </div>
 
         <!-- R35: 热门模板推荐（仅"全部模板"标签页显示） -->
@@ -292,8 +351,59 @@
           </div>
         </div>
 
+        <!-- R48: Bundles Section -->
+        <div v-if="showBundles" class="bundles-section">
+          <div class="bundles-header">
+            <div class="bundles-title">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+              </svg>
+              <span>模板捆绑包</span>
+            </div>
+            <p class="bundles-subtitle">多模板组合，超值折扣</p>
+          </div>
+          <div v-if="loadingBundles" class="bundles-loading">
+            <p>加载中...</p>
+          </div>
+          <div v-else-if="bundles.length === 0" class="bundles-empty">
+            <p>暂无可用捆绑包</p>
+          </div>
+          <div v-else class="bundles-grid">
+            <div v-for="bundle in bundles" :key="bundle.id" class="bundle-card">
+              <div class="bundle-header">
+                <h3 class="bundle-name">{{ bundle.name }}</h3>
+                <span class="bundle-discount">{{ bundle.discount_percent }}% OFF</span>
+              </div>
+              <p class="bundle-desc">{{ bundle.description }}</p>
+              <div class="bundle-templates">
+                <div
+                  v-for="tpl in (bundle.templates || []).slice(0, 4)"
+                  :key="tpl.id"
+                  class="bundle-template-thumb"
+                  @click="selectTemplate({ id: tpl.id, name: tpl.name, description: '', category: tpl.category, style: tpl.style, thumbnail: tpl.thumbnail, tags: [tpl.category], slides: 8, popularity: 80, isPremium: false, isFavorite: false, is_ugc: false, author: '', createdAt: '' } as Template)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 9h6M9 12h6M9 15h4"/>
+                  </svg>
+                  <span>{{ tpl.name }}</span>
+                </div>
+                <div v-if="(bundle.templates || []).length > 4" class="bundle-template-more">
+                  +{{ (bundle.templates || []).length - 4 }} more
+                </div>
+              </div>
+              <div class="bundle-footer">
+                <span class="bundle-templates-count">{{ (bundle.template_ids || []).length }} 个模板</span>
+                <button class="bundle-purchase-btn" @click="purchaseBundle(bundle.id)">
+                  立即领取
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Templates Grid -->
-        <div v-if="displayTemplates.length > 0" class="templates-grid">
+        <div v-if="displayTemplates.length > 0 && !showBundles" class="templates-grid">
           <article
             v-for="template in displayTemplates"
             :key="template.id"
@@ -348,8 +458,23 @@
                 </svg>
               </button>
               
-              <!-- My Template Actions (Edit/Delete) -->
+              <!-- My Template Actions (Edit/Delete/Publish) -->
               <div v-if="showMyTemplates && isMyTemplate(template)" class="my-template-actions">
+                <!-- R48: Publish to marketplace -->
+                <button
+                  class="template-action-btn publish-btn"
+                  :class="{ publishing: publishingTemplate === template.id }"
+                  @click.stop="publishTemplate(template)"
+                  :title="'发布到市场'"
+                  :disabled="publishingTemplate === template.id"
+                >
+                  <svg v-if="publishingTemplate !== template.id" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16,6 12,2 8,6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                  <span v-else class="publishing-spinner">⏳</span>
+                </button>
                 <button class="template-action-btn edit-btn" @click.stop="startRename(template)" title="重命名">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -557,6 +682,69 @@
                 </button>
               </div>
 
+              <!-- R48: 模板点评 -->
+              <div class="reviews-section">
+                <div class="reviews-header">
+                  <h4 class="reviews-title">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    用户点评
+                  </h4>
+                  <div class="reviews-stats" v-if="reviewStats.count > 0">
+                    <span class="avg-rating">{{ reviewStats.average.toFixed(1) }}</span>
+                    <div class="star-row">
+                      <span v-for="n in 5" :key="n" class="star" :class="{ filled: n <= Math.round(reviewStats.average) }">★</span>
+                    </div>
+                    <span class="review-count">({{ reviewStats.count }}条)</span>
+                  </div>
+                </div>
+
+                <!-- 提交点评 -->
+                <div class="review-form">
+                  <div class="rating-input">
+                    <span>评分：</span>
+                    <button
+                      v-for="n in 5"
+                      :key="n"
+                      class="star-btn"
+                      :class="{ active: n <= reviewRating }"
+                      @click="reviewRating = n"
+                    >★</button>
+                  </div>
+                  <textarea
+                    v-model="reviewContent"
+                    class="review-textarea"
+                    placeholder="分享你的使用体验..."
+                    rows="2"
+                  ></textarea>
+                  <button
+                    class="submit-review-btn"
+                    @click="submitReview"
+                    :disabled="submittingReview || (!reviewContent.trim())"
+                  >
+                    {{ submittingReview ? '提交中...' : '发表评论' }}
+                  </button>
+                </div>
+
+                <!-- 点评列表 -->
+                <div class="reviews-list" v-if="templateReviews.length > 0">
+                  <div v-for="review in templateReviews" :key="review.id" class="review-item">
+                    <div class="review-header">
+                      <span class="reviewer-name">{{ review.user_name }}</span>
+                      <div class="review-stars">
+                        <span v-for="n in 5" :key="n" class="star" :class="{ filled: n <= review.rating }">★</span>
+                      </div>
+                      <span class="review-date">{{ new Date(review.created_at).toLocaleDateString() }}</span>
+                    </div>
+                    <p class="review-content">{{ review.content }}</p>
+                  </div>
+                </div>
+                <div v-else class="reviews-empty">
+                  <p>暂无点评，来做第一个评价的用户吧！</p>
+                </div>
+              </div>
+
               <!-- R35: 相似模板 -->
               <div v-if="selectedTemplateSimilar.length > 0" class="similar-templates-section">
                 <div class="similar-header">
@@ -702,6 +890,144 @@ const loadTrendingQueries = async () => {
   }
 }
 
+// R48: Featured templates state & data
+const featuredTemplates = ref<Template[]>([])
+const loadFeaturedTemplates = async () => {
+  try {
+    const res = await api.template.getFeatured(10)
+    if (res.data?.success && res.data.templates?.length > 0) {
+      featuredTemplates.value = res.data.templates.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description || '',
+        category: t.category || 'business',
+        style: t.style || 'professional',
+        thumbnail: t.thumbnail || '',
+        tags: [t.category, t.style].filter(Boolean),
+        slides: 8,
+        popularity: 95,
+        isPremium: true,
+        isFavorite: false,
+        is_ugc: false,
+        author: '官方精选',
+        createdAt: new Date().toISOString().split('T')[0]
+      }))
+    }
+  } catch (e) {
+    console.warn('加载精选模板失败:', e)
+  }
+}
+
+// R48: Reviews state
+const templateReviews = ref<any[]>([])
+const reviewStats = ref({ count: 0, average: 0 })
+const reviewRating = ref(5)
+const reviewContent = ref('')
+const submittingReview = ref(false)
+const loadReviews = async (templateId: string) => {
+  try {
+    const res = await api.template.getReviews(templateId)
+    if (res.data?.success) {
+      templateReviews.value = res.data.reviews || []
+      reviewStats.value = { count: res.data.count || 0, average: res.data.average_rating || 0 }
+    }
+  } catch (e) {
+    console.warn('加载点评失败:', e)
+  }
+}
+const submitReview = async () => {
+  if (!selectedTemplate.value) return
+  submittingReview.value = true
+  try {
+    const userId = localStorage.getItem('user_id') || 'anonymous'
+    const res = await api.template.addReview(selectedTemplate.value.id, {
+      user_id: userId,
+      user_name: '用户',
+      rating: reviewRating.value,
+      content: reviewContent.value
+    })
+    if (res.data?.success) {
+      templateReviews.value = res.data.reviews || []
+      reviewStats.value = { count: res.data.count || 0, average: res.data.average_rating || 0 }
+      reviewContent.value = ''
+      reviewRating.value = 5
+    }
+  } catch (e) {
+    console.error('提交点评失败:', e)
+  }
+  submittingReview.value = false
+}
+
+// R48: Subscriptions
+const subscribedCategories = ref<string[]>([])
+const loadSubscriptions = async () => {
+  try {
+    const userId = localStorage.getItem('user_id') || 'anonymous'
+    const res = await api.template.getSubscriptions(userId)
+    if (res.data?.success) {
+      subscribedCategories.value = res.data.categories || []
+    }
+  } catch (e) {
+    console.warn('加载订阅失败:', e)
+  }
+}
+const toggleSubscription = async (category: string) => {
+  const userId = localStorage.getItem('user_id') || 'anonymous'
+  if (subscribedCategories.value.includes(category)) {
+    await api.template.unsubscribe(category, userId)
+    subscribedCategories.value = subscribedCategories.value.filter(c => c !== category)
+  } else {
+    await api.template.subscribe(category, userId)
+    subscribedCategories.value.push(category)
+  }
+}
+
+// R48: Bundles
+const showBundles = ref(false)
+const bundles = ref<any[]>([])
+const loadingBundles = ref(false)
+const loadBundles = async () => {
+  loadingBundles.value = true
+  try {
+    const res = await api.template.getBundles()
+    if (res.data?.success) {
+      bundles.value = res.data.bundles || []
+    }
+  } catch (e) {
+    console.warn('加载捆绑包失败:', e)
+  }
+  loadingBundles.value = false
+}
+const purchaseBundle = async (bundleId: string) => {
+  const userId = localStorage.getItem('user_id') || 'anonymous'
+  try {
+    const res = await api.template.purchaseBundle(bundleId, userId)
+    if (res.data?.success) {
+      alert('领取成功！模板已添加到你的账户')
+    }
+  } catch (e) {
+    console.error('领取捆绑包失败:', e)
+  }
+}
+
+// R48: Publish to marketplace
+const publishingTemplate = ref<string | null>(null)
+const publishTemplate = async (template: Template) => {
+  publishingTemplate.value = template.id
+  try {
+    const res = await api.template.publishTemplate(template.id, 'public')
+    if (res.data?.success) {
+      alert(`"${template.name}" 已发布到模板市场！`)
+      // Refresh my templates
+      await loadMyTemplates()
+    }
+  } catch (e) {
+    console.error('发布模板失败:', e)
+    alert('发布失败，请重试')
+  }
+  publishingTemplate.value = null
+}
+
 // 隐藏搜索历史
 const hideSearchHistory = () => {
   setTimeout(() => {
@@ -735,6 +1061,10 @@ onMounted(() => {
   loadTrendingTemplates()
   loadRecommendedTemplates()
   loadTrendingQueries()
+  // R48: 加载精选模板、订阅、捆绑包
+  loadFeaturedTemplates()
+  loadSubscriptions()
+  loadBundles()
 })
 
 // 加载我的模板
@@ -805,6 +1135,7 @@ const filteredTemplates = computed(() => {
 })
 
 const displayTemplates = computed(() => {
+  if (showBundles.value) return []  // Bundles section uses separate UI
   if (showMyTemplates.value) {
     // My Templates: apply search filter to user's templates
     if (searchQuery.value.trim()) {
@@ -836,6 +1167,10 @@ const selectTemplate = (template: Template) => {
   // R35: 加载相似模板
   selectedTemplateSimilar.value = []
   loadSelectedTemplateSimilar()
+  // R48: 加载点评
+  templateReviews.value = []
+  reviewStats.value = { count: 0, average: 0 }
+  loadReviews(template.id)
   // 跟踪点击事件
   store.trackTemplateEvent('click', template.id, { query: searchQuery.value })
 }
@@ -2128,4 +2463,399 @@ const executeDelete = async () => {
     grid-template-columns: 1fr;
   }
 }
+
+/* R48: Featured templates */
+.featured-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: linear-gradient(135deg, #f5af19, #f12711);
+  color: white;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.featured-card {
+  border: 2px solid #ffd700;
+}
+
+.featured-icon {
+  color: #ffd700;
+}
+
+/* R48: Category subscription */
+.subscribe-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.subscribe-btn:hover {
+  opacity: 1;
+  background: #f0f0f0;
+}
+
+.subscribe-btn.subscribed {
+  opacity: 1;
+}
+
+.category-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* R48: Publish button */
+.publish-btn {
+  background: #10b981 !important;
+  color: white !important;
+}
+
+.publish-btn:hover {
+  background: #059669 !important;
+}
+
+.publishing-spinner {
+  font-size: 14px;
+}
+
+/* R48: Reviews */
+.reviews-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #eee;
+}
+
+.reviews-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reviews-title {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #333;
+}
+
+.reviews-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avg-rating {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f5a623;
+}
+
+.star-row {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  color: #ddd;
+  font-size: 14px;
+}
+
+.star.filled {
+  color: #f5a623;
+}
+
+.review-count {
+  font-size: 12px;
+  color: #999;
+}
+
+.review-form {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.rating-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #666;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #ddd;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.star-btn.active {
+  color: #f5a623;
+}
+
+.review-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.review-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.submit-review-btn {
+  margin-top: 10px;
+  padding: 8px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.submit-review-btn:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.submit-review-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-item {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.reviewer-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+}
+
+.review-date {
+  font-size: 11px;
+  color: #999;
+  margin-left: auto;
+}
+
+.review-content {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.reviews-empty {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* R48: Bundles */
+.bundles-section {
+  padding: 24px 0;
+}
+
+.bundles-header {
+  margin-bottom: 24px;
+}
+
+.bundles-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+}
+
+.bundles-title svg {
+  color: #667eea;
+}
+
+.bundles-subtitle {
+  color: #888;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.bundles-loading,
+.bundles-empty {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 14px;
+}
+
+.bundles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.bundle-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.bundle-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.15);
+}
+
+.bundle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.bundle-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+
+.bundle-discount {
+  background: linear-gradient(135deg, #f5af19, #f12711);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.bundle-desc {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.bundle-templates {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.bundle-template-thumb {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.bundle-template-thumb:hover {
+  background: #e8eeff;
+}
+
+.bundle-template-thumb svg {
+  width: 24px;
+  height: 24px;
+  color: #aaa;
+}
+
+.bundle-template-thumb span {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.bundle-template-more {
+  background: #f0f0f0;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #888;
+}
+
+.bundle-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bundle-templates-count {
+  font-size: 13px;
+  color: #888;
+}
+
+.bundle-purchase-btn {
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.bundle-purchase-btn:hover {
+  opacity: 0.9;
+}
+
+/* Featured grid */
+.featured-grid .template-card {
+  border: 2px solid #ffd700;
+}
+
+
 </style>

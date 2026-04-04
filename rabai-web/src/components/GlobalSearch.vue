@@ -13,17 +13,67 @@
               ref="searchInputRef"
               v-model="searchQuery"
               type="text"
-              :placeholder="searchInPPT ? '在PPT内容中搜索...' : '搜索模板、页面...'"
+              :placeholder="searchInPPT ? '搜索PPT内容，支持自然语言...' : '搜索模板、页面...'"
               class="search-input"
               @keydown="handleKeyNavigation"
               @input="onInputChange"
             />
+            <!-- R69: Voice Search Button -->
+            <button
+              class="voice-btn"
+              :class="{ active: isVoiceSearching, recording: isVoiceSearching }"
+              @click="startVoiceSearch"
+              :title="isVoiceSearching ? '停止录音' : '语音搜索'"
+            >
+              <svg v-if="!isVoiceSearching" class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+              <svg v-else class="mic-icon pulse" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="10" fill="#ef4444"/>
+                <rect x="9" y="9" width="6" height="6" fill="white"/>
+              </svg>
+            </button>
             <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
             </button>
             <kbd class="esc-hint">ESC</kbd>
+          </div>
+
+          <!-- R69: Smart Filter Chips -->
+          <div v-if="searchInPPT && (activeFilters.length > 0 || searchQuery)" class="smart-filter-bar">
+            <span class="filter-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="14" height="14">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              智能筛选
+            </span>
+            <!-- Active Filter Chips -->
+            <button
+              v-for="filter in activeFilters"
+              :key="`${filter.type}-${filter.value}`"
+              class="filter-chip active"
+              @click="removeFilter(filter.type)"
+            >
+              {{ filter.icon }} {{ filter.label }}
+              <span class="chip-close">×</span>
+            </button>
+            <!-- Filter Toggle Buttons -->
+            <div class="filter-toggles">
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('type', 'chart', '📊', '图表')" :class="{ active: activeFilters.some(f => f.type === 'type' && f.value === 'chart') }">📊 图表</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('type', 'image', '🖼️', '图片')" :class="{ active: activeFilters.some(f => f.type === 'type' && f.value === 'image') }">🖼️ 图片</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('type', 'text', '📝', '文字')" :class="{ active: activeFilters.some(f => f.type === 'type' && f.value === 'text') }">📝 文字</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('theme', 'business', '💼', '商务')" :class="{ active: activeFilters.some(f => f.type === 'theme' && f.value === 'business') }">💼 商务</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('theme', 'creative', '🎨', '创意')" :class="{ active: activeFilters.some(f => f.type === 'theme' && f.value === 'creative') }">🎨 创意</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('size', 'small', '📏', '小')" :class="{ active: activeFilters.some(f => f.type === 'size' && f.value === 'small') }">📏 小</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('size', 'medium', '📐', '中')" :class="{ active: activeFilters.some(f => f.type === 'size' && f.value === 'medium') }">📐 中</button>
+              <button class="filter-toggle-btn" @click="toggleQuickFilter('size', 'large', '📏', '大')" :class="{ active: activeFilters.some(f => f.type === 'size' && f.value === 'large') }">📏 大</button>
+            </div>
+            <button v-if="activeFilters.length > 0" class="clear-all-filters" @click="clearAllFilters">清除全部</button>
           </div>
 
           <!-- R34: Search Mode Toggle -->
@@ -206,6 +256,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
 import { useGlobalSearch } from '../composables/useGlobalSearch'
+import type { FilterType } from '../composables/useGlobalSearch'
 
 const {
   searchQuery,
@@ -218,14 +269,32 @@ const {
   searchInPPT,
   pptSearchResults,
   pptSearchLoading,
+  activeFilters,
+  isVoiceSearching,
+  voiceError,
   openSearch,
   closeSearch,
   performSearch,
   selectResult,
   selectPPTSearchResult,
   clearSearchHistory,
-  handleKeyNavigation
+  handleKeyNavigation,
+  toggleFilter,
+  removeFilter,
+  clearAllFilters,
+  startVoiceSearch,
+  stopVoiceSearch
 } = useGlobalSearch()
+
+// R69: Quick filter toggle helper
+const toggleQuickFilter = (type: FilterType, value: string, icon: string, label: string) => {
+  const existing = activeFilters.value.find(f => f.type === type && f.value === value)
+  if (existing) {
+    removeFilter(type)
+  } else {
+    toggleFilter({ type, value, icon, label })
+  }
+}
 
 // 输入时触发PPT内容搜索
 const onInputChange = () => {
@@ -339,6 +408,61 @@ defineExpose({
   color: #999;
 }
 
+/* R69: Voice Search Button */
+.voice-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+:global(.dark) .voice-btn {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.voice-btn:hover {
+  border-color: #165DFF;
+  background: #EEF2FF;
+}
+
+:global(.dark) .voice-btn:hover {
+  background: #1e1e3f;
+}
+
+.voice-btn.recording {
+  border-color: #ef4444;
+  background: #fef2f2;
+  animation: pulse-ring 1.5s infinite;
+}
+
+:global(.dark) .voice-btn.recording {
+  background: #2a1a1a;
+}
+
+.voice-btn .mic-icon {
+  width: 18px;
+  height: 18px;
+  color: #666;
+}
+
+.voice-btn.recording .mic-icon {
+  color: #ef4444;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
 .clear-btn {
   width: 28px;
   height: 28px;
@@ -373,6 +497,125 @@ defineExpose({
 :global(.dark) .esc-hint {
   background: #333;
   color: #888;
+}
+
+/* R69: Smart Filter Bar */
+.smart-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+}
+
+:global(.dark) .smart-filter-bar {
+  background: #161616;
+  border-color: #333;
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+:global(.dark) .filter-chip {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+.filter-chip:hover {
+  border-color: #165DFF;
+}
+
+.filter-chip.active {
+  background: #165DFF;
+  border-color: #165DFF;
+  color: white;
+}
+
+.chip-close {
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.filter-toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-toggle-btn {
+  padding: 4px 10px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 16px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+:global(.dark) .filter-toggle-btn {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #aaa;
+}
+
+.filter-toggle-btn:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+:global(.dark) .filter-toggle-btn:hover {
+  color: #165DFF;
+}
+
+.filter-toggle-btn.active {
+  background: #EEF2FF;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+:global(.dark) .filter-toggle-btn.active {
+  background: #1e1e3f;
+  color: #818cf8;
+}
+
+.clear-all-filters {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.clear-all-filters:hover {
+  color: #ef4444;
 }
 
 /* R34: Search Mode Bar */

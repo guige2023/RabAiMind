@@ -15,6 +15,9 @@ from .api import api_router
 from .config import settings, get_cors_origins
 from .utils import setup_logger
 
+# Import auth middleware
+from .api.middleware.auth import AuthMiddleware
+
 # 配置日志
 logger = setup_logger("api")
 
@@ -36,6 +39,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 注册认证中间件 — 应用到所有 /api/v1/* 路由
+app.add_middleware(AuthMiddleware)
+
 
 # 注册路由
 app.include_router(api_router)
@@ -47,6 +53,15 @@ async def startup_event():
     logger.info("RabAi Mind API 启动中...")
     logger.info(f"配置: 端口={settings.API_PORT}, 日志级别={settings.LOG_LEVEL}")
     logger.info(f"CORS 允许源: {settings.CORS_ORIGINS}")
+
+    # 启动调度器（定时任务服务）
+    from .services.scheduler_service import get_scheduler_service
+    scheduler = get_scheduler_service()
+    try:
+        scheduler.start()
+        logger.info("✅ 调度器 (SchedulerService) 已启动")
+    except Exception as e:
+        logger.warning(f"⚠️ 调度器启动失败: {e}")
 
     # P0 修复: 校验 VOLCANO_API_KEY
     if not settings.VOLCANO_API_KEY:
@@ -66,6 +81,14 @@ async def startup_event():
 async def shutdown_event():
     """关闭事件"""
     logger.info("RabAi Mind API 关闭")
+
+    # 停止调度器
+    from .services.scheduler_service import get_scheduler_service
+    try:
+        get_scheduler_service().stop()
+        logger.info("✅ 调度器 (SchedulerService) 已停止")
+    except Exception as e:
+        logger.warning(f"⚠️ 调度器停止失败: {e}")
 
 
 # 运行服务

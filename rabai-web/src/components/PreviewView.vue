@@ -35,44 +35,50 @@
         <div class="slides-list" ref="thumbnailsListRef">
           <!-- Virtualized list for large PPTs (100+ slides) or performance mode -->
           <template v-if="shouldUseVirtualList">
-            <div
-              v-for="(slide, index) in slides"
-              :key="index"
-              class="slide-thumbnail"
-              :class="{ active: activeSlideIndex === index }"
-              @click="selectSlide(index)"
-            >
-              <div class="thumb-num">{{ index + 1 }}</div>
-              <div class="thumb-preview" :style="getSlideStyle(slide)">
-                <div
-                  v-for="(el, elIdx) in slide.elements"
-                  :key="elIdx"
-                  class="thumb-element"
-                  :style="getThumbElementStyle(el)"
-                >
-                  {{ el.type === 'text' ? 'T' : (el.type === 'image' ? '🖼' : '■') }}
+            <div class="virtual-list-container" ref="virtualListRef">
+              <div :style="{ height: virtualTotalHeight + 'px', position: 'relative' }">
+                <div :style="{ position: 'absolute', top: virtualOffsetY + 'px', left: 0, right: 0 }">
+                  <div
+                    v-for="item in virtualVisibleItems"
+                    :key="item.index"
+                    class="slide-thumbnail"
+                    :class="{ active: activeSlideIndex === item.index }"
+                    @click="selectSlide(item.index)"
+                  >
+                    <div class="thumb-num">{{ item.index + 1 }}</div>
+                    <div class="thumb-preview" :style="getSlideStyle(item.slide)">
+                      <div
+                        v-for="(el, elIdx) in item.slide.elements"
+                        :key="elIdx"
+                        class="thumb-element"
+                        :style="getThumbElementStyle(el)"
+                      >
+                        {{ el.type === 'text' ? 'T' : (el.type === 'image' ? '🖼' : '■') }}
+                      </div>
+                      <div
+                        class="thumb-transition-badge"
+                        :class="'badge-' + (item.slide.transition || 'slide')"
+                        :title="'过渡: ' + (item.slide.transition || 'slide')"
+                      >
+                        {{ getTransitionIcon(item.slide.transition || 'slide') }}
+                      </div>
+                    </div>
+                    <div class="thumb-actions">
+                      <button @click.stop="duplicateSlide(item.index)" title="复制">📋</button>
+                      <button @click.stop="deleteSlide(item.index)" title="删除">🗑</button>
+                    </div>
+                  </div>
                 </div>
-                <div
-                  class="thumb-transition-badge"
-                  :class="'badge-' + (slide.transition || 'slide')"
-                  :title="'过渡: ' + (slide.transition || 'slide')"
-                >
-                  {{ getTransitionIcon(slide.transition || 'slide') }}
-                </div>
-              </div>
-              <div class="thumb-actions">
-                <button @click.stop="duplicateSlide(index)" title="复制">📋</button>
-                <button @click.stop="deleteSlide(index)" title="删除">🗑</button>
               </div>
             </div>
           </template>
-          <!-- Lazy-loaded list for normal PPTs -->
+          <!-- Lazy-loaded list for normal PPTs (IntersectionObserver) -->
           <template v-else>
             <div
               v-for="(slide, index) in slides"
               :key="index"
               class="slide-thumbnail"
-              :class="{ active: activeSlideIndex === index }"
+              :class="{ active: activeSlideIndex === index, 'thumb-hidden': !visibleThumbnails.has(index) }"
               :data-slide-index="index"
               @click="selectSlide(index)"
             >
@@ -471,6 +477,38 @@ const thumbnailsListRef = ref<HTMLElement | null>(null)
 const visibleThumbnails = ref<Set<number>>(new Set())
 let thumbnailObserver: IntersectionObserver | null = null
 
+// Virtual scrolling state (for large PPTs)
+const virtualListRef = ref<HTMLElement | null>(null)
+const virtualScrollTop = ref(0)
+const virtualContainerHeight = ref(400)
+const VIRTUAL_ITEM_HEIGHT = 112  // thumbnail height + margin
+const VIRTUAL_OVERSCAN = 3       // render 3 extra items above/below
+
+const virtualTotalHeight = computed(() => slides.value.length * VIRTUAL_ITEM_HEIGHT)
+
+const virtualVisibleRange = computed(() => {
+  const start = Math.max(0, Math.floor(virtualScrollTop.value / VIRTUAL_ITEM_HEIGHT) - VIRTUAL_OVERSCAN)
+  const visibleCount = Math.ceil(virtualContainerHeight.value / VIRTUAL_ITEM_HEIGHT)
+  const end = Math.min(slides.value.length, start + visibleCount + VIRTUAL_OVERSCAN * 2)
+  return { start, end }
+})
+
+const virtualVisibleItems = computed(() => {
+  const items: { index: number; slide: Slide }[] = []
+  for (let i = virtualVisibleRange.value.start; i < virtualVisibleRange.value.end; i++) {
+    items.push({ index: i, slide: slides.value[i] })
+  }
+  return items
+})
+
+const virtualOffsetY = computed(() => virtualVisibleRange.value.start * VIRTUAL_ITEM_HEIGHT)
+
+const onVirtualScroll = () => {
+  if (virtualListRef.value) {
+    virtualScrollTop.value = virtualListRef.value.scrollTop
+  }
+}
+
 const setupLazyLoading = () => {
   if (!thumbnailsListRef.value || shouldUseVirtualList.value) return
   if (thumbnailObserver) thumbnailObserver.disconnect()
@@ -491,7 +529,7 @@ const setupLazyLoading = () => {
     },
     {
       root: thumbnailsListRef.value,
-      rootMargin: '100px',  // preload 100px ahead
+      rootMargin: '100px',
       threshold: 0
     }
   )
@@ -506,11 +544,8 @@ const setupLazyLoading = () => {
 }
 
 const isThumbnailVisible = (index: number) => {
-  // In performance mode, always show (no lazy loading)
   if (isPerformanceMode.value) return true
-  // Virtual list handles its own rendering
   if (shouldUseVirtualList.value) return true
-  // Default: all visible (IntersectionObserver handles lazy loading)
   return true
 }
 const selectedElementIndex = ref<number | null>(null)
@@ -990,9 +1025,18 @@ const handleKeydown = (e: KeyboardEvent) => {
 onMounted(() => {
   initSlides()
   window.addEventListener('keydown', handleKeydown)
-  // Setup lazy loading for thumbnails
   nextTick(() => {
     setupLazyLoading()
+    // Setup virtual list ResizeObserver
+    if (virtualListRef.value) {
+      virtualContainerHeight.value = virtualListRef.value.clientHeight
+      const vrObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          virtualContainerHeight.value = entry.contentRect.height
+        }
+      })
+      vrObserver.observe(virtualListRef.value)
+    }
   })
 })
 
@@ -1143,6 +1187,19 @@ onUnmounted(() => {
   margin-bottom: 12px;
   position: relative;
   transition: all 0.2s;
+}
+
+.slide-thumbnail.thumb-hidden {
+  visibility: hidden;
+  height: 0;
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+.virtual-list-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
 }
 
 .slide-thumbnail:hover {

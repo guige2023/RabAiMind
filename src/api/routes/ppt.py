@@ -36,6 +36,7 @@ from ...services.ppt_generator import get_ppt_generator
 from ...services.chart_generator import ChartGenerator
 from ...services.history_sync_service import get_history_sync_service
 from ...services.template_manager import get_template_manager
+from ...services.advanced_analytics_service import get_advanced_analytics_service
 from ...config import settings
 
 from ...api.middleware.rate_limit import (
@@ -71,14 +72,26 @@ async def upload_chart_file(
     chart_type: str = Form("bar"),
     label_col: str = Form(""),
     value_col: str = Form(""),
+    # R62 新参数
+    theme_id: str = Form("default"),
+    show_trend_line: bool = Form(False),
+    annotations_json: str = Form("[]"),
 ):
-    """上传 CSV/Excel 文件，生成图表 SVG"""
+    """上传 CSV/Excel 文件，生成图表 SVG（R62: 支持模板/趋势线/标注）"""
+    import json
+    try:
+        annotations = json.loads(annotations_json) if annotations_json and annotations_json != "[]" else None
+    except Exception:
+        annotations = None
     try:
         content = await file.read()
         cg = ChartGenerator()
         result = cg.process_upload(
             content, file.filename, chart_type,
-            label_col, value_col, task_id
+            label_col, value_col, task_id,
+            theme_id=theme_id,
+            annotations=annotations,
+            show_trend_line=show_trend_line,
         )
         return result
     except ValueError as e:
@@ -120,6 +133,59 @@ async def preview_chart_columns(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"文件解析失败: {str(e)}"
         )
+
+
+# R62: Smart Fill 智能填充缺失数据
+@router.post("/chart/smart-fill")
+async def smart_fill_chart_data(
+    file: UploadFile = File(...),
+    target_col: str = Form(...),
+    method: str = Form("auto"),
+):
+    """
+    R62: AI 智能填充缺失值
+    - file: CSV/Excel 文件
+    - target_col: 需要填充的目标列
+    - method: auto/linear/forward/mean
+    返回填充后的完整数据预览
+    """
+    try:
+        content = await file.read()
+        cg = ChartGenerator()
+        df = cg.parse_file(content, file.filename)
+        cols_info = cg.extract_columns(df)
+        
+        # 执行智能填充
+        df_filled = cg.smart_fill_data(df, target_col, method)
+        
+        return {
+            "success": True,
+            "original_columns": cols_info,
+            "filled_preview": df_filled.to_dict("records"),
+            "row_count": len(df_filled),
+            "filled_col": target_col,
+            "fill_method": method,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Smart Fill 失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Smart Fill 失败: {str(e)}"
+        )
+
+
+# R62: 图表模板列表
+@router.get("/chart/templates")
+async def get_chart_templates():
+    """R62: 获取可用图表模板列表"""
+    from ...services.chart_generator import CHART_TEMPLATES, CHART_STYLE_PRESETS
+    return {
+        "success": True,
+        "templates": CHART_STYLE_PRESETS,
+        "details": CHART_TEMPLATES,
+    }
 
 
 # ==================== 健康检查 ====================
@@ -296,6 +362,15 @@ async def generate_ppt(http_request: Request, request: GenerateRequest):
             theme_color=request.theme_color
         )
 
+        # Track task creation in advanced analytics (real-time + cohort)
+        try:
+            adv = get_advanced_analytics_service()
+            adv.track_task(task_id, user_id, "pending")
+            adv.record_user(user_id)
+            adv.track_request(user_id)
+        except Exception as e:
+            logger.warning(f"[AdvancedAnalytics] track_task failed: {e}")
+
         # BUG修复: 存储完整生成参数到 task["params"]，用于单页重生成等场景
         get_task_manager().update_task_params(task_id, {
             "scene": request.scene.value,
@@ -360,6 +435,10 @@ async def generate_ppt(http_request: Request, request: GenerateRequest):
             except Exception as e:
                 logger.error(f"任务 {task_id} 生成失败: {e}")
                 get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
+                try:
+                    get_advanced_analytics_service().update_task_status(task_id, "failed")
+                except Exception:
+                    pass
             finally:
                 loop.close()
 
@@ -760,6 +839,235 @@ async def export_pdf(request: Request, task_id: str):
         raise
     except Exception as e:
         # 错误信息脱敏
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="PDF转换失败，请稍后重试"
+        )
+
+
+# ==================== Enhanced PDF Export ====================
+
+class PdfExportOptions(BaseModel):
+    """Enhanced PDF export options"""
+    mode: str = Field(default="slides", description="导出模式: slides(幻灯片) | notes(备注页) | handout(讲义)")
+    page_size: str = Field(default="A4", description="页面大小: A4 | Letter | 16:9 | 4:3")
+    orientation: str = Field(default="landscape", description="方向: portrait | landscape")
+    handout_layout: str = Field(default="3", description="讲义布局(每页几张): 1 | 2 | 3 | 6")
+    notes_position: str = Field(default="below", description="备注位置: below | right | separate")
+    notes_font_size: int = Field(default=10, description="备注字体大小")
+    watermark_enabled: bool = Field(default=False, description="启用水印")
+    watermark_text: str = Field(default="CONFIDENTIAL", description="水印文字")
+    watermark_opacity: float = Field(default=0.15, description="水印透明度 0-1")
+    watermark_angle: int = Field(default=45, description="水印角度")
+    watermark_font_size: int = Field(default=48, description="水印字体大小")
+    watermark_color: str = Field(default="#888888", description="水印颜色")
+    header_footer_enabled: bool = Field(default=False, description="启用页眉页脚")
+    header_text: str = Field(default="", description="页眉文字")
+    footer_text: str = Field(default="", description="页脚文字")
+    page_number_format: str = Field(default="Page {current} of {total}", description="页码格式")
+    header_footer_font_size: int = Field(default=10, description="页眉页脚字体大小")
+    header_footer_color: str = Field(default="#666666", description="页眉页脚颜色")
+    theme: str = Field(default="light", description="主题: light | dark")
+
+
+@router.post("/export/enhanced-pdf/{task_id}")
+async def export_enhanced_pdf(
+    request: Request,
+    task_id: str,
+    options: PdfExportOptions = None
+):
+    """增强PDF导出 - 支持幻灯片/备注页/讲义格式、自定义页面、水印、页眉页脚"""
+    if options is None:
+        options = PdfExportOptions()
+    
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+    
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+    
+    if task["status"] != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="任务尚未完成"
+        )
+    
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+    
+    if not pptx_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PPTX路径无效"
+        )
+    
+    import os
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
+    
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件路径不安全"
+        )
+    
+    if not os.path.exists(pptx_path_abs):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PPTX文件不存在"
+        )
+    
+    # Build watermark settings
+    from src.services.pdf_export_service import (
+        PdfExportOptions as ServicePdfOptions,
+        WatermarkSettings,
+        HeaderFooterSettings,
+        get_enhanced_pdf_export_service
+    )
+    
+    watermark = WatermarkSettings(
+        enabled=options.watermark_enabled,
+        text=options.watermark_text,
+        opacity=options.watermark_opacity,
+        angle=options.watermark_angle,
+        font_size=options.watermark_font_size,
+        color=options.watermark_color
+    )
+    
+    header_footer = HeaderFooterSettings(
+        enabled=options.header_footer_enabled,
+        header_text=options.header_text,
+        footer_text=options.footer_text,
+        page_number_format=options.page_number_format,
+        header_font_size=options.header_footer_font_size,
+        footer_font_size=options.header_footer_font_size,
+        font_color=options.header_footer_color
+    )
+    
+    service_options = ServicePdfOptions(
+        mode=options.mode,
+        page_size=options.page_size,
+        orientation=options.orientation,
+        handout_layout=options.handout_layout,
+        notes_position=options.notes_position,
+        notes_font_size=options.notes_font_size,
+        watermark=watermark,
+        header_footer=header_footer,
+        theme=options.theme
+    )
+    
+    # Generate output filename based on options
+    suffix = f"_{options.mode}"
+    if options.mode == "handout":
+        suffix += f"_{options.handout_layout}up"
+    if options.watermark_enabled:
+        suffix += "_watermarked"
+    
+    pdf_filename = f"presentation_{task_id}{suffix}.pdf"
+    pdf_path_abs = os.path.join(os.path.dirname(pptx_path_abs), pdf_filename)
+    
+    # Validate output path
+    pdf_path_abs = os.path.realpath(pdf_path_abs)
+    if not pdf_path_abs.startswith(output_dir):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="输出路径不安全"
+        )
+    
+    try:
+        export_service = get_enhanced_pdf_export_service()
+        
+        if not export_service.is_available():
+            # Fallback: try LibreOffice conversion
+            return await _fallback_export_pdf_libreoffice(request, task_id, pptx_path_abs, pdf_path_abs)
+        
+        # Use enhanced export service
+        export_result = await export_service.export_pdf(
+            pptx_path_abs,
+            pdf_path_abs,
+            service_options
+        )
+        
+        if export_result.get("success"):
+            return FileResponse(
+                path=str(pdf_path_abs),
+                filename=pdf_filename,
+                media_type="application/pdf"
+            )
+        else:
+            # Fallback to LibreOffice
+            return await _fallback_export_pdf_libreoffice(request, task_id, pptx_path_abs, pdf_path_abs)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enhanced PDF export failed: {e}")
+        # Fallback to basic export
+        return await _fallback_export_pdf_libreoffice(request, task_id, pptx_path_abs, pdf_path_abs)
+
+
+async def _fallback_export_pdf_libreoffice(
+    request: Request,
+    task_id: str,
+    pptx_path_abs: str,
+    pdf_path_abs: str
+) -> FileResponse:
+    """Fallback to LibreOffice PDF conversion"""
+    try:
+        import subprocess
+        import shutil
+        
+        libreoffice_path = shutil.which('libreoffice') or shutil.which('soffice')
+        
+        if not libreoffice_path:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="PDF转换服务不可用，请安装 LibreOffice"
+            )
+        
+        result = subprocess.run(
+            [libreoffice_path, "--headless", "--convert-to", "pdf", "--outdir",
+             os.path.dirname(pptx_path_abs), pptx_path_abs],
+            capture_output=True,
+            timeout=120
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="PDF转换失败"
+            )
+        
+        # Rename to our target path
+        expected_name = os.path.splitext(os.path.basename(pptx_path_abs))[0] + ".pdf"
+        expected_path = os.path.join(os.path.dirname(pptx_path_abs), expected_name)
+        
+        if os.path.exists(expected_path) and expected_path != pdf_path_abs:
+            shutil.move(expected_path, pdf_path_abs)
+        
+        if os.path.exists(pdf_path_abs):
+            return FileResponse(
+                path=str(pdf_path_abs),
+                filename=f"presentation_{task_id}.pdf",
+                media_type="application/pdf"
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="PDF转换失败"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LibreOffice fallback failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="PDF转换失败，请稍后重试"
@@ -1412,6 +1720,68 @@ async def undo_last_action(task_id: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/redo_stack/{task_id}")
+async def get_redo_stack(task_id: str):
+    """获取重做栈"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    stack = tm.get_redo_stack(task_id)
+    return {"success": True, "redo_stack": stack}
+
+
+@router.post("/redo/{task_id}")
+async def redo_last_action(task_id: str):
+    """重做上一个撤销的操作"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.redo(task_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/versions/{task_id}/{version_id}/branch")
+async def branch_from_version(task_id: str, version_id: str, name: str = None):
+    """从指定版本创建分支"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.branch_version(task_id, version_id, name)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/autosave/{task_id}")
+async def auto_save_state(task_id: str, state: dict = Body(...)):
+    """保存自动保存状态（用于崩溃恢复）"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.auto_save(task_id, state)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/autosave/{task_id}")
+async def get_auto_save_state(task_id: str):
+    """获取自动保存状态"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.get_auto_save(task_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/regenerate/{task_id}/{slide_index}")
 async def regenerate_single_slide(task_id: str, slide_index: int, request: Request):
     """重新生成某一页幻灯片
@@ -1822,3 +2192,690 @@ async def upload_slide_image(task_id: str, slide_index: int, request: Request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"上传图片失败: {str(e)}"
         )
+
+
+# ==================== 批量操作 ====================
+
+class BatchExportRequest(BaseModel):
+    task_ids: List[str]
+    format: str = Field(default="pptx", description="导出格式: pptx, pdf, png")
+    quality: str = Field(default="high", description="导出质量: low, medium, high")
+
+
+class BatchDeleteRequest(BaseModel):
+    task_ids: List[str]
+
+
+class BatchThemeRequest(BaseModel):
+    task_ids: List[str]
+    theme_primary: str = Field(default="#165DFF")
+    theme_secondary: str = Field(default="#0E42D2")
+    theme_accent: str = Field(default="#00C6FF")
+    apply_to_all: bool = Field(default=True, description="是否应用到所有幻灯片")
+
+
+class BatchGenerateRequest(BaseModel):
+    outlines: List[GenerateRequest] = Field(..., description="多个大纲配置，并行生成")
+
+
+@router.post("/batch/export")
+async def batch_export_ppt(
+    http_request: Request,
+    request: BatchExportRequest
+):
+    """批量导出多个PPT为ZIP文件"""
+    import zipfile
+    import io
+    import os
+
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    tm = get_task_manager()
+    valid_tasks = []
+    missing = []
+
+    for tid in request.task_ids:
+        task = tm.get_task(tid)
+        if not task:
+            missing.append(tid)
+            continue
+        if task["status"] != "completed":
+            missing.append(tid)
+            continue
+        result = task.get("result", {})
+        file_path = result.get("pptx_path")
+        if file_path and os.path.exists(file_path):
+            valid_tasks.append((tid, task, file_path))
+
+    if not valid_tasks:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"没有可导出的完成任务，有效: {len(valid_tasks)}, 缺失: {missing}"
+        )
+
+    # 创建ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for tid, task, file_path in valid_tasks:
+            title = task.get("title", task.get("user_request", ""))[:50]
+            safe_name = re.sub(r'[\\/:*?"<>|]', "_", title) or f"ppt_{tid[:8]}"
+            ext = "pptx" if request.format == "pptx" else request.format
+            arcname = f"{safe_name}_{tid[:8]}.{ext}"
+
+            if request.format == "pptx":
+                zf.write(file_path, arcname)
+            elif request.format == "pdf":
+                # 导出PDF需要转换，暂时用原PPTX
+                zf.write(file_path, f"{safe_name}_{tid[:8]}.pptx")
+            elif request.format == "png":
+                # PNG序列暂不支持批量打包到ZIP，返回PPTX
+                zf.write(file_path, f"{safe_name}_{tid[:8]}.pptx")
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=batch_export_{len(valid_tasks)}ppts.zip"}
+    )
+
+
+@router.post("/batch/delete")
+async def batch_delete_tasks(
+    http_request: Request,
+    request: BatchDeleteRequest
+):
+    """批量删除任务"""
+    import os
+
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    tm = get_task_manager()
+    deleted = []
+    errors = []
+
+    for tid in request.task_ids:
+        try:
+            task = tm.get_task(tid)
+            if not task:
+                errors.append({"task_id": tid, "error": "任务不存在"})
+                continue
+
+            # 删除关联文件
+            result = task.get("result", {})
+            file_path = result.get("pptx_path")
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+
+            # 删除任务
+            tm.delete_task(tid)
+            deleted.append(tid)
+        except Exception as e:
+            logger.error(f"删除任务 {tid} 失败: {e}")
+            errors.append({"task_id": tid, "error": str(e)})
+
+    return {
+        "success": True,
+        "deleted": deleted,
+        "errors": errors,
+        "summary": f"成功删除 {len(deleted)} 个任务，{len(errors)} 个失败"
+    }
+
+
+@router.post("/batch/apply-theme")
+async def batch_apply_theme(
+    http_request: Request,
+    request: BatchThemeRequest
+):
+    """批量应用主题颜色到多个任务"""
+    from ...services.theme_applier import apply_theme_to_task
+
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    tm = get_task_manager()
+    updated = []
+    errors = []
+
+    for tid in request.task_ids:
+        try:
+            task = tm.get_task(tid)
+            if not task:
+                errors.append({"task_id": tid, "error": "任务不存在"})
+                continue
+
+            apply_theme_to_task(
+                task_id=tid,
+                theme_primary=request.theme_primary,
+                theme_secondary=request.theme_secondary,
+                theme_accent=request.theme_accent
+            )
+            updated.append(tid)
+        except Exception as e:
+            logger.error(f"应用主题到任务 {tid} 失败: {e}")
+            errors.append({"task_id": tid, "error": str(e)})
+
+    return {
+        "success": True,
+        "updated": updated,
+        "errors": errors,
+        "summary": f"成功更新 {len(updated)} 个任务，{len(errors)} 个失败"
+    }
+
+
+@router.post("/generate/parallel", response_model=Dict[str, Any])
+async def generate_parallel_ppt(
+    http_request: Request,
+    request: BatchGenerateRequest
+):
+    """并行生成多个PPT（接受多个大纲配置）"""
+    import threading
+
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    user_id = get_user_id_from_request(http_request)
+
+    # 配额检查
+    if len(request.outlines) > 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="单次最多并行5个任务")
+
+    task_ids = []
+
+    for idx, outline_req in enumerate(request.outlines):
+        safe_request = outline_req.user_request
+
+        task_id = get_task_manager().create_task(
+            user_request=safe_request,
+            slide_count=outline_req.slide_count,
+            scene=outline_req.scene.value,
+            style=outline_req.style.value,
+            template=outline_req.template.value,
+            theme_color=outline_req.theme_color
+        )
+        task_ids.append(task_id)
+
+        get_task_manager().update_task_params(task_id, {
+            "scene": outline_req.scene.value,
+            "style": outline_req.style.value,
+            "template": outline_req.template.value,
+            "theme_color": outline_req.theme_color,
+        })
+
+        def run_generation(task_id=task_id, req=outline_req, idx=idx):
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(
+                    get_ppt_generator().generate(
+                        task_id=task_id,
+                        user_request=req.user_request,
+                        slide_count=req.slide_count,
+                        scene=req.scene.value,
+                        style=req.style.value,
+                        template=req.template.value,
+                        theme_color=req.theme_color,
+                        text_style=req.text_style.value,
+                        shadow_color=req.shadow_color,
+                        overlay_transparency=req.overlay_transparency,
+                        use_smart_layout=req.use_smart_layout,
+                        slide_backgrounds=req.slide_backgrounds,
+                        slide_layouts=req.slide_layouts,
+                        include_charts=req.include_charts,
+                        include_pie_chart=req.include_pie_chart,
+                        include_bar_chart=req.include_bar_chart,
+                        include_line_chart=req.include_line_chart,
+                        add_watermark=req.add_watermark,
+                        font_title=req.font_title,
+                        font_subtitle=req.font_subtitle,
+                        font_content=req.font_content,
+                        font_caption=req.font_caption,
+                        generation_mode=req.generation_mode,
+                        output_format=req.output_format,
+                        quality=req.quality,
+                        layout_mode=req.layout_mode,
+                        unified_layout=req.unified_layout,
+                        pre_generated_slides=req.pre_generated_slides
+                    )
+                )
+            except Exception as e:
+                logger.error(f"并行任务 {task_id} 生成失败: {e}")
+                get_task_manager().fail_task(task_id, "GENERATION_ERROR", str(e))
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_generation, daemon=True)
+        thread.start()
+        get_task_manager().register_async_task(task_id, thread)
+
+    return {
+        "success": True,
+        "task_ids": task_ids,
+        "count": len(task_ids),
+        "message": f"已创建 {len(task_ids)} 个并行生成任务"
+    }
+
+
+# ==================== Import Endpoints ====================
+
+@router.post("/import/pdf")
+async def import_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """导入 PDF 文件，提取内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 PDF 文件")
+
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:  # 50MB limit
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件大小不能超过 50MB")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_pdf(content, file.filename)
+    return result
+
+
+@router.post("/import/docx")
+async def import_docx(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """导入 Word 文件，提取内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    allowed_exts = ['.docx', '.doc']
+    ext = '.' + file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+    if ext not in allowed_exts:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 Word 文件 (.docx, .doc)")
+
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:  # 50MB limit
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件大小不能超过 50MB")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_docx(content, file.filename)
+    return result
+
+
+class ImportURLRequest(BaseModel):
+    url: str = Field(..., description="网页 URL")
+
+
+@router.post("/import/url")
+async def import_url(
+    request: Request,
+    body: ImportURLRequest,
+):
+    """导入网页内容，提取内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_url(body.url)
+    return result
+
+
+# ==================== Export Endpoints (Google Slides / Notion) ====================
+
+class ExportGoogleSlidesRequest(BaseModel):
+    title: str = Field(default="PPT Export", description="Google Slides 标题")
+
+
+@router.post("/export/google-slides/{task_id}")
+async def export_google_slides(
+    request: Request,
+    task_id: str,
+    body: ExportGoogleSlidesRequest = None,
+):
+    """导出 PPT 到 Google Slides"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    import os
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    from ...services.export_service import get_export_service
+    title = body.title if body else "PPT Export"
+    export_result = await get_export_service().export_to_google_slides(task_id, pptx_path, title)
+    return export_result
+
+
+class ExportNotionRequest(BaseModel):
+    title: str = Field(default="PPT Export", description="Notion 页面标题")
+    slides_content: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片内容列表")
+
+
+@router.post("/export/notion/{task_id}")
+async def export_notion(
+    request: Request,
+    task_id: str,
+    body: ExportNotionRequest = None,
+):
+    """导出 PPT 内容到 Notion"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    import os
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    from ...services.export_service import get_export_service
+    title = "PPT Export"
+    slides_content = None
+    if body:
+        title = body.title or title
+        slides_content = body.slides_content
+
+    export_result = await get_export_service().export_to_notion(task_id, pptx_path, title, slides_content)
+    return export_result
+
+
+# ==================== Advanced AI Features ====================
+
+class SmartCopyRequest(BaseModel):
+    source_slides: List[Dict[str, Any]] = Field(..., description="源PPT幻灯片列表")
+    target_theme: str = Field(..., description="目标PPT主题")
+    target_style: str = Field("professional", description="目标风格")
+    target_page_count: int = Field(5, description="目标页数")
+
+
+@router.post("/ai/smart-copy")
+async def smart_copy(request: Request, body: SmartCopyRequest):
+    """智能复制：分析源PPT内容，选择性迁移到目标主题"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.advanced_ai_features import get_advanced_ai_service
+    result = get_advanced_ai_service().smart_copy(
+        source_slides=body.source_slides,
+        target_theme=body.target_theme,
+        target_style=body.target_style,
+        target_page_count=body.target_page_count
+    )
+    return result
+
+
+class ExtendContentRequest(BaseModel):
+    outline: List[Dict[str, Any]] = Field(..., description="简略大纲")
+    topic: str = Field(..., description="PPT主题")
+    audience: str = Field("商务人士", description="目标受众")
+    style: str = Field("professional", description="风格")
+
+
+@router.post("/ai/extend-content")
+async def extend_content(request: Request, body: ExtendContentRequest):
+    """AI内容扩展：将简略大纲扩展为详细的幻灯片内容"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.advanced_ai_features import get_advanced_ai_service
+    result = get_advanced_ai_service().extend_content(
+        outline=body.outline,
+        topic=body.topic,
+        audience=body.audience,
+        style=body.style
+    )
+    return result
+
+
+class SpeakerNotesRequest(BaseModel):
+    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
+    total_duration: int = Field(10, description="总演讲时长（分钟）")
+
+
+@router.post("/ai/speaker-notes")
+async def generate_speaker_notes(request: Request, body: SpeakerNotesRequest):
+    """自动生成演讲者备注"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if len(body.slides) > 20:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="最多支持20页幻灯片")
+
+    from ...services.advanced_ai_features import get_advanced_ai_service
+    result = get_advanced_ai_service().generate_speaker_notes(
+        slides=body.slides,
+        total_duration=body.total_duration
+    )
+    return result
+
+
+class DesignCheckRequest(BaseModel):
+    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多30页）")
+    style_theme: str = Field("business", description="风格主题")
+    brand_colors: Optional[List[str]] = Field(None, description="品牌配色")
+
+
+@router.post("/ai/design-check")
+async def check_design_consistency(request: Request, body: DesignCheckRequest):
+    """设计一致性检查：扫描幻灯片的设计违规问题"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if len(body.slides) > 30:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="最多支持30页幻灯片")
+
+    from ...services.advanced_ai_features import get_advanced_ai_service
+    result = get_advanced_ai_service().check_design_consistency(
+        slides=body.slides,
+        style_theme=body.style_theme,
+        brand_colors=body.brand_colors
+    )
+    return result
+
+
+class ProfessionalPolishRequest(BaseModel):
+    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
+    target_style: str = Field("business", description="目标风格")
+    use_case: str = Field("商务演示", description="使用场景")
+
+
+@router.post("/ai/polish")
+async def professional_polish(request: Request, body: ProfessionalPolishRequest):
+    """一键专业优化：对PPT进行全方位的专业级优化"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if len(body.slides) > 20:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="最多支持20页幻灯片")
+
+    from ...services.advanced_ai_features import get_advanced_ai_service
+    result = get_advanced_ai_service().professional_polish(
+        slides=body.slides,
+        target_style=body.target_style,
+        use_case=body.use_case
+    )
+    return result
+
+
+# ─── Layout Suggestions API (R55) ─────────────────────────────────────────
+
+@router.get("/layouts/suggest")
+async def suggest_layouts(
+    title: str = "",
+    content: str = "",
+):
+    """
+    智能布局推荐：根据幻灯片内容分析，推荐最佳布局
+    
+    分析内容类型（列表/对比/时间线/数据/金句等），返回多个布局建议
+    """
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
+    from ...services.smart_layout.layout_strategy import get_layout_strategy
+
+    analyzer = get_content_analyzer()
+    strategy = get_layout_strategy()
+
+    # 分析内容
+    analysis = analyzer.analyze(title, content)
+
+    # 获取推荐布局
+    primary_layout = strategy.select_layout({
+        "type": analysis.type,
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+    })
+
+    # 获取备选布局
+    suggestions = strategy.suggest_layouts_for_content({
+        "type": analysis.type,
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+    })
+
+    # 构建布局详情
+    layout_details = []
+    all_layouts = strategy.get_all_layouts()
+    for i, layout_type in enumerate(suggestions):
+        layout_info = all_layouts.get(layout_type, all_layouts["content_card"])
+        layout_details.append({
+            "type": layout_type,
+            "name": layout_info["name"],
+            "description": layout_info["description"],
+            "confidence": 1.0 - i * 0.2,  # 递减置信度
+            "is_primary": i == 0,
+        })
+
+    return {
+        "success": True,
+        "content_type": analysis.type,
+        "content_type_display": {
+            "title_slide": "封面页",
+            "content": "内容页",
+            "quote": "金句页",
+            "timeline": "时间线",
+            "comparison": "对比页",
+            "data": "数据页",
+        }.get(analysis.type, "内容页"),
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+        "primary_layout": primary_layout,
+        "suggestions": layout_details,
+    }
+
+
+@router.get("/layouts/all")
+async def get_all_layouts():
+    """获取所有可用布局"""
+    from ...services.smart_layout.layout_strategy import get_layout_strategy
+    strategy = get_layout_strategy()
+    all_layouts = strategy.get_all_layouts()
+    
+    layout_list = []
+    for layout_type, info in all_layouts.items():
+        layout_list.append({
+            "type": layout_type,
+            "name": info["name"],
+            "description": info["description"],
+            "typical_use": info.get("typical_use", []),
+            "elements": info.get("elements", []),
+        })
+    
+    return {"success": True, "layouts": layout_list}
+
+
+# ─── Template Learning / Layout Preference Tracking (R55) ──────────────────
+
+@router.post("/templates/preferences")
+async def save_layout_preference(
+    user_id: str = "anonymous",
+    template_id: str = "",
+    layout_type: str = "",
+    content_type: str = "",
+    scene: str = "",
+    style: str = "",
+    action: str = "apply",  # apply | dismiss | regenerate
+):
+    """
+    记录用户的布局偏好（模板学习）
+    
+    当用户应用、忽略或重新生成布局时记录，帮助系统学习用户偏好
+    """
+    from ...services.search_analytics import get_user_history
+    
+    history = get_user_history()
+    
+    # 记录布局偏好
+    history.record_layout_preference(
+        user_id=user_id,
+        template_id=template_id,
+        layout_type=layout_type,
+        content_type=content_type,
+        scene=scene,
+        style=style,
+        action=action,
+    )
+    
+    return {"success": True, "action": action}
+
+
+@router.get("/templates/preferences")
+async def get_layout_preferences(
+    user_id: str = "anonymous",
+    content_type: str = "",
+    limit: int = 3,
+):
+    """
+    获取用户的布局偏好（基于学习历史）
+    """
+    from ...services.search_analytics import get_user_history
+    
+    history = get_user_history()
+    preferences = history.get_layout_preferences(
+        user_id=user_id,
+        content_type=content_type,
+        limit=limit,
+    )
+    
+    return {"success": True, "preferences": preferences, "user_id": user_id}

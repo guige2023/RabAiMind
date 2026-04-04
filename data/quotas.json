@@ -1,7 +1,12 @@
 {
   "ip_127_0_0_1": {
     "date": "2026-04-04",
-    "generations_used": 9,
-    "last_generation_at": "2026-04-04T00:31:35.795433"
+    "generations_used": 19,
+    "last_generation_at": "2026-04-04T02:28:11.320737"
+  },
+  "ip_testclient": {
+    "date": "2026-04-04",
+    "generations_used": 0,
+    "last_generation_at": null
   }
 }

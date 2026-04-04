@@ -368,6 +368,79 @@
                 </div>
               </template>
 
+              <!-- R51: 视频元素 -->
+              <template v-else-if="el.type === 'video'">
+                <div class="element-content video-content" v-if="el.videoUrl">
+                  <iframe
+                    v-if="el.videoType === 'youtube'"
+                    :src="getYouTubeEmbedUrl(el.videoUrl)"
+                    class="video-iframe"
+                    frameborder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                  ></iframe>
+                  <iframe
+                    v-else-if="el.videoType === 'vimeo'"
+                    :src="getVimeoEmbedUrl(el.videoUrl)"
+                    class="video-iframe"
+                    frameborder="0"
+                    allow="autoplay; fullscreen; picture-in-picture"
+                    allowfullscreen
+                  ></iframe>
+                  <video
+                    v-else
+                    :src="el.videoUrl"
+                    class="video-native"
+                    controls
+                    :autoplay="el.autoPlay"
+                    :loop="el.loop"
+                    :muted="el.muted"
+                  ></video>
+                </div>
+                <div v-else class="element-content video-placeholder">
+                  <span>🎬</span>
+                  <span class="upload-hint">输入视频链接</span>
+                </div>
+              </template>
+
+              <!-- R51: 音频元素 -->
+              <template v-else-if="el.type === 'audio'">
+                <div class="element-content audio-content">
+                  <div v-if="el.audioUrl" class="audio-player">
+                    <span class="audio-icon">🎵</span>
+                    <audio
+                      :src="el.audioUrl"
+                      controls
+                      :autoplay="el.autoPlay"
+                      :loop="el.loop"
+                      :muted="el.muted"
+                      class="audio-native"
+                    ></audio>
+                  </div>
+                  <div v-else class="audio-placeholder">
+                    <span>🎵</span>
+                    <span class="upload-hint">上传音频文件</span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- R51: GIF动图元素 -->
+              <template v-else-if="el.type === 'gif'">
+                <div class="element-content gif-content">
+                  <img
+                    v-if="el.gifUrl"
+                    :src="el.gifUrl"
+                    class="gif-image"
+                    :style="getImageStyle(el)"
+                    alt="animated gif"
+                  />
+                  <div v-else class="gif-placeholder">
+                    <span>🎞️</span>
+                    <span class="upload-hint">输入GIF链接</span>
+                  </div>
+                </div>
+              </template>
+
               <!-- 选中标记 -->
               <div v-if="selectedElementIndex === index" class="resize-handles">
                 <div class="handle handle-nw" @mousedown.stop="startResize($event, 'nw')"></div>
@@ -633,6 +706,131 @@
               </select>
             </div>
 
+            <!-- R51: 视频属性 -->
+            <div v-if="selectedElement.type === 'video'" class="prop-group">
+              <label class="prop-label">视频来源</label>
+              <select
+                class="prop-select"
+                :value="selectedElement.videoType || 'mp4'"
+                @change="updateVideoType(($event.target as HTMLSelectElement).value)"
+              >
+                <option value="mp4">本地视频 (MP4)</option>
+                <option value="youtube">YouTube</option>
+                <option value="vimeo">Vimeo</option>
+              </select>
+            </div>
+
+            <div v-if="selectedElement.type === 'video'" class="prop-group">
+              <label class="prop-label">视频链接 / 地址</label>
+              <input
+                type="text"
+                class="prop-input-full"
+                :value="selectedElement.videoUrl || ''"
+                @input="updateElementProp('videoUrl', ($event.target as HTMLInputElement).value)"
+                :placeholder="selectedElement.videoType === 'youtube' ? 'https://youtube.com/watch?v=...' : (selectedElement.videoType === 'vimeo' ? 'https://vimeo.com/...' : 'https://...mp4')"
+              />
+              <input
+                v-if="selectedElement.videoType === 'mp4'"
+                type="file"
+                accept="video/mp4,video/webm,video/ogg"
+                class="file-input"
+                :ref="el => videoFileInput = el as HTMLInputElement | null"
+                @change="handleVideoUpload($event)"
+                id="video-upload"
+              />
+              <label v-if="selectedElement.videoType === 'mp4'" for="video-upload" class="file-label" style="margin-top:4px">
+                📹 {{ selectedElement.videoUrl ? '更换视频' : '上传视频文件' }}
+              </label>
+            </div>
+
+            <div v-if="selectedElement.type === 'video'" class="prop-group">
+              <label class="prop-label">播放控制</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.autoPlay" @change="updateElementProp('autoPlay', ($event.target as HTMLInputElement).checked)" />
+                  自动播放
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.loop" @change="updateElementProp('loop', ($event.target as HTMLInputElement).checked)" />
+                  循环播放
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.muted" @change="updateElementProp('muted', ($event.target as HTMLInputElement).checked)" />
+                  静音
+                </label>
+              </div>
+            </div>
+
+            <!-- R51: 音频属性 -->
+            <div v-if="selectedElement.type === 'audio'" class="prop-group">
+              <label class="prop-label">音频文件</label>
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/ogg,audio/mp3,audio/*"
+                class="file-input"
+                :ref="el => audioFileInput = el as HTMLInputElement | null"
+                @change="handleAudioUpload($event)"
+                id="audio-upload"
+              />
+              <label for="audio-upload" class="file-label">
+                🎵 {{ selectedElement.audioUrl ? '更换音频' : '上传音频文件' }}
+              </label>
+              <div v-if="selectedElement.audioUrl" class="audio-preview-mini">
+                <audio :src="selectedElement.audioUrl" controls class="audio-native-mini"></audio>
+              </div>
+            </div>
+
+            <div v-if="selectedElement.type === 'audio'" class="prop-group">
+              <label class="prop-label">音频控制</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.autoPlay" @change="updateElementProp('autoPlay', ($event.target as HTMLInputElement).checked)" />
+                  自动播放
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" :checked="selectedElement.loop" @change="updateElementProp('loop', ($event.target as HTMLInputElement).checked)" />
+                  循环播放
+                </label>
+              </div>
+            </div>
+
+            <!-- R51: GIF动图属性 -->
+            <div v-if="selectedElement.type === 'gif'" class="prop-group">
+              <label class="prop-label">GIF链接 / 地址</label>
+              <input
+                type="text"
+                class="prop-input-full"
+                :value="selectedElement.gifUrl || ''"
+                @input="updateElementProp('gifUrl', ($event.target as HTMLInputElement).value)"
+                placeholder="https://...gif 或上传GIF文件"
+              />
+              <input
+                type="file"
+                accept="image/gif,image/*"
+                class="file-input"
+                :ref="el => gifFileInput = el as HTMLInputElement | null"
+                @change="handleGifUpload($event)"
+                id="gif-upload"
+              />
+              <label for="gif-upload" class="file-label" style="margin-top:4px">
+                🎞️ {{ selectedElement.gifUrl ? '更换GIF' : '上传GIF文件' }}
+              </label>
+            </div>
+
+            <div v-if="selectedElement.type === 'gif' && selectedElement.gifUrl" class="prop-group">
+              <label class="prop-label">填充方式</label>
+              <select
+                class="prop-select"
+                :value="selectedElement.objectFit || 'cover'"
+                @change="updateElementProp('objectFit', ($event.target as HTMLSelectElement).value)"
+              >
+                <option value="cover">适应填充</option>
+                <option value="contain">完整显示</option>
+                <option value="fill">拉伸填充</option>
+                <option value="none">原始大小</option>
+              </select>
+            </div>
+
             <!-- 对齐 -->
             <div class="prop-group">
               <label class="prop-label">对齐</label>
@@ -764,6 +962,9 @@
               <button @click="addElement('text')" title="添加文本">📝 文本</button>
               <button @click="addElement('shape')" title="添加形状">■ 形状</button>
               <button @click="addElement('image')" title="添加图片">🖼️ 图片</button>
+              <button @click="addElement('video')" title="添加视频">🎬 视频</button>
+              <button @click="addElement('audio')" title="添加音频">🎵 音频</button>
+              <button @click="addElement('gif')" title="添加动图">🎞️ 动图</button>
             </div>
           </div>
         </div>
@@ -783,7 +984,7 @@ import api from '../api/client'
 
 interface SlideElement {
   id: string
-  type: 'text' | 'shape' | 'image'
+  type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif'
   x: number
   y: number
   width: number
@@ -804,6 +1005,16 @@ interface SlideElement {
   align?: string
   src?: string
   zIndex?: number
+  // R51: video
+  videoUrl?: string
+  videoType?: 'youtube' | 'vimeo' | 'mp4'
+  // R51: audio
+  audioUrl?: string
+  // R51: gif
+  gifUrl?: string
+  autoPlay?: boolean
+  loop?: boolean
+  muted?: boolean
 }
 
 interface Slide {
@@ -1205,6 +1416,82 @@ const getImageStyle = (el: SlideElement) => ({
   textAlign: el.align || 'center',
 })
 
+// R51: 视频URL解析
+const getYouTubeEmbedUrl = (url: string): string => {
+  if (!url) return ''
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
+  ]
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match) return `https://www.youtube.com/embed/${match[1]}?autoplay=0&rel=0`
+  }
+  return url
+}
+
+const getVimeoEmbedUrl = (url: string): string => {
+  if (!url) return ''
+  const match = url.match(/vimeo\.com\/(\d+)/)
+  if (match) return `https://player.vimeo.com/video/${match[1]}?autoplay=0&title=0&byline=0&portrait=0`
+  return url
+}
+
+// R51: 视频类型更新
+const updateVideoType = (type: string) => {
+  if (selectedElementIndex.value === null) return
+  saveHistory()
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].videoType = type as 'youtube' | 'vimeo' | 'mp4'
+  // 清空旧URL，因为切换类型后需要重新输入
+  slides.value[activeSlideIndex.value].elements[selectedElementIndex.value].videoUrl = ''
+}
+
+// R51: 视频文件上传
+const videoFileInput = ref<HTMLInputElement | null>(null)
+const handleVideoUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || selectedElementIndex.value === null) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    saveHistory()
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].videoUrl = result
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].videoType = 'mp4'
+  }
+  reader.readAsDataURL(file)
+}
+
+// R51: 音频文件上传
+const audioFileInput = ref<HTMLInputElement | null>(null)
+const handleAudioUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || selectedElementIndex.value === null) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    saveHistory()
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].audioUrl = result
+  }
+  reader.readAsDataURL(file)
+}
+
+// R51: GIF文件上传
+const gifFileInput = ref<HTMLInputElement | null>(null)
+const handleGifUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file || selectedElementIndex.value === null) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    saveHistory()
+    slides.value[activeSlideIndex.value].elements[selectedElementIndex.value!].gifUrl = result
+  }
+  reader.readAsDataURL(file)
+}
+
 // R20: 层级控制
 const bringForward = () => {
   if (selectedElementIndex.value === null) return
@@ -1389,7 +1676,10 @@ const getElementTypeName = (type: string) => {
   const map: Record<string, string> = {
     text: '文本',
     shape: '形状',
-    image: '图片'
+    image: '图片',
+    video: '视频',
+    audio: '音频',
+    gif: '动图'
   }
   return map[type] || type
 }
@@ -1460,15 +1750,15 @@ const deleteElement = () => {
   selectedElementIndex.value = null
 }
 
-const addElement = (type: 'text' | 'shape' | 'image') => {
+const addElement = (type: 'text' | 'shape' | 'image' | 'video' | 'audio' | 'gif') => {
   saveHistory()
   const newElement: SlideElement = {
     id: Date.now().toString(),
     type,
     x: 100,
     y: 100,
-    width: type === 'text' ? 400 : 150,
-    height: type === 'text' ? 50 : 150,
+    width: type === 'text' ? 400 : (type === 'video' ? 320 : (type === 'gif' ? 200 : 150)),
+    height: type === 'text' ? 50 : (type === 'video' ? 180 : (type === 'audio' ? 60 : 150)),
     content: type === 'text' ? '新文本' : undefined,
     color: '#000000',
     fill: type === 'shape' ? '#165DFF' : undefined,
@@ -1477,6 +1767,9 @@ const addElement = (type: 'text' | 'shape' | 'image') => {
     lineHeight: '1.5',
     textBgColor: 'transparent',
     zIndex: slides.value[activeSlideIndex.value].elements.length + 1,
+    autoPlay: false,
+    loop: false,
+    muted: true,
   }
   slides.value[activeSlideIndex.value].elements.push(newElement)
   selectedElementIndex.value = slides.value[activeSlideIndex.value].elements.length - 1
@@ -2010,6 +2303,152 @@ onUnmounted(() => {
 .upload-hint {
   font-size: 12px;
   color: #999;
+}
+
+/* R51: 视频元素 */
+.video-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.video-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a2e;
+  font-size: 28px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  gap: 8px;
+  color: #60a5fa;
+}
+
+.video-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.video-native {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* R51: 音频元素 */
+.audio-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audio-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.audio-icon {
+  font-size: 24px;
+}
+
+.audio-native {
+  width: 100%;
+  height: 36px;
+}
+
+.audio-native-mini {
+  width: 100%;
+  height: 32px;
+  margin-top: 4px;
+}
+
+.audio-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  font-size: 24px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.audio-preview-mini {
+  margin-top: 8px;
+}
+
+/* R51: GIF动图元素 */
+.gif-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.gif-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gif-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  font-size: 24px;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  gap: 8px;
+}
+
+/* R51: 新增表单控件 */
+.prop-input-full {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #333;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 /* 对齐辅助线 */

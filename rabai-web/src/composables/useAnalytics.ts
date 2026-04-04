@@ -30,6 +30,23 @@ export interface DailyStat {
   count: number
 }
 
+export interface CarbonFootprint {
+  total_slides: number
+  time_saved_minutes: number
+  time_saved_hours: number
+  kg_co2_saved: number
+  trees_equivalent: number
+  paper_sheets_saved: number
+  liters_water_saved: number
+}
+
+export interface MostUsedFeature {
+  name: string
+  count: number
+  category: string
+  rank: number
+}
+
 export interface AnalyticsData {
   success: boolean
   user_id: string
@@ -40,6 +57,8 @@ export interface AnalyticsData {
   weekly_activity: WeeklyActivityRow[]
   productivity_score: number
   daily_stats: DailyStat[]
+  carbon_footprint: CarbonFootprint
+  most_used_features: MostUsedFeature[]
 }
 
 const API_BASE = '/api/v1'

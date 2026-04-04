@@ -49,7 +49,7 @@
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">� slide</div>
+          <div class="stat-icon">📊</div>
           <div class="stat-info">
             <div class="stat-value">{{ summary.total_slides }}</div>
             <div class="stat-label">幻灯片总数</div>
@@ -341,6 +341,101 @@
         </div>
       </div>
 
+      <!-- Row 6: Carbon Footprint Savings -->
+      <div class="panel carbon-panel" v-if="analyticsData?.carbon_footprint">
+        <div class="panel-header">
+          <h3>🌱 碳排放节省计算器</h3>
+          <span class="eco-badge">环保贡献</span>
+        </div>
+        <div class="carbon-content">
+          <div class="carbon-stats">
+            <div class="carbon-card highlight">
+              <div class="carbon-icon">🌿</div>
+              <div class="carbon-value">{{ analyticsData.carbon_footprint.trees_equivalent }}</div>
+              <div class="carbon-label">相当于种树（棵）</div>
+            </div>
+            <div class="carbon-card">
+              <div class="carbon-icon">💨</div>
+              <div class="carbon-value">{{ analyticsData.carbon_footprint.kg_co2_saved }} kg</div>
+              <div class="carbon-label">CO₂ 减排量</div>
+            </div>
+            <div class="carbon-card">
+              <div class="carbon-icon">⏱</div>
+              <div class="carbon-value">{{ analyticsData.carbon_footprint.time_saved_minutes }} 分钟</div>
+              <div class="carbon-label">节省时间</div>
+            </div>
+            <div class="carbon-card">
+              <div class="carbon-icon">📄</div>
+              <div class="carbon-value">{{ analyticsData.carbon_footprint.paper_sheets_saved }} 张</div>
+              <div class="carbon-label">节省纸张</div>
+            </div>
+            <div class="carbon-card">
+              <div class="carbon-icon">💧</div>
+              <div class="carbon-value">{{ analyticsData.carbon_footprint.liters_water_saved }} L</div>
+              <div class="carbon-label">节约用水</div>
+            </div>
+          </div>
+          <div class="carbon-note">
+            💡 基于以下估算：传统制作每页 PPT 约 15 分钟，RabAiMind 约 2 分钟；电脑功耗 50W；中国电网 CO₂ 排放因子 0.528 kg/kWh
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 7: Most Used Features Ranking -->
+      <div class="panel features-panel" v-if="analyticsData?.most_used_features?.length > 0">
+        <div class="panel-header">
+          <h3>🏆 功能使用排行榜 TOP 10</h3>
+        </div>
+        <div class="features-list">
+          <div
+            v-for="feature in analyticsData.most_used_features"
+            :key="feature.rank"
+            class="feature-item"
+          >
+            <div class="feature-rank" :class="'rank-' + feature.rank">
+              {{ feature.rank <= 3 ? ['🥇','🥈','🥉'][feature.rank-1] : '#' + feature.rank }}
+            </div>
+            <div class="feature-info">
+              <div class="feature-name">{{ feature.name }}</div>
+              <div class="feature-category">
+                <span class="category-tag" :class="'cat-' + feature.category">
+                  {{ feature.category === 'template' ? '📐 模板' : feature.category === 'style' ? '🎨 风格' : '🏷 场景' }}
+                </span>
+              </div>
+            </div>
+            <div class="feature-count">{{ feature.count }} 次</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 8: Weekly Email Summary Subscription -->
+      <div class="panel email-panel">
+        <div class="panel-header">
+          <h3>📧 每周汇总邮件</h3>
+        </div>
+        <div class="email-content">
+          <div class="email-toggle-row">
+            <div class="email-desc">
+              <div class="email-title">订阅每周数据报告</div>
+              <div class="email-subtitle">每周一发送上周使用统计、碳排节省和排行榜变化</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="emailSubscribed" @change="toggleWeeklyEmail">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div v-if="emailSubscribed" class="email-status success">
+            ✅ 已订阅 | 将发送至：{{ weeklyEmail }}
+          </div>
+          <div v-else class="email-status">
+            📬 开启后每周一自动收到您的专属数据报告
+          </div>
+          <div v-if="emailMessage" class="email-message" :class="{ error: emailError }">
+            {{ emailMessage }}
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -485,8 +580,48 @@ const sceneLabel = (scene: string) => {
 
 const refresh = () => fetchAnalytics(true)
 
+// Weekly email subscription
+const emailSubscribed = ref(false)
+const weeklyEmail = ref('')
+const emailMessage = ref('')
+const emailError = ref(false)
+
+const toggleWeeklyEmail = async () => {
+  emailError.value = false
+  emailMessage.value = ''
+  try {
+    const base = '/api/v1/analytics/weekly-email'
+    const resp = await fetch(base, {
+      method: emailSubscribed.value ? 'POST' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscribed: emailSubscribed.value, email: weeklyEmail.value })
+    })
+    const data = await resp.json()
+    emailMessage.value = data.message || (emailSubscribed.value ? '已订阅每周汇总邮件' : '已取消订阅')
+    if (!resp.ok) emailError.value = true
+  } catch (e: any) {
+    emailMessage.value = '设置失败: ' + (e.message || '网络错误')
+    emailError.value = true
+    emailSubscribed.value = !emailSubscribed.value // revert
+  }
+}
+
+const loadWeeklyEmailStatus = async () => {
+  try {
+    const resp = await fetch('/api/v1/analytics/weekly-email')
+    if (resp.ok) {
+      const data = await resp.json()
+      emailSubscribed.value = data.subscribed
+      weeklyEmail.value = data.email || ''
+    }
+  } catch (e) {
+    // Silently fail
+  }
+}
+
 onMounted(() => {
   fetchAnalytics()
+  loadWeeklyEmailStatus()
 })
 </script>
 
@@ -914,5 +1049,225 @@ onMounted(() => {
   font-size: 14px;
   color: #8c8c8c;
   padding: 0;
+}
+
+/* Carbon Footprint Panel */
+.carbon-panel .eco-badge {
+  font-size: 12px;
+  background: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.carbon-content {}
+
+.carbon-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .carbon-stats { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 600px) {
+  .carbon-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+.carbon-card {
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s;
+}
+
+.carbon-card.highlight {
+  background: linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%);
+  border-color: #b7eb8f;
+}
+
+.carbon-icon { font-size: 28px; margin-bottom: 8px; }
+
+.carbon-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f1f1f;
+  line-height: 1.2;
+}
+
+.carbon-label {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 4px;
+}
+
+.carbon-note {
+  font-size: 12px;
+  color: #8c8c8c;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 10px 14px;
+  line-height: 1.5;
+}
+
+/* Most Used Features Panel */
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: background 0.2s;
+}
+
+.feature-item:hover { background: #f0f7ff; }
+
+.feature-rank {
+  font-size: 18px;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.rank-1 { color: #faad14; }
+.rank-2 { color: #8c8c8c; }
+.rank-3 { color: #d48806; }
+
+.feature-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feature-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f1f1f;
+}
+
+.category-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+.cat-template { background: #e6f4ff; color: #165DFF; }
+.cat-style { background: #fff0f6; color: #F53FAD; }
+.cat-scene { background: #f9f0ff; color: #722ED1; }
+
+.feature-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #595959;
+  flex-shrink: 0;
+}
+
+/* Weekly Email Panel */
+.email-content {}
+
+.email-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.email-desc { flex: 1; }
+
+.email-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin-bottom: 4px;
+}
+
+.email-subtitle {
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 26px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #52c41a;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+.email-status {
+  font-size: 13px;
+  color: #8c8c8c;
+  padding: 8px 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.email-status.success {
+  color: #52c41a;
+  background: #f6ffed;
+}
+
+.email-message {
+  font-size: 13px;
+  color: #52c41a;
+  padding: 8px 12px;
+  background: #f6ffed;
+  border-radius: 8px;
+  border: 1px solid #b7eb8f;
+}
+
+.email-message.error {
+  color: #ff4d4f;
+  background: #fff2f0;
+  border-color: #ffccc7;
 }
 </style>

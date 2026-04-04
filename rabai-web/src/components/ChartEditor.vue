@@ -62,6 +62,50 @@
             </div>
           </div>
 
+          <!-- R62: Smart Fill -->
+          <div v-if="columnInfo && columnInfo.numeric_columns.length > 0" class="smart-fill-section">
+            <div class="section-title">🧠 智能填充（Smart Fill）</div>
+            <div class="smart-fill-controls">
+              <select v-model="smartFillTargetCol" class="col-select-input">
+                <option value="">-- 选择要填充的列 --</option>
+                <option v-for="col in columnInfo.all_columns" :key="col" :value="col">{{ col }}</option>
+              </select>
+              <select v-model="smartFillMethod" class="col-select-input">
+                <option value="auto">自动（智能选择）</option>
+                <option value="linear">线性插值</option>
+                <option value="forward">前向填充</option>
+                <option value="mean">均值填充</option>
+              </select>
+              <button
+                class="btn-smart-fill"
+                @click="runSmartFill"
+                :disabled="!smartFillTargetCol || isSmartFilling">
+                <span v-if="isSmartFilling">填充中...</span>
+                <span v-else>🔮 AI 智能填充</span>
+              </button>
+            </div>
+            <div v-if="smartFillResult" class="smart-fill-result">
+              <span class="fill-badge">✅ 填充完成</span>
+              <span class="fill-info">已使用「{{ smartFillMethod }}」方法填充「{{ smartFillTargetCol }}」列</span>
+            </div>
+          </div>
+
+          <!-- R62: 数据刷新 -->
+          <div v-if="uploadedFile" class="data-refresh-section">
+            <div class="editor-header-row">
+              <span class="section-title">🔄 数据刷新</span>
+              <div class="refresh-controls">
+                <label class="auto-refresh-label">
+                  <input type="checkbox" v-model="autoRefreshEnabled" @change="toggleAutoRefresh" />
+                  自动刷新(5s)
+                </label>
+                <button class="btn-refresh" @click="refreshData" :disabled="isRefreshing">
+                  {{ isRefreshing ? '刷新中...' : '🔁 刷新数据' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- 数据编辑表格（R19） -->
           <div v-if="editableData.length > 0" class="data-editor">
             <div class="editor-header-row">
@@ -137,6 +181,22 @@
             </div>
           </div>
 
+          <!-- R62: 图表模板 -->
+          <div class="config-group">
+            <div class="section-title">📐 图表模板</div>
+            <div class="template-grid">
+              <button
+                v-for="tpl in chartTemplates"
+                :key="tpl.id"
+                class="template-btn"
+                :class="{ active: selectedTemplate === tpl.id }"
+                @click="selectedTemplate = tpl.id">
+                <span class="tpl-icon">{{ tpl.icon }}</span>
+                <span class="tpl-name">{{ tpl.name }}</span>
+              </button>
+            </div>
+          </div>
+
           <!-- 颜色主题 -->
           <div class="config-group">
             <div class="section-title">🎨 颜色主题</div>
@@ -175,6 +235,50 @@
               <label>显示数据标签</label>
               <switch :checked="showDataLabels" @change="showDataLabels = $event.detail.value" class="setting-switch" />
             </div>
+            <!-- R62: 趋势线（仅折线图） -->
+            <div class="setting-row" v-if="selectedChartType === 'line'">
+              <label>显示趋势线</label>
+              <switch :checked="showTrendLine" @change="showTrendLine = $event.detail.value; onConfigChange()" class="setting-switch" />
+            </div>
+
+          <!-- R62: 图表标注 -->
+          <div class="config-group" v-if="selectedChartType === 'line' || selectedChartType === 'bar'">
+            <div class="section-title">🏷️ 图表标注</div>
+            <div class="annotation-controls">
+              <button class="btn-annotate" @click="showAnnotationPanel = !showAnnotationPanel">
+                {{ showAnnotationPanel ? '隐藏标注' : '+ 添加标注' }}
+              </button>
+            </div>
+            <div v-if="showAnnotationPanel" class="annotation-panel">
+              <div class="annotation-row">
+                <select v-model="newAnnotation.x" class="col-select-input">
+                  <option value="">-- 选择X轴索引 --</option>
+                  <option v-for="(lbl, i) in annotationLabels" :key="i" :value="i">{{ i }}: {{ lbl }}</option>
+                </select>
+              </div>
+              <div class="annotation-row">
+                <input type="text" v-model="newAnnotation.text" class="setting-input" placeholder="标注文字" />
+              </div>
+              <div class="annotation-row">
+                <select v-model="newAnnotation.type" class="col-select-input">
+                  <option value="label">标签</option>
+                  <option value="arrow">箭头</option>
+                  <option value="callout">气泡</option>
+                  <option value="box">文本框</option>
+                  <option value="circle">圆圈</option>
+                </select>
+                <input type="color" v-model="newAnnotation.color" class="color-picker" />
+              </div>
+              <button class="btn-add-annotation" @click="addAnnotation">➕ 添加标注</button>
+              <div v-if="annotations.length > 0" class="annotation-list">
+                <div v-for="(ann, i) in annotations" :key="i" class="annotation-item">
+                  <span class="ann-type-badge">{{ ann.type }}</span>
+                  <span class="ann-text">{{ ann.text }}</span>
+                  <button class="btn-remove-ann" @click="removeAnnotation(i)">✕</button>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
 
           <!-- 预览 -->
@@ -256,6 +360,52 @@ const showDataLabels = ref(true)
 
 // 图表预览
 const chartSvgUrl = ref('')
+
+// R62: 图表模板
+const chartTemplates = [
+  { id: 'default', name: '默认风格', icon: '📋' },
+  { id: 'business', name: '商务风格', icon: '💼' },
+  { id: 'academic', name: '学术风格', icon: '🎓' },
+  { id: 'infographic', name: '信息图风格', icon: '🎨' },
+]
+const selectedTemplate = ref('default')
+
+// R62: Smart Fill
+const smartFillTargetCol = ref('')
+const smartFillMethod = ref('auto')
+const isSmartFilling = ref(false)
+const smartFillResult = ref<{ filled_col: string; fill_method: string } | null>(null)
+
+// R62: 数据刷新
+const isRefreshing = ref(false)
+const autoRefreshEnabled = ref(false)
+let autoRefreshTimer: number | null = null
+
+// R62: 趋势线
+const showTrendLine = ref(false)
+
+// R62: 图表标注
+const showAnnotationPanel = ref(false)
+const annotations = ref<Array<{
+  type: string
+  x: number | string
+  y: number
+  text: string
+  color: string
+}>>([])
+const newAnnotation = ref({
+  type: 'label',
+  x: '',
+  y: 0,
+  text: '',
+  color: '#FF2D55'
+})
+
+// 标注用的标签列表（用于选择X索引）
+const annotationLabels = computed(() => {
+  if (!columnInfo.value || !labelCol.value) return []
+  return editableData.value.map(r => String(r[labelCol.value]))
+})
 // 过渡动画状态
 const isTransitioning = ref(false)
 // 主题颜色映射（用于CSS滤镜）
@@ -376,6 +526,114 @@ const onDataChange = () => {
   }, 800)
 }
 
+// R62: Smart Fill 执行
+const runSmartFill = async () => {
+  if (!uploadedFile.value || !smartFillTargetCol.value) return
+  isSmartFilling.value = true
+  smartFillResult.value = null
+  try {
+    const formData = new FormData()
+    formData.append('file', uploadedFile.value)
+    formData.append('target_col', smartFillTargetCol.value)
+    formData.append('method', smartFillMethod.value)
+    const resp = await api.post('/api/v1/ppt/chart/smart-fill', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    if (resp.data.success) {
+      // 用填充后的数据替换可编辑数据预览
+      if (resp.data.filled_preview && resp.data.filled_preview.length > 0) {
+        editableData.value = resp.data.filled_preview
+        columnInfo.value = {
+          ...columnInfo.value!,
+          row_count: resp.data.row_count,
+          preview: resp.data.filled_preview.slice(0, 5)
+        }
+      }
+      smartFillResult.value = {
+        filled_col: resp.data.filled_col,
+        fill_method: resp.data.fill_method
+      }
+      // 重新生成预览
+      await generateChartPreview()
+    }
+  } catch (err) {
+    console.error('Smart Fill 失败:', err)
+    alert('智能填充失败，请重试')
+  } finally {
+    isSmartFilling.value = false
+  }
+}
+
+// R62: 数据刷新
+const refreshData = async () => {
+  if (!uploadedFile.value) return
+  isRefreshing.value = true
+  try {
+    const response = await api.ppt.previewChart(props.taskId, uploadedFile.value)
+    if (response.data.success) {
+      columnInfo.value = response.data.columns
+      editableData.value = response.data.columns.preview.map((row: any) => ({ ...row }))
+    }
+  } catch (err) {
+    console.error('刷新数据失败:', err)
+  } finally {
+    isRefreshing.value = false
+  }
+}
+
+// R62: 自动刷新开关
+const toggleAutoRefresh = () => {
+  if (autoRefreshEnabled.value) {
+    autoRefreshTimer = window.setInterval(() => {
+      refreshData()
+    }, 5000)
+  } else {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
+  }
+}
+
+// R62: 添加标注
+const addAnnotation = () => {
+  if (!newAnnotation.value.x && newAnnotation.value.x !== 0) {
+    alert('请选择X轴索引')
+    return
+  }
+  if (!newAnnotation.value.text) {
+    alert('请输入标注文字')
+    return
+  }
+  // 计算Y值（从editableData中获取对应行的value）
+  const xIdx = Number(newAnnotation.value.x)
+  const rowData = editableData.value[xIdx]
+  const yVal = rowData ? parseFloat(rowData[valueCol.value]) || 0 : 0
+  annotations.value.push({
+    type: newAnnotation.value.type,
+    x: xIdx,
+    y: yVal,
+    text: newAnnotation.value.text,
+    color: newAnnotation.value.color
+  })
+  newAnnotation.value.text = ''
+  // 重新生成预览
+  onConfigChange()
+}
+
+// R62: 移除标注
+const removeAnnotation = (index: number) => {
+  annotations.value.splice(index, 1)
+  onConfigChange()
+}
+
+// R62: 配置变更时重新生成
+const onConfigChange = () => {
+  if (uploadedFile.value && labelCol.value && valueCol.value) {
+    generateChartPreview()
+  }
+}
+
 // 生成图表预览（带过渡动画）
 const generateChartPreview = async () => {
   if (!uploadedFile.value || !labelCol.value || !valueCol.value) return
@@ -392,7 +650,10 @@ const generateChartPreview = async () => {
       file: uploadedFile.value,
       chartType: selectedChartType.value,
       labelCol: labelCol.value,
-      valueCol: valueCol.value
+      valueCol: valueCol.value,
+      themeId: selectedTemplate.value,
+      showTrendLine: showTrendLine.value,
+      annotations: annotations.value
     })
     
     if (response.data.success && response.data.svg_urls.length > 0) {
@@ -440,13 +701,18 @@ const insertIntoSlide = () => {
 }
 
 // 监听配置变化，自动重新生成预览
-watch([selectedChartType, labelCol, valueCol, selectedTheme], () => {
+watch([selectedChartType, labelCol, valueCol, selectedTheme, selectedTemplate, showTrendLine], () => {
   if (uploadedFile.value && labelCol.value && valueCol.value) {
     generateChartPreview()
   }
 })
 
+// R62: 清理 auto-refresh 定时器
 const close = () => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
+  }
   emit('close')
 }
 </script>
@@ -1050,5 +1316,271 @@ const close = () => {
   .preview-section {
     width: 50%;
   }
+}
+
+/* R62: Smart Fill */
+.smart-fill-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  padding: 12px;
+  color: white;
+}
+
+.smart-fill-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.smart-fill-controls .col-select-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 12px;
+}
+
+.smart-fill-controls .col-select-input option {
+  background: #333;
+  color: white;
+}
+
+.btn-smart-fill {
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.25);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-smart-fill:hover:not(:disabled) {
+  background: rgba(255,255,255,0.35);
+}
+
+.btn-smart-fill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.smart-fill-result {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.fill-badge {
+  background: rgba(255,255,255,0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.fill-info {
+  opacity: 0.9;
+}
+
+/* R62: 数据刷新 */
+.data-refresh-section {
+  background: #f0f9ff;
+  border: 1px solid #e0f2fe;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.refresh-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auto-refresh-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+
+.btn-refresh {
+  padding: 4px 12px;
+  background: #0ea5e9;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #0284c7;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* R62: 图表模板 */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.template-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  background: white;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.template-btn:hover {
+  border-color: #888;
+}
+
+.template-btn.active {
+  border-color: #165DFF;
+  background: #EEF2FF;
+}
+
+.tpl-icon {
+  font-size: 18px;
+}
+
+.tpl-name {
+  font-size: 10px;
+  color: #666;
+  text-align: center;
+}
+
+/* R62: 图表标注 */
+.annotation-controls {
+  margin-bottom: 8px;
+}
+
+.btn-annotate {
+  padding: 4px 12px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-annotate:hover {
+  background: #d97706;
+}
+
+.annotation-panel {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annotation-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.annotation-row .col-select-input,
+.annotation-row .setting-input {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.color-picker {
+  width: 36px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-add-annotation {
+  padding: 5px 12px;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.btn-add-annotation:hover {
+  background: #d97706;
+}
+
+.annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.annotation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: white;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.ann-type-badge {
+  background: #e5e5e5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #666;
+}
+
+.ann-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-remove-ann {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #999;
+  font-size: 10px;
+  padding: 0 2px;
+}
+
+.btn-remove-ann:hover {
+  color: #dc2626;
 }
 </style>

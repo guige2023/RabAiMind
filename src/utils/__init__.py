@@ -7,10 +7,12 @@
 """
 
 import os
+import re
 import uuid
 import hashlib
 import json
 import logging
+import html
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -95,6 +97,93 @@ def safe_json_dumps(obj: Any, default: str = "{}") -> str:
         return json.dumps(obj, ensure_ascii=False)
     except (TypeError, ValueError):
         return default
+
+
+def parse_json_from_response(content: str) -> Optional[Dict]:
+    """从响应文本中解析 JSON，支持直接格式和 Markdown 代码块格式"""
+    if not content:
+        return None
+    # Try direct parse
+    try:
+        return json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    # Try extract from markdown code block
+    match = re.search(r'```json\s*\n?(.*?)\n?```', content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1).strip())
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return None
+
+
+# ==================== HTML / URL / Text utilities ====================
+
+def escape_html(text: Any) -> str:
+    """HTML 转义 (使用 &#39; 而非 &#x27; 作为单引号)"""
+    if text is None:
+        return ""
+    s = html.escape(str(text), quote=True)
+    # Normalize &#x27; to &#39; for test compatibility
+    s = s.replace("&#x27;", "&#39;")
+    return s
+
+
+def escape_url(text: str) -> str:
+    """URL 安全的 HTML 转义"""
+    return html.escape(text, quote=True)
+
+
+def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
+    """截断文本到最大长度，保留 suffix"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length - len(suffix)] + suffix
+
+
+def sanitize_filename(filename: str) -> str:
+    """清理文件名，移除非法字符，路径遍历攻击返回下划线版本"""
+    # Handle hidden files: strip leading AND trailing dots + whitespace
+    # But preserve dots in path traversal (../../../etc/passwd)
+    has_slashes = bool(re.search(r'[/\\]', filename))
+    if has_slashes:
+        # Path traversal: replace EACH / with _ (preserve all dots)
+        filename = re.sub(r'/+', '_', filename)
+        filename = re.sub(r'\\+', '_', filename)
+    else:
+        # Normal file: strip leading/trailing dots and whitespace
+        filename = filename.strip().strip('.')
+    # Remove other illegal chars
+    filename = re.sub(r'[<>:"|?*]', '', filename)
+    # Collapse multiple spaces/underscores
+    filename = re.sub(r'[\s_]+', '_', filename)
+    return filename or "unnamed"
+
+
+# ==================== Color utilities ====================
+
+def hex_to_rgb(hex_color: str) -> tuple:
+    """将十六进制颜色转换为 RGB 元组"""
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) != 6:
+        return (0, 0, 0)
+    try:
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return (0, 0, 0)
+
+
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    """将 RGB 转换为十六进制颜色"""
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def calculate_brightness(hex_color: str) -> int:
+    """计算颜色的亮度 (0-255)"""
+    r, g, b = hex_to_rgb(hex_color)
+    # Using relative luminance formula
+    return int(0.299 * r + 0.587 * g + 0.114 * b)
 
 
 # ==================== 时间工具 ====================

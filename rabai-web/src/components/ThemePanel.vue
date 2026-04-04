@@ -42,6 +42,65 @@
       </div>
     </div>
 
+    <!-- AI 图片提取主题色 -->
+    <div class="extract-section">
+      <label class="form-label">AI 提取主题色</label>
+      <p class="extract-hint">上传任意图片，AI 自动分析并提取配色方案</p>
+
+      <div class="extract-upload" @click="triggerFileInput" @dragover.prevent="dragOver = true" @dragleave="dragOver = false" @drop.prevent="handleDrop" :class="{ 'drag-over': dragOver }">
+        <input ref="fileInputRef" type="file" accept="image/*" @change="handleFileChange" style="display:none" />
+        <div v-if="!extractedImagePreview" class="extract-placeholder">
+          <span class="extract-icon">🖼️</span>
+          <span class="extract-text">点击或拖拽图片到这里</span>
+          <span class="extract-subtext">支持 JPG/PNG/SVG，最大 5MB</span>
+        </div>
+        <div v-else class="extract-preview">
+          <img :src="extractedImagePreview" alt="提取预览" class="extract-preview-img" />
+          <button class="extract-clear-btn" @click.stop="clearExtractedImage">✕</button>
+        </div>
+      </div>
+
+      <!-- 提取状态 -->
+      <div v-if="extracting" class="extract-loading">
+        <div class="extract-spinner"></div>
+        <span>AI 正在分析图片...</span>
+      </div>
+
+      <!-- 提取结果 -->
+      <div v-if="extractedColors.length > 0 && !extracting" class="extract-result">
+        <div class="extract-result-header">
+          <span class="extract-result-title">提取到 {{ extractedColors.length }} 种颜色</span>
+          <span v-if="themeDescription" class="extract-result-desc">{{ themeDescription }}</span>
+        </div>
+        <div class="extract-colors">
+          <div
+            v-for="(color, idx) in extractedColors"
+            :key="idx"
+            class="extract-color-item"
+          >
+            <div class="extract-color-swatch" :style="{ background: color }"></div>
+            <div class="extract-color-info">
+              <span class="extract-color-hex">{{ color }}</span>
+              <span v-if="colorNames[idx]" class="extract-color-name">{{ colorNames[idx] }}</span>
+            </div>
+            <button
+              class="extract-apply-btn"
+              :style="{ borderColor: color, color: color }"
+              @click="applyExtractedColor(color, idx)"
+            >
+              {{ idx === 0 ? '主色' : idx === 1 ? '辅色' : '强调' }}
+            </button>
+          </div>
+        </div>
+        <button class="btn-apply-extract" @click="applyExtracted">应用全部</button>
+      </div>
+
+      <!-- 提取错误 -->
+      <div v-if="extractError" class="extract-error">
+        <span>{{ extractError }}</span>
+      </div>
+    </div>
+
     <!-- 自定义主题 -->
     <div class="custom-section">
       <label class="form-label">
@@ -115,8 +174,101 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { api } from '../api/client'
 
 const emit = defineEmits(['theme-change', 'dark-mode-change', 'font-change'])
+
+// ===== R64: AI Extract from Image =====
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const extractedImagePreview = ref<string | null>(null)
+const extractedColors = ref<string[]>([])
+const colorNames = ref<string[]>([])
+const themeDescription = ref<string>('')
+const extracting = ref(false)
+const extractError = ref<string | null>(null)
+const dragOver = ref(false)
+
+const triggerFileInput = () => {
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (file) await processImageFile(file)
+}
+
+const handleDrop = async (e: DragEvent) => {
+  dragOver.value = false
+  const file = e.dataTransfer?.files?.[0]
+  if (file && file.type.startsWith('image/')) {
+    await processImageFile(file)
+  }
+}
+
+const processImageFile = async (file: File) => {
+  if (file.size > 5 * 1024 * 1024) {
+    extractError.value = '图片大小不能超过 5MB'
+    return
+  }
+  if (!file.type.startsWith('image/')) {
+    extractError.value = '请上传图片文件（PNG/JPG/SVG）'
+    return
+  }
+
+  extractError.value = null
+  extracting.value = true
+  extractedColors.value = []
+  colorNames.value = []
+  themeDescription.value = ''
+
+  // Show preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    extractedImagePreview.value = e.target?.result as string
+  }
+  reader.readAsDataURL(file)
+
+  try {
+    const resp = await api.brand.aiExtractColors(file)
+    if (resp.data.success) {
+      extractedColors.value = resp.data.colors || []
+      colorNames.value = resp.data.color_names || []
+      themeDescription.value = resp.data.theme_description || ''
+    } else {
+      extractError.value = resp.data.message || '提取失败，请重试'
+    }
+  } catch (err: any) {
+    extractError.value = err?.message || '网络错误，请重试'
+  } finally {
+    extracting.value = false
+  }
+}
+
+const clearExtractedImage = () => {
+  extractedImagePreview.value = null
+  extractedColors.value = []
+  colorNames.value = []
+  themeDescription.value = ''
+  extractError.value = null
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+const applyExtractedColor = (color: string, idx: number) => {
+  if (idx === 0) customPrimary.value = color
+  else if (idx === 1) customSecondary.value = color
+  else customAccent.value = color
+  emitCustomTheme()
+}
+
+const applyExtracted = () => {
+  if (extractedColors.value.length > 0) {
+    customPrimary.value = extractedColors.value[0]
+    customSecondary.value = extractedColors.value[1] || extractedColors.value[0]
+    customAccent.value = extractedColors.value[2] || extractedColors.value[0]
+    activePreset.value = null
+    emitCustomTheme()
+  }
+}
 
 // ===== Dark Mode =====
 type DarkModeValue = 'light' | 'dark' | 'auto'
@@ -282,6 +434,221 @@ loadSettings()
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+/* R64: Extract from image */
+.extract-section {
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 20px;
+}
+
+.extract-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin: 6px 0 12px;
+}
+
+.extract-upload {
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.extract-upload:hover,
+.extract-upload.drag-over {
+  border-color: var(--primary);
+  background: rgba(22, 93, 255, 0.05);
+}
+
+.extract-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.extract-icon {
+  font-size: 28px;
+}
+
+.extract-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+.extract-subtext {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.extract-preview {
+  position: relative;
+  display: inline-block;
+}
+
+.extract-preview-img {
+  max-width: 120px;
+  max-height: 80px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.extract-clear-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  background: var(--error);
+  color: white;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.extract-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.extract-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--gray-200);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.extract-result {
+  margin-top: 12px;
+}
+
+.extract-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.extract-result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.extract-result-desc {
+  font-size: 11px;
+  color: var(--primary);
+  background: rgba(22, 93, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.extract-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.extract-color-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+}
+
+.extract-color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+
+.extract-color-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.extract-color-hex {
+  font-size: 12px;
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.extract-color-name {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.extract-apply-btn {
+  padding: 4px 10px;
+  border: 1.5px solid;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.extract-apply-btn:hover {
+  background: var(--primary);
+  color: white !important;
+  border-color: var(--primary) !important;
+}
+
+.btn-apply-extract {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apply-extract:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
+}
+
+.extract-error {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(255, 59, 48, 0.08);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: 12px;
 }
 
 /* Dark Mode Toggle */

@@ -119,87 +119,97 @@
     </div>
 
     <!-- 历史记录列表 -->
+    <!-- Virtual scrolling for large lists (50+ items) -->
     <div class="history-list" v-else-if="filteredList.length > 0">
+      <!-- Virtual scroll container -->
       <div
-        v-for="item in filteredList"
-        :key="item.taskId"
-        class="history-item"
-        :class="{ selected: selectedItems.has(item.taskId) }"
-        @click="viewResult(item)"
+        v-if="shouldUseVirtualScroll"
+        class="virtual-history-container"
+        ref="virtualHistoryRef"
+        @scroll="onHistoryScroll"
       >
-        <!-- 复选框 -->
-        <div class="item-checkbox" @click.stop>
-          <input
-            v-if="isSelectMode"
-            type="checkbox"
-            :checked="selectedItems.has(item.taskId)"
-            @change="toggleSelect(item.taskId)"
-          />
-        </div>
-        <div class="history-info">
-          <h3 class="history-title" v-html="highlightText(item.title || '未命名PPT')"></h3>
-          <p class="history-desc" v-html="highlightText(item.request)"></p>
-          <div class="history-meta">
-            <span class="meta-item">
-              <span class="meta-icon">📄</span>
-              {{ item.slideCount }}页
-            </span>
-            <span class="meta-item">
-              <span class="meta-icon">🎨</span>
-              {{ getStyleName(item.style) }}
-            </span>
-            <span class="meta-item">
-              <span class="meta-icon">🕐</span>
-              {{ formatTime(item.createdAt) }}
-            </span>
-          </div>
-          <!-- 标签显示 -->
-          <div class="tags-container" v-if="item.tags && item.tags.length > 0">
-            <span
-              v-for="tag in item.tags"
-              :key="tag"
-              class="tag"
-              @click.stop="filterByTag(tag)"
+        <div :style="{ height: virtualHistoryTotalHeight + 'px', position: 'relative' }">
+          <div :style="{ position: 'absolute', top: virtualHistoryOffsetY + 'px', left: 0, right: 0 }">
+            <div
+              v-for="item in virtualHistoryItems"
+              :key="item.item.taskId"
+              class="history-item"
+              :class="{ selected: selectedItems.has(item.item.taskId) }"
+              @click="viewResult(item.item)"
             >
-              {{ tag }}
-              <span class="tag-remove" @click.stop="removeTag(item, tag)">×</span>
-            </span>
-            <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加</button>
+              <div class="item-checkbox" @click.stop>
+                <input v-if="isSelectMode" type="checkbox" :checked="selectedItems.has(item.item.taskId)" @change="toggleSelect(item.item.taskId)" />
+              </div>
+              <div class="history-info">
+                <h3 class="history-title" v-html="highlightText(item.item.title || '未命名PPT')"></h3>
+                <p class="history-desc" v-html="highlightText(item.item.request)"></p>
+                <div class="history-meta">
+                  <span class="meta-item"><span class="meta-icon">📄</span>{{ item.item.slideCount }}页</span>
+                  <span class="meta-item"><span class="meta-icon">🎨</span>{{ getStyleName(item.item.style) }}</span>
+                  <span class="meta-item"><span class="meta-icon">🕐</span>{{ formatTime(item.item.createdAt) }}</span>
+                </div>
+                <div class="tags-container" v-if="item.item.tags && item.item.tags.length > 0">
+                  <span v-for="tag in item.item.tags" :key="tag" class="tag" @click.stop="filterByTag(tag)">{{ tag }}<span class="tag-remove" @click.stop="removeTag(item.item, tag)">×</span></span>
+                  <button class="tag-add-btn" @click.stop="startEditTags(item.item)">+ 添加</button>
+                </div>
+                <div v-else class="tags-empty">
+                  <button class="tag-add-btn" @click.stop="startEditTags(item.item)">+ 添加标签</button>
+                </div>
+                <div v-if="editingTags === item.item.taskId" class="tag-edit" @click.stop>
+                  <input v-model="newTag" type="text" placeholder="输入标签..." class="tag-input" @keyup.enter="addTag(item.item)" @keyup.escape="closeEditTags" />
+                  <button class="tag-confirm" @click="addTag(item.item)">添加</button>
+                  <button class="tag-cancel" @click="closeEditTags">取消</button>
+                </div>
+              </div>
+              <div class="history-actions">
+                <button class="action-btn" :class="{ favorited: item.item.favorite }" @click.stop="toggleFavorite(item.item)" :title="item.item.favorite ? '取消收藏' : '收藏'">{{ item.item.favorite ? '⭐' : '☆' }}</button>
+                <button class="action-btn" @click.stop="downloadAgain(item.item)" title="重新下载">⬇️</button>
+                <button class="action-btn" @click.stop="deleteItem(item.item.taskId)" title="删除">🗑️</button>
+              </div>
+            </div>
           </div>
-          <div v-else class="tags-empty">
-            <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加标签</button>
-          </div>
-          <!-- 标签编辑 -->
-          <div v-if="editingTags === item.taskId" class="tag-edit" @click.stop>
-            <input
-              v-model="newTag"
-              type="text"
-              placeholder="输入标签..."
-              class="tag-input"
-              @keyup.enter="addTag(item)"
-              @keyup.escape="closeEditTags"
-            />
-            <button class="tag-confirm" @click="addTag(item)">添加</button>
-            <button class="tag-cancel" @click="closeEditTags">取消</button>
-          </div>
-        </div>
-        <div class="history-actions">
-          <button
-            class="action-btn"
-            :class="{ favorited: item.favorite }"
-            @click.stop="toggleFavorite(item)"
-            :title="item.favorite ? '取消收藏' : '收藏'"
-          >
-            {{ item.favorite ? '⭐' : '☆' }}
-          </button>
-          <button class="action-btn" @click.stop="downloadAgain(item)" title="重新下载">
-            ⬇️
-          </button>
-          <button class="action-btn" @click.stop="deleteItem(item.taskId)" title="删除">
-            🗑️
-          </button>
         </div>
       </div>
+      <!-- Normal list (small lists) -->
+      <template v-else>
+        <div
+          v-for="item in filteredList"
+          :key="item.taskId"
+          class="history-item"
+          :class="{ selected: selectedItems.has(item.taskId) }"
+          @click="viewResult(item)"
+        >
+          <div class="item-checkbox" @click.stop>
+            <input v-if="isSelectMode" type="checkbox" :checked="selectedItems.has(item.taskId)" @change="toggleSelect(item.taskId)" />
+          </div>
+          <div class="history-info">
+            <h3 class="history-title" v-html="highlightText(item.title || '未命名PPT')"></h3>
+            <p class="history-desc" v-html="highlightText(item.request)"></p>
+            <div class="history-meta">
+              <span class="meta-item"><span class="meta-icon">📄</span>{{ item.slideCount }}页</span>
+              <span class="meta-item"><span class="meta-icon">🎨</span>{{ getStyleName(item.style) }}</span>
+              <span class="meta-item"><span class="meta-icon">🕐</span>{{ formatTime(item.createdAt) }}</span>
+            </div>
+            <div class="tags-container" v-if="item.tags && item.tags.length > 0">
+              <span v-for="tag in item.tags" :key="tag" class="tag" @click.stop="filterByTag(tag)">{{ tag }}<span class="tag-remove" @click.stop="removeTag(item, tag)">×</span></span>
+              <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加</button>
+            </div>
+            <div v-else class="tags-empty">
+              <button class="tag-add-btn" @click.stop="startEditTags(item)">+ 添加标签</button>
+            </div>
+            <div v-if="editingTags === item.taskId" class="tag-edit" @click.stop>
+              <input v-model="newTag" type="text" placeholder="输入标签..." class="tag-input" @keyup.enter="addTag(item)" @keyup.escape="closeEditTags" />
+              <button class="tag-confirm" @click="addTag(item)">添加</button>
+              <button class="tag-cancel" @click="closeEditTags">取消</button>
+            </div>
+          </div>
+          <div class="history-actions">
+            <button class="action-btn" :class="{ favorited: item.favorite }" @click.stop="toggleFavorite(item)" :title="item.favorite ? '取消收藏' : '收藏'">{{ item.favorite ? '⭐' : '☆' }}</button>
+            <button class="action-btn" @click.stop="downloadAgain(item)" title="重新下载">⬇️</button>
+            <button class="action-btn" @click.stop="deleteItem(item.taskId)" title="删除">🗑️</button>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- 空状态 -->
@@ -212,10 +222,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportBackup, importBackup } from '../composables/useCloudBackup'
 import { useSearch } from '../composables/useSearch'
+import { api } from '../api/client'
 
 const router = useRouter()
 
@@ -231,6 +242,42 @@ interface HistoryItem {
 }
 
 const historyList = ref<HistoryItem[]>([])
+
+// Virtual scrolling for large history lists
+const VIRTUAL_SCROLL_THRESHOLD = 50
+const VIRTUAL_ITEM_HEIGHT = 160  // approximate height of each history-item in px
+const VIRTUAL_OVERSCAN = 5
+
+const virtualHistoryRef = ref<HTMLElement | null>(null)
+const virtualHistoryScrollTop = ref(0)
+const virtualHistoryContainerHeight = ref(600)
+
+const shouldUseVirtualScroll = computed(() => filteredList.value.length >= VIRTUAL_SCROLL_THRESHOLD)
+
+const virtualHistoryTotalHeight = computed(() => filteredList.value.length * VIRTUAL_ITEM_HEIGHT)
+
+const virtualHistoryVisibleRange = computed(() => {
+  const start = Math.max(0, Math.floor(virtualHistoryScrollTop.value / VIRTUAL_ITEM_HEIGHT) - VIRTUAL_OVERSCAN)
+  const visibleCount = Math.ceil(virtualHistoryContainerHeight.value / VIRTUAL_ITEM_HEIGHT)
+  const end = Math.min(filteredList.value.length, start + visibleCount + VIRTUAL_OVERSCAN * 2)
+  return { start, end }
+})
+
+const virtualHistoryVisibleItems = computed(() => {
+  const items: { index: number; item: HistoryItem }[] = []
+  for (let i = virtualHistoryVisibleRange.value.start; i < virtualHistoryVisibleRange.value.end; i++) {
+    items.push({ index: i, item: filteredList.value[i] })
+  }
+  return items
+})
+
+const virtualHistoryOffsetY = computed(() => virtualHistoryVisibleRange.value.start * VIRTUAL_ITEM_HEIGHT)
+
+const onHistoryScroll = () => {
+  if (virtualHistoryRef.value) {
+    virtualHistoryScrollTop.value = virtualHistoryRef.value.scrollTop
+  }
+}
 const filterType = ref<'all' | 'favorites' | 'tags'>('all')
 const activeTag = ref<string | null>(null)
 
@@ -277,13 +324,18 @@ const isAllSelected = computed(() => {
 })
 
 // 批量操作
-const batchDelete = () => {
+const batchDelete = async () => {
   if (selectedItems.value.size === 0) return
-  if (confirm(`确定要删除选中的 ${selectedItems.value.size} 条记录吗？`)) {
+  if (!confirm(`确定要删除选中的 ${selectedItems.value.size} 条记录吗？`)) return
+  try {
+    const taskIds = Array.from(selectedItems.value)
+    await api.batch.deleteTasks(taskIds)
     historyList.value = historyList.value.filter(item => !selectedItems.value.has(item.taskId))
     localStorage.setItem('ppt_history', JSON.stringify(historyList.value))
     selectedItems.value.clear()
     isSelectMode.value = false
+  } catch (e) {
+    alert('批量删除失败: ' + (e as Error).message)
   }
 }
 
@@ -299,18 +351,22 @@ const batchFavorite = () => {
   isSelectMode.value = false
 }
 
-const batchExport = () => {
+const batchExport = async () => {
   if (selectedItems.value.size === 0) return
-  const selectedData = historyList.value.filter(item => selectedItems.value.has(item.taskId))
-  const blob = new Blob([JSON.stringify(selectedData, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `ppt_history_backup_${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-  selectedItems.value.clear()
-  isSelectMode.value = false
+  try {
+    const taskIds = Array.from(selectedItems.value)
+    const blob = await api.batch.exportPpts(taskIds, 'pptx')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `batch_ppts_${new Date().toISOString().slice(0, 10)}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    selectedItems.value.clear()
+    isSelectMode.value = false
+  } catch (e) {
+    alert('批量导出失败: ' + (e as Error).message)
+  }
 }
 const isLoading = ref(true)
 const importInput = ref<HTMLInputElement | null>(null)
@@ -500,8 +556,26 @@ const goCreate = () => {
   router.push('/create')
 }
 
+let virtualHistoryObserver: ResizeObserver | null = null
+
 onMounted(() => {
   loadHistory()
+  // Setup virtual history container ResizeObserver
+  nextTick(() => {
+    if (virtualHistoryRef.value) {
+      virtualHistoryContainerHeight.value = virtualHistoryRef.value.clientHeight
+      virtualHistoryObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          virtualHistoryContainerHeight.value = entry.contentRect.height
+        }
+      })
+      virtualHistoryObserver.observe(virtualHistoryRef.value)
+    }
+  })
+})
+
+onUnmounted(() => {
+  virtualHistoryObserver?.disconnect()
 })
 </script>
 
@@ -650,6 +724,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.virtual-history-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100vh - 200px);
 }
 
 .history-item {

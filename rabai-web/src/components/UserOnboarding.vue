@@ -13,8 +13,12 @@
               <span class="step-num">2</span>
             </div>
             <div class="progress-line" :class="{ active: step > 2 }"></div>
-            <div class="progress-step" :class="{ active: step >= 3 }">
+            <div class="progress-step" :class="{ active: step >= 3, completed: step > 3 }">
               <span class="step-num">3</span>
+            </div>
+            <div class="progress-line" :class="{ active: step > 3 }"></div>
+            <div class="progress-step" :class="{ active: step >= 4 }">
+              <span class="step-num">4</span>
             </div>
           </div>
 
@@ -75,8 +79,29 @@
               </div>
             </div>
 
-            <!-- Step 3: Tips -->
+            <!-- Step 3: Quick-Start Templates -->
             <div v-if="step === 3" class="step-content">
+              <div class="step-icon">📋</div>
+              <h2>快速使用模板</h2>
+              <p>选择你需要的场景，快速开始：</p>
+              <div class="quick-templates-grid">
+                <button
+                  v-for="qt in quickTemplates"
+                  :key="qt.id"
+                  class="quick-template-btn"
+                  :class="{ selected: selectedQuickTemplate === qt.id }"
+                  @click="selectedQuickTemplate = qt.id"
+                >
+                  <span class="qt-icon">{{ qt.icon }}</span>
+                  <span class="qt-name">{{ qt.name }}</span>
+                  <span class="qt-desc">{{ qt.desc }}</span>
+                </button>
+              </div>
+              <p class="quick-template-hint">也可以跳过，稍后在模板市场选择</p>
+            </div>
+
+            <!-- Step 4: Tips -->
+            <div v-if="step === 4" class="step-content">
               <div class="step-icon">💡</div>
               <h2>使用技巧</h2>
               <div class="tips-grid">
@@ -86,14 +111,14 @@
                   <p>按 <kbd>Ctrl</kbd> + <kbd>K</kbd> 快速搜索</p>
                 </div>
                 <div class="tip-card">
+                  <span class="tip-icon">⌨️</span>
+                  <h4>快捷键面板</h4>
+                  <p>右下角 <kbd>?</kbd> 查看全部快捷键</p>
+                </div>
+                <div class="tip-card">
                   <span class="tip-icon">⭐</span>
                   <h4>收藏模板</h4>
                   <p>喜欢的模板可以收藏备用</p>
-                </div>
-                <div class="tip-card">
-                  <span class="tip-icon">📜</span>
-                  <h4>历史记录</h4>
-                  <p>创作内容会自动保存</p>
                 </div>
                 <div class="tip-card">
                   <span class="tip-icon">🌙</span>
@@ -109,10 +134,10 @@
             <button v-if="step > 1" class="btn-secondary" @click="prevStep">
               上一步
             </button>
-            <button v-if="step < 3" class="btn-primary" @click="nextStep">
+            <button v-if="step < 4" class="btn-primary" @click="nextStep">
               下一步
             </button>
-            <button v-if="step === 3" class="btn-primary" @click="finishOnboarding">
+            <button v-if="step === 4" class="btn-primary" @click="finishOnboarding">
               开始使用
             </button>
             <button class="btn-skip" @click="closeOnboarding">
@@ -147,6 +172,16 @@ const route = useRoute()
 const step = ref(1)
 const showOnboarding = ref(false)
 const canShowTrigger = ref(false)
+const selectedQuickTemplate = ref<string | null>(null)
+
+const quickTemplates = [
+  { id: 'product', name: '产品发布', desc: '产品介绍/功能演示/定价', icon: '🚀' },
+  { id: 'annual', name: '年度总结', desc: '年度回顾/业绩数据/计划', icon: '📊' },
+  { id: 'company', name: '公司介绍', desc: '公司背景/业务/优势', icon: '🏢' },
+  { id: 'business', name: '商业计划', desc: '市场分析/商业模式/融资', icon: '💼' },
+  { id: 'education', name: '教育培训', desc: '课程目标/教学内容/案例', icon: '📚' },
+  { id: 'data', name: '数据分析', desc: '数据概览/发现/建议', icon: '📈' },
+]
 
 const ONBOARDING_KEY = 'onboarding_completed'
 const MAX_SHOW_COUNT = 3
@@ -203,7 +238,7 @@ const closeOnboarding = () => {
 }
 
 const nextStep = () => {
-  if (step.value < 3) {
+  if (step.value < 4) {
     step.value++
   }
 }
@@ -436,6 +471,77 @@ defineExpose({
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+}
+
+/* Quick Templates Grid */
+.quick-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.quick-template-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  background: #f8f9fa;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.quick-template-btn:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.quick-template-btn.selected {
+  background: #eef2ff;
+  border-color: #165DFF;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.2);
+}
+
+:global(.dark) .quick-template-btn {
+  background: #2a2a2a;
+}
+
+:global(.dark) .quick-template-btn:hover {
+  background: #1e2040;
+}
+
+:global(.dark) .quick-template-btn.selected {
+  background: #1e2040;
+}
+
+.qt-icon {
+  font-size: 24px;
+}
+
+.qt-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+:global(.dark) .qt-name {
+  color: #fff;
+}
+
+.qt-desc {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.3;
+}
+
+.quick-template-hint {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
 }
 
 .tip-card {

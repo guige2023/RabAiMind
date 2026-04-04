@@ -89,6 +89,49 @@
               </select>
               <span class="word-count">{{ getWordCount(slide.content) }} 字</span>
             </div>
+
+            <!-- R55: Layout Suggestions Panel (Smart Placeholder) -->
+            <div v-if="activeSlide === index && layoutSuggestions.length > 0" class="layout-suggestions-panel">
+              <div class="suggestions-header">
+                <span class="suggestions-icon">✨</span>
+                <span class="suggestions-title">AI 布局推荐</span>
+                <span class="content-type-badge">{{ activeContentTypeDisplay }}</span>
+                <span v-if="isDetectingLayout" class="detecting-indicator">分析中...</span>
+              </div>
+              <div class="suggestions-list">
+                <div
+                  v-for="suggestion in layoutSuggestions"
+                  :key="suggestion.type"
+                  class="suggestion-item"
+                  :class="{ primary: suggestion.is_primary }"
+                >
+                  <div class="suggestion-info">
+                    <span class="suggestion-name">{{ suggestion.name }}</span>
+                    <span class="suggestion-desc">{{ suggestion.description }}</span>
+                  </div>
+                  <div class="suggestion-actions">
+                    <button
+                      class="btn-apply-layout"
+                      :disabled="slide.layout === suggestion.type"
+                      @click.stop="applyLayoutSuggestion(suggestion)"
+                    >
+                      {{ slide.layout === suggestion.type ? '已应用' : '应用' }}
+                    </button>
+                    <button
+                      class="btn-dismiss-layout"
+                      @click.stop="dismissSuggestion(suggestion)"
+                      title="不感兴趣"
+                    >✕</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- R55: Content Type Indicator (Smart Placeholder) -->
+            <div v-else-if="activeSlide === index && activeContentTypeDisplay && !isDetectingLayout" class="content-type-indicator">
+              <span class="content-type-badge small">{{ activeContentTypeDisplay }}</span>
+              <span class="hint-text">切换到"布局建议"查看推荐</span>
+            </div>
           </div>
         </div>
       </TransitionGroup>
@@ -340,7 +383,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useInteractionFeedback } from '../composables/useInteractionFeedback'
 import { useAutoSave } from '../composables/useAutoSave'
@@ -390,6 +433,110 @@ const chartSelectedFile = ref<File | null>(null)
 // Undo history for Ctrl+Z
 const undoStack = ref<string[]>([])
 const MAX_UNDO = 20
+
+// R55: Layout Suggestions - Smart placeholders & AI layout recommendations
+interface LayoutSuggestion {
+  type: string
+  name: string
+  description: string
+  confidence: number
+  is_primary: boolean
+}
+
+const layoutSuggestions = ref<LayoutSuggestion[]>([])
+const activeContentType = ref('')
+const activeContentTypeDisplay = ref('')
+const isDetectingLayout = ref(false)
+const layoutDetectTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+
+// Detect content type and suggest layouts
+const detectLayoutForSlide = async () => {
+  const slide = outline.slides[activeSlide.value]
+  if (!slide) return
+  
+  const text = (slide.title || '') + ' ' + (slide.content || '')
+  if (text.trim().length < 5) {
+    layoutSuggestions.value = []
+    activeContentType.value = ''
+    activeContentTypeDisplay.value = ''
+    return
+  }
+  
+  isDetectingLayout.value = true
+  try {
+    const { api } = await import('../api/client')
+    const res = await api.template.suggestLayouts({
+      title: slide.title || '',
+      content: slide.content || ''
+    })
+    if (res.data?.success) {
+      layoutSuggestions.value = res.data.suggestions || []
+      activeContentType.value = res.data.content_type || ''
+      activeContentTypeDisplay.value = res.data.content_type_display || ''
+    }
+  } catch (e) {
+    console.warn('[OutlineEdit] Layout detection failed:', e)
+    layoutSuggestions.value = []
+  } finally {
+    isDetectingLayout.value = false
+  }
+}
+
+// Debounced version - called on content change
+const debouncedDetectLayout = () => {
+  if (layoutDetectTimer.value) {
+    clearTimeout(layoutDetectTimer.value)
+  }
+  layoutDetectTimer.value = setTimeout(() => {
+    detectLayoutForSlide()
+  }, 800)
+}
+
+// Apply a layout suggestion (one-click apply)
+const applyLayoutSuggestion = async (suggestion: LayoutSuggestion) => {
+  const slide = outline.slides[activeSlide.value]
+  if (!slide) return
+  
+  saveUndoSnapshot()
+  slide.layout = suggestion.type as any
+  
+  // Track preference (template learning)
+  try {
+    const { api } = await import('../api/client')
+    api.template.saveLayoutPreference({
+      template_id: genOptions.template,
+      layout_type: suggestion.type,
+      content_type: activeContentType.value,
+      scene: genOptions.scene,
+      style: genOptions.style,
+      action: 'apply'
+    })
+  } catch (e) {
+    // Silent fail for tracking
+  }
+  
+  showSuccess('布局已应用', `${suggestion.name} 布局已应用到当前页面`)
+}
+
+// Dismiss suggestion
+const dismissSuggestion = async (suggestion: LayoutSuggestion) => {
+  try {
+    const { api } = await import('../api/client')
+    api.template.saveLayoutPreference({
+      template_id: genOptions.template,
+      layout_type: suggestion.type,
+      content_type: activeContentType.value,
+      scene: genOptions.scene,
+      style: genOptions.style,
+      action: 'dismiss'
+    })
+  } catch (e) {
+    // Silent fail
+  }
+  
+  // Remove from suggestions
+  layoutSuggestions.value = layoutSuggestions.value.filter(s => s.type !== suggestion.type)
+}
 
 // Auto-save indicator
 const autoSaveKey = ref(`outline_${route.query.taskId || 'new'}`)
@@ -889,6 +1036,21 @@ const saveOutline = async () => {
   }
 }
 
+// R55: Watch active slide for layout detection
+watch(activeSlide, () => {
+  layoutSuggestions.value = []
+  debouncedDetectLayout()
+})
+
+// Watch slide content changes for debounced layout detection
+watch(
+  () => outline.slides.map(s => s.title + '|' + s.content),
+  () => {
+    debouncedDetectLayout()
+  },
+  { deep: false }
+)
+
 // 页面加载时初始化
 onMounted(async () => {
   // 读取 CreateView 传来的参数
@@ -1260,6 +1422,161 @@ useKeyboardShortcuts([
 .word-count {
   font-size: 12px;
   color: #999;
+}
+
+/* R55: Layout Suggestions Panel */
+.layout-suggestions-panel {
+  background: linear-gradient(135deg, #f0f5ff 0%, #fff9f0 100%);
+  border-top: 1px solid #e8e0ff;
+  padding: 10px 12px;
+  margin-top: 4px;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.suggestions-icon {
+  font-size: 14px;
+}
+
+.suggestions-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #165DFF;
+}
+
+.detecting-indicator {
+  font-size: 11px;
+  color: #999;
+  margin-left: auto;
+}
+
+.content-type-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #e6f0ff;
+  color: #165DFF;
+  border: 1px solid #d0e4ff;
+}
+
+.content-type-badge.small {
+  padding: 1px 6px;
+  font-size: 10px;
+}
+
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border: 1px solid #e8e0ff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.suggestion-item:hover {
+  border-color: #165DFF;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.15);
+}
+
+.suggestion-item.primary {
+  border-color: #165DFF;
+  background: linear-gradient(135deg, #f0f5ff 0%, #ffffff 100%);
+}
+
+.suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.suggestion-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.suggestion-desc {
+  font-size: 11px;
+  color: #888;
+}
+
+.suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-apply-layout {
+  padding: 4px 12px;
+  background: #165DFF;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.btn-apply-layout:hover:not(:disabled) {
+  background: #0e46d9;
+  transform: scale(1.02);
+}
+
+.btn-apply-layout:disabled {
+  background: #d0d7e8;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.btn-dismiss-layout {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  background: white;
+  color: #999;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-dismiss-layout:hover {
+  background: #fff0f0;
+  border-color: #ff9999;
+  color: #ff6666;
+}
+
+.content-type-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-top: 4px;
+}
+
+.hint-text {
+  font-size: 11px;
+  color: #bbb;
 }
 
 /* 添加页面卡片 */
