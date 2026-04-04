@@ -1,560 +1,788 @@
 <template>
-  <div class="home">
-    <!-- Hero 区域 -->
-    <section class="hero">
-      <div class="hero-bg">
-        <div class="hero-gradient"></div>
-        <div class="hero-grid"></div>
-      </div>
-      <div class="hero-content">
-        <h1 class="hero-title animate-fadeIn">
-          <span class="title-main">AI 智能 PPT 生成平台</span>
-        </h1>
-        <p class="hero-subtitle animate-fadeIn" style="animation-delay: 0.1s">
-          输入需求，AI 自动生成专业演示文稿
+  <div class="dashboard">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-left">
+        <h1 class="greeting">{{ greeting }}</h1>
+        <p class="greeting-sub" v-if="summary.total_presentations > 0">
+          已创建 <strong>{{ summary.total_presentations }}</strong> 个演示 ·
+          本周 <strong>{{ summary.this_week_presentations }}</strong> 个
         </p>
-        <div class="hero-actions animate-fadeIn" style="animation-delay: 0.2s">
-          <router-link to="/create" class="btn btn-primary btn-lg">
-            <span>🚀</span>
-            立即开始创建
-          </router-link>
-        </div>
-        <!-- 快捷入口 -->
-        <div class="quick-entry animate-fadeIn" style="animation-delay: 0.3s">
-          <router-link to="/history" class="quick-entry-btn">
-            <span class="entry-icon">📋</span>
-            <span class="entry-text">历史记录</span>
-          </router-link>
-          <router-link to="/favorites" class="quick-entry-btn">
-            <span class="entry-icon">⭐</span>
-            <span class="entry-text">我的收藏</span>
-          </router-link>
-          <router-link to="/templates" class="quick-entry-btn">
-            <span class="entry-icon">📑</span>
-            <span class="entry-text">模板市场</span>
-          </router-link>
-          <router-link to="/analytics" class="quick-entry-btn">
-            <span class="entry-icon">📊</span>
-            <span class="entry-text">数据分析</span>
-          </router-link>
-        </div>
-        <!-- 统计数据 -->
-        <div class="hero-stats animate-fadeIn" style="animation-delay: 0.3s" v-if="statistics.totalGenerations > 0">
-          <div class="stat-item">
-            <span class="stat-value">{{ statistics.totalGenerations }}</span>
-            <span class="stat-label">已生成</span>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <span class="stat-value">{{ statistics.totalSlides }}</span>
-            <span class="stat-label">幻灯片</span>
-          </div>
-        </div>
       </div>
-      <div class="hero-visual">
-        <div class="ppt-preview">
-          <div class="ppt-slide" v-for="i in 3" :key="i">
-            <div class="slide-content">
-              <div class="slide-title"></div>
-              <div class="slide-body">
-                <div class="slide-line" v-for="j in 3" :key="j"></div>
+      <div class="header-actions">
+        <router-link to="/create" class="btn btn-primary btn-create">
+          <span>➕</span> 新建演示
+        </router-link>
+      </div>
+    </header>
+
+    <!-- Quick Actions -->
+    <section class="section quick-actions">
+      <div class="quick-actions-grid">
+        <router-link to="/create" class="qa-card qa-primary">
+          <div class="qa-icon">🚀</div>
+          <div class="qa-content">
+            <h3>AI 一键生成</h3>
+            <p>输入需求，AI 自动生成专业 PPT</p>
+          </div>
+        </router-link>
+        <router-link to="/create?scene=business" class="qa-card">
+          <div class="qa-icon">💼</div>
+          <div class="qa-content">
+            <h3>商务汇报</h3>
+            <p>工作汇报、商业计划</p>
+          </div>
+        </router-link>
+        <router-link to="/create?scene=education" class="qa-card">
+          <div class="qa-icon">📚</div>
+          <div class="qa-content">
+            <h3>教育培训</h3>
+            <p>课件、培训、学术</p>
+          </div>
+        </router-link>
+        <router-link to="/templates" class="qa-card">
+          <div class="qa-icon">📑</div>
+          <div class="qa-content">
+            <h3>模板市场</h3>
+            <p>浏览更多专业模板</p>
+          </div>
+        </router-link>
+      </div>
+    </section>
+
+    <!-- Main Content Grid -->
+    <div class="dashboard-grid">
+      <!-- Left Column -->
+      <div class="dashboard-left">
+
+        <!-- Recent Presentations -->
+        <section class="section">
+          <div class="section-header">
+            <h2 class="section-title">最近演示</h2>
+            <router-link to="/history" class="section-more">查看全部 →</router-link>
+          </div>
+
+          <div v-if="loading && recentPresentations.length === 0" class="loading-state">
+            <div class="skeleton-card" v-for="i in 3" :key="i"></div>
+          </div>
+
+          <div v-else-if="recentPresentations.length === 0" class="empty-state">
+            <div class="empty-icon">📊</div>
+            <p>还没有演示作品</p>
+            <router-link to="/create" class="btn btn-primary btn-sm">立即创建第一个</router-link>
+          </div>
+
+          <div v-else class="recent-list">
+            <router-link
+              v-for="ppt in recentPresentations"
+              :key="ppt.task_id"
+              :to="`/result/${ppt.task_id}`"
+              class="recent-card"
+            >
+              <div class="recent-thumb">
+                <div class="thumb-placeholder" :style="{ background: thumbGradient(ppt.task_id) }">
+                  <span class="thumb-slides">{{ ppt.slide_count }}P</span>
+                </div>
+              </div>
+              <div class="recent-info">
+                <h4 class="recent-title">{{ ppt.title }}</h4>
+                <div class="recent-meta">
+                  <span class="meta-tag scene-tag">{{ getSceneLabel(ppt.scene) }}</span>
+                  <span class="meta-sep">·</span>
+                  <span class="meta-time">{{ formatCreatedAt(ppt.created_at) }}</span>
+                  <span v-if="ppt.duration_seconds" class="meta-sep">·</span>
+                  <span v-if="ppt.duration_seconds" class="meta-time">{{ formatDuration(ppt.duration_seconds) }}</span>
+                </div>
+              </div>
+              <div class="recent-arrow">›</div>
+            </router-link>
+          </div>
+        </section>
+
+        <!-- Suggested Templates -->
+        <section class="section">
+          <div class="section-header">
+            <h2 class="section-title">为你推荐</h2>
+            <router-link to="/templates" class="section-more">更多模板 →</router-link>
+          </div>
+          <div class="suggested-grid">
+            <router-link
+              v-for="tmpl in suggestedTemplates"
+              :key="tmpl.name"
+              :to="`/create?template=${tmpl.name}&scene=${tmpl.scene}&style=${tmpl.style}`"
+              class="suggested-card"
+            >
+              <div class="suggested-preview" :style="{ background: tmplGradient(tmpl.name) }">
+                <span class="suggested-icon">📄</span>
+              </div>
+              <div class="suggested-info">
+                <h4 class="suggested-name">{{ tmpl.name }}</h4>
+                <p class="suggested-reason">{{ tmpl.reason }}</p>
+              </div>
+            </router-link>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column -->
+      <div class="dashboard-right">
+
+        <!-- Weekly Activity Chart -->
+        <section class="section">
+          <div class="section-header">
+            <h2 class="section-title">本周活动</h2>
+            <router-link to="/analytics" class="section-more">详情 →</router-link>
+          </div>
+          <div class="weekly-chart">
+            <div class="chart-bars">
+              <div
+                v-for="stat in weeklyStats"
+                :key="stat.date"
+                class="bar-wrapper"
+              >
+                <div class="bar-value" v-if="stat.count > 0">{{ stat.count }}</div>
+                <div class="bar-track">
+                  <div
+                    class="bar-fill"
+                    :style="{
+                      height: `${Math.max((stat.count / weeklyMaxCount) * 100, stat.count > 0 ? 8 : 0)}%`,
+                    }"
+                  ></div>
+                </div>
+                <div class="bar-label">{{ stat.weekday_label }}</div>
+              </div>
+            </div>
+            <div class="chart-summary">
+              <div class="chart-stat">
+                <span class="cs-value">{{ summary.this_week_presentations }}</span>
+                <span class="cs-label">本周演示</span>
+              </div>
+              <div class="chart-stat">
+                <span class="cs-value">{{ summary.this_week_slides }}</span>
+                <span class="cs-label">本周页数</span>
+              </div>
+              <div class="chart-stat">
+                <span class="cs-value">{{ summary.total_presentations }}</span>
+                <span class="cs-label">历史总数</span>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <!-- 特性区域 -->
-    <section class="features">
-      <div class="container">
-        <h2 class="section-title">为什么选择 RabAi Mind</h2>
-        <div class="features-grid">
-          <div class="feature-card" v-for="feature in features" :key="feature.title">
-            <div class="feature-icon">{{ feature.icon }}</div>
-            <h3 class="feature-title">{{ feature.title }}</h3>
-            <p class="feature-desc">{{ feature.desc }}</p>
+        <!-- Team Activity Feed -->
+        <section class="section">
+          <div class="section-header">
+            <h2 class="section-title">团队动态</h2>
+            <span class="live-badge">● LIVE</span>
           </div>
-        </div>
-      </div>
-    </section>
+          <div class="activity-feed">
+            <div
+              v-for="activity in teamActivity"
+              :key="activity.id"
+              class="activity-item"
+            >
+              <div
+                class="activity-avatar"
+                :style="{ background: avatarColor(activity.user_id) }"
+              >
+                {{ activity.user_name.charAt(0) }}
+              </div>
+              <div class="activity-content">
+                <div class="activity-main">
+                  <span class="activity-user">{{ activity.user_name }}</span>
+                  <span class="activity-icon" :style="{ color: getActivityInfo(activity).color }">
+                    {{ getActivityInfo(activity).icon }}
+                  </span>
+                  <span class="activity-text">{{ getActivityInfo(activity).text }}</span>
+                </div>
+                <div class="activity-target" v-if="activity.target">
+                  <span class="target-text">{{ activity.target }}</span>
+                  <span v-if="activity.slide_num" class="target-slide">第{{ activity.slide_num }}页</span>
+                </div>
+              </div>
+              <div class="activity-time">{{ getActivityInfo(activity).relativeTime }}</div>
+            </div>
+          </div>
+        </section>
 
-    <!-- 场景区域 -->
-    <section class="scenes">
-      <div class="container">
-        <h2 class="section-title">多场景支持</h2>
-        <div class="scenes-grid">
-          <div
-            class="scene-card"
-            v-for="scene in scenes"
-            :key="scene.id"
-            @click="selectScene(scene.id)"
-          >
-            <div class="scene-icon">{{ scene.icon }}</div>
-            <h3 class="scene-name">{{ scene.name }}</h3>
-            <p class="scene-desc">{{ scene.desc }}</p>
-          </div>
-        </div>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { useStatistics } from '../composables/useStatistics'
+import { onMounted, computed } from 'vue'
+import { useDashboard } from '../composables/useDashboard'
 
-const router = useRouter()
-const { statistics } = useStatistics()
+const {
+  fetchDashboard,
+  loading,
+  recentPresentations,
+  weeklyStats,
+  suggestedTemplates,
+  teamActivity,
+  summary,
+  weeklyMaxCount,
+  formatDuration,
+  formatCreatedAt,
+  getActivityInfo,
+  getSceneLabel,
+} = useDashboard()
 
-const features = [
-  { icon: '⚡', title: '快速生成', desc: '3分钟完成PPT生成' },
-  { icon: '🎨', title: '专业设计', desc: 'AI 驱动视觉设计' },
-  { icon: '📱', title: '多端支持', desc: 'Web/小程序全覆盖' },
-  { icon: '🔄', title: '格式兼容', desc: 'Office/WPS 完美兼容' },
-]
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return '上午好 ☀️'
+  if (hour < 18) return '下午好 🌤️'
+  return '晚上好 🌙'
+})
 
-const scenes = [
-  { id: 'business', icon: '💼', name: '商务', desc: '商业计划、工作汇报' },
-  { id: 'education', icon: '📚', name: '教育', desc: '课件培训、学术报告' },
-  { id: 'tech', icon: '🚀', name: '科技', desc: '技术分享、产品发布' },
-  { id: 'creative', icon: '💡', name: '创意', desc: '营销策划、创意展示' },
-]
-
-const selectScene = (sceneId: string) => {
-  router.push({ path: '/create', query: { scene: sceneId } })
+const thumbGradient = (id: string): string => {
+  const colors = ['#165DFF,#4285F4', '#7C3AED,#A78BFA', '#059669,#34D399', '#EA580C,#FB923C']
+  const idx = id.charCodeAt(0) % colors.length
+  return `linear-gradient(135deg, ${colors[idx]})`
 }
+
+const tmplGradient = (name: string): string => {
+  const map: Record<string, string> = {
+    default: '#1E293B,#334155',
+    corporate: '#165DFF,#3B82F6',
+    minimal: '#64748B,#94A3B8',
+    creative: '#7C3AED,#A855F7',
+  }
+  return `linear-gradient(135deg, ${map[name] || '#334155,#475569'})`
+}
+
+const avatarColors = ['#165DFF', '#7C3AED', '#059669', '#EA580C', '#DB2777', '#0891B2']
+const avatarColor = (userId: string): string => {
+  const idx = userId.charCodeAt(0) % avatarColors.length
+  return avatarColors[idx]
+}
+
+onMounted(() => {
+  fetchDashboard()
+})
 </script>
 
 <style scoped>
-/* Hero 区域 */
-.hero {
-  position: relative;
-  min-height: 80vh;
+/* ── Layout ──────────────────────────────────────────────────── */
+.dashboard {
+  min-height: 100vh;
+  background: #F5F7FA;
+  padding: 0 24px 48px;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.dashboard-header {
   display: flex;
   align-items: center;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0A1628 0%, #1a2744 100%);
+  justify-content: space-between;
+  padding: 28px 0 24px;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 24px;
 }
 
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.hero-gradient {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(22, 93, 255, 0.3) 0%, transparent 60%);
-}
-
-.hero-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(22, 93, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(22, 93, 255, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-}
-
-.hero-content {
-  position: relative;
-  z-index: 2;
-  max-width: 600px;
-  padding: 60px 24px;
-  margin-left: auto;
-  margin-right: auto;
-  text-align: center;
-}
-
-.hero-title {
-  margin-bottom: 20px;
-}
-
-.title-main {
-  display: block;
-  font-size: 52px;
+.greeting {
+  font-size: 26px;
   font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
-  background: linear-gradient(135deg, #fff 0%, #5AC8FA 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #1A1A1A;
+  margin: 0 0 4px;
 }
 
-.hero-subtitle {
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 40px;
+.greeting-sub {
+  font-size: 14px;
+  color: #6B7280;
+  margin: 0;
 }
 
-.hero-actions {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-}
-
-.quick-entry {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.quick-entry-btn {
+.btn-create {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 24px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 14px;
-  text-decoration: none;
-  transition: all 0.3s ease;
-}
-
-.quick-entry-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-}
-
-.entry-icon {
-  font-size: 16px;
-}
-
-.btn-lg {
-  padding: 16px 40px;
-  font-size: 17px;
-}
-
-.hero-visual {
-  display: none;
-}
-
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .hero {
-    min-height: 60vh;
-  }
-
-  .hero-content {
-    padding: 40px 20px;
-  }
-
-  .title-main {
-    font-size: 32px;
-  }
-
-  .subtitle-text {
-    font-size: 16px;
-  }
-
-  .hero-actions {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .btn-lg {
-    padding: 14px 28px;
-    font-size: 15px;
-    width: 100%;
-  }
-
-  .ppt-preview {
-    transform: perspective(800px) rotateY(-10deg) rotateX(5deg);
-    gap: 10px;
-  }
-
-  .ppt-slide {
-    width: 140px;
-    height: 100px;
-    padding: 10px;
-  }
-
-  .features-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .feature-card {
-    padding: 20px;
-  }
-
-  .section-title {
-    font-size: 24px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .hero {
-    justify-content: space-between;
-  }
-
-  .hero-content {
-    margin-left: 10%;
-    text-align: left;
-    padding: 60px;
-  }
-
-  .hero-actions {
-    justify-content: flex-start;
-  }
-
-  .hero-visual {
-    display: block;
-    padding: 60px;
-  }
-}
-
-/* PPT 预览动画 */
-.ppt-preview {
-  display: flex;
-  gap: 16px;
-  transform: perspective(1000px) rotateY(-15deg) rotateX(5deg);
-}
-
-.ppt-slide {
-  width: 200px;
-  height: 140px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  padding: 16px;
-  animation: float 3s ease-in-out infinite;
-}
-
-.ppt-slide:nth-child(2) {
-  animation-delay: 0.5s;
-  margin-top: 20px;
-}
-
-.ppt-slide:nth-child(3) {
-  animation-delay: 1s;
-  margin-top: 40px;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes shine {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.hero-title {
-  animation: slideUp 0.8s ease-out;
-}
-
-.hero-subtitle {
-  animation: slideUp 0.8s ease-out 0.2s both;
-}
-
-.hero-actions {
-  animation: slideUp 0.8s ease-out 0.4s both;
-}
-
-.ppt-preview {
-  animation: slideUp 0.8s ease-out 0.6s both;
-}
-
-.feature-card {
-  animation: slideUp 0.6s ease-out both;
-}
-
-.feature-card:nth-child(1) { animation-delay: 0.1s; }
-.feature-card:nth-child(2) { animation-delay: 0.2s; }
-.feature-card:nth-child(3) { animation-delay: 0.3s; }
-
-.title-main {
-  background: linear-gradient(90deg, #fff, #5AC8FA, #fff);
-  background-size: 200% auto;
-  animation: shine 3s linear infinite;
-}
-
-.slide-content {
-  height: 100%;
-}
-
-.slide-title {
-  height: 16px;
-  background: linear-gradient(90deg, #165DFF, #5AC8FA);
-  border-radius: 4px;
-  margin-bottom: 12px;
-  width: 60%;
-}
-
-.slide-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.slide-line {
-  height: 8px;
-  background: #E5E5E5;
-  border-radius: 4px;
-}
-
-.slide-line:nth-child(2) { width: 80%; }
-.slide-line:nth-child(3) { width: 60%; }
-
-/* 特性区域 */
-.features {
-  padding: 80px 0;
-  background: #fff;
-}
-
-.section-title {
-  text-align: center;
-  font-size: 32px;
+  padding: 12px 24px;
+  background: #165DFF;
+  color: #fff;
+  border-radius: 10px;
   font-weight: 600;
-  color: #1A1A1A;
-  margin-bottom: 48px;
+  font-size: 15px;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.3);
 }
 
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 24px;
+.btn-create:hover {
+  background: #1250D3;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.4);
 }
 
-.feature-card {
-  padding: 32px;
-  border-radius: 16px;
+/* ── Section Commons ─────────────────────────────────────────── */
+.section {
   background: #fff;
-  border: 1px solid #E5E5E5;
-  text-align: center;
-  transition: all 0.3s;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.1);
-  border-color: rgba(22, 93, 255, 0.3);
-}
-
-.feature-icon {
-  font-size: 40px;
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 16px;
 }
 
-.feature-title {
-  font-size: 18px;
+.section-title {
+  font-size: 16px;
   font-weight: 600;
   color: #1A1A1A;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
-.feature-desc {
-  font-size: 14px;
-  color: #666;
+.section-more {
+  font-size: 13px;
+  color: #165DFF;
+  text-decoration: none;
+  font-weight: 500;
 }
 
-/* 场景区域 */
-.scenes {
-  padding: 80px 0;
-  background: linear-gradient(180deg, #F5F5F5 0%, #fff 100%);
+.live-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #22C55E;
+  letter-spacing: 0.05em;
 }
 
-.scenes-grid {
+/* ── Quick Actions ───────────────────────────────────────────── */
+.quick-actions {
+  margin-bottom: 20px;
+}
+
+.quick-actions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
 }
 
-.scene-card {
-  padding: 28px;
-  background: #fff;
-  border-radius: 16px;
+.qa-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s;
   cursor: pointer;
-  transition: all 0.3s;
-  border: 2px solid transparent;
 }
 
-.scene-card:hover {
+.qa-card:hover {
   border-color: #165DFF;
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(22, 93, 255, 0.15);
+  background: #F0F5FF;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.1);
 }
 
-.scene-icon {
-  font-size: 36px;
-  margin-bottom: 12px;
+.qa-primary {
+  background: linear-gradient(135deg, #165DFF, #4285F4);
+  border-color: #165DFF;
+  color: #fff;
+  padding: 20px;
 }
 
-.scene-name {
-  font-size: 18px;
+.qa-primary h3, .qa-primary p {
+  color: #fff !important;
+}
+
+.qa-primary .qa-icon {
+  font-size: 28px;
+}
+
+.qa-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.qa-content h3 {
+  font-size: 14px;
   font-weight: 600;
   color: #1A1A1A;
-  margin-bottom: 4px;
+  margin: 0 0 2px;
 }
 
-.scene-desc {
-  font-size: 14px;
-  color: #666;
+.qa-content p {
+  font-size: 12px;
+  color: #6B7280;
+  margin: 0;
 }
 
-/* 统计样式 */
-.hero-stats {
+/* ── Dashboard Grid ──────────────────────────────────────────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+
+.dashboard-left { display: flex; flex-direction: column; gap: 0; }
+.dashboard-right { display: flex; flex-direction: column; gap: 0; }
+
+/* ── Recent Presentations ─────────────────────────────────────── */
+.recent-list { display: flex; flex-direction: column; gap: 8px; }
+
+.recent-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.recent-card:hover {
+  border-color: #165DFF;
+  background: #F0F5FF;
+  box-shadow: 0 2px 8px rgba(22, 93, 255, 0.08);
+}
+
+.recent-thumb { flex-shrink: 0; }
+
+.thumb-placeholder {
+  width: 64px;
+  height: 42px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  margin-top: 40px;
-  padding: 16px 32px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
+  position: relative;
 }
 
-.stat-item {
+.thumb-slides {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  background: rgba(0,0,0,0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.recent-info { flex: 1; min-width: 0; }
+
+.recent-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  background: #F0F5FF;
+  color: #165DFF;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.meta-sep { color: #D1D5DB; }
+.meta-time { color: #9CA3AF; }
+
+.recent-arrow {
+  font-size: 22px;
+  color: #D1D5DB;
+  flex-shrink: 0;
+}
+
+/* ── Suggested Templates ─────────────────────────────────────── */
+.suggested-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.suggested-card {
+  text-decoration: none;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #E5E7EB;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.suggested-card:hover {
+  border-color: #165DFF;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.12);
+}
+
+.suggested-preview {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.suggested-icon { font-size: 24px; opacity: 0.7; }
+
+.suggested-info { padding: 10px; }
+
+.suggested-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A1A1A;
+  margin: 0 0 2px;
+}
+
+.suggested-reason {
+  font-size: 11px;
+  color: #9CA3AF;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Weekly Chart ────────────────────────────────────────────── */
+.weekly-chart { padding: 4px 0; }
+
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 80px;
+  margin-bottom: 12px;
+}
+
+.bar-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  height: 100%;
 }
 
-.stat-value {
-  font-size: 28px;
+.bar-value {
+  font-size: 10px;
+  font-weight: 700;
+  color: #165DFF;
+  height: 14px;
+}
+
+.bar-track {
+  flex: 1;
+  width: 100%;
+  background: #F3F4F6;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #165DFF, #4285F4);
+  border-radius: 4px;
+  transition: height 0.4s ease;
+  min-height: 4px;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: #9CA3AF;
+  white-space: nowrap;
+}
+
+.chart-summary {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid #F3F4F6;
+  padding-top: 12px;
+}
+
+.chart-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.chart-stat + .chart-stat {
+  border-left: 1px solid #F3F4F6;
+}
+
+.cs-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1A1A1A;
+}
+
+.cs-label {
+  font-size: 11px;
+  color: #9CA3AF;
+}
+
+/* ── Team Activity ───────────────────────────────────────────── */
+.activity-feed { display: flex; flex-direction: column; gap: 0; }
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
   font-weight: 700;
   color: #fff;
+  flex-shrink: 0;
 }
 
-.stat-label {
+.activity-content { flex: 1; min-width: 0; }
+
+.activity-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
 }
 
-.stat-divider {
-  width: 1px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.2);
+.activity-user {
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+.activity-icon { font-size: 14px; }
+
+.activity-text {
+  color: #4B5563;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.target-text {
+  font-size: 12px;
+  color: #6B7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.target-slide {
+  font-size: 11px;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.activity-time {
+  font-size: 11px;
+  color: #9CA3AF;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ── Empty / Loading States ──────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: #9CA3AF;
+}
+
+.empty-icon { font-size: 40px; }
+
+.empty-state p { font-size: 14px; margin: 0; }
+
+.btn-sm {
+  padding: 8px 20px;
+  font-size: 13px;
+  background: #165DFF;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.skeleton-card {
+  height: 66px;
+  background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+  background-size: 200% 100%;
+  border-radius: 12px;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .suggested-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
-  .hero-stats {
-    padding: 12px 20px;
-    gap: 16px;
-  }
+  .dashboard { padding: 0 16px 32px; }
 
-  .stat-value {
-    font-size: 22px;
-  }
+  .dashboard-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+
+  .greeting { font-size: 22px; }
+
+  .quick-actions-grid { grid-template-columns: 1fr; }
+
+  .btn-create { width: 100%; justify-content: center; }
 }
 </style>

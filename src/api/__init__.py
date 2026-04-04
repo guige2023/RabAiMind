@@ -24,6 +24,13 @@ from .routes.webhook import router as webhook_router
 from .routes.zapier import router as zapier_router
 from .routes.engagement import router as engagement_router
 from .routes.scheduler import router as scheduler_router
+from .routes.data_source import router as data_source_router
+from .routes.workspace import router as workspace_router
+from .routes.notification import router as notification_router
+from .routes.presentation_analytics import router as presentation_analytics_router
+from .routes.developer import router as developer_router
+from .routes.collaboration import router as collaboration_router
+from .routes.dashboard import router as dashboard_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -46,3 +53,10 @@ api_router.include_router(webhook_router)
 api_router.include_router(zapier_router)
 api_router.include_router(engagement_router)
 api_router.include_router(scheduler_router)
+api_router.include_router(data_source_router)
+api_router.include_router(workspace_router)
+api_router.include_router(notification_router)
+api_router.include_router(presentation_analytics_router)
+api_router.include_router(developer_router)
+api_router.include_router(collaboration_router)
+api_router.include_router(dashboard_router)
