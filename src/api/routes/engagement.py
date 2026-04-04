@@ -221,3 +221,53 @@ async def answer_qa(task_id: str, qa_id: str, answer_text: str = Query(...), req
     """Mark a Q&A as answered"""
     service = get_engagement_service()
     return service.answer_qa(task_id, qa_id, answer_text)
+
+
+# ==================== Lead Capture ====================
+
+class LeadCaptureRequest(BaseModel):
+    email: str = Field(..., description="Email address")
+    name: Optional[str] = Field("", description="Name")
+    company: Optional[str] = Field("", description="Company")
+
+
+@router.post("/leads/{task_id}", response_model=Dict)
+async def capture_lead(task_id: str, req: LeadCaptureRequest, request: Request):
+    """Capture a lead (email collection) from embedded presentation"""
+    import re
+    # Validate email
+    email = req.email.strip()
+    if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+        return {"success": False, "error": "Invalid email format"}
+    
+    service = get_engagement_service()
+    result = service.add_lead_capture(
+        task_id,
+        email=email,
+        name=req.name or "",
+        company=req.company or ""
+    )
+    return result
+
+
+@router.get("/leads/{task_id}", response_model=Dict)
+async def get_leads(task_id: str):
+    """Get all captured leads for a task"""
+    service = get_engagement_service()
+    return service.get_lead_captures(task_id)
+
+
+@router.get("/leads/{task_id}/stats", response_model=Dict)
+async def get_lead_stats(task_id: str):
+    """Get lead capture statistics"""
+    service = get_engagement_service()
+    return service.get_lead_stats(task_id)
+
+
+@router.post("/pixel/{task_id}/track", response_model=Dict)
+async def track_pixel_view(task_id: str, request: Request):
+    """Track a pixel view event from external website"""
+    service = get_engagement_service()
+    view_count = service.increment_view(task_id)
+    stats = service.get_engagement_stats(task_id)
+    return {"success": True, "task_id": task_id, "view_count": view_count, "tracked": True}

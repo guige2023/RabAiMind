@@ -1118,3 +1118,217 @@ async def get_search_analytics_dashboard(days: int = 30):
         "total_searches": len(all_searches),
         "unique_queries": len(set(s["query"] for s in all_searches)),
     }
+
+
+# ─── R128: Template Subcategories ────────────────────────────────────────────
+
+@router.get("/subcategories")
+async def get_subcategories(category: Optional[str] = None):
+    """
+    获取模板子分类
+    R128: 支持按分类获取子分类
+    """
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    
+    if category:
+        subcats = manager.get_subcategories(category)
+        return {"success": True, "category": category, "subcategories": subcats.get(category, [])}
+    
+    return {"success": True, "subcategories": manager.get_subcategories()}
+
+
+# ─── R128: Template Download Counter ─────────────────────────────────────────
+
+@router.post("/{template_id}/download")
+async def track_template_download(
+    template_id: str,
+    user_id: str = "anonymous",
+):
+    """
+    记录模板下载（增加下载计数）
+    R128: 新增下载计数追踪
+    """
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    
+    count = manager.increment_download_count(template_id)
+    
+    # 记录下载分析事件
+    from ...services.search_analytics import get_analytics
+    analytics = get_analytics()
+    analytics.track_template_click(template_id, query="download")
+    
+    return {"success": True, "template_id": template_id, "download_count": count}
+
+
+@router.get("/{template_id}/download-count")
+async def get_template_download_count(template_id: str):
+    """获取模板下载次数"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    count = manager.get_download_count(template_id)
+    return {"success": True, "template_id": template_id, "download_count": count}
+
+
+# ─── R128: Template Collections ─────────────────────────────────────────────
+
+@router.get("/collections")
+async def get_template_collections():
+    """
+    获取模板精选合集列表
+    R128: 精选合集（curated bundles）
+    """
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    collections = ms.get_collections()
+    return {"success": True, "collections": collections}
+
+
+@router.get("/collections/{collection_id}")
+async def get_collection(collection_id: str):
+    """获取单个精选合集"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    collection = ms.get_collection(collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="合集不存在")
+    return {"success": True, "collection": collection}
+
+
+# ─── R128: Template Ratings Breakdown ───────────────────────────────────────
+
+class RatingsBreakdownRequest(BaseModel):
+    user_id: str = "anonymous"
+    user_name: str = "匿名用户"
+    design: int = 5  # 设计评分 1-5
+    usability: int = 5  # 易用性评分 1-5
+    features: int = 5  # 功能评分 1-5
+    content: str = ""
+
+
+@router.get("/{template_id}/ratings-breakdown")
+async def get_ratings_breakdown(template_id: str):
+    """
+    获取模板评分细分（设计/易用性/功能）
+    R128: 新增评分细分功能
+    """
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    
+    breakdown = ms.get_ratings_breakdown(template_id)
+    return {"success": True, "template_id": template_id, "ratings_breakdown": breakdown}
+
+
+@router.post("/{template_id}/ratings-breakdown")
+async def submit_ratings_breakdown(template_id: str, request: RatingsBreakdownRequest):
+    """
+    提交模板评分细分
+    R128: 新增评分细分提交
+    """
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    
+    breakdown = ms.submit_ratings_breakdown(
+        template_id=template_id,
+        user_id=request.user_id,
+        user_name=request.user_name,
+        design=request.design,
+        usability=request.usability,
+        features=request.features,
+        content=request.content
+    )
+    
+    return {"success": True, "ratings_breakdown": breakdown}
+
+
+# ─── R128: Template Preview Slides ──────────────────────────────────────────
+
+@router.get("/{template_id}/preview-slides")
+async def get_template_preview_slides(template_id: str):
+    """
+    获取模板预览幻灯片信息（用于交互式预览）
+    R128: 新增模板预览幻灯片接口
+    返回模板的幻灯片结构和布局信息
+    """
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    
+    template = manager.get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail=f"模板 {template_id} 不存在")
+    
+    # 生成预览幻灯片列表
+    preview_slides = _generate_preview_slides(template)
+    
+    return {
+        "success": True,
+        "template_id": template_id,
+        "name": template.name,
+        "description": template.description,
+        "colors": template.colors,
+        "fonts": template.fonts,
+        "slides": preview_slides
+    }
+
+
+def _generate_preview_slides(template) -> List[dict]:
+    """为模板生成预览幻灯片结构"""
+    slides = []
+    
+    # 封面页
+    slides.append({
+        "index": 0,
+        "type": "title",
+        "title": template.name,
+        "subtitle": template.description,
+        "layout": "title_slide",
+        "colors": template.colors,
+    })
+    
+    # 目录页
+    slides.append({
+        "index": 1,
+        "type": "toc",
+        "title": "目录",
+        "items": ["背景介绍", "核心内容", "数据分析", "总结展望"],
+        "layout": "toc_slide",
+        "colors": template.colors,
+    })
+    
+    # 内容页示例
+    content_sections = [
+        ("背景介绍", "核心要点与行业分析"),
+        ("核心内容", "关键发现与深度解读"),
+        ("数据分析", "数据支撑与图表展示"),
+        ("总结展望", "结论与未来方向"),
+    ]
+    
+    for i, (title, subtitle) in enumerate(content_sections):
+        slide_type = "content"
+        if i % 2 == 1:
+            slide_type = "two_column"
+        elif i == 2:
+            slide_type = "data_visualization"
+        
+        slides.append({
+            "index": i + 2,
+            "type": slide_type,
+            "title": title,
+            "subtitle": subtitle,
+            "layout": f"content_slide_{i}",
+            "colors": template.colors,
+            "content_preview": f"这是第{i+1}页内容预览区域，可拖拽调整文字和图片位置。",
+        })
+    
+    # 结尾页
+    slides.append({
+        "index": len(slides),
+        "type": "ending",
+        "title": "感谢观看",
+        "subtitle": template.name,
+        "layout": "ending_slide",
+        "colors": template.colors,
+    })
+    
+    return slides

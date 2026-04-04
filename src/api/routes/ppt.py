@@ -3587,7 +3587,7 @@ async def export_video(
 # ==================== Embed Widget API ====================
 
 class EmbedConfigRequest(BaseModel):
-    embed_type: str = Field(..., description="Type: iframe, floating_button, inline_preview, analytics")
+    embed_type: str = Field(..., description="Type: iframe, floating_button, inline_preview, analytics, pixel, lead_capture")
     width: Optional[str] = "100%"
     height: Optional[str] = "600px"
     theme: Optional[str] = "light"  # light, dark, auto
@@ -3596,6 +3596,8 @@ class EmbedConfigRequest(BaseModel):
     show_controls: Optional[bool] = True
     auto_slide: Optional[int] = 0  # 0 = disabled, seconds per slide
     start_slide: Optional[int] = 1
+    lead_form_title: Optional[str] = "订阅更新"  # title for lead capture form
+    lead_button_text: Optional[str] = "立即订阅"  # button text for lead capture
 
 
 @router.get("/embed/{task_id}")
@@ -3677,7 +3679,6 @@ async def generate_embed_code(request: Request, task_id: str, config: EmbedConfi
   </div>
 </div>
 <script>
-// Analytics widget initialization
 (function() {{
   var pid = "{task_id}";
   var token = "{analytics_id}";
@@ -3689,6 +3690,62 @@ async def generate_embed_code(request: Request, task_id: str, config: EmbedConfi
     }}
   }}).catch(function() {{ el.innerHTML = '<span style="color:#aaa;">暂无数据</span>'; }});
 }})();
+</script>'''
+    
+    elif config.embed_type == "pixel":
+        pixel_id = config.analytics_token or f"px_{task_id[:8]}"
+        code = f'''<script>
+(function() {{
+  var p = document.createElement('img');
+  p.src = '{base_url}/api/v1/engagement/pixel/{task_id}/track?pixel_id={pixel_id}&t=' + new Date().getTime();
+  p.width = 1; p.height = 1; p.style.display = 'none';
+  p.alt = '';
+  document.body.appendChild(p);
+}})();
+</script>
+<noscript>
+<img src="{base_url}/api/v1/engagement/pixel/{task_id}/track?pixel_id={pixel_id}&noscript=1" width="1" height="1" style="display:none;"/>
+</noscript>'''
+    
+    elif config.embed_type == "lead_capture":
+        form_title = config.lead_form_title or "订阅更新"
+        btn_text = config.lead_button_text or "立即订阅"
+        code = f'''<div id="rabai-lead-{task_id[:8]}" style="font-family:system-ui;background:#fff;border-radius:12px;padding:24px;max-width:{config.width or "400px"};margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+  <div style="text-align:center;margin-bottom:16px;">
+    <div style="font-size:24px;margin-bottom:8px;">📬</div>
+    <div style="font-size:16px;font-weight:600;color:#333;">{form_title}</div>
+  </div>
+  <form id="rabai-lead-form-{task_id[:8]}" onsubmit="return false;">
+    <input type="email" id="rabai-email-{task_id[:8]}" placeholder="请输入邮箱" required style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:10px;font-size:14px;box-sizing:border-box;"/>
+    <input type="text" id="rabai-name-{task_id[:8]}" placeholder="姓名（选填）" style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:10px;font-size:14px;box-sizing:border-box;"/>
+    <input type="text" id="rabai-company-{task_id[:8]}" placeholder="公司（选填）" style="width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:12px;font-size:14px;box-sizing:border-box;"/>
+    <button type="button" onclick="rabaiSubmitLead('{task_id}','{task_id[:8]}')" style="width:100%;padding:12px;background:#165DFF;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">{btn_text}</button>
+  </form>
+  <div id="rabai-lead-msg-{task_id[:8]}" style="margin-top:10px;text-align:center;font-size:13px;color:#555;display:none;"></div>
+</div>
+<script>
+function rabaiSubmitLead(taskId, shortId) {{
+  var email = document.getElementById('rabai-email-' + shortId).value;
+  var name = document.getElementById('rabai-name-' + shortId).value;
+  var company = document.getElementById('rabai-company-' + shortId).value;
+  var msgEl = document.getElementById('rabai-lead-msg-' + shortId);
+  if (!email || !email.includes('@')) {{ msgEl.style.display='block'; msgEl.style.color='#ff4d4f'; msgEl.textContent = '请输入有效的邮箱地址'; return; }}
+  fetch('/api/v1/engagement/leads/' + taskId, {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{email: email, name: name, company: company}})
+  }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+    msgEl.style.display = 'block';
+    if (data.success) {{
+      msgEl.style.color = '#00D4AA';
+      msgEl.textContent = '✅ 订阅成功！';
+      document.getElementById('rabai-lead-form-' + shortId).style.display = 'none';
+    }} else {{
+      msgEl.style.color = '#ff4d4f';
+      msgEl.textContent = data.error || '提交失败，请重试';
+    }}
+  }}).catch(function() {{ msgEl.style.display='block'; msgEl.style.color='#ff4d4f'; msgEl.textContent = '网络错误，请重试'; }});
+}}
 </script>'''
     
     else:
@@ -3865,6 +3922,109 @@ async def coach_quick_score(request: Request, task_id: str):
         logger.error(f"Quick score error: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
+# ========== R127: AI Presentation Coach 2.0 - New Endpoints ==========
+
+class CoachSpeakingPaceRequest(BaseModel):
+    """语速分析请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    total_minutes: float = 15.0
+    actual_words: Optional[int] = None
+
+
+class CoachContentDimensionsRequest(BaseModel):
+    """内容维度分析请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+
+
+class CoachVisualDesignRequest(BaseModel):
+    """视觉设计分析请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+
+
+class CoachEngagementRequest(BaseModel):
+    """观众参与度预测请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    audience_profile: str = ""
+
+
+class CoachPersonalizedRequest(BaseModel):
+    """个性化教练请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    user_id: str = "default"
+
+
+@router.post("/coach/speaking-pace")
+async def coach_speaking_pace(request: Request, body: CoachSpeakingPaceRequest):
+    """AI演讲教练 - 语速分析（Delivery Coach）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.analyze_speaking_pace(body.task_id, body.slides, body.total_minutes, body.actual_words)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Speaking pace error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/content-dimensions")
+async def coach_content_dimensions(request: Request, body: CoachContentDimensionsRequest):
+    """AI演讲教练 - 内容维度评分（Content Score）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.analyze_content_dimensions(body.task_id, body.slides)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Content dimensions error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/visual-design")
+async def coach_visual_design(request: Request, body: CoachVisualDesignRequest):
+    """AI演讲教练 - 视觉设计反馈（Visual Design Feedback）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.analyze_visual_design(body.task_id, body.slides)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Visual design error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/engagement")
+async def coach_engagement(request: Request, body: CoachEngagementRequest):
+    """AI演讲教练 - 观众参与度预测（Audience Engagement Prediction）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.predict_audience_engagement(body.task_id, body.slides, body.audience_profile)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Engagement prediction error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/personalized")
+async def coach_personalized(request: Request, body: CoachPersonalizedRequest):
+    """AI演讲教练 - 个性化教练（Personalized Coaching）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.get_personalized_coaching(body.task_id, body.slides, body.user_id)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Personalized coaching error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+# ========== A/B Testing ==========
+
 # ========== A/B Testing ==========
 
 @router.post("/ab_test/{task_id}")
@@ -4008,6 +4168,18 @@ async def localize_presentation(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/language_versions/{task_id}")
+async def list_language_versions(task_id: str):
+    """列出某个PPT的所有语言版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.list_language_versions(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 # ============ R118: Smart Content Suggestions ============
 
 class SmartContentRequest(BaseModel):
@@ -4095,3 +4267,173 @@ async def suggest_related_presentations(request: SmartContentRequest):
     return result
 
 
+
+
+# ==================== 备份管理 R125 ====================
+
+@router.get("/backups")
+async def list_backups(task_id: str = Query(None)):
+    """
+    R125: 列出备份历史
+    - task_id: 如果指定，只返回该任务的备份；否则返回所有任务最新备份
+    """
+    from ...services.backup_service import get_backup_service
+    bs = get_backup_service()
+    backups = bs.list_backups(task_id)
+    return {"success": True, "backups": backups, "count": len(backups)}
+
+
+@router.post("/backups/{task_id}")
+async def create_backup(
+    task_id: str,
+    name: str = Body(None),
+    backup_type: str = Body("manual"),
+):
+    """
+    R125: 创建备份
+    - 备份当前任务的完整数据（配置+结果+PPTX）
+    """
+    from ...services.backup_service import get_backup_service
+    from ...services.task_manager import get_task_manager
+    
+    tm = get_task_manager()
+    task_data = tm.get_task(task_id)
+    if not task_data:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    
+    bs = get_backup_service()
+    result = bs.create_backup(
+        task_id=task_id,
+        task_data=task_data,
+        backup_name=name,
+        include_pptx=True,
+        include_svg=True,
+        backup_type=backup_type,
+    )
+    return result
+
+
+@router.get("/backups/{task_id}/{backup_id}")
+async def get_backup_detail(task_id: str, backup_id: str):
+    """R125: 获取备份详情"""
+    from ...services.backup_service import get_backup_service
+    bs = get_backup_service()
+    backup = bs.get_backup(backup_id, task_id)
+    if not backup:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return {"success": True, "backup": backup}
+
+
+@router.get("/backups/{task_id}/{backup_id}/slides")
+async def get_backup_slides(task_id: str, backup_id: str):
+    """R125: 获取备份中的幻灯片列表（用于选择性恢复）"""
+    from ...services.backup_service import get_backup_service
+    bs = get_backup_service()
+    slides = bs.get_backup_slides(backup_id, task_id)
+    if slides is None:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return {"success": True, "slides": slides}
+
+
+@router.post("/backups/{task_id}/{backup_id}/restore")
+async def restore_from_backup(
+    task_id: str,
+    backup_id: str,
+    restore_type: str = Body("full"),  # full | slides | config
+    selected_slide_nums: List[int] = Body(None),
+):
+    """
+    R125: 从备份恢复
+    - restore_type=full: 全量恢复（覆盖当前）
+    - restore_type=slides: 选择性恢复（只恢复指定页）
+    - restore_type=config: 只恢复配置（场景/风格/模板等）
+    """
+    from ...services.backup_service import get_backup_service
+    from ...services.task_manager import get_task_manager
+    
+    bs = get_backup_service()
+    
+    # 全量恢复需要更新任务数据
+    if restore_type == "full":
+        result = bs.restore_backup(backup_id, task_id, "full")
+        if result.get("data"):
+            tm = get_task_manager()
+            task_data = result["data"]
+            # 更新任务
+            if task_id in tm.tasks:
+                tm.tasks[task_id].update(task_data)
+                tm.tasks[task_id]["updated_at"] = get_timestamp()
+        return result
+    
+    elif restore_type == "slides":
+        if not selected_slide_nums:
+            raise HTTPException(status_code=400, detail="selected_slide_nums required for slides restore")
+        return bs.restore_backup(backup_id, task_id, "slides", selected_slide_nums)
+    
+    elif restore_type == "config":
+        result = bs.restore_backup(backup_id, task_id, "config")
+        if result.get("config"):
+            tm = get_task_manager()
+            if task_id in tm.tasks:
+                cfg = result["config"]
+                if task_id in tm.tasks:
+                    tm.tasks[task_id]["scene"] = cfg.get("scene", tm.tasks[task_id].get("scene"))
+                    tm.tasks[task_id]["style"] = cfg.get("style", tm.tasks[task_id].get("style"))
+                    tm.tasks[task_id]["template"] = cfg.get("template", tm.tasks[task_id].get("template"))
+                    tm.tasks[task_id]["theme_color"] = cfg.get("theme_color", tm.tasks[task_id].get("theme_color"))
+                    tm.tasks[task_id]["layout_mode"] = cfg.get("layout_mode", tm.tasks[task_id].get("layout_mode"))
+                tm.tasks[task_id]["updated_at"] = get_timestamp()
+        return result
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid restore_type: {restore_type}")
+
+
+@router.delete("/backups/{task_id}/{backup_id}")
+async def delete_backup(task_id: str, backup_id: str):
+    """R125: 删除备份"""
+    from ...services.backup_service import get_backup_service
+    bs = get_backup_service()
+    result = bs.delete_backup(backup_id, task_id)
+    return result
+
+
+@router.get("/backups/{task_id}/{backup_id}/download")
+async def download_backup(task_id: str, backup_id: str):
+    """R125: 下载备份文件（.rabak）"""
+    from ...services.backup_service import get_backup_service
+    bs = get_backup_service()
+    try:
+        export_path = bs.export_backup_file(backup_id, task_id)
+        return FileResponse(
+            export_path,
+            media_type="application/octet-stream",
+            filename=f"backup_{backup_id}.rabak",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/backups/import")
+async def import_backup(file: UploadFile = File(...)):
+    """R125: 导入备份文件（.rabak）"""
+    import tempfile
+    import os
+    from ...services.backup_service import get_backup_service
+    
+    bs = get_backup_service()
+    
+    # 保存上传文件到临时位置
+    with tempfile.NamedTemporaryFile(suffix=".rabak", delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+    
+    try:
+        result = bs.import_backup_file(tmp_path)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)

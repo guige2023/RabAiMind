@@ -23,7 +23,7 @@ class RephraseRequest(BaseModel):
 
 class TranslateRequest(BaseModel):
     text: str
-    target_lang: str = "en"  # zh, en, ja, ko
+    target_lang: str = "en"  # 50+ languages supported
 
 class LayoutSuggestionRequest(BaseModel):
     slide_index: int
@@ -147,18 +147,78 @@ async def translate_text(req: TranslateRequest):
     支持中文(zh)、英文(en)、日语(ja)、韩语(ko)互译
     """
     lang_map = {
+        # East Asia
         "zh": "中文",
         "en": "英文",
         "ja": "日语",
-        "ko": "韩文",
+        "ko": "韩文/朝鲜文",
+        # Southeast Asia
+        "vi": "越南文",
+        "th": "泰文",
+        "id": "印尼文",
+        "ms": "马来文",
+        "tl": "菲律宾文",
+        "my": "缅甸文",
+        "km": "高棉文",
+        "lo": "老挝文",
+        # South Asia
+        "hi": "印地文",
+        "bn": "孟加拉文",
+        "ur": "乌尔都文",
+        "pa": "旁遮普文",
+        "ne": "尼泊尔文",
+        "si": "僧伽罗文",
+        "ta": "泰米尔文",
+        "te": "泰卢固文",
+        "mr": "马拉地文",
+        "gu": "古吉拉特文",
+        "ml": "马拉雅拉姆文",
+        "kn": "卡纳达文",
+        # Central & West Asia
+        "tr": "土耳其文",
+        "fa": "波斯文",
+        "az": "阿塞拜疆文",
+        "uz": "乌兹别克文",
+        "kk": "哈萨克文",
+        "ky": "吉尔吉斯文",
+        "tg": "塔吉克文",
+        "tk": "土库曼文",
+        # Europe
         "fr": "法文",
         "de": "德文",
         "es": "西班牙文",
         "pt": "葡萄牙文",
         "it": "意大利文",
         "ru": "俄文",
+        "uk": "乌克兰文",
+        "pl": "波兰文",
+        "nl": "荷兰文",
+        "el": "希腊文",
+        "cs": "捷克文",
+        "hu": "匈牙利文",
+        "ro": "罗马尼亚文",
+        "sv": "瑞典文",
+        "da": "丹麦文",
+        "fi": "芬兰文",
+        "no": "挪威文",
+        "sk": "斯洛伐克文",
+        "bg": "保加利亚文",
+        "hr": "克罗地亚文",
+        "sr": "塞尔维亚文",
+        "sl": "斯洛文尼亚文",
+        "et": "爱沙尼亚文",
+        "lv": "拉脱维亚文",
+        "lt": "立陶宛文",
+        # Middle East & Africa
         "ar": "阿拉伯文",
-        "hi": "印地文",
+        "he": "希伯来文",
+        "sw": "斯瓦希里文",
+        "ha": "豪萨文",
+        "yo": "约鲁巴文",
+        "zu": "祖鲁文",
+        "am": "阿姆哈拉文",
+        # East Asia 2
+        "mn": "蒙古文",
     }
     target = lang_map.get(req.target_lang, "英文")
     
@@ -618,4 +678,250 @@ async def cliche_detect(req: ClicheDetectRequest):
         raise
     except Exception as e:
         logger.error(f"cliche-detect失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== R133: AI Content Templates ====================
+
+class ContentTemplateRequest(BaseModel):
+    template_type: str  # title, agenda, bullet_points, comparison, process, data_chart, quote, summary, team_intro, case_study
+    topic: str = ""  # 主题/话题
+    context: Optional[str] = ""  # 上下文/背景信息
+    slide_title: Optional[str] = ""  # 可选的幻灯片标题
+    count: Optional[int] = 3  # 内容条目数量（用于列表类模板）
+
+
+TEMPLATE_DESCRIPTIONS = {
+    "title": "封面标题 - 主标题 + 副标题，适合开场",
+    "agenda": "目录议程 - 列出主要章节/要点",
+    "bullet_points": "要点列表 - 多个关键要点，适合内容概括",
+    "comparison": "对比比较 - 两列对比展示不同方案/观点",
+    "process": "流程步骤 - 展示流程、阶段或时间线",
+    "data_chart": "数据图表 - 展示数据、统计或数字",
+    "quote": "名人名言 - 引用精彩语句或权威观点",
+    "summary": "总结回顾 - 核心要点回顾与总结",
+    "team_intro": "团队介绍 - 团队成员或组织结构",
+    "case_study": "案例分析 - 背景/挑战/方案/结果结构",
+}
+
+
+@router.get("/content-templates")
+async def list_content_templates():
+    """列出所有可用的内容模板类型"""
+    return {
+        "success": True,
+        "templates": [
+            {"type": k, "description": v}
+            for k, v in TEMPLATE_DESCRIPTIONS.items()
+        ]
+    }
+
+
+@router.post("/content-template")
+async def generate_content_template(req: ContentTemplateRequest):
+    """
+    AI 内容模板生成
+    根据指定的模板类型，自动生成对应的幻灯片文本内容
+    """
+    template_type = req.template_type
+    topic = req.topic or "通用主题"
+    context = req.context or ""
+    slide_title = req.slide_title or ""
+    count = req.count or 3
+
+    if template_type not in TEMPLATE_DESCRIPTIONS:
+        raise HTTPException(status_code=400, detail=f"未知模板类型: {template_type}")
+
+    context_hint = f"\n背景信息：{context}" if context else ""
+    title_hint = f"\n幻灯片标题：{slide_title}" if slide_title else ""
+
+    prompts = {
+        "title": f"""为演讲主题「{topic}」生成一个专业的封面内容。
+{title_hint}{context_hint}
+
+请生成JSON：
+{{
+    "main_title": "主标题（简洁有力，不超过20字）",
+    "subtitle": "副标题（说明主题或演讲者身份，不超过30字）",
+    "tagline": "可选 tagline（一句吸引人的话，不超过15字）"
+}}
+
+只返回JSON。""",
+
+        "agenda": f"""为演讲主题「{topic}」生成目录议程内容。
+{title_hint}{context_hint}
+
+请生成 {count} 个主要章节/议程项，每个包含序号和标题。
+
+请按以下JSON格式返回：
+{{
+    "items": [
+        {{"index": 1, "title": "第一章标题", "description": "简短描述（可选）"}},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "bullet_points": f"""为演讲主题「{topic}」生成 {count} 个核心要点。
+{title_hint}{context_hint}
+
+每个要点要：
+- 简洁有力（一行，不超过50字）
+- 观点清晰，有说服力
+- 避免空话套话
+
+请按以下JSON格式返回：
+{{
+    "title": "页面标题（如「核心要点」）",
+    "points": [
+        {{"text": "要点1内容", "icon": "💡"}},
+        {{"text": "要点2内容", "icon": "🎯"}},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "comparison": f"""为演讲主题「{topic}」生成对比内容。
+{title_hint}{context_hint}
+
+请生成 {count} 组对比项，每组包含两个对比方案/观点。
+
+请按以下JSON格式返回：
+{{
+    "title": "对比标题",
+    "comparisons": [
+        {{
+            "item": "对比维度（如：方案A vs 方案B）",
+            "option_a": "方案A的描述（不超过60字）",
+            "option_b": "方案B的描述（不超过60字）"
+        }},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "process": f"""为演讲主题「{topic}」生成流程/步骤内容。
+{title_hint}{context_hint}
+
+请生成 {count} 个步骤/阶段，构成一个完整的流程。
+
+请按以下JSON格式返回：
+{{
+    "title": "流程标题（如：实施步骤）",
+    "steps": [
+        {{"step": 1, "title": "步骤标题", "description": "步骤说明（不超过40字）"}},
+        {{"step": 2, "title": "步骤标题", "description": "步骤说明（不超过40字）"}},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "data_chart": f"""为演讲主题「{topic}」生成数据/统计内容。
+{title_hint}{context_hint}
+
+请生成 {count} 组关键数据，包含数字、指标和简短说明。
+
+请按以下JSON格式返回：
+{{
+    "title": "数据页面标题",
+    "metrics": [
+        {{"value": "85%", "label": "指标名称", "description": "数据说明（不超过30字）"}},
+        {{"value": "3.2倍", "label": "增长指标", "description": "数据说明"}},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "quote": f"""为演讲主题「{topic}」生成名言/引用内容。
+{title_hint}{context_hint}
+
+请生成 1 条与主题相关的精彩引用，包含出处。
+
+请按以下JSON格式返回：
+{{
+    "quote": "引用内容（50字以内）",
+    "author": "作者/出处",
+    "context": "引用背景或出处说明（可选，不超过30字）"
+}}
+
+只返回JSON。""",
+
+        "summary": f"""为演讲主题「{topic}」生成总结回顾内容。
+{title_hint}{context_hint}
+
+请回顾核心内容，生成 {count} 个关键总结点。
+
+请按以下JSON格式返回：
+{{
+    "title": "总结标题（如：核心要点回顾）",
+    "summary_points": [
+        {{"point": "总结点1（不超过50字）"}},
+        {{"point": "总结点2（不超过50字）"}},
+        ...
+    ],
+    "takeaway": "一句话总结/行动号召（不超过30字）"
+}}
+
+只返回JSON。""",
+
+        "team_intro": f"""为演讲主题「{topic}」生成团队/人物介绍内容。
+{title_hint}{context_hint}
+
+请生成 {count} 个团队成员/角色介绍。
+
+请按以下JSON格式返回：
+{{
+    "title": "团队/成员介绍页面标题",
+    "members": [
+        {{
+            "name": "成员姓名",
+            "role": "职位/角色",
+            "description": "个人简介（不超过40字）"
+        }},
+        ...
+    ]
+}}
+
+只返回JSON。""",
+
+        "case_study": f"""为演讲主题「{topic}」生成案例分析内容。
+{title_hint}{context_hint}
+
+请按以下结构生成一个完整案例：
+
+请按以下JSON格式返回：
+{{
+    "case_title": "案例标题",
+    "background": "案例背景（不超过60字）",
+    "challenge": "主要挑战/问题（不超过60字）",
+    "solution": "解决方案/做法（不超过80字）",
+    "result": "取得成果/效果（不超过60字）",
+    "insight": "关键洞察/启示（不超过40字）"
+}}
+
+只返回JSON。""",
+    }
+
+    prompt = prompts.get(template_type, prompts["bullet_points"])
+    system = f"你是一个专业的PPT内容策划专家，根据「{TEMPLATE_DESCRIPTIONS[template_type]}」生成高质量的幻灯片内容。直接返回JSON。"
+
+    try:
+        result = call_ai(prompt, system)
+        parsed = safe_json_parse(result)
+        if parsed:
+            return {"success": True, "content": parsed, "template_type": template_type}
+        return {
+            "success": True,
+            "content": {"error": "AI返回格式解析失败"},
+            "template_type": template_type,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"content-template失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

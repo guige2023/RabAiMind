@@ -483,7 +483,70 @@ export const api: APIClient = {
       text_sample: string;
     }>> => {
       return apiClient.get(`/ppt/detect_language/${taskId}`)
-    }
+    },
+
+    /** R131: 列出PPT的所有语言版本 */
+    languageVersions: (taskId: string): Promise<AxiosResponse<{
+      success: boolean;
+      root_task_id: string;
+      versions: Array<{
+        task_id: string;
+        locale: string;
+        locale_name: string;
+        is_original: boolean;
+        is_rtl: boolean;
+        created_at: string;
+      }>;
+      count: number;
+    }>> => {
+      return apiClient.get(`/ppt/language_versions/${taskId}`)
+    },
+
+    // ========== 备份管理 R125 ==========
+    /** 列出备份历史 */
+    listBackups: (taskId?: string): Promise<AxiosResponse<{ success: boolean; backups: Array<{ backup_id: string; task_id: string; name: string; backup_type: string; created_at: string; size_str: string; slide_count: number }>; count: number }>> => {
+      return apiClient.get('/ppt/backups', { params: taskId ? { task_id: taskId } : {} })
+    },
+
+    /** 创建备份 */
+    createBackup: (taskId: string, name?: string, backupType = 'manual'): Promise<AxiosResponse<{ success: boolean; backup_id: string; created_at: string; name: string; size_str: string; slide_count: number }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}`, null, { params: name ? { name } : {}, data: { backup_type: backupType } })
+    },
+
+    /** 获取备份详情 */
+    getBackupDetail: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; backup: any }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}`)
+    },
+
+    /** 获取备份中的幻灯片列表（用于选择性恢复） */
+    getBackupSlides: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; slides: Array<{ slide_num: number; title: string; content: string; has_chart: boolean; chart_type?: string; svg_path: string }> }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/slides`)
+    },
+
+    /** 从备份恢复 */
+    restoreBackup: (taskId: string, backupId: string, restoreType: 'full' | 'slides' | 'config' = 'full', selectedSlideNums?: number[]): Promise<AxiosResponse<{ success: boolean; message: string; restore_type: string; selected_slides?: number[]; pptx_path?: string; data?: any; config?: any }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}/${backupId}/restore`, {
+        restore_type: restoreType,
+        selected_slide_nums: selectedSlideNums || []
+      })
+    },
+
+    /** 删除备份 */
+    deleteBackup: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; backup_id: string }>> => {
+      return apiClient.delete(`/ppt/backups/${taskId}/${backupId}`)
+    },
+
+    /** 下载备份文件 */
+    downloadBackup: (taskId: string, backupId: string): Promise<Blob> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/download`, { responseType: 'blob' })
+    },
+
+    /** 导入备份文件 */
+    importBackup: (file: File): Promise<AxiosResponse<{ success: boolean; backup_id: string; task_id: string }>> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return apiClient.post('/ppt/backups/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
   },
 
   images: {
@@ -816,6 +879,21 @@ export const api: APIClient = {
 
     clicheDetect: (text: string): Promise<AxiosResponse<{ success: boolean; detection: { detected: Array<{ phrase: string; reason: string; alternatives: Array<{ text: string; style: string }> }>; has_cliches: boolean; cleaned_text: string; summary: string } }>> => {
       return apiClient.post('/ai/cliche-detect', { text })
+    },
+
+    // R133: AI Content Templates
+    listContentTemplates: (): Promise<AxiosResponse<{ success: boolean; templates: Array<{ type: string; description: string }> }>> => {
+      return apiClient.get('/ai/content-templates')
+    },
+
+    generateContentTemplate: (params: {
+      template_type: string
+      topic?: string
+      context?: string
+      slide_title?: string
+      count?: number
+    }): Promise<AxiosResponse<{ success: boolean; content: any; template_type: string }>> => {
+      return apiClient.post('/ai/content-template', params)
     }
   },
 
@@ -1001,6 +1079,43 @@ export const api: APIClient = {
     }
   },
 
+    // R127: AI Presentation Coach 2.0
+    coachSpeakingPace: (taskId: string, slides: any[], totalMinutes: number, actualWords?: number) => {
+      return apiClient.post('/ppt/coach/speaking-pace', {
+        task_id: taskId,
+        slides,
+        total_minutes: totalMinutes,
+        actual_words: actualWords
+      })
+    },
+    coachContentDimensions: (taskId: string, slides: any[]) => {
+      return apiClient.post('/ppt/coach/content-dimensions', {
+        task_id: taskId,
+        slides
+      })
+    },
+    coachVisualDesign: (taskId: string, slides: any[]) => {
+      return apiClient.post('/ppt/coach/visual-design', {
+        task_id: taskId,
+        slides
+      })
+    },
+    coachEngagement: (taskId: string, slides: any[], audienceProfile: string) => {
+      return apiClient.post('/ppt/coach/engagement', {
+        task_id: taskId,
+        slides,
+        audience_profile: audienceProfile
+      })
+    },
+    coachPersonalized: (taskId: string, slides: any[], userId: string) => {
+      return apiClient.post('/ppt/coach/personalized', {
+        task_id: taskId,
+        slides,
+        user_id: userId
+      })
+    },
+
+
   // R58: Voice / TTS
   voice: {
     // List available voices
@@ -1182,6 +1297,48 @@ export const api: APIClient = {
 
   markAllActivitiesRead: (taskId: string): Promise<AxiosResponse<{ success: boolean; count: number }>> => {
     return apiClient.post(`/collaboration/activity-feed/${taskId}/mark-all-read`)
+  },
+
+  // --- Comment Email Notifications (R124) ----------------------------------------
+
+  /** 注册邮箱用于接收评论 @mention 邮件通知 */
+  registerCommentEmail: (params: {
+    email: string
+    name?: string
+    enabled?: boolean
+  }): Promise<AxiosResponse<{
+    success: boolean
+    data: { registered: boolean; email: string; name: string; enabled: boolean }
+  }>> => {
+    return apiClient.put('/notifications/comment-email', params)
+  },
+
+  /** 获取评论邮件通知状态 */
+  getCommentEmailStatus: (): Promise<AxiosResponse<{
+    success: boolean
+    data: { registered: boolean; email: string; enabled: boolean; name?: string }
+  }>> => {
+    return apiClient.get('/notifications/comment-email')
+  },
+
+  /** 更新评论邮件通知设置 */
+  updateCommentEmail: (params: {
+    email?: string
+    name?: string
+    enabled?: boolean
+  }): Promise<AxiosResponse<{
+    success: boolean
+    data: { registered: boolean; email: string; name: string; enabled: boolean }
+  }>> => {
+    return apiClient.patch('/notifications/comment-email')
+  },
+
+  /** 取消评论邮件通知 */
+  deleteCommentEmail: (): Promise<AxiosResponse<{
+    success: boolean
+    data: { deleted: boolean }
+  }>> => {
+    return apiClient.delete('/notifications/comment-email')
   },
 
   // --- Data Sources (R113) -------------------------------------------

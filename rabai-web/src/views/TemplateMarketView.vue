@@ -684,6 +684,11 @@
                   <button class="rename-cancel-btn" @click="cancelRename">✕</button>
                 </div>
               </div>
+              <!-- R128: Subcategory tag -->
+              <div v-if="template.subcategory" class="template-subcategory">
+                <span class="subcategory-tag">{{ template.subcategory }}</span>
+              </div>
+
               <h3 v-else class="template-name" v-html="highlightText(template.name)"></h3>
               <p class="template-desc" v-html="highlightText(template.description)"></p>
 
@@ -703,16 +708,52 @@
                   </svg>
                   {{ template.slides }}页
                 </span>
-                <span class="meta-item popularity">
+                <!-- R128: Download counter -->
+                <span class="meta-item downloads" v-if="template.download_count">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  {{ template.download_count >= 1000 ? (template.download_count / 1000).toFixed(1) + 'k' : template.download_count }}
+                </span>
+                <!-- R128: Ratings mini -->
+                <span class="meta-item rating-mini" v-if="template.rating_breakdown">
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
-                  {{ template.popularity }}
+                  {{ template.rating_breakdown.total.toFixed(1) }}
                 </span>
               </div>
             </div>
           </article>
         </div>
+
+        <!-- R128: Template Collections Section -->
+        <section v-if="!isLoading && collections.length > 0" class="collections-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
+              精选合集
+            </h2>
+          </div>
+          <div class="collections-grid">
+            <div v-for="collection in collections" :key="collection.id" class="collection-card" @click="openCollection(collection)">
+              <div class="collection-cover" :style="{ background: getCollectionGradient(collection.id) }">
+                <span class="collection-count">{{ collection.template_ids?.length || 0 }}个模板</span>
+                <div class="collection-tags">
+                  <span v-for="tag in (collection.tags || []).slice(0, 2)" :key="tag" class="collection-tag">{{ tag }}</span>
+                </div>
+              </div>
+              <div class="collection-info">
+                <h3 class="collection-name">{{ collection.name }}</h3>
+                <p class="collection-desc">{{ collection.description }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <!-- Empty State -->
         <div v-else class="empty-state">
@@ -805,14 +846,45 @@
           </button>
 
           <div class="modal-body">
-            <!-- Preview -->
+            <!-- R128: Live Interactive Preview -->
             <div class="template-preview">
-              <div class="preview-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/>
-                  <path d="M9 9h6M9 12h6M9 15h4"/>
-                </svg>
-                <span>{{ selectedTemplate.name }}</span>
+              <div class="preview-tabs">
+                <button class="preview-tab" :class="{ active: previewTab === 'slides' }" @click="previewTab = 'slides'">幻灯片预览</button>
+                <button class="preview-tab" :class="{ active: previewTab === 'interactive' }" @click="loadInteractivePreview(selectedTemplate)">交互预览</button>
+              </div>
+
+              <!-- Slides Preview -->
+              <div v-if="previewTab === 'slides'" class="slides-preview">
+                <div class="slides-nav">
+                  <button class="slide-nav-btn" @click="prevPreviewSlide" :disabled="currentPreviewSlideIndex === 0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6"/></svg>
+                  </button>
+                  <span class="slide-indicator">{{ currentPreviewSlideIndex + 1 }} / {{ previewSlides.length || 1 }}</span>
+                  <button class="slide-nav-btn" @click="nextPreviewSlide" :disabled="currentPreviewSlideIndex >= previewSlides.length - 1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                </div>
+                <div class="slide-preview-card" :style="{ background: selectedTemplate.colors?.[0] || '#165DFF' }">
+                  <div class="slide-type-badge">{{ previewSlides[currentPreviewSlideIndex]?.type || 'title' }}</div>
+                  <h4 class="slide-preview-title">{{ previewSlides[currentPreviewSlideIndex]?.title || selectedTemplate.name }}</h4>
+                  <p class="slide-preview-subtitle">{{ previewSlides[currentPreviewSlideIndex]?.subtitle || selectedTemplate.description }}</p>
+                  <div v-if="previewSlides[currentPreviewSlideIndex]?.items" class="slide-preview-items">
+                    <div v-for="(item, i) in previewSlides[currentPreviewSlideIndex].items" :key="i" class="slide-preview-item">
+                      <span class="item-bullet">&#8226;</span> {{ item }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Preview -->
+              <div v-if="previewTab === 'interactive'" class="interactive-preview">
+                <div class="interactive-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M9 9h6M9 12h6M9 15h4"/>
+                  </svg>
+                  <span>{{ interactivePreviewLoading ? '加载中...' : '拖拽调整元素，即时预览效果' }}</span>
+                </div>
               </div>
             </div>
 
@@ -861,12 +933,55 @@
                   </svg>
                   热度 {{ selectedTemplate.popularity }}
                 </span>
+                <!-- R128: Download count in detail -->
+                <span class="meta-item downloads" v-if="selectedTemplate.download_count">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  {{ selectedTemplate.download_count >= 1000 ? (selectedTemplate.download_count / 1000).toFixed(1) + 'k' : selectedTemplate.download_count }} 次下载
+                </span>
                 <span v-if="selectedTemplate.isPremium" class="meta-item premium">
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"/>
                   </svg>
                   VIP模板
                 </span>
+              </div>
+
+              <!-- R128: Ratings breakdown -->
+              <div v-if="selectedTemplate.rating_breakdown" class="ratings-breakdown">
+                <div class="rating-header">
+                  <span class="rating-score">{{ selectedTemplate.rating_breakdown.total.toFixed(1) }}</span>
+                  <div class="rating-stars">
+                    <span v-for="n in 5" :key="n" class="star" :class="{ filled: n <= Math.round(selectedTemplate.rating_breakdown.total) }">&#9733;</span>
+                  </div>
+                  <span class="rating-count">({{ selectedTemplate.rating_breakdown.count }}人评分)</span>
+                </div>
+                <div class="rating-bars">
+                  <div class="rating-bar-item">
+                    <span class="rating-label">设计</span>
+                    <div class="rating-bar-track">
+                      <div class="rating-bar-fill design" :style="{ width: (selectedTemplate.rating_breakdown.design / 5 * 100) + '%' }"></div>
+                    </div>
+                    <span class="rating-value">{{ selectedTemplate.rating_breakdown.design.toFixed(1) }}</span>
+                  </div>
+                  <div class="rating-bar-item">
+                    <span class="rating-label">易用性</span>
+                    <div class="rating-bar-track">
+                      <div class="rating-bar-fill usability" :style="{ width: (selectedTemplate.rating_breakdown.usability / 5 * 100) + '%' }"></div>
+                    </div>
+                    <span class="rating-value">{{ selectedTemplate.rating_breakdown.usability.toFixed(1) }}</span>
+                  </div>
+                  <div class="rating-bar-item">
+                    <span class="rating-label">功能</span>
+                    <div class="rating-bar-track">
+                      <div class="rating-bar-fill features" :style="{ width: (selectedTemplate.rating_breakdown.features / 5 * 100) + '%' }"></div>
+                    </div>
+                    <span class="rating-value">{{ selectedTemplate.rating_breakdown.features.toFixed(1) }}</span>
+                  </div>
+                </div>
               </div>
 
               <div class="detail-actions">
@@ -1227,6 +1342,27 @@ const isTemplateSelectMode = ref(false)
 const selectedTemplates = ref<Set<string>>(new Set())
 const showBatchRenameModal = ref(false)
 const batchRenameValue = ref('')
+
+// R128: Preview state
+const previewTab = ref<'slides' | 'interactive'>('slides')
+const previewSlides = ref<Array<{ type: string; title: string; subtitle?: string; items?: string[] }>>([])
+const currentPreviewSlideIndex = ref(0)
+const interactivePreviewLoading = ref(false)
+
+// R128: Collections state
+interface TemplateCollection {
+  id: string
+  name: string
+  description: string
+  template_ids: string[]
+  tags: string[]
+}
+const collections = ref<TemplateCollection[]>([
+  { id: 'startup-pitch', name: '创业路演', description: '打动投资人的完美融资演示', template_ids: ['t1', 't2', 't3'], tags: ['路演', '融资'] },
+  { id: 'product-launch', name: '产品发布', description: '引爆全场的新品发布会', template_ids: ['t4', 't5'], tags: ['产品', '发布'] },
+  { id: 'annual-report', name: '年度汇报', description: '专业数据驱动的年度报告', template_ids: ['t6', 't7', 't8'], tags: ['数据', '报告'] },
+  { id: 'courseware', name: '教学课件', description: '让学生爱上课堂的课件模板', template_ids: ['t9', 't10'], tags: ['教育', '教学'] },
+])
 
 // R35: 推荐相关状态
 const selectedTemplateSimilar = ref<Template[]>([])
@@ -1673,8 +1809,46 @@ const useTemplateAndNavigate = (template: Template) => {
 }
 
 const previewTemplate = (template: Template) => {
-  // Open preview in modal or new tab
-  console.log('Preview:', template.name)
+  selectedTemplate.value = template
+  previewTab.value = 'slides'
+  // Build preview slides from template data
+  previewSlides.value = [
+    { type: '封面', title: template.name, subtitle: template.description, items: template.tags },
+    { type: '目录', title: '目录', subtitle: '内容概览' },
+    { type: '章节', title: '核心内容', subtitle: template.description },
+    { type: '数据', title: '数据展示', subtitle: '关键指标' },
+    { type: '结尾', title: '谢谢观看', subtitle: template.description },
+  ]
+  currentPreviewSlideIndex.value = 0
+}
+
+const loadInteractivePreview = (template: Template) => {
+  previewTab.value = 'interactive'
+  interactivePreviewLoading.value = true
+  setTimeout(() => { interactivePreviewLoading.value = false }, 800)
+}
+
+const prevPreviewSlide = () => {
+  if (currentPreviewSlideIndex.value > 0) currentPreviewSlideIndex.value--
+}
+
+const nextPreviewSlide = () => {
+  if (currentPreviewSlideIndex.value < previewSlides.value.length - 1) currentPreviewSlideIndex.value++
+}
+
+const openCollection = (collection: TemplateCollection) => {
+  // Filter templates by collection template_ids
+  console.log('Open collection:', collection.name)
+}
+
+const getCollectionGradient = (id: string): string => {
+  const gradients: Record<string, string> = {
+    'startup-pitch': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'product-launch': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'annual-report': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'courseware': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  }
+  return gradients[id] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
 }
 
 const resetFilters = () => {
@@ -3975,6 +4149,320 @@ const executeDelete = async () => {
 .upload-submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* R128: Subcategory tag */
+.template-subcategory {
+  margin-bottom: 6px;
+}
+.subcategory-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #667eea22, #764ba222);
+  border: 1px solid #667eea44;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #667eea;
+  font-weight: 500;
+}
+
+/* R128: Download counter */
+.meta-item.downloads {
+  color: #00b42a;
+}
+
+/* R128: Ratings mini */
+.meta-item.rating-mini {
+  color: #ff7d00;
+}
+
+/* R128: Preview tabs */
+.preview-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.preview-tab {
+  padding: 6px 16px;
+  border: 1px solid #e5e6eb;
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  color: #646a73;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.preview-tab.active {
+  background: #165dff;
+  border-color: #165dff;
+  color: white;
+}
+
+/* R128: Slides preview */
+.slides-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.slides-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.slide-nav-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e5e6eb;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.slide-nav-btn:hover:not(:disabled) {
+  background: #f4f5f5;
+}
+.slide-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.slide-nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.slide-indicator {
+  font-size: 13px;
+  color: #646a73;
+  min-width: 60px;
+  text-align: center;
+}
+.slide-preview-card {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 16/9;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+.slide-type-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 6px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 3px;
+  font-size: 10px;
+  color: white;
+}
+.slide-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: white;
+}
+.slide-preview-subtitle {
+  font-size: 11px;
+  color: rgba(255,255,255,0.8);
+  margin: 0;
+}
+.slide-preview-items {
+  margin-top: 8px;
+}
+.slide-preview-item {
+  font-size: 10px;
+  color: rgba(255,255,255,0.9);
+  margin: 2px 0;
+}
+.item-bullet {
+  margin-right: 4px;
+}
+
+/* R128: Interactive preview */
+.interactive-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+.interactive-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #8f9093;
+}
+.interactive-placeholder svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+}
+.interactive-placeholder span {
+  font-size: 13px;
+}
+
+/* R128: Ratings breakdown */
+.ratings-breakdown {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f7f8fc;
+  border-radius: 8px;
+}
+.rating-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.rating-score {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f1f1f;
+}
+.rating-stars {
+  display: flex;
+  gap: 2px;
+}
+.rating-stars .star {
+  font-size: 16px;
+  color: #d9d9d9;
+}
+.rating-stars .star.filled {
+  color: #ff7d00;
+}
+.rating-count {
+  font-size: 12px;
+  color: #8f9093;
+}
+.rating-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rating-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rating-label {
+  font-size: 12px;
+  color: #646a73;
+  min-width: 40px;
+}
+.rating-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #e5e6eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rating-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.rating-bar-fill.design { background: #165dff; }
+.rating-bar-fill.usability { background: #00b42a; }
+.rating-bar-fill.features { background: #ff7d00; }
+.rating-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f1f1f;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* R128: Collections section */
+.collections-section {
+  padding: 32px 0;
+  border-top: 1px solid #f1f1f1;
+  margin-top: 24px;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin: 0;
+}
+.section-title svg {
+  width: 22px;
+  height: 22px;
+  color: #165dff;
+}
+.collections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.collection-card {
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  background: white;
+  border: 1px solid #f1f1f1;
+}
+.collection-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+.collection-cover {
+  height: 120px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+}
+.collection-count {
+  font-size: 12px;
+  color: rgba(255,255,255,0.9);
+  background: rgba(0,0,0,0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.collection-tags {
+  display: flex;
+  gap: 4px;
+}
+.collection-tag {
+  font-size: 10px;
+  color: rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.15);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.collection-info {
+  padding: 12px 16px;
+}
+.collection-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin: 0 0 4px;
+}
+.collection-desc {
+  font-size: 12px;
+  color: #8f9093;
+  margin: 0;
 }
 
 </style>

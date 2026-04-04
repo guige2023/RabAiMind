@@ -943,6 +943,147 @@ class NotificationService:
             self._persist_generation_notifs()
         return count
 
+    # ==================== COMMENT EMAIL NOTIFICATIONS ====================
+
+    def register_comment_email(
+        self,
+        user_id: str,
+        email: str,
+        name: str = "",
+        enabled: bool = True,
+    ) -> CommentEmailPrefs:
+        """注册/更新用户评论邮件通知偏好"""
+        prefs = _load_comment_email_prefs()
+        existing = prefs.get(user_id)
+        if existing:
+            # Update existing
+            existing["email"] = email
+            existing["name"] = name
+            existing["enabled"] = enabled
+            prefs[user_id] = existing
+        else:
+            prefs[user_id] = CommentEmailPrefs(
+                user_id=user_id,
+                email=email,
+                name=name,
+                enabled=enabled,
+            ).to_dict()
+        _save_comment_email_prefs(prefs)
+        return CommentEmailPrefs.from_dict(prefs[user_id])
+
+    def get_comment_email_prefs(self, user_id: str) -> Optional[CommentEmailPrefs]:
+        """获取用户评论邮件偏好"""
+        prefs = _load_comment_email_prefs()
+        data = prefs.get(user_id)
+        if data:
+            return CommentEmailPrefs.from_dict(data)
+        return None
+
+    def send_comment_notification_email(
+        self,
+        to_user_id: str,
+        from_user_name: str,
+        ppt_title: str,
+        slide_num: int,
+        content: str,
+        is_reply: bool = False,
+        reply_preview: str = "",
+        thread_url: str = "",
+    ) -> dict:
+        """
+        发送评论通知邮件给被 @提及 的用户。
+        返回 {'success': True/False, 'email': xxx} 或 {'success': False, 'error': ...}
+        """
+        prefs_data = _load_comment_email_prefs()
+        user_prefs = prefs_data.get(to_user_id)
+
+        if not user_prefs:
+            return {"success": False, "error": "User has no email registered for notifications"}
+
+        if not user_prefs.get("enabled", True):
+            return {"success": False, "error": "User has disabled comment email notifications"}
+
+        email = user_prefs.get("email", "")
+        if not email:
+            return {"success": False, "error": "No email address configured"}
+
+        html = _build_comment_email_html(
+            from_name=from_user_name,
+            ppt_title=ppt_title,
+            slide_num=slide_num,
+            content=content,
+            reply_preview=reply_preview,
+            is_reply=is_reply,
+            thread_url=thread_url,
+        )
+
+        subject = f"💬 {from_user_name} 在「{ppt_title}」发表了评论"
+        if is_reply:
+            subject = f"💬 {from_user_name} 回复了你的评论"
+
+        # Use notification service SMTP settings
+        smtp = getattr(settings, "SMTP_HOST", None) or os.getenv("SMTP_HOST", "")
+        if not smtp:
+            logger.warning(f"[NotificationService] SMTP not configured, skipping comment email to {email}")
+            return {"success": False, "error": "SMTP not configured"}
+
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", "noreply@rabai.com"))
+            msg["To"] = email
+            msg.attach(MIMEText(html, "html", "utf-8"))
+
+            smtp_port = int(os.getenv("SMTP_PORT", "587"))
+            smtp_user = os.getenv("SMTP_USER", "")
+            smtp_password = os.getenv("SMTP_PASSWORD", "")
+
+            with smtplib.SMTP(smtp, smtp_port) as server:
+                server.ehlo()
+                server.starttls()
+                if smtp_user and smtp_password:
+                    server.login(smtp_user, smtp_password)
+                server.sendmail(msg["From"], [email], msg.as_string())
+
+            logger.info(f"[NotificationService] Comment email sent to {email}")
+            return {"success": True, "email": email}
+        except Exception as e:
+            logger.error(f"[NotificationService] Failed to send comment email to {email}: {e}")
+            return {"success": False, "error": str(e)}
+
+    def notify_comment_added(
+        self,
+        ppt_title: str,
+        slide_num: int,
+        author_name: str,
+        content: str,
+        mentions: List[Dict],
+        is_reply: bool = False,
+        reply_preview: str = "",
+        thread_url: str = "",
+    ) -> List[dict]:
+        """
+        当评论添加时，发送邮件通知给所有被 @提及 的用户。
+        返回每用户的发送结果列表。
+        """
+        results = []
+        for mention in mentions:
+            user_id = mention.get("user_id", "")
+            if not user_id:
+                continue
+            result = self.send_comment_notification_email(
+                to_user_id=user_id,
+                from_user_name=author_name,
+                ppt_title=ppt_title,
+                slide_num=slide_num,
+                content=content,
+                is_reply=is_reply,
+                reply_preview=reply_preview,
+                thread_url=thread_url,
+            )
+            results.append({"user_id": user_id, **result})
+        return results
+
     # ==================== UNIFIED ALERTS LIST ====================
 
     def get_all_active_alerts(self, user_id: Optional[str] = None) -> List[dict]:
@@ -1027,6 +1168,107 @@ class NotificationService:
         priority_order = {"high": 0, "medium": 1, "low": 2}
         alerts.sort(key=lambda x: (priority_order.get(x["priority"], 2), x["created_at"]))
         return alerts
+
+
+# ── Comment Email Notification ────────────────────────────────────────────────
+
+# In-memory store for user email preferences (user_id -> {email, enabled})
+# Persisted to JSON
+COMMENT_EMAIL_PREFS_FILE = os.path.join(DATA_DIR, "comment_email_prefs.json")
+
+
+def _load_comment_email_prefs() -> Dict[str, dict]:
+    return _load_json(COMMENT_EMAIL_PREFS_FILE, {})
+
+
+def _save_comment_email_prefs(prefs: Dict[str, dict]):
+    _save_json(COMMENT_EMAIL_PREFS_FILE, prefs)
+
+
+class CommentEmailPrefs:
+    """用户评论邮件通知偏好"""
+
+    def __init__(
+        self,
+        user_id: str,
+        email: str = "",
+        enabled: bool = True,
+        name: str = "",
+        id: Optional[str] = None,
+        created_at: Optional[str] = None,
+    ):
+        self.id = id or _gen_id("cep_")
+        self.user_id = user_id
+        self.email = email
+        self.enabled = enabled
+        self.name = name
+        self.created_at = created_at or _now_iso()
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "email": self.email,
+            "enabled": self.enabled,
+            "name": self.name,
+            "created_at": self.created_at,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "CommentEmailPrefs":
+        return cls(**{k: v for k, v in d.items()})
+
+
+def _build_comment_email_html(
+    from_name: str,
+    ppt_title: str,
+    slide_num: int,
+    content: str,
+    reply_preview: str = "",
+    is_reply: bool = False,
+    thread_url: str = "",
+    primary_color: str = "#165DFF",
+) -> str:
+    """Build HTML email for a new comment notification."""
+    header_title = f"💬 {from_name} 在幻灯片 {slide_num} 发表了评论"
+    if is_reply:
+        header_title = f"💬 {from_name} 回复了你的评论"
+
+    # Truncate long content
+    display_content = content[:300] + ("..." if len(content) > 300 else "")
+
+    html_body = f"""
+    <html>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, {primary_color} 0%, #0E42D2 100%); padding: 28px 32px; border-radius: 16px 16px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 22px;">{header_title}</h1>
+        <p style="color: rgba(255,255,255,0.85); font-size: 14px; margin: 8px 0 0;">{ppt_title}</p>
+      </div>
+      <div style="background: #f8f9fa; padding: 32px; border-radius: 0 0 16px 16px; border: 1px solid #e0e0e0; border-top: none;">
+        <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid {primary_color};">
+          <p style="margin: 0 0 12px; font-size: 14px; color: #888;">
+            <strong style="color: #333;">{from_name}</strong> 在第 {slide_num} 页说:
+          </p>
+          <p style="margin: 0; font-size: 15px; color: #1a1a1a; line-height: 1.6;">{display_content}</p>
+        </div>
+        {f'<div style="background: #fff8f0; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; color: #666;">\n          <strong>💬 回复内容:</strong> {reply_preview[:100]}...\n        </div>' if is_reply and reply_preview else ''}
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="{thread_url}"
+             style="display: inline-block; background: linear-gradient(135deg, {primary_color}, #0E42D2); color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: 600; box-shadow: 0 4px 12px rgba(22,93,255,0.3);">
+             查看并回复评论 →
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #aaa; text-align: center; margin-top: 24px;">
+          你收到这封邮件是因为有人在评论中 @提及了你 · <a href="{thread_url}" style="color: {primary_color};">查看幻灯片</a>
+        </p>
+        <p style="font-size: 11px; color: #ccc; text-align: center; margin-top: 16px;">
+          RabAiMind AI PPT 生成平台 · <a href="#" style="color: #ccc;">取消邮件通知</a>
+        </p>
+      </div>
+    </body>
+    </html>
+    """
+    return html_body
 
 
 # ── Singleton Access ────────────────────────────────────────────────────────────

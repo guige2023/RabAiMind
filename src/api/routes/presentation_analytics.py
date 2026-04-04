@@ -180,3 +180,68 @@ async def get_analytics_report(task_id: str) -> Any:
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=analytics_{task_id}.pdf"}
     )
+
+
+# ==================== CTA / Conversion Tracking ====================
+
+class CTAClickRequest(BaseModel):
+    task_id: str
+    session_id: str
+    viewer_id: str = "anonymous"
+    cta_label: str = "Contact Us"
+    cta_url: str = ""
+
+
+@router.post("/cta-click")
+async def track_cta_click(body: CTAClickRequest) -> dict:
+    """Track a CTA button click for conversion goals"""
+    service = get_presentation_analytics_service()
+    result = service.track_cta_click(
+        task_id=body.task_id,
+        session_id=body.session_id,
+        viewer_id=body.viewer_id,
+        cta_label=body.cta_label,
+        cta_url=body.cta_url,
+    )
+    return result
+
+
+@router.get("/cta-stats/{task_id}")
+async def get_cta_stats(task_id: str) -> dict:
+    """Get CTA click statistics for a presentation"""
+    service = get_presentation_analytics_service()
+    stats = service.get_cta_stats(task_id)
+    return {"success": True, "task_id": task_id, **stats}
+
+
+# ==================== Live / Real-time Stats ====================
+
+@router.get("/live-stats/{task_id}")
+async def get_live_stats(task_id: str) -> dict:
+    """Get real-time viewer stats (active viewers now)"""
+    service = get_presentation_analytics_service()
+    stats = service.get_live_stats(task_id)
+    return {"success": True, "task_id": task_id, **stats}
+
+
+# ==================== Slide Time Heatmap ====================
+
+@router.get("/{task_id}/slide-heatmap")
+async def get_slide_heatmap(
+    task_id: str,
+    total_slides: int = Query(default=10, ge=1, le=100),
+) -> dict:
+    """Get average time per slide as a heatmap"""
+    service = get_presentation_analytics_service()
+    heatmap = service.get_slide_time_heatmap(task_id, total_slides)
+    return {"success": True, "task_id": task_id, **heatmap}
+
+
+# ==================== Browser/Device Breakdown ====================
+
+@router.get("/{task_id}/breakdown")
+async def get_browser_device_breakdown(task_id: str) -> dict:
+    """Get browser and device breakdown for a presentation"""
+    service = get_presentation_analytics_service()
+    breakdown = service.get_browser_device_breakdown(task_id)
+    return {"success": True, "task_id": task_id, **breakdown}

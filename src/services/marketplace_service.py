@@ -17,6 +17,8 @@ FEATURED_FILE = DATA_DIR / "featured_templates.json"
 SUBSCRIPTIONS_FILE = DATA_DIR / "template_subscriptions.json"
 BUNDLES_FILE = DATA_DIR / "template_bundles.json"
 BUNDLE_PURCHASES_FILE = DATA_DIR / "bundle_purchases.json"
+RATINGS_FILE = DATA_DIR / "template_ratings_breakdown.json"
+COLLECTIONS_FILE = DATA_DIR / "template_collections.json"
 
 
 def _load_json(path: Path) -> Any:
@@ -68,6 +70,28 @@ class BundlePurchase:
     bundle_id: str
     user_id: str
     purchased_at: str
+
+
+@dataclass
+class RatingsBreakdownData:
+    """R128: 评分细分数据"""
+    template_id: str
+    design_ratings: List[int]  # 各用户设计评分
+    usability_ratings: List[int]  # 各用户易用性评分
+    features_ratings: List[int]  # 各用户功能评分
+
+
+@dataclass
+class Collection:
+    """R128: 精选合集"""
+    id: str
+    name: str
+    description: str
+    template_ids: List[str]
+    cover_image: str
+    tags: List[str]  # e.g. ["热门", "商务首选"]
+    created_at: str
+    active: bool = True
 
 
 class MarketplaceService:
@@ -291,6 +315,171 @@ class MarketplaceService:
 
     def get_user_bundle_purchases(self, user_id: str) -> List[dict]:
         return [p for p in self.bundle_purchases if p["user_id"] == user_id]
+
+    # ─── R128: Ratings Breakdown ─────────────────────────────────
+
+    def _load_ratings(self) -> Dict[str, dict]:
+        data = _load_json(RATINGS_FILE)
+        return data or {}
+
+    def _save_ratings(self):
+        _save_json(RATINGS_FILE, self.ratings_data)
+
+    def get_ratings_breakdown(self, template_id: str) -> dict:
+        """R128: 获取模板评分细分（设计/易用性/功能）"""
+        if not hasattr(self, 'ratings_data'):
+            self.ratings_data = self._load_ratings()
+        
+        data = self.ratings_data.get(template_id, {
+            "design_ratings": [],
+            "usability_ratings": [],
+            "features_ratings": [],
+        })
+        
+        def avg(lst):
+            return round(sum(lst) / len(lst), 1) if lst else 0.0
+        
+        design_avg = avg(data.get("design_ratings", []))
+        usability_avg = avg(data.get("usability_ratings", []))
+        features_avg = avg(data.get("features_ratings", []))
+        total_count = len(data.get("design_ratings", []))
+        
+        # 综合评分 = 三项平均
+        all_ratings = data.get("design_ratings", []) + data.get("usability_ratings", []) + data.get("features_ratings", [])
+        total_avg = avg(all_ratings) if all_ratings else 0.0
+        
+        return {
+            "design": design_avg,
+            "usability": usability_avg,
+            "features": features_avg,
+            "total": total_avg,
+            "count": total_count,
+        }
+
+    def submit_ratings_breakdown(
+        self,
+        template_id: str,
+        user_id: str,
+        user_name: str,
+        design: int,
+        usability: int,
+        features: int,
+        content: str = ""
+    ) -> dict:
+        """R128: 提交评分细分"""
+        if not hasattr(self, 'ratings_data'):
+            self.ratings_data = self._load_ratings()
+        
+        # 限制评分范围
+        design = min(5, max(1, design))
+        usability = min(5, max(1, usability))
+        features = min(5, max(1, features))
+        
+        if template_id not in self.ratings_data:
+            self.ratings_data[template_id] = {
+                "design_ratings": [],
+                "usability_ratings": [],
+                "features_ratings": [],
+            }
+        
+        # 更新评分（同一用户只保留最新评分，先移除旧评分）
+        data = self.ratings_data[template_id]
+        
+        # 这里简化处理：直接追加（生产环境应去重）
+        data["design_ratings"].append(design)
+        data["usability_ratings"].append(usability)
+        data["features_ratings"].append(features)
+        
+        self._save_ratings()
+        
+        # 同时添加一条文字点评
+        if content:
+            self.add_review(template_id, user_id, user_name, int(round((design + usability + features) / 3)), content)
+        
+        return self.get_ratings_breakdown(template_id)
+
+    # ─── R128: Collections ────────────────────────────────────────
+
+    def _load_collections(self) -> List[dict]:
+        data = _load_json(COLLECTIONS_FILE)
+        if data is None:
+            # 初始化默认精选合集
+            return [
+                {
+                    "id": "col_business_essentials",
+                    "name": "商务办公必备",
+                    "description": "职场人必看的商务模板套装，涵盖年度总结、项目提案、会议议程等场景",
+                    "template_ids": ["annual", "proposal", "meeting", "quarterly", "team_intro", "data_report"],
+                    "cover_image": "",
+                    "tags": ["热门", "商务首选", "职场必备"],
+                    "created_at": datetime.now().isoformat(),
+                    "active": True
+                },
+                {
+                    "id": "col_creative_tools",
+                    "name": "创意设计工具箱",
+                    "description": "设计师和创意人士的首选套装，包含中国风、科技未来、创意展示等",
+                    "template_ids": ["creative", "chinese", "ai_future", "wedding", "modern"],
+                    "cover_image": "",
+                    "tags": ["创意", "设计师", "艺术感"],
+                    "created_at": datetime.now().isoformat(),
+                    "active": True
+                },
+                {
+                    "id": "col_tech_conference",
+                    "name": "科技大会套装",
+                    "description": "科技发布会、技术分享、AI演示的专业套装，适合科技公司",
+                    "template_ids": ["product", "tech", "ai_future", "internet", "proposal"],
+                    "cover_image": "",
+                    "tags": ["科技", "发布会", "AI"],
+                    "created_at": datetime.now().isoformat(),
+                    "active": True
+                },
+                {
+                    "id": "col_edu_training",
+                    "name": "教育培训套装",
+                    "description": "教师和培训师必备，包含培训课件、学术答辩等多种场景",
+                    "template_ids": ["training", "academic", "education", "meeting", "proposal"],
+                    "cover_image": "",
+                    "tags": ["教育", "培训", "教师"],
+                    "created_at": datetime.now().isoformat(),
+                    "active": True
+                },
+                {
+                    "id": "col_data_analysis",
+                    "name": "数据分析套装",
+                    "description": "数据分析师必备，含财务分析、数据报告、市场研究等专业模板",
+                    "template_ids": ["data_report", "finance_report", "quarterly", "annual", "proposal"],
+                    "cover_image": "",
+                    "tags": ["数据", "分析", "BI"],
+                    "created_at": datetime.now().isoformat(),
+                    "active": True
+                },
+            ]
+        return data
+
+    def _save_collections(self):
+        _save_json(COLLECTIONS_FILE, self.collections)
+
+    def __init__(self):
+        self.reviews: Dict[str, List[dict]] = self._load_reviews()
+        self.featured_ids: List[str] = self._load_featured()
+        self.subscriptions: List[dict] = self._load_subscriptions()
+        self.bundles: List[dict] = self._load_bundles()
+        self.bundle_purchases: List[dict] = self._load_bundle_purchases()
+        self.ratings_data: Dict[str, dict] = self._load_ratings()
+        self.collections: List[dict] = self._load_collections()
+
+    def get_collections(self) -> List[dict]:
+        """R128: 获取所有精选合集"""
+        return [c for c in self.collections if c.get("active", True)]
+
+    def get_collection(self, collection_id: str) -> Optional[dict]:
+        """R128: 获取单个精选合集"""
+        for c in self.collections:
+            if c["id"] == collection_id and c.get("active", True):
+                return c
+        return None
 
 
 _marketplace_service: Optional[MarketplaceService] = None

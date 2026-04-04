@@ -1,0 +1,53 @@
+{
+  "task_id": "test_t",
+  "created_at": "2026-04-04T20:48:58.119890",
+  "updated_at": "2026-04-04T20:48:58.120135",
+  "is_public": false,
+  "view_count": 0,
+  "share_count": 0,
+  "comment_count": 0,
+  "reactions": {
+    "like": 0,
+    "fire": 0,
+    "heart": 0
+  },
+  "user_reactions": {},
+  "share_link": {
+    "title": "",
+    "description": "",
+    "thumbnail": null
+  },
+  "polls": {
+    "poll_e864a48d7a89": {
+      "poll_id": "poll_e864a48d7a89",
+      "question": "What is your favorite color?",
+      "options": [
+        "Red",
+        "Blue",
+        "Green"
+      ],
+      "option_votes": {
+        "0": 0,
+        "1": 0,
+        "2": 0
+      },
+      "total_votes": 0,
+      "user_votes": {},
+      "is_active": true,
+      "created_at": "2026-04-04T20:48:58.119937"
+    }
+  },
+  "qa_list": [],
+  "lead_captures": {
+    "lead_56a5d2f50626": {
+      "lead_id": "lead_56a5d2f50626",
+      "email": "test@example.com",
+      "email_hash": "973dfe463ec85785",
+      "name": "Test User",
+      "company": "ACME Corp",
+      "extra": {},
+      "captured_at": "2026-04-04T20:48:58.120132",
+      "source": "embed_widget"
+    }
+  }
+}

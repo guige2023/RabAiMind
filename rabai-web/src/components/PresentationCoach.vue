@@ -505,6 +505,361 @@
             </button>
           </div>
         </div>
+
+        <!-- R127: Speaking Pace Tab -->
+        <div v-else-if="activeTab === 'pace'" class="tab-panel">
+          <div v-if="!paceResult" class="coach-start">
+            <p class="coach-desc">AI 将分析你的演讲语速，给出 WPM 评分和改进建议，帮助你找到最佳节奏</p>
+            <div class="timing-options">
+              <div class="option-row">
+                <label>总演讲时间：</label>
+                <select v-model.number="paceMinutes" class="form-select">
+                  <option :value="5">5 分钟</option>
+                  <option :value="10">10 分钟</option>
+                  <option :value="15">15 分钟</option>
+                  <option :value="20">20 分钟</option>
+                  <option :value="30">30 分钟</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-lg" @click="runPace" :disabled="isLoading">
+              🎯 分析语速
+            </button>
+          </div>
+          <div v-else class="pace-result">
+            <div class="pace-header">
+              <div class="pace-wpm-display">
+                <span class="pace-wpm-num">{{ paceResult.wpm }}</span>
+                <span class="pace-wpm-label">WPM</span>
+              </div>
+              <div class="pace-category">
+                <span class="pace-icon">{{ paceResult.pace_icon }}</span>
+                <span class="pace-cat-text">{{ paceResult.pace_category }}</span>
+              </div>
+            </div>
+            <div class="pace-feedback" v-if="paceResult.pace_feedback">
+              <p>{{ paceResult.pace_feedback }}</p>
+            </div>
+            <div class="pace-stats">
+              <div class="pace-stat">
+                <span class="stat-num">{{ paceResult.total_words }}</span>
+                <span class="stat-label">总字数</span>
+              </div>
+              <div class="pace-stat">
+                <span class="stat-num">{{ paceResult.total_minutes }}</span>
+                <span class="stat-label">总时间(分钟)</span>
+              </div>
+              <div class="pace-stat">
+                <span class="stat-num">{{ paceResult.suggested_pauses }}</span>
+                <span class="stat-label">建议停顿</span>
+              </div>
+            </div>
+            <div class="pace-wpm-bar">
+              <div class="wpm-bar-track">
+                <div class="wpm-bar-fill slow" :style="{ width: Math.min(33, (paceResult.wpm / 200) * 100) + '%' }"></div>
+                <div class="wpm-bar-fill optimal" :style="{ width: Math.min(33, Math.max(0, (paceResult.wpm - 80) / 70) * 100) + '%' }"></div>
+                <div class="wpm-bar-fill fast" :style="{ width: Math.min(34, Math.max(0, (paceResult.wpm - 150) / 80) * 100) + '%' }"></div>
+              </div>
+              <div class="wpm-bar-labels">
+                <span>慢 (&lt;80)</span>
+                <span class="optimal-label">适中 (80-150)</span>
+                <span>快 (&gt;150)</span>
+              </div>
+            </div>
+            <div class="pace-tips" v-if="paceResult.tips && paceResult.tips.length">
+              <h4>💡 改善建议</h4>
+              <ul>
+                <li v-for="(tip, idx) in paceResult.tips" :key="idx">{{ tip }}</li>
+              </ul>
+            </div>
+            <div class="per-slide-pace" v-if="paceResult.per_slide_pace && paceResult.per_slide_pace.length">
+              <h4>📄 每页语速建议</h4>
+              <div class="pace-list">
+                <div v-for="slide in paceResult.per_slide_pace" :key="slide.slide_num" class="pace-item" @click="viewSlide(slide.slide_num)">
+                  <span class="pace-slide-num">第{{ slide.slide_num }}页</span>
+                  <span class="pace-slide-title">{{ slide.title || '(无标题)' }}</span>
+                  <span class="pace-slide-words">{{ slide.estimated_words }}字</span>
+                  <span class="pace-slide-sec">{{ slide.suggested_seconds }}秒</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-outline" @click="paceResult = null" :disabled="isLoading">
+              🔄 重新分析
+            </button>
+          </div>
+        </div>
+
+        <!-- R127: Content Score Tab -->
+        <div v-else-if="activeTab === 'content'" class="tab-panel">
+          <div v-if="!contentResult" class="coach-start">
+            <p class="coach-desc">AI 将从清晰度、简洁度、影响力三个维度评估内容质量，给出针对性改进建议</p>
+            <button class="btn btn-primary btn-lg" @click="runContent" :disabled="isLoading">
+              📝 开始内容评分
+            </button>
+          </div>
+          <div v-else class="content-result">
+            <div class="score-cards">
+              <div class="score-card small">
+                <span class="score-small-num">{{ contentResult.clarity_score || 0 }}</span>
+                <span class="score-label">清晰度</span>
+              </div>
+              <div class="score-card small">
+                <span class="score-small-num">{{ contentResult.conciseness_score || 0 }}</span>
+                <span class="score-label">简洁度</span>
+              </div>
+              <div class="score-card small">
+                <span class="score-small-num">{{ contentResult.impact_score || 0 }}</span>
+                <span class="score-label">影响力</span>
+              </div>
+              <div class="score-card small highlight">
+                <span class="score-small-num">{{ contentResult.overall_content_score || 0 }}</span>
+                <span class="score-label">综合评分</span>
+              </div>
+            </div>
+            <div class="content-analyses">
+              <div class="analysis-item" v-if="contentResult.clarity_analysis">
+                <h4>🔍 清晰度分析</h4>
+                <p>{{ contentResult.clarity_analysis }}</p>
+              </div>
+              <div class="analysis-item" v-if="contentResult.conciseness_analysis">
+                <h4>✂️ 简洁度分析</h4>
+                <p>{{ contentResult.conciseness_analysis }}</p>
+              </div>
+              <div class="analysis-item" v-if="contentResult.impact_analysis">
+                <h4>⚡ 影响力分析</h4>
+                <p>{{ contentResult.impact_analysis }}</p>
+              </div>
+            </div>
+            <div class="improvements-block" v-if="contentResult.top_content_improvements && contentResult.top_content_improvements.length">
+              <h4>🚀 内容改进建议</h4>
+              <ul>
+                <li v-for="(imp, idx) in contentResult.top_content_improvements" :key="idx">{{ imp }}</li>
+              </ul>
+            </div>
+            <div class="per-slide-content" v-if="contentResult.per_slide_scores && contentResult.per_slide_scores.length">
+              <h4>📄 每页内容评分</h4>
+              <div class="content-slide-list">
+                <div v-for="slide in contentResult.per_slide_scores" :key="slide.slide_num" class="content-slide-item" @click="viewSlide(slide.slide_num)">
+                  <span class="cs-slide-num">第{{ slide.slide_num }}页</span>
+                  <div class="cs-scores">
+                    <span class="cs-score" title="清晰度">{{ slide.clarity }}</span>
+                    <span class="cs-score" title="简洁度">{{ slide.conciseness }}</span>
+                    <span class="cs-score" title="影响力">{{ slide.impact }}</span>
+                  </div>
+                  <span class="cs-verdict">{{ slide.verdict }}</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-outline" @click="runContent" :disabled="isLoading">
+              🔄 重新分析
+            </button>
+          </div>
+        </div>
+
+        <!-- R127: Visual Design Tab -->
+        <div v-else-if="activeTab === 'design'" class="tab-panel">
+          <div v-if="!designResult" class="coach-start">
+            <p class="coach-desc">AI 将从布局、配色、字体、留白等维度评价幻灯片的视觉设计质量</p>
+            <button class="btn btn-primary btn-lg" @click="runDesign" :disabled="isLoading">
+              🎨 分析视觉设计
+            </button>
+          </div>
+          <div v-else class="design-result">
+            <div class="design-scores">
+              <div class="ds-item">
+                <span class="ds-score">{{ designResult.layout_score || 0 }}</span>
+                <span class="ds-label">布局</span>
+              </div>
+              <div class="ds-item">
+                <span class="ds-score">{{ designResult.color_score || 0 }}</span>
+                <span class="ds-label">配色</span>
+              </div>
+              <div class="ds-item">
+                <span class="ds-score">{{ designResult.typography_score || 0 }}</span>
+                <span class="ds-label">字体</span>
+              </div>
+              <div class="ds-item">
+                <span class="ds-score">{{ designResult.whitespace_score || 0 }}</span>
+                <span class="ds-label">留白</span>
+              </div>
+              <div class="ds-item">
+                <span class="ds-score">{{ designResult.consistency_score || 0 }}</span>
+                <span class="ds-label">一致</span>
+              </div>
+              <div class="ds-item highlight">
+                <span class="ds-score">{{ designResult.overall_design_score || 0 }}</span>
+                <span class="ds-label">综合</span>
+              </div>
+            </div>
+            <div class="design-analyses">
+              <p v-if="designResult.layout_analysis"><strong>布局：</strong>{{ designResult.layout_analysis }}</p>
+              <p v-if="designResult.color_analysis"><strong>配色：</strong>{{ designResult.color_analysis }}</p>
+              <p v-if="designResult.typography_analysis"><strong>字体：</strong>{{ designResult.typography_analysis }}</p>
+            </div>
+            <div class="design-strengths" v-if="designResult.design_strengths && designResult.design_strengths.length">
+              <h4>✨ 设计优点</h4>
+              <ul>
+                <li v-for="(s, idx) in designResult.design_strengths" :key="idx">{{ s }}</li>
+              </ul>
+            </div>
+            <div class="improvements-block" v-if="designResult.top_3_design_improvements && designResult.top_3_design_improvements.length">
+              <h4>🚀 视觉改进建议</h4>
+              <ul>
+                <li v-for="(imp, idx) in designResult.top_3_design_improvements" :key="idx">{{ imp }}</li>
+              </ul>
+            </div>
+            <div class="per-slide-design" v-if="designResult.per_slide_feedback && designResult.per_slide_feedback.length">
+              <h4>📄 每页设计反馈</h4>
+              <div v-for="slide in designResult.per_slide_feedback" :key="slide.slide_num" class="design-slide-item">
+                <div class="dsi-header" @click="viewSlide(slide.slide_num)">
+                  <span class="dsi-num">第{{ slide.slide_num }}页</span>
+                  <span class="dsi-scores">布局{{ slide.layout_score }} 配色{{ slide.color_score }} 字体{{ slide.typography_score }}</span>
+                </div>
+                <div class="dsi-issues" v-if="slide.issues && slide.issues.length">
+                  <span class="dsi-tag">问题：</span>{{ slide.issues.join(', ') }}
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-outline" @click="runDesign" :disabled="isLoading">
+              🔄 重新分析
+            </button>
+          </div>
+        </div>
+
+        <!-- R127: Engagement Prediction Tab -->
+        <div v-else-if="activeTab === 'engagement'" class="tab-panel">
+          <div v-if="!engagementResult" class="coach-start">
+            <p class="coach-desc">AI 将预测观众在各阶段的注意力变化和情感反应，帮你提前做好应对准备</p>
+            <div class="audience-options">
+              <div class="option-row">
+                <label>观众画像：</label>
+                <select v-model="engagementProfile" class="form-select">
+                  <option value="">一般商务人士</option>
+                  <option value="技术高管">技术高管 / CTO</option>
+                  <option value="投资者">投资者 / 股东</option>
+                  <option value="大学生">大学生 / 学术</option>
+                  <option value="客户">潜在客户</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-lg" @click="runEngagement" :disabled="isLoading">
+              🔥 预测参与度
+            </button>
+          </div>
+          <div v-else class="engagement-result">
+            <div class="engagement-header">
+              <div class="eng-score">
+                <span class="eng-score-num">{{ engagementResult.predicted_attention_score || 0 }}</span>
+                <span class="eng-score-label">注意力评分</span>
+              </div>
+              <div class="eng-score">
+                <span class="eng-score-num">{{ engagementResult.predicted_engagement_score || 0 }}</span>
+                <span class="eng-score-label">参与度评分</span>
+              </div>
+            </div>
+            <div class="engagement-prediction" v-if="engagementResult.overall_prediction">
+              <p>{{ engagementResult.overall_prediction }}</p>
+            </div>
+            <div class="emotion-curve" v-if="engagementResult.predicted_emotion_curve && engagementResult.predicted_emotion_curve.length">
+              <h4>📈 情感变化曲线</h4>
+              <div v-for="(phase, idx) in engagementResult.predicted_emotion_curve" :key="idx" class="emotion-phase">
+                <span class="ep-range">{{ phase.slide_range }}</span>
+                <span class="ep-phase">{{ phase.phase }}</span>
+                <span class="ep-emotion">{{ phase.predicted_emotion }}</span>
+              </div>
+            </div>
+            <div class="engagement-moments">
+              <div class="eng-moment best" v-if="engagementResult.most_engaging_moment">
+                <h4>🔥 最吸引观众的时刻</h4>
+                <p>第{{ engagementResult.most_engaging_moment.slide_num }}页：{{ engagementResult.most_engaging_moment.reason }}</p>
+              </div>
+              <div class="eng-moment worst" v-if="engagementResult.least_engaging_moment">
+                <h4>💤 观众最易走神的时刻</h4>
+                <p>第{{ engagementResult.least_engaging_moment.slide_num }}页：{{ engagementResult.least_engaging_moment.reason }}</p>
+              </div>
+            </div>
+            <div class="emotional-peaks" v-if="engagementResult.emotional_peaks && engagementResult.emotional_peaks.length">
+              <h4>⚡ 情感高峰</h4>
+              <div v-for="(peak, idx) in engagementResult.emotional_peaks" :key="idx" class="peak-item">
+                第{{ peak.slide_num }}页 - {{ peak.emotion }}：{{ peak.trigger }}
+              </div>
+            </div>
+            <div class="fatigue-risks" v-if="engagementResult.fatigue_risks && engagementResult.fatigue_risks.length">
+              <h4>⚠️ 疲劳风险</h4>
+              <div v-for="(risk, idx) in engagementResult.fatigue_risks" :key="idx" class="risk-item">
+                {{ risk.slide_range }}：{{ risk.reason }}
+              </div>
+            </div>
+            <div class="engagement-tips" v-if="engagementResult.engagement_tips && engagementResult.engagement_tips.length">
+              <h4>💡 提升参与度建议</h4>
+              <ul>
+                <li v-for="(tip, idx) in engagementResult.engagement_tips" :key="idx">{{ tip }}</li>
+              </ul>
+            </div>
+            <button class="btn btn-outline" @click="runEngagement" :disabled="isLoading">
+              🔄 重新预测
+            </button>
+          </div>
+        </div>
+
+        <!-- R127: Personalized Coaching Tab -->
+        <div v-else-if="activeTab === 'personalized'" class="tab-panel">
+          <div v-if="!personalizedResult" class="coach-start">
+            <p class="coach-desc">基于你过去的演讲记录，AI 将提供个性化的改进建议和 coaching 重点</p>
+            <button class="btn btn-primary btn-lg" @click="runPersonalized" :disabled="isLoading">
+              ⭐ 开始个性化教练
+            </button>
+          </div>
+          <div v-else class="personalized-result">
+            <div class="personalized-header">
+              <span class="ph-badge">⭐ 个性化教练</span>
+              <span class="ph-sessions" v-if="personalizedResult.total_past_sessions > 0">
+                基于 {{ personalizedResult.total_past_sessions }} 次历史演讲
+              </span>
+              <span class="ph-sessions" v-else>
+                暂无历史记录，这是你的第一次
+              </span>
+            </div>
+            <div class="improvement-trends" v-if="personalizedResult.improvement_trends && personalizedResult.improvement_trends.length">
+              <div v-for="(trend, idx) in personalizedResult.improvement_trends" :key="idx" class="trend-item">
+                {{ trend }}
+              </div>
+            </div>
+            <div class="coaching-focus" v-if="personalizedResult.coaching_focus">
+              <h4>🎯 本次教练重点</h4>
+              <p>{{ personalizedResult.coaching_focus }}</p>
+            </div>
+            <div class="personalized-tips" v-if="personalizedResult.personalized_tips && personalizedResult.personalized_tips.length">
+              <h4>💡 个性化建议</h4>
+              <div v-for="(tip, idx) in personalizedResult.personalized_tips" :key="idx" class="personalized-tip-item">
+                <span class="pt-category">{{ tip.category }}</span>
+                <span class="pt-tip">{{ tip.tip }}</span>
+                <span class="pt-reason">{{ tip.reason }}</span>
+              </div>
+            </div>
+            <div class="improvement-priority" v-if="personalizedResult.improvement_priority && personalizedResult.improvement_priority.length">
+              <h4>🚀 优先改进项</h4>
+              <ol>
+                <li v-for="(item, idx) in personalizedResult.improvement_priority" :key="idx">{{ item }}</li>
+              </ol>
+            </div>
+            <div class="confidence-boost" v-if="personalizedResult.confidence_boost">
+              <div class="confidence-item">💪 {{ personalizedResult.confidence_boost }}</div>
+            </div>
+            <div class="common-past-issues" v-if="personalizedResult.common_past_issues && personalizedResult.common_past_issues.length && personalizedResult.total_past_sessions > 0">
+              <h4>📋 历史常见问题</h4>
+              <div class="past-issues-list">
+                <span v-for="(issue, idx) in personalizedResult.common_past_issues" :key="idx" class="past-issue-tag">{{ issue }}</span>
+              </div>
+            </div>
+            <div class="historical-summary" v-if="personalizedResult.historical_summary">
+              <p>{{ personalizedResult.historical_summary }}</p>
+            </div>
+            <button class="btn btn-outline" @click="runPersonalized" :disabled="isLoading">
+              🔄 重新生成
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -534,6 +889,11 @@ const tabs = [
   { id: 'timing', label: '时间节奏', icon: '⏱️' },
   { id: 'delivery', label: '演讲技巧', icon: '🎙️' },
   { id: 'audience', label: '观众预测', icon: '👥' },
+  { id: 'pace', label: '语速教练', icon: '🎯' },
+  { id: 'content', label: '内容评分', icon: '📝' },
+  { id: 'design', label: '视觉设计', icon: '🎨' },
+  { id: 'engagement', label: '参与度预测', icon: '🔥' },
+  { id: 'personalized', label: '个性化', icon: '⭐' },
 ]
 
 const activeTab = ref('analyze')
@@ -561,6 +921,23 @@ const deliveryResult = ref<any>(null)
 const audienceResult = ref<any>(null)
 const audienceProfile = ref('')
 const revealedAudQuestions = ref(new Set<number>())
+
+// R127: Speaking Pace (Delivery Coach)
+const paceResult = ref<any>(null)
+const paceMinutes = ref(15)
+
+// R127: Content Dimensions (Content Score)
+const contentResult = ref<any>(null)
+
+// R127: Visual Design Feedback
+const designResult = ref<any>(null)
+
+// R127: Audience Engagement Prediction
+const engagementResult = ref<any>(null)
+const engagementProfile = ref('')
+
+// R127: Personalized Coaching
+const personalizedResult = ref<any>(null)
 
 // Labels
 const difficultyLabels: Record<string, string> = {
@@ -744,6 +1121,120 @@ function getTimingColor(seconds: number): string {
   if (seconds < 60) return '#007AFF'
   if (seconds < 90) return '#FF9500'
   return '#FF3B30'
+}
+
+
+// R127: Speaking Pace - Delivery Coach
+async function runPace() {
+  isLoading.value = true
+  loadingMessage.value = 'AI 正在分析语速...'
+  paceResult.value = null
+  try {
+    const res = await api.post('/ppt/coach/speaking-pace', {
+      task_id: props.taskId,
+      slides: props.slides,
+      total_minutes: paceMinutes.value
+    })
+    if (res.data.success) {
+      paceResult.value = res.data
+    } else {
+      alert(res.data.error || '分析失败')
+    }
+  } catch (e: any) {
+    alert('分析失败: ' + (e.message || '请重试'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// R127: Content Dimensions - Content Score
+async function runContent() {
+  isLoading.value = true
+  loadingMessage.value = 'AI 正在分析内容质量...'
+  contentResult.value = null
+  try {
+    const res = await api.post('/ppt/coach/content-dimensions', {
+      task_id: props.taskId,
+      slides: props.slides
+    })
+    if (res.data.success) {
+      contentResult.value = res.data
+    } else {
+      alert(res.data.error || '分析失败')
+    }
+  } catch (e: any) {
+    alert('分析失败: ' + (e.message || '请重试'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// R127: Visual Design Feedback
+async function runDesign() {
+  isLoading.value = true
+  loadingMessage.value = 'AI 正在分析视觉设计...'
+  designResult.value = null
+  try {
+    const res = await api.post('/ppt/coach/visual-design', {
+      task_id: props.taskId,
+      slides: props.slides
+    })
+    if (res.data.success) {
+      designResult.value = res.data
+    } else {
+      alert(res.data.error || '分析失败')
+    }
+  } catch (e: any) {
+    alert('分析失败: ' + (e.message || '请重试'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// R127: Audience Engagement Prediction
+async function runEngagement() {
+  isLoading.value = true
+  loadingMessage.value = 'AI 正在预测观众参与度...'
+  engagementResult.value = null
+  try {
+    const res = await api.post('/ppt/coach/engagement', {
+      task_id: props.taskId,
+      slides: props.slides,
+      audience_profile: engagementProfile.value
+    })
+    if (res.data.success) {
+      engagementResult.value = res.data
+    } else {
+      alert(res.data.error || '预测失败')
+    }
+  } catch (e: any) {
+    alert('预测失败: ' + (e.message || '请重试'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// R127: Personalized Coaching
+async function runPersonalized() {
+  isLoading.value = true
+  loadingMessage.value = 'AI 正在生成个性化建议...'
+  personalizedResult.value = null
+  try {
+    const res = await api.post('/ppt/coach/personalized', {
+      task_id: props.taskId,
+      slides: props.slides,
+      user_id: 'default'
+    })
+    if (res.data.success) {
+      personalizedResult.value = res.data
+    } else {
+      alert(res.data.error || '生成失败')
+    }
+  } catch (e: any) {
+    alert('生成失败: ' + (e.message || '请重试'))
+  } finally {
+    isLoading.value = false
+  }
 }
 
 // Reset when panel opens with new task
@@ -1679,4 +2170,146 @@ watch(() => props.visible, (visible) => {
   margin-top: 12px;
   flex-wrap: wrap;
 }
+
+/* R127: Speaking Pace */
+.pace-result { padding: 0; }
+.pace-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.pace-wpm-display { display: flex; align-items: baseline; gap: 4px; }
+.pace-wpm-num { font-size: 48px; font-weight: 700; color: #667eea; }
+.pace-wpm-label { font-size: 18px; color: #667eea88; }
+.pace-category { display: flex; align-items: center; gap: 6px; }
+.pace-icon { font-size: 24px; }
+.pace-cat-text { font-size: 16px; color: #667eea; font-weight: 600; }
+.pace-feedback { background: #f0f0ff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.pace-feedback p { margin: 0; color: #333; font-size: 14px; }
+.pace-stats { display: flex; gap: 16px; margin-bottom: 16px; }
+.pace-stat { flex: 1; background: #f8f8f8; border-radius: 8px; padding: 12px; text-align: center; }
+.stat-num { display: block; font-size: 24px; font-weight: 700; color: #333; }
+.stat-label { font-size: 12px; color: #888; }
+.pace-wpm-bar { margin-bottom: 16px; }
+.wpm-bar-track { height: 8px; background: #eee; border-radius: 4px; display: flex; overflow: hidden; margin-bottom: 4px; }
+.wpm-bar-fill.slow { background: #34C759; height: 100%; }
+.wpm-bar-fill.optimal { background: #007AFF; height: 100%; }
+.wpm-bar-fill.fast { background: #FF3B30; height: 100%; }
+.wpm-bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
+.wpm-bar-labels .optimal-label { color: #007AFF; font-weight: 600; }
+.pace-tips { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.pace-tips h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.pace-tips ul { margin: 0; padding-left: 20px; }
+.pace-tips li { font-size: 13px; color: #555; margin-bottom: 4px; }
+.per-slide-pace { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.per-slide-pace h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.pace-list { display: flex; flex-direction: column; gap: 6px; }
+.pace-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f8f8; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+.pace-item:hover { background: #e8e8ff; }
+.pace-slide-num { font-size: 12px; color: #667eea; font-weight: 600; min-width: 50px; }
+.pace-slide-title { flex: 1; font-size: 13px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pace-slide-words { font-size: 12px; color: #888; }
+.pace-slide-sec { font-size: 12px; color: #667eea; }
+
+/* R127: Content Score */
+.content-result { padding: 0; }
+.score-cards { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.score-card.small { flex: 1; min-width: 70px; background: #f8f8f8; border-radius: 8px; padding: 12px 8px; text-align: center; }
+.score-card.small.highlight { background: #667eea22; border: 1px solid #667eea44; }
+.score-small-num { display: block; font-size: 28px; font-weight: 700; color: #667eea; }
+.score-label { font-size: 11px; color: #888; }
+.content-analyses { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.analysis-item { background: #f8f8f8; border-radius: 8px; padding: 10px; }
+.analysis-item h4 { margin: 0 0 4px; font-size: 13px; color: #333; }
+.analysis-item p { margin: 0; font-size: 13px; color: #555; }
+.per-slide-content { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.per-slide-content h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.content-slide-list { display: flex; flex-direction: column; gap: 6px; }
+.content-slide-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #f8f8f8; border-radius: 6px; cursor: pointer; }
+.content-slide-item:hover { background: #e8e8ff; }
+.cs-slide-num { font-size: 12px; color: #667eea; font-weight: 600; min-width: 50px; }
+.cs-scores { display: flex; gap: 6px; }
+.cs-score { font-size: 12px; padding: 2px 6px; background: #667eea22; color: #667eea; border-radius: 4px; }
+.cs-verdict { flex: 1; font-size: 12px; color: #666; text-align: right; }
+
+/* R127: Visual Design */
+.design-result { padding: 0; }
+.design-scores { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; justify-content: center; }
+.ds-item { min-width: 60px; background: #f8f8f8; border-radius: 8px; padding: 10px 6px; text-align: center; }
+.ds-item.highlight { background: #667eea22; border: 1px solid #667eea44; }
+.ds-score { display: block; font-size: 24px; font-weight: 700; color: #667eea; }
+.ds-label { font-size: 11px; color: #888; }
+.design-analyses { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.design-analyses p { margin: 0; font-size: 13px; color: #555; background: #f8f8f8; padding: 8px; border-radius: 6px; }
+.design-strengths { background: #f0fff0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.design-strengths h4 { margin: 0 0 6px; font-size: 13px; color: #2a9d2a; }
+.design-strengths ul { margin: 0; padding-left: 18px; }
+.design-strengths li { font-size: 13px; color: #555; margin-bottom: 3px; }
+.per-slide-design { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.per-slide-design h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.design-slide-item { background: #f8f8f8; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+.dsi-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.dsi-header:hover { color: #667eea; }
+.dsi-num { font-size: 13px; font-weight: 600; color: #333; }
+.dsi-scores { font-size: 11px; color: #667eea; }
+.dsi-issues { margin-top: 4px; font-size: 12px; color: #888; }
+.dsi-tag { color: #ff6b6b; }
+
+/* R127: Engagement Prediction */
+.engagement-result { padding: 0; }
+.engagement-header { display: flex; gap: 16px; margin-bottom: 16px; }
+.eng-score { flex: 1; background: #fff8f0; border-radius: 8px; padding: 12px; text-align: center; }
+.eng-score-num { display: block; font-size: 36px; font-weight: 700; color: #ff9500; }
+.eng-score-label { font-size: 12px; color: #888; }
+.engagement-prediction { background: #f8f8f8; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.engagement-prediction p { margin: 0; font-size: 13px; color: #555; }
+.emotion-curve { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.emotion-curve h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.emotion-phase { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.emotion-phase:last-child { border-bottom: none; }
+.ep-range { font-size: 12px; color: #667eea; font-weight: 600; min-width: 40px; }
+.ep-phase { font-size: 12px; color: #333; min-width: 60px; }
+.ep-emotion { flex: 1; font-size: 12px; color: #555; }
+.engagement-moments { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.eng-moment { background: #f8f8f8; border-radius: 8px; padding: 10px; }
+.eng-moment.best { border-left: 3px solid #ff6b6b; }
+.eng-moment.worst { border-left: 3px solid #888; }
+.eng-moment h4 { margin: 0 0 4px; font-size: 13px; }
+.eng-moment p { margin: 0; font-size: 12px; color: #555; }
+.emotional-peaks { background: #fff8f0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.emotional-peaks h4 { margin: 0 0 6px; font-size: 13px; color: #ff9500; }
+.peak-item { font-size: 12px; color: #555; padding: 3px 0; }
+.fatigue-risks { background: #fff0f0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.fatigue-risks h4 { margin: 0 0 6px; font-size: 13px; color: #ff3b30; }
+.risk-item { font-size: 12px; color: #555; padding: 3px 0; }
+.engagement-tips { background: #f0f8ff; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.engagement-tips h4 { margin: 0 0 6px; font-size: 13px; color: #007aff; }
+.engagement-tips ul { margin: 0; padding-left: 18px; }
+.engagement-tips li { font-size: 12px; color: #555; margin-bottom: 3px; }
+
+/* R127: Personalized Coaching */
+.personalized-result { padding: 0; }
+.personalized-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.ph-badge { background: #667eea22; color: #667eea; padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; }
+.ph-sessions { font-size: 12px; color: #888; }
+.improvement-trends { background: #f0fff0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.trend-item { font-size: 13px; color: #2a9d2a; padding: 3px 0; }
+.coaching-focus { background: #667eea22; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.coaching-focus h4 { margin: 0 0 6px; font-size: 14px; color: #667eea; }
+.coaching-focus p { margin: 0; font-size: 13px; color: #333; }
+.personalized-tips { background: #fff; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+.personalized-tips h4 { margin: 0 0 8px; font-size: 14px; color: #333; }
+.personalized-tip-item { display: flex; flex-direction: column; gap: 2px; padding: 8px; background: #f8f8f8; border-radius: 6px; margin-bottom: 6px; }
+.pt-category { font-size: 11px; color: #667eea; font-weight: 600; text-transform: uppercase; }
+.pt-tip { font-size: 13px; color: #333; }
+.pt-reason { font-size: 12px; color: #888; }
+.improvement-priority { background: #fff8f0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.improvement-priority h4 { margin: 0 0 6px; font-size: 13px; color: #ff9500; }
+.improvement-priority ol { margin: 0; padding-left: 20px; }
+.improvement-priority li { font-size: 13px; color: #555; margin-bottom: 4px; }
+.confidence-boost { background: #f0fff0; border-radius: 8px; padding: 10px; margin-bottom: 16px; text-align: center; }
+.confidence-item { font-size: 14px; color: #2a9d2a; font-weight: 600; }
+.common-past-issues { background: #fff0f0; border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.common-past-issues h4 { margin: 0 0 6px; font-size: 13px; color: #ff3b30; }
+.past-issues-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.past-issue-tag { background: #ff3b3022; color: #ff3b30; padding: 3px 8px; border-radius: 10px; font-size: 12px; }
+.historical-summary { background: #f8f8f8; border-radius: 8px; padding: 10px; font-size: 13px; color: #555; }
+.historical-summary p { margin: 0; }
+
 </style>

@@ -25,6 +25,8 @@ from ...services.notification_service import (
     get_notification_service,
     AlertType,
     ReminderStatus,
+    _load_comment_email_prefs,
+    _save_comment_email_prefs,
 )
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
@@ -528,3 +530,76 @@ async def update_notification_preferences(req: Request, body: UpdateNotification
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     user_svc.update_preferences({"notifications": updates})
     return NotificationResponse(success=True, data={"updated": updates})
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# COMMENT EMAIL NOTIFICATIONS
+# ════════════════════════════════════════════════════════════════════════════════
+
+class RegisterCommentEmailRequest(BaseModel):
+    email: str = Field(..., description="用于接收评论通知的邮箱")
+    name: str = Field(default="", description="用户显示名称")
+    enabled: bool = Field(default=True, description="是否启用评论邮件通知")
+
+
+class UpdateCommentEmailRequest(BaseModel):
+    email: Optional[str] = None
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+@router.put("/comment-email", summary="注册/更新评论邮件通知邮箱")
+async def register_comment_email(req: Request, body: RegisterCommentEmailRequest):
+    """注册邮箱用于接收评论 @mention 邮件通知"""
+    svc = get_notification_service()
+    prefs = svc.register_comment_email(
+        user_id=_uid(req),
+        email=body.email,
+        name=body.name,
+        enabled=body.enabled,
+    )
+    return NotificationResponse(success=True, data=prefs.to_dict())
+
+
+@router.get("/comment-email", summary="获取评论邮件通知状态")
+async def get_comment_email_status(req: Request):
+    """查询当前用户的评论邮件通知配置"""
+    svc = get_notification_service()
+    prefs = svc.get_comment_email_prefs(_uid(req))
+    if not prefs:
+        return NotificationResponse(success=True, data={"registered": False, "email": "", "enabled": False})
+    return NotificationResponse(success=True, data={
+        "registered": True,
+        "email": prefs.email,
+        "name": prefs.name,
+        "enabled": prefs.enabled,
+    })
+
+
+@router.patch("/comment-email", summary="更新评论邮件通知设置")
+async def update_comment_email(req: Request, body: UpdateCommentEmailRequest):
+    """部分更新评论邮件通知设置"""
+    svc = get_notification_service()
+    existing = svc.get_comment_email_prefs(_uid(req))
+    if not existing:
+        raise HTTPException(status_code=404, detail="未注册评论邮件通知，请先调用 PUT /comment-email")
+
+    prefs = svc.register_comment_email(
+        user_id=_uid(req),
+        email=body.email if body.email is not None else existing.email,
+        name=body.name if body.name is not None else existing.name,
+        enabled=body.enabled if body.enabled is not None else existing.enabled,
+    )
+    return NotificationResponse(success=True, data=prefs.to_dict())
+
+
+@router.delete("/comment-email", summary="取消评论邮件通知")
+async def delete_comment_email(req: Request):
+    """取消评论邮件通知（删除已注册的邮箱）"""
+    svc = get_notification_service()
+    prefs = _load_comment_email_prefs()
+    uid = _uid(req)
+    if uid in prefs:
+        del prefs[uid]
+        _save_comment_email_prefs(prefs)
+    return NotificationResponse(success=True, data={"deleted": True})

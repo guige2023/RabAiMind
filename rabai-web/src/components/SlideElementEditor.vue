@@ -269,6 +269,17 @@
           >
             📊 评分
           </button>
+
+          <!-- R133: AI 内容模板 -->
+          <button
+            class="ai-btn ai-btn-template"
+            :class="{ disabled: aiLoading }"
+            @click="openContentTemplateModal"
+            :disabled="aiLoading"
+            title="AI 内容模板"
+          >
+            📋 模板
+          </button>
         </div>
 
         <!-- Loading 状态 -->
@@ -372,6 +383,68 @@
                 ✅ 应用美化
               </button>
               <button class="ai-modal-btn" @click="showEnhanceModal = false">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- R133: AI 内容模板弹窗 -->
+      <div v-if="showTemplateModal" class="ai-modal-overlay" @click.self="showTemplateModal = false">
+        <div class="ai-modal">
+          <div class="ai-modal-header">
+            <h3>📋 AI 内容模板</h3>
+            <button class="ai-modal-close" @click="showTemplateModal = false">✕</button>
+          </div>
+          <div class="ai-modal-content">
+            <div class="template-form">
+              <div class="template-field">
+                <label>模板类型</label>
+                <select v-model="templateType" class="template-select">
+                  <option value="title">📌 封面标题</option>
+                  <option value="agenda">📑 目录议程</option>
+                  <option value="bullet_points">💡 要点列表</option>
+                  <option value="comparison">⚖️ 对比比较</option>
+                  <option value="process">🔄 流程步骤</option>
+                  <option value="data_chart">📊 数据图表</option>
+                  <option value="quote">💬 名人名言</option>
+                  <option value="summary">🎯 总结回顾</option>
+                  <option value="team_intro">👥 团队介绍</option>
+                  <option value="case_study">📂 案例分析</option>
+                </select>
+              </div>
+              <div class="template-field">
+                <label>主题/话题</label>
+                <input v-model="templateTopic" type="text" class="template-input" placeholder="输入演讲主题..." />
+              </div>
+              <div class="template-field">
+                <label>上下文（可选）</label>
+                <input v-model="templateContext" type="text" class="template-input" placeholder="补充背景信息..." />
+              </div>
+              <div class="template-field" v-if="['agenda','bullet_points','comparison','process','team_intro'].includes(templateType)">
+                <label>内容条目数量</label>
+                <input v-model.number="templateCount" type="number" min="2" max="10" class="template-input" style="width:80px" />
+              </div>
+            </div>
+            <div v-if="templateResult" class="template-result">
+              <div class="template-result-title">生成结果</div>
+              <pre class="template-result-content">{{ formatTemplateResult(templateResult) }}</pre>
+            </div>
+            <div class="layout-actions">
+              <button
+                class="ai-modal-btn ai-modal-btn-primary"
+                @click="generateContentTemplate"
+                :disabled="!templateTopic || aiLoading"
+              >
+                {{ aiLoading ? '生成中...' : '✨ 生成内容' }}
+              </button>
+              <button
+                v-if="templateResult"
+                class="ai-modal-btn ai-modal-btn-primary"
+                @click="applyContentTemplate"
+              >
+                ✅ 应用到幻灯片
+              </button>
+              <button class="ai-modal-btn" @click="showTemplateModal = false">关闭</button>
             </div>
           </div>
         </div>
@@ -940,6 +1013,138 @@
               </div>
             </div>
 
+            <!-- R130: 动画控制 -->
+            <div class="prop-group">
+              <label class="prop-label">✨ 动画效果</label>
+              <div class="anim-toggle-row">
+                <button
+                  class="toggle-btn"
+                  :class="{ active: selectedElement?.animation?.enabled }"
+                  @click="toggleAnimation"
+                >
+                  {{ selectedElement?.animation?.enabled ? '已启用' : '未启用' }}
+                </button>
+                <button v-if="selectedElement?.animation?.enabled" class="btn btn-sm" @click="showAnimationPanel = !showAnimationPanel">
+                  {{ showAnimationPanel ? '收起' : '配置' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- R130: 动画配置面板 -->
+            <div v-if="showAnimationPanel && selectedElement?.animation?.enabled" class="animation-panel">
+              <!-- 动画预设库 -->
+              <div class="anim-preset-section">
+                <label class="prop-label" style="font-size:11px;color:#aaa;">预设库</label>
+                <div class="anim-preset-grid">
+                  <button
+                    v-for="preset in ANIMATION_PRESETS"
+                    :key="preset.id"
+                    class="anim-preset-btn"
+                    :class="{ active: selectedAnimationPresetId === preset.id }"
+                    @click="applyAnimationPreset(preset.id)"
+                    :title="preset.description"
+                  >
+                    <span class="preset-icon">{{ getPresetIcon(preset.animation.type) }}</span>
+                    <span class="preset-name">{{ preset.nameZh }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 动画时长 -->
+              <div class="prop-group">
+                <label class="prop-label">时长: {{ animationDuration.toFixed(1) }}s</label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  v-model.number="animationDuration"
+                  @change="updateAnimationFromControls()"
+                  class="prop-range"
+                />
+              </div>
+
+              <!-- 动画延迟 -->
+              <div class="prop-group">
+                <label class="prop-label">延迟: {{ animationDelay.toFixed(1) }}s</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  v-model.number="animationDelay"
+                  @change="updateAnimationFromControls()"
+                  class="prop-range"
+                />
+              </div>
+
+              <!-- 缓动曲线 -->
+              <div class="prop-group">
+                <label class="prop-label">缓动曲线</label>
+                <select v-model="animationEasing" @change="updateAnimationFromControls()" class="prop-select">
+                  <option value="linear">线性 (linear)</option>
+                  <option value="ease">普通 (ease)</option>
+                  <option value="ease-in">缓入 (ease-in)</option>
+                  <option value="ease-out">缓出 (ease-out)</option>
+                  <option value="ease-in-out">缓入缓出 (ease-in-out)</option>
+                  <option value="smooth">平滑 (smooth)</option>
+                  <option value="snappy">快速 (snappy)</option>
+                  <option value="bounce">弹跳 (bounce)</option>
+                  <option value="overshoot">过冲 (overshoot)</option>
+                  <option value="spring">弹簧 (spring)</option>
+                  <option value="gentle">轻柔 (gentle)</option>
+                  <option value="sharp">锐利 (sharp)</option>
+                  <option value="dramatic">戏剧 (dramatic)</option>
+                </select>
+              </div>
+
+              <!-- 3D透视 -->
+              <div class="prop-group">
+                <label class="prop-label">3D透视: {{ animationPerspective }}px</label>
+                <input
+                  type="range"
+                  min="200"
+                  max="3000"
+                  step="100"
+                  v-model.number="animationPerspective"
+                  @change="updateAnimationFromControls()"
+                  class="prop-range"
+                />
+              </div>
+
+              <!-- 文字动画模式 (仅文本元素) -->
+              <div v-if="selectedElement?.type === 'text'" class="prop-group">
+                <label class="prop-label">文字动画</label>
+                <div class="anim-text-mode">
+                  <button
+                    v-for="mode in ['letter', 'word', 'line'] as const"
+                    :key="mode"
+                    class="anim-mode-btn"
+                    :class="{ active: animationTextMode === mode }"
+                    @click="animationTextMode = mode; updateAnimationFromControls()"
+                  >
+                    {{ mode === 'letter' ? '逐字' : mode === 'word' ? '逐词' : '逐行' }}
+                  </button>
+                </div>
+                <div v-if="animationTextMode !== 'line'">
+                  <label class="prop-label" style="font-size:11px;">间隔: {{ animationTextStagger }}ms</label>
+                  <input
+                    type="range"
+                    min="20"
+                    max="500"
+                    step="10"
+                    v-model.number="animationTextStagger"
+                    @change="updateAnimationFromControls()"
+                    class="prop-range"
+                  />
+                </div>
+              </div>
+
+              <button class="btn btn-sm btn-outline" @click="disableAnimation()" style="margin-top:4px;">
+                🗑 移除动画
+              </button>
+            </div>
+
             <!-- 删除元素 -->
             <div class="prop-group">
               <button class="btn-delete-element" @click="deleteElement">
@@ -1133,6 +1338,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../api/client'
 import { useSmartLayout, LAYOUT_PRESETS, GRID_PRESETS, ASPECT_RATIOS } from '../composables/useSmartLayout'
+import { ANIMATION_PRESETS, BEZIER_CURVES, easingToCubic, type AnimationType, type EasingType, type AnimationPreset } from '../composables/useAnimation'
 
 // R121: Smart Layout Engine
 const {
@@ -1149,6 +1355,19 @@ const {
   adaptToAspectRatio,
   scaleElements,
 } = useSmartLayout()
+
+interface SlideElementAnimation {
+  enabled: boolean
+  presetId: string
+  type: AnimationType
+  duration: number    // seconds
+  delay: number       // seconds
+  easing: EasingType
+  textMode?: 'letter' | 'word' | 'line'
+  textStagger?: number
+  perspective?: number
+  customCurve?: [number, number, number, number]
+}
 
 interface SlideElement {
   id: string
@@ -1183,6 +1402,8 @@ interface SlideElement {
   autoPlay?: boolean
   loop?: boolean
   muted?: boolean
+  // R130: Animation
+  animation?: SlideElementAnimation
 }
 
 interface Slide {
@@ -1231,6 +1452,82 @@ const colorSchemes = [
 
 // R21: 间距选项
 const activeSpacing = ref('standard')
+
+// R130: 动画状态
+const showAnimationPanel = ref(false)
+const selectedAnimationPresetId = ref<string>('')
+const animationDuration = ref(0.5)
+const animationDelay = ref(0)
+const animationEasing = ref<EasingType>('smooth')
+const animationTextMode = ref<'letter' | 'word' | 'line'>('word')
+const animationTextStagger = ref(150)
+const animationPerspective = ref(1200)
+
+// Apply animation preset to selected element
+const applyAnimationPreset = (presetId: string) => {
+  if (!selectedElement.value) return
+  const preset = ANIMATION_PRESETS.find(p => p.id === presetId)
+  if (!preset) return
+  selectedAnimationPresetId.value = presetId
+  animationDuration.value = preset.animation.duration
+  animationDelay.value = preset.animation.delay
+  animationEasing.value = preset.animation.easing
+  animationPerspective.value = preset.animation.perspective || 1200
+  if (preset.animation.textMode) {
+    animationTextMode.value = preset.animation.textMode as 'letter' | 'word' | 'line'
+  }
+  if (preset.animation.textStagger) {
+    animationTextStagger.value = preset.animation.textStagger
+  }
+  const anim = selectedElement.value.animation || { enabled: false }
+  selectedElement.value.animation = {
+    enabled: true,
+    presetId,
+    type: preset.animation.type,
+    duration: preset.animation.duration,
+    delay: preset.animation.delay,
+    easing: preset.animation.easing,
+    textMode: preset.animation.textMode as 'letter' | 'word' | 'line' | undefined,
+    textStagger: preset.animation.textStagger,
+    perspective: preset.animation.perspective,
+  }
+  updateElement()
+}
+
+const disableAnimation = () => {
+  if (!selectedElement.value) return
+  selectedAnimationPresetId.value = ''
+  if (selectedElement.value.animation) {
+    selectedElement.value.animation.enabled = false
+  }
+  updateElement()
+}
+
+const toggleAnimation = () => {
+  if (!selectedElement.value) return
+  if (selectedElement.value.animation?.enabled) {
+    disableAnimation()
+  } else {
+    showAnimationPanel.value = !showAnimationPanel.value
+  }
+}
+
+const updateAnimationFromControls = () => {
+  if (!selectedElement.value || !selectedAnimationPresetId.value) return
+  const anim = selectedElement.value.animation || { enabled: false }
+  selectedElement.value.animation = {
+    ...anim,
+    enabled: true,
+    presetId: selectedAnimationPresetId.value,
+    duration: animationDuration.value,
+    delay: animationDelay.value,
+    easing: animationEasing.value,
+    textMode: animationTextMode.value,
+    textStagger: animationTextStagger.value,
+    perspective: animationPerspective.value,
+  }
+  updateElement()
+}
 const spacingOptions = [
   { value: 'compact', label: '紧凑' },
   { value: 'standard', label: '标准' },
@@ -1249,20 +1546,88 @@ const layoutSuggestion = ref<any>(null)
 const showLayoutModal = ref(false)
 const enhancementResult = ref<any>(null)
 const showEnhanceModal = ref(false)
+
+// R133: Content Template
+const showTemplateModal = ref(false)
+const templateType = ref('bullet_points')
+const templateTopic = ref('')
+const templateContext = ref('')
+const templateCount = ref(3)
+const templateResult = ref<any>(null)
 const translateTarget = ref('en')
 const translateOptions = [
+  // East Asia
   { value: 'zh', label: '中文' },
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
+  // Southeast Asia
+  { value: 'vi', label: 'Tiếng Việt' },
+  { value: 'th', label: 'ภาษาไทย' },
+  { value: 'id', label: 'Bahasa Indonesia' },
+  { value: 'ms', label: 'Bahasa Melayu' },
+  { value: 'tl', label: 'Filipino' },
+  { value: 'my', label: 'Myanmar' },
+  { value: 'km', label: 'Khmer' },
+  { value: 'lo', label: 'Lao' },
+  // South Asia
+  { value: 'hi', label: 'हिन्दी' },
+  { value: 'bn', label: 'বাংলা' },
+  { value: 'ur', label: 'اردو' },
+  { value: 'pa', label: 'ਪੰਜਾਬੀ' },
+  { value: 'ne', label: 'नेपाली' },
+  { value: 'si', label: 'සිංහල' },
+  { value: 'ta', label: 'தமிழ்' },
+  { value: 'te', label: 'తెలుగు' },
+  { value: 'mr', label: 'मराठी' },
+  { value: 'gu', label: 'ગુજરાતી' },
+  { value: 'ml', label: 'മലയാളം' },
+  { value: 'kn', label: 'ಕನ್ನಡ' },
+  // Central & West Asia
+  { value: 'tr', label: 'Türkçe' },
+  { value: 'fa', label: 'فارسی' },
+  { value: 'az', label: 'Azərbaycan' },
+  { value: 'uz', label: 'Oʻzbek' },
+  { value: 'kk', label: 'Қазақ' },
+  { value: 'ky', label: 'Кыргыз' },
+  { value: 'tg', label: 'Тоҷикӣ' },
+  { value: 'tk', label: 'Türkmen' },
+  // Europe
   { value: 'fr', label: 'Français' },
   { value: 'de', label: 'Deutsch' },
   { value: 'es', label: 'Español' },
   { value: 'pt', label: 'Português' },
   { value: 'it', label: 'Italiano' },
   { value: 'ru', label: 'Русский' },
+  { value: 'uk', label: 'Українська' },
+  { value: 'pl', label: 'Polski' },
+  { value: 'nl', label: 'Nederlands' },
+  { value: 'el', label: 'Ελληνικά' },
+  { value: 'cs', label: 'Čeština' },
+  { value: 'hu', label: 'Magyar' },
+  { value: 'ro', label: 'Română' },
+  { value: 'sv', label: 'Svenska' },
+  { value: 'da', label: 'Dansk' },
+  { value: 'fi', label: 'Suomi' },
+  { value: 'no', label: 'Norsk' },
+  { value: 'sk', label: 'Slovenčina' },
+  { value: 'bg', label: 'Български' },
+  { value: 'hr', label: 'Hrvatski' },
+  { value: 'sr', label: 'Српски' },
+  { value: 'sl', label: 'Slovenščina' },
+  { value: 'et', label: 'Eesti' },
+  { value: 'lv', label: 'Latviešu' },
+  { value: 'lt', label: 'Lietuvių' },
+  // Middle East & Africa
   { value: 'ar', label: 'العربية' },
-  { value: 'hi', label: 'हिन्दी' },
+  { value: 'he', label: 'עברית' },
+  { value: 'sw', label: 'Kiswahili' },
+  { value: 'ha', label: 'Hausa' },
+  { value: 'yo', label: 'Yorùbá' },
+  { value: 'zu', label: 'isiZulu' },
+  { value: 'am', label: 'አማርኛ' },
+  // East Asia 2
+  { value: 'mn', label: 'Монгол' },
 ]
 
 // R32: AI 改写 + R72: 语气风格
@@ -1585,6 +1950,136 @@ const requestContentScore = async () => {
     aiLoading.value = false
     aiLoadingText.value = ''
   }
+}
+
+// R133: Content Template Modal
+const openContentTemplateModal = () => {
+  templateResult.value = null
+  showTemplateModal.value = true
+}
+
+const generateContentTemplate = async () => {
+  if (!templateTopic.value) return
+  aiLoading.value = true
+  aiLoadingText.value = '生成内容模板...'
+  try {
+    const res = await api.ai.generateContentTemplate({
+      template_type: templateType.value,
+      topic: templateTopic.value,
+      context: templateContext.value,
+      count: templateCount.value,
+    })
+    if (res.data.success) {
+      templateResult.value = res.data.content
+    }
+  } catch (e: any) {
+    console.error('内容模板生成失败', e)
+    alert('内容模板生成失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+const formatTemplateResult = (result: any): string => {
+  if (!result) return ''
+  // Format different template types for display
+  const type = templateType.value
+  if (type === 'title') {
+    return `主标题: ${result.main_title || ''}\n副标题: ${result.subtitle || ''}\nTagline: ${result.tagline || ''}`
+  } else if (type === 'agenda' && result.items) {
+    return result.items.map((item: any, i: number) =>
+      `${item.index || i + 1}. ${item.title}${item.description ? ' - ' + item.description : ''}`
+    ).join('\n')
+  } else if (type === 'bullet_points' && result.points) {
+    return result.points.map((p: any) => `${p.icon || '•'} ${p.text}`).join('\n')
+  } else if (type === 'comparison' && result.comparisons) {
+    return result.comparisons.map((c: any) =>
+      `${c.item}:\n  A: ${c.option_a}\n  B: ${c.option_b}`
+    ).join('\n\n')
+  } else if (type === 'process' && result.steps) {
+    return result.steps.map((s: any) => `Step ${s.step}: ${s.title}\n  ${s.description}`).join('\n\n')
+  } else if (type === 'data_chart' && result.metrics) {
+    return result.metrics.map((m: any) => `${m.value} - ${m.label}: ${m.description}`).join('\n')
+  } else if (type === 'quote') {
+    return `"${result.quote}"\n— ${result.author}${result.context ? ' (' + result.context + ')' : ''}`
+  } else if (type === 'summary') {
+    const points = (result.summary_points || []).map((p: any) => '• ' + p.point).join('\n')
+    return `标题: ${result.title || ''}\n\n${points}\n\n行动号召: ${result.takeaway || ''}`
+  } else if (type === 'team_intro' && result.members) {
+    return result.members.map((m: any) => `${m.name} (${m.role}): ${m.description}`).join('\n')
+  } else if (type === 'case_study') {
+    return `案例: ${result.case_title || ''}\n\n背景: ${result.background || ''}\n\n挑战: ${result.challenge || ''}\n\n方案: ${result.solution || ''}\n\n成果: ${result.result || ''}\n\n洞察: ${result.insight || ''}`
+  }
+  return JSON.stringify(result, null, 2)
+}
+
+const applyContentTemplate = () => {
+  if (!templateResult.value) return
+  const result = templateResult.value
+  let content = ''
+
+  const type = templateType.value
+  if (type === 'title') {
+    content = `${result.main_title || ''}\n${result.subtitle || ''}`
+    if (result.tagline) content += `\n${result.tagline}`
+  } else if (type === 'agenda' && result.items) {
+    content = result.items.map((item: any, i: number) =>
+      `${item.index || i + 1}. ${item.title}${item.description ? '\n   ' + item.description : ''}`
+    ).join('\n')
+  } else if (type === 'bullet_points' && result.points) {
+    content = result.points.map((p: any) => `${p.icon || '•'} ${p.text}`).join('\n')
+  } else if (type === 'comparison' && result.comparisons) {
+    content = result.comparisons.map((c: any) =>
+      `${c.item}:\n  A: ${c.option_a}\n  B: ${c.option_b}`
+    ).join('\n\n')
+  } else if (type === 'process' && result.steps) {
+    content = result.steps.map((s: any) => `Step ${s.step}: ${s.title}\n  ${s.description}`).join('\n\n')
+  } else if (type === 'data_chart' && result.metrics) {
+    content = result.metrics.map((m: any) => `${m.value} ${m.label}: ${m.description}`).join('\n')
+  } else if (type === 'quote') {
+    content = `"${result.quote}"\n— ${result.author}`
+  } else if (type === 'summary') {
+    content = (result.summary_points || []).map((p: any) => '• ' + p.point).join('\n')
+    if (result.takeaway) content += '\n\n' + result.takeaway
+  } else if (type === 'team_intro' && result.members) {
+    content = result.members.map((m: any) => `${m.name} (${m.role}): ${m.description}`).join('\n')
+  } else if (type === 'case_study') {
+    content = `${result.case_title || ''}\n\n背景: ${result.background || ''}\n挑战: ${result.challenge || ''}\n方案: ${result.solution || ''}\n成果: ${result.result || ''}\n洞察: ${result.insight || ''}`
+  }
+
+  if (selectedElementIndex.value !== null) {
+    const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+    if (el.type === 'text') {
+      saveHistory()
+      el.content = content
+    } else {
+      alert('请先选择一个文本元素')
+    }
+  } else {
+    // Create new text element
+    saveHistory()
+    const slide = slides.value[activeSlideIndex.value]
+    const newEl = {
+      type: 'text',
+      content: content,
+      x: 50,
+      y: 100,
+      width: 600,
+      height: 300,
+      fontSize: 18,
+      fontFamily: '微软雅黑',
+      color: '#222222',
+      bold: false,
+      italic: false,
+      align: 'left',
+    }
+    slide.elements.push(newEl)
+    selectedElementIndex.value = slide.elements.length - 1
+  }
+
+  showTemplateModal.value = false
+  templateResult.value = null
 }
 
 const emit = defineEmits(['close', 'apply'])
@@ -2026,6 +2521,30 @@ const getElementTypeName = (type: string) => {
     gif: '动图'
   }
   return map[type] || type
+}
+
+const getPresetIcon = (type: AnimationType): string => {
+  const map: Record<AnimationType, string> = {
+    'fade': '💠',
+    'slide-up': '⬆️',
+    'slide-down': '⬇️',
+    'slide-left': '⬅️',
+    'slide-right': '➡️',
+    'scale-in': '🔍',
+    'scale-out': '🔎',
+    'rotate-in': '🔄',
+    'bounce-in': '🏀',
+    'zoom-in': '🎯',
+    'zoom-out': '📤',
+    'flip-x': '↔️',
+    'flip-y': '↕️',
+    'wipe': '🚿',
+    'blur-in': '🌫️',
+    'typewriter': '⌨️',
+    'letter-by-letter': '🔤',
+    'word-by-word': '📝',
+  }
+  return map[type] || '✨'
 }
 
 const getElementStyle = (el: SlideElement) => ({
@@ -3237,6 +3756,103 @@ onUnmounted(() => {
   border-color: #165DFF;
 }
 
+/* R130: Animation Panel */
+.anim-toggle-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.animation-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anim-preset-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.anim-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.anim-preset-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 6px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: all 0.2s;
+  color: rgba(255,255,255,0.7);
+  font-size: 10px;
+}
+
+.anim-preset-btn:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.anim-preset-btn.active {
+  background: rgba(22, 93, 255, 0.2);
+  border-color: #165DFF;
+  color: #fff;
+}
+
+.preset-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.preset-name {
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.anim-text-mode {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.anim-mode-btn {
+  flex: 1;
+  padding: 5px 4px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.anim-mode-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.anim-mode-btn.active {
+  background: rgba(22, 93, 255, 0.3);
+  border-color: #165DFF;
+  color: #fff;
+}
+
 .btn-delete-element {
   width: 100%;
   padding: 10px;
@@ -4061,4 +4677,58 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* R133: Content Template Modal */
+.template-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.template-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.template-field label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+.template-select,
+.template-input {
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.template-select:focus,
+.template-input:focus {
+  border-color: #165DFF;
+}
+.template-result {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9ff;
+  border-radius: 8px;
+  border: 1px solid #e8eaff;
+}
+.template-result-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+.template-result-content {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #444;
+  white-space: pre-wrap;
+  max-height: 280px;
+  overflow-y: auto;
+  line-height: 1.6;
+  margin: 0;
+}
+
 </style>

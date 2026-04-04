@@ -328,6 +328,114 @@
           </div>
         </div>
 
+        <!-- Poll Tab -->
+        <div v-if="activeTab === 'poll'" class="tab-content">
+          <div class="config-section">
+            <h4 class="section-title">🗳️ 投票问题</h4>
+            <div class="config-item">
+              <label>问题内容</label>
+              <input v-model="pollConfig.question" type="text" class="form-input" placeholder="例如：您喜欢哪个功能？" />
+            </div>
+            <div class="config-item">
+              <label>选项（每行一个）</label>
+              <div class="options-list">
+                <div v-for="(opt, idx) in pollConfig.options" :key="idx" class="option-row">
+                  <input v-model="pollConfig.options[idx]" type="text" class="form-input" :placeholder="'选项 ' + (idx + 1)" />
+                  <button v-if="pollConfig.options.length > 2" class="btn-icon" @click="pollConfig.options.splice(idx, 1)">✕</button>
+                </div>
+                <button class="btn btn-outline btn-sm" @click="pollConfig.options.push('新选项')">+ 添加选项</button>
+              </div>
+            </div>
+            <div class="config-item">
+              <label>Widget 宽度</label>
+              <select v-model="pollConfig.width" class="form-select">
+                <option value="300px">300px</option>
+                <option value="400px">400px（标准）</option>
+                <option value="500px">500px</option>
+                <option value="100%">100%</option>
+              </select>
+            </div>
+            <div class="config-item">
+              <label>颜色主题</label>
+              <div class="theme-options">
+                <label class="theme-option" :class="{ active: pollConfig.theme === 'light' }">
+                  <input type="radio" v-model="pollConfig.theme" value="light" /> 浅色
+                </label>
+                <label class="theme-option" :class="{ active: pollConfig.theme === 'dark' }">
+                  <input type="radio" v-model="pollConfig.theme" value="dark" /> 深色
+                </label>
+              </div>
+            </div>
+            <div class="info-box" style="margin-top: 12px;">
+              <p>💡 观众投票后，投票结果会自动汇总显示。投票组件可嵌入到演示页面中。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lead Capture Tab -->
+        <div v-if="activeTab === 'lead_capture'" class="tab-content">
+          <div class="config-section">
+            <h4 class="section-title">📧 线索收集</h4>
+            <div class="config-item">
+              <label>表单标题</label>
+              <input v-model="leadCaptureConfig.title" type="text" class="form-input" placeholder="订阅更新" />
+            </div>
+            <div class="config-item">
+              <label>按钮文字</label>
+              <input v-model="leadCaptureConfig.buttonText" type="text" class="form-input" placeholder="立即订阅" />
+            </div>
+            <div class="config-item">
+              <label>Widget 宽度</label>
+              <select v-model="leadCaptureConfig.width" class="form-select">
+                <option value="300px">300px</option>
+                <option value="400px">400px（标准）</option>
+                <option value="500px">500px</option>
+                <option value="100%">100%</option>
+              </select>
+            </div>
+            <div class="config-item">
+              <label>收集字段</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="leadCaptureConfig.showName" /> 姓名（选填）
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="leadCaptureConfig.showCompany" /> 公司（选填）
+                </label>
+              </div>
+            </div>
+            <div class="info-box" style="margin-top: 12px;">
+              <p>💡 访客提交邮箱后，可在演示后台查看所有收集到的线索数据。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pixel Tab -->
+        <div v-if="activeTab === 'pixel'" class="tab-content">
+          <div class="config-section">
+            <h4 class="section-title">🔍 追踪像素</h4>
+            <div class="config-item">
+              <label>追踪 Token</label>
+              <input v-model="pixelConfig.token" type="text" class="form-input" placeholder="留空自动生成" />
+              <small style="color: #888; font-size: 12px;">用于标识此追踪像素，可自定义</small>
+            </div>
+            <div class="config-item">
+              <label>追踪事件</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="pixelConfig.trackViews" /> 页面浏览
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="pixelConfig.trackClicks" /> 元素点击
+                </label>
+              </div>
+            </div>
+            <div class="info-box" style="margin-top: 12px;">
+              <p>💡 追踪像素是一段轻量代码，添加到外部网站后可以追踪该网站的流量来源和用户行为。</p>
+            </div>
+          </div>
+        </div>
+
         <!-- Generated Code Output -->
         <div class="code-output-section">
           <div class="code-header">
@@ -381,6 +489,9 @@ const embedTabs = [
   { id: 'floating_button', label: '悬浮按钮', icon: '🔘' },
   { id: 'inline_preview', label: '内嵌预览', icon: '📄' },
   { id: 'analytics', label: '数据统计', icon: '📊' },
+  { id: 'poll', label: '投票组件', icon: '🗳️' },
+  { id: 'lead_capture', label: '线索收集', icon: '📧' },
+  { id: 'pixel', label: '追踪像素', icon: '🔍' },
 ]
 
 const sizePresets = [
@@ -445,6 +556,27 @@ const analyticsConfig = ref({
   theme: 'light',
 })
 
+const pollConfig = ref({
+  question: '',
+  options: ['选项一', '选项二', '选项三'],
+  width: '400px',
+  theme: 'light',
+})
+
+const leadCaptureConfig = ref({
+  title: '订阅更新',
+  buttonText: '立即订阅',
+  width: '400px',
+  showName: true,
+  showCompany: true,
+})
+
+const pixelConfig = ref({
+  token: '',
+  trackViews: true,
+  trackClicks: false,
+})
+
 const previewWidth = computed(() => {
   const w = parseInt(iframeConfig.value.width)
   return Math.min(w, 300) + 'px'
@@ -506,6 +638,15 @@ const generateCode = async () => {
       payload.width = inlineConfig.value.maxWidth
     } else if (embedType === 'analytics') {
       payload.width = analyticsConfig.value.width
+    } else if (embedType === 'poll') {
+      payload.width = pollConfig.value.width
+      payload.theme = pollConfig.value.theme
+    } else if (embedType === 'lead_capture') {
+      payload.width = leadCaptureConfig.value.width
+      payload.lead_form_title = leadCaptureConfig.value.title
+      payload.lead_button_text = leadCaptureConfig.value.buttonText
+    } else if (embedType === 'pixel') {
+      payload.analytics_token = pixelConfig.value.token || undefined
     }
 
     const res = await apiClient.post(`/ppt/embed/${props.taskId}/generate`, payload)
@@ -1238,5 +1379,74 @@ const copyCode = async () => {
 
 .btn-primary:hover {
   background: #0d47e6;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.option-row .form-input {
+  flex: 1;
+}
+
+.btn-icon {
+  padding: 4px 8px;
+  background: #f0f0f0;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
+}
+
+.btn-icon:hover {
+  background: #e0e0e0;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+
+.info-box {
+  background: #f0f7ff;
+  border: 1px solid #d0e4ff;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.info-box p {
+  margin: 0;
 }
 </style>

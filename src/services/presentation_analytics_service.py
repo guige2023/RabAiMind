@@ -322,6 +322,10 @@ class PresentationAnalyticsService:
             "heatmap_grid_size": HEATMAP_GRID,
             "overview_heatmap": overview_heatmap,
             "effectiveness_score": effectiveness_score,
+            # R134: Presentation Analytics Dashboard
+            "geo_distribution": self.get_geo_distribution(task_id),
+            "browser_device_breakdown": self.get_browser_device_breakdown(task_id),
+            "cta_stats": self.get_cta_stats(task_id),
         }
 
     # ==================== Effectiveness Score ====================
@@ -725,6 +729,247 @@ class PresentationAnalyticsService:
 <div class="footer">由 RabAiMind 演示分析系统生成 | https://rabaicloud.com</div>
 </body>
 </html>"""
+
+
+    # ==================== CTA / Conversion Tracking ====================
+
+    def track_cta_click(self, task_id: str, session_id: str, viewer_id: str,
+                        cta_label: str, cta_url: str = "") -> dict:
+        """
+        Track a CTA (call-to-action) button click for conversion goals.
+        """
+        data = self._get_data(task_id)
+
+        cta_click = {
+            "id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "viewer_id": viewer_id,
+            "cta_label": cta_label,
+            "cta_url": cta_url,
+            "clicked_at": datetime.now().isoformat(),
+        }
+
+        with self._lock:
+            if "cta_clicks" not in data:
+                data["cta_clicks"] = []
+            data["cta_clicks"].append(cta_click)
+            data["updated_at"] = datetime.now().isoformat()
+            self._save(task_id, data)
+
+        return {"success": True, "cta_click_id": cta_click["id"]}
+
+    def get_cta_stats(self, task_id: str) -> dict:
+        """Get CTA click statistics for a presentation"""
+        data = self._get_data(task_id)
+        clicks = data.get("cta_clicks", [])
+
+        # Group by CTA label
+        by_label: Dict[str, int] = defaultdict(int)
+        by_viewer: Dict[str, int] = defaultdict(int)
+        recent_clicks = []
+
+        for click in clicks:
+            label = click.get("cta_label", "unknown")
+            by_label[label] += 1
+            by_viewer[click.get("viewer_id", "unknown")] += 1
+            recent_clicks.append(click)
+
+        # Sort recent by time
+        recent_clicks.sort(key=lambda x: x.get("clicked_at", ""), reverse=True)
+
+        return {
+            "total_clicks": len(clicks),
+            "unique_clickers": len(by_viewer),
+            "by_cta_label": dict(by_label),
+            "recent_clicks": recent_clicks[:20],
+        }
+
+    # ==================== Live / Real-time Stats ====================
+
+    def get_live_stats(self, task_id: str) -> dict:
+        """
+        Get real-time stats for active viewers.
+        Returns active viewers in the last N minutes.
+        """
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        now = datetime.now()
+        active_window_seconds = 5 * 60  # 5-minute window
+
+        active_sessions = []
+        for session in sessions:
+            if session.get("completed"):
+                continue
+            started = session.get("started_at")
+            if not started:
+                continue
+            try:
+                start_time = datetime.fromisoformat(started.replace("Z", "+00:00").replace("+00:00", ""))
+                if isinstance(start_time, str):
+                    start_time = datetime.fromisoformat(started)
+                # Make naive for comparison
+                if start_time.tzinfo:
+                    start_time = start_time.replace(tzinfo=None)
+                elapsed = (now - start_time).total_seconds()
+                if elapsed < active_window_seconds:
+                    active_sessions.append({
+                        "session_id": session.get("session_id"),
+                        "viewer_name": session.get("viewer_name", "Anonymous"),
+                        "current_slide": session.get("current_slide_index", 0),
+                        "elapsed_seconds": round(elapsed),
+                        "started_at": started,
+                    })
+            except Exception:
+                pass
+
+        # Engagement metrics
+        total_sessions = len(sessions)
+        completed_sessions = sum(1 for s in sessions if s.get("completed"))
+
+        # Avg duration for completed sessions
+        durations = [s.get("duration_seconds", 0) for s in sessions if s.get("completed") and s.get("duration_seconds", 0) > 0]
+        avg_duration = round(sum(durations) / len(durations), 1) if durations else 0
+
+        return {
+            "active_viewers_now": len(active_sessions),
+            "active_sessions": active_sessions,
+            "total_sessions": total_sessions,
+            "completed_sessions": completed_sessions,
+            "avg_duration_seconds": avg_duration,
+            "completion_rate_pct": round(completed_sessions / total_sessions * 100, 1) if total_sessions > 0 else 0,
+        }
+
+    # ==================== Browser / Device Breakdown ====================
+
+    def _parse_browser(self, user_agent: str) -> str:
+        """Parse browser name from user agent string"""
+        ua = user_agent.lower()
+        if "edg/" in ua or "edge/" in ua:
+            return "Edge"
+        if "chrome/" in ua and "safari/" in ua and "chromium/" not in ua:
+            return "Chrome"
+        if "firefox/" in ua:
+            return "Firefox"
+        if "safari/" in ua and "chrome/" not in ua:
+            return "Safari"
+        if "opera/" in ua or "opr/" in ua:
+            return "Opera"
+        if "msie" in ua or "trident/" in ua:
+            return "IE"
+        return "Other"
+
+    def _parse_device(self, user_agent: str) -> str:
+        """Parse device type from user agent string"""
+        ua = user_agent.lower()
+        if "mobile" in ua or "android" in ua and "mobile" in ua:
+            return "Mobile"
+        if "tablet" in ua or "ipad" in ua:
+            return "Tablet"
+        return "Desktop"
+
+    def get_browser_device_breakdown(self, task_id: str) -> dict:
+        """Get browser and device breakdown from session user agents"""
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        browsers: Dict[str, int] = defaultdict(int)
+        devices: Dict[str, int] = defaultdict(int)
+        by_viewer: Dict[str, dict] = {}
+
+        for session in sessions:
+            vid = session.get("viewer_id", "unknown")
+            ua = session.get("user_agent", "")
+
+            if vid not in by_viewer:
+                by_viewer[vid] = {"browser": None, "device": None}
+
+            # Only record once per viewer
+            if by_viewer[vid]["browser"] is None and ua:
+                browser = self._parse_browser(ua)
+                device = self._parse_device(ua)
+                browsers[browser] += 1
+                devices[device] += 1
+                by_viewer[vid]["browser"] = browser
+                by_viewer[vid]["device"] = device
+
+        return {
+            "browsers": dict(browsers),
+            "devices": dict(devices),
+            "total_sessions": len(sessions),
+        }
+
+    # ==================== Geographic Distribution ====================
+
+    def get_geo_distribution(self, task_id: str) -> dict:
+        """Get geographic distribution from session data"""
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        countries: Dict[str, int] = defaultdict(int)
+        cities: Dict[str, int] = defaultdict(int)
+        country_cities: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+        for session in sessions:
+            country = session.get("country", "") or "Unknown"
+            city = session.get("city", "") or "Unknown"
+
+            countries[country] += 1
+            if country != "Unknown" and city != "Unknown":
+                cities[city] += 1
+                country_cities[country][city] += 1
+
+        # Sort
+        sorted_countries = dict(sorted(countries.items(), key=lambda x: x[1], reverse=True))
+        sorted_cities = dict(sorted(cities.items(), key=lambda x: x[1], reverse=True)[:20])
+
+        return {
+            "countries": sorted_countries,
+            "cities": sorted_cities,
+            "country_cities": dict(country_cities),
+            "total_locations": len(countries),
+        }
+
+    # ==================== Slide Time Heatmap ====================
+
+    def get_slide_time_heatmap(self, task_id: str, total_slides: int = 10) -> dict:
+        """
+        Get average time per slide as a heatmap-compatible structure.
+        Returns array of {slide_index, avg_time, view_count, intensity}.
+        """
+        data = self._get_data(task_id)
+        sessions = data.get("sessions", [])
+
+        slide_times: Dict[int, List[float]] = defaultdict(list)
+        for session in sessions:
+            for sv in session.get("slide_views", []):
+                if sv.get("duration_seconds", 0) > 0:
+                    slide_times[sv["slide_index"]].append(sv["duration_seconds"])
+
+        # Build stats for ALL slides (even unviewed)
+        all_slides = []
+        max_avg = 0
+        for idx in range(total_slides):
+            times = slide_times.get(idx, [])
+            avg = round(sum(times) / len(times), 1) if times else 0
+            if avg > max_avg:
+                max_avg = avg
+            all_slides.append({
+                "slide_index": idx,
+                "avg_time_seconds": avg,
+                "view_count": len(times),
+                "total_time_seconds": round(sum(times), 1) if times else 0,
+            })
+
+        # Normalize intensity (0-1)
+        for slide in all_slides:
+            slide["intensity"] = round(slide["avg_time_seconds"] / max_avg, 3) if max_avg > 0 else 0
+
+        return {
+            "slides": all_slides,
+            "max_avg_time": max_avg,
+            "total_slides": total_slides,
+        }
 
 
 _presentation_analytics_service: Optional['PresentationAnalyticsService'] = None

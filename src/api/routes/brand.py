@@ -336,6 +336,71 @@ async def send_branded_email(request: EmailShareRequest):
         return {"success": False, "message": "邮件发送失败，请检查 SMTP 配置"}
 
 
+# ===== 品牌一致性评分 (R132) =====
+
+class BrandConsistencyCheckRequest(BaseModel):
+    user_id: str = "default"
+    task_id: str = ""
+    style_theme: str = "business"
+
+
+@router.post("/consistency-check")
+async def brand_consistency_check(request: BrandConsistencyCheckRequest):
+    """R132: 品牌一致性评分 — 检查 PPT 是否符合品牌规范"""
+    bm = get_brand_manager()
+    brand_profile = bm.get_brand(request.user_id)
+
+    # 获取品牌配色
+    if brand_profile:
+        brand_colors = [
+            brand_profile.primary_color,
+            brand_profile.secondary_color,
+            brand_profile.accent_color,
+        ]
+        style_theme = brand_profile.slogan or request.style_theme
+    else:
+        brand_colors = ["#165DFF", "#0E42D2", "#FF9500"]
+        style_theme = request.style_theme
+
+    # 获取 PPT slides 数据
+    try:
+        from ...services.task_manager import get_task_manager
+        tm = get_task_manager()
+        task = tm.get_task(request.task_id)
+        if not task:
+            return {"success": False, "message": f"任务 {request.task_id} 不存在"}
+
+        slides = task.get("result", {}).get("slides_summary", [])
+        if not slides:
+            return {"success": False, "message": "该任务没有 PPT slides 数据"}
+
+        # 转换为 check_design_consistency 需要的格式
+        slides_for_check = []
+        for i, slide in enumerate(slides[:30]):
+            slides_for_check.append({
+                "title": slide.get("title", ""),
+                "content": slide.get("content", ""),
+                "design_info": slide.get("layout", ""),
+            })
+
+    except Exception as e:
+        logger.error(f"获取任务 slides 失败: {e}")
+        return {"success": False, "message": f"获取 PPT 数据失败: {str(e)}"}
+
+    # 调用设计一致性检查
+    try:
+        from ...services.advanced_ai_features import get_advanced_ai_service
+        result = get_advanced_ai_service().check_design_consistency(
+            slides=slides_for_check,
+            style_theme=style_theme,
+            brand_colors=brand_colors,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"品牌一致性检查失败: {e}")
+        return {"success": False, "message": f"检查失败: {str(e)}"}
+
+
 # ===== AI 智能主题色提取 (R64) =====
 
 class AIExtractResponse(BaseModel):

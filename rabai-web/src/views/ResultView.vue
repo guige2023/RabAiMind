@@ -129,6 +129,9 @@
                 <button @click="openSecurityPanel()">
                   <span>🔒</span> 安全设置
                 </button>
+                <button @click="showBackupPanel = true; showMoreMenu = false; loadBackups?.()">
+                  <span>💾</span> 备份管理
+                </button>
               </div>
             </div>
           </div>
@@ -1913,6 +1916,14 @@
       </div>
     </div>
 
+    <!-- 备份管理面板 R125 -->
+    <BackupPanel
+      v-if="showBackupPanel"
+      :task-id="taskId"
+      @close="showBackupPanel = false"
+      @restored="onBackupRestored"
+    />
+
     <!-- 团队活动动态面板 -->
     <div v-if="showActivityFeed" class="activity-panel-overlay" @click="showActivityFeed = false">
       <div class="activity-panel" @click.stop>
@@ -2001,6 +2012,26 @@
       @saved="onShareLinkSaved"
     />
 
+    <!-- 分享数据面板 -->
+    <div v-if="showSharingAnalytics" class="sharing-analytics-overlay" @click="showSharingAnalytics = false">
+      <div class="sharing-analytics-panel" @click.stop>
+        <SharingAnalytics :task-id="taskId" />
+      </div>
+    </div>
+
+    <!-- 访问请求弹窗 -->
+    <AccessRequestModal
+      :show="showAccessRequest"
+      @close="showAccessRequest = false"
+    />
+
+    <!-- 文件夹管理面板 -->
+    <div v-if="showFolderPanel" class="folder-panel-overlay" @click="showFolderPanel = false">
+      <div class="folder-panel" @click.stop>
+        <PresentationFolders />
+      </div>
+    </div>
+
     <!-- Embed Widget 代码生成 -->
     <EmbedWidget
       :show="showEmbedCode"
@@ -2084,9 +2115,13 @@ import AccessibilityPanel from '../components/AccessibilityPanel.vue'
 import PresentationCoach from '../components/PresentationCoach.vue'
 import ReactionButtons from '../components/ReactionButtons.vue'
 import ShareLinkModal from '../components/ShareLinkModal.vue'
+import SharingAnalytics from '../components/SharingAnalytics.vue'
+import AccessRequestModal from '../components/AccessRequestModal.vue'
+import PresentationFolders from '../components/PresentationFolders.vue'
 import EmbedWidget from '../components/EmbedWidget.vue'
 import VoicePanel from '../components/VoicePanel.vue'
 import RecordingPanel from '../components/RecordingPanel.vue'
+import BackupPanel from '../components/BackupPanel.vue'
 import { useVoiceCommands } from '../composables/useVoiceCommands'
 import { useVoiceDictation } from '../composables/useVoiceDictation'
 import { useSwipeGesture } from '../composables/useSwipeGesture'
@@ -3077,6 +3112,8 @@ const applyTransitionToSlides = () => {
 
 // 版本历史相关
 const showVersionPanel = ref(false)
+// 备份管理 R125
+const showBackupPanel = ref(false)
 const versionList = ref<Array<{version_id: string; name: string; created_at: string; slide_count: number}>>([])
 const currentVersionId = ref('')
 const showDiffView = ref(false)
@@ -4971,6 +5008,9 @@ const showMoreMenu = ref(false)
 const showQRCode = ref(false)
 const shareTitle = ref('RabAi Mind PPT')
 const showShareLinkModal = ref(false)
+const showSharingAnalytics = ref(false)
+const showAccessRequest = ref(false)
+const showFolderPanel = ref(false)
 const showEmbedCode = ref(false)
 const shareLinkTitle = ref('RabAi Mind PPT')
 const shareLinkDescription = ref('来看看我创建的精彩演示文稿')
@@ -4992,7 +5032,10 @@ const shareOptions = [
   { id: 'weibo', name: '微博', icon: '🌐' },
   { id: 'email', name: '邮件', icon: '📧' },
   { id: 'twitter', name: 'Twitter', icon: '🐦' },
-  { id: 'linkedin', name: 'LinkedIn', icon: '💼' }
+  { id: 'linkedin', name: 'LinkedIn', icon: '💼' },
+  { id: 'analytics', name: '分享数据', icon: '📊' },
+  { id: 'request-access', name: '请求访问', icon: '🔐' },
+  { id: 'folders', name: '文件夹管理', icon: '📁' }
 ]
 
 const generateQRCodeUrl = (url: string): string => {
@@ -5076,6 +5119,18 @@ const handleShare = async (type: string) => {
       const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`
       window.open(linkedinUrl, '_blank', 'width=600,height=400')
       break
+    case 'analytics':
+      showSharingAnalytics.value = true
+      if (type !== 'qrcode') showShareMenu.value = false
+      return
+    case 'request-access':
+      showAccessRequest.value = true
+      if (type !== 'qrcode') showShareMenu.value = false
+      return
+    case 'folders':
+      showFolderPanel.value = true
+      if (type !== 'qrcode') showShareMenu.value = false
+      return
   }
 
   if (type !== 'qrcode') {
@@ -5754,6 +5809,15 @@ const dismissRecovery = () => {
   if (taskId.value) {
     api.ppt.autoSave(taskId.value, {}).catch(() => {})
   }
+}
+
+// 备份恢复后刷新数据 R125
+const onBackupRestored = async () => {
+  showBackupPanel.value = false
+  // 重新加载预览和状态
+  await loadPreview()
+  await loadStatus()
+  showSuccess('恢复成功', '演示文稿已从备份恢复')
 }
 
 // ========== Keyboard Shortcuts ==========
@@ -10039,6 +10103,36 @@ onUnmounted(() => {
   .security-download-modal {
     width: 100vw !important;
     max-width: 100vw !important;
+    border-radius: 20px 20px 0 0 !important;
+    height: auto !important;
+  }
+}
+
+/* Sharing Analytics & Folder Panel overlays */
+.sharing-analytics-overlay,
+.folder-panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+}
+
+.sharing-analytics-panel,
+.folder-panel {
+  max-height: 90vh;
+  max-width: 95vw;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+@media (max-width: 767px) {
+  .sharing-analytics-panel,
+  .folder-panel {
+    width: 100vw !important;
+    max-height: 90vh !important;
     border-radius: 20px 20px 0 0 !important;
     height: auto !important;
   }

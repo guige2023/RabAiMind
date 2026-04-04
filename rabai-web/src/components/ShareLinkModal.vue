@@ -73,6 +73,26 @@
           </div>
         </div>
 
+        <!-- Permission Level -->
+        <div class="permission-level-section">
+          <label class="section-label">🔐 链接权限级别</label>
+          <div class="permission-options">
+            <button
+              v-for="perm in permissionOptions"
+              :key="perm.value"
+              class="perm-option"
+              :class="{ selected: form.permissionLevel === perm.value }"
+              @click="form.permissionLevel = perm.value"
+            >
+              <span class="perm-icon">{{ perm.icon }}</span>
+              <div class="perm-content">
+                <span class="perm-title">{{ perm.label }}</span>
+                <span class="perm-desc">{{ perm.desc }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
         <!-- Security Options -->
         <div class="security-options">
           <div class="form-item">
@@ -236,6 +256,7 @@ const form = ref({
   title: props.initialTitle || `${displayBrandName.value} PPT`,
   description: props.initialDescription || '来看看我创建的精彩演示文稿！',
   thumbnail: props.initialThumbnail || '',
+  permissionLevel: 'view',
   anonymousAccess: false,
   encryptionEnabled: false,
   passwordProtected: false,
@@ -291,6 +312,14 @@ const presets = [
   { emoji: '📈', label: '工作汇报', title: '月度工作汇报', description: '月度工作成果与下月计划' }
 ]
 
+const permissionOptions = [
+  { value: 'view', label: '查看', icon: '👁️', desc: '仅查看幻灯片' },
+  { value: 'comment', label: '评论', icon: '💬', desc: '查看 + 添加评论' },
+  { value: 'edit', label: '编辑', icon: '✏️', desc: '查看 + 编辑幻灯片' },
+  { value: 'download', label: '下载', icon: '📥', desc: '查看 + 导出 PPTX' },
+  { value: 'full', label: '完全访问', icon: '🔓', desc: '所有权限' },
+]
+
 const generatedUrl = computed(() => {
   return shareLink.value?.share_url || `${window.location.origin}/result?taskId=${props.taskId}`
 })
@@ -340,13 +369,14 @@ const saveAndClose = async () => {
     await updateShareLink(form.value.title, form.value.description, form.value.thumbnail || undefined)
 
     // Create secure share with security options
-    if (form.value.anonymousAccess || form.value.encryptionEnabled || form.value.passwordProtected) {
+    if (form.value.anonymousAccess || form.value.encryptionEnabled || form.value.passwordProtected || form.value.permissionLevel !== 'view') {
       try {
         const payload: any = {
           resource_type: 'ppt',
           resource_id: props.taskId,
           anonymous_access: form.value.anonymousAccess,
           encryption_enabled: form.value.encryptionEnabled,
+          role: form.value.permissionLevel,  // maps to permission level
         }
         if (form.value.passwordProtected && form.value.password) {
           payload.password = form.value.password

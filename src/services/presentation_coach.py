@@ -621,6 +621,453 @@ class PresentationCoachService:
 
 
 # 全局实例
+    # ==================== R127: Delivery Coach - Speaking Pace Analysis ====================
+    
+    def analyze_speaking_pace(self, task_id: str, slides: List[Dict], total_minutes: float = 15.0, 
+                               actual_words: Optional[int] = None) -> Dict[str, Any]:
+        api = self._get_api()
+        if actual_words is None:
+            total_words = 0
+            for s in slides:
+                content = s.get("content", "")
+                if isinstance(content, list):
+                    total_words += sum(len(str(c)) for c in content)
+                elif content:
+                    total_words += len(content)
+                title = s.get("title", "")
+                if title:
+                    total_words += len(title)
+        else:
+            total_words = actual_words
+        
+        wpm = int(total_words / total_minutes) if total_minutes > 0 else 0
+        
+        if wpm < 80:
+            pace_category = "太慢"
+            pace_icon = "🐢"
+            pace_feedback = "语速偏慢，可能会让观众失去兴趣。建议适当加快节奏。"
+        elif wpm < 120:
+            pace_category = "偏慢"
+            pace_icon = "🚶"
+            pace_feedback = "语速偏慢，但适合详细讲解重要内容。可以适当加快。"
+        elif wpm <= 150:
+            pace_category = "适中"
+            pace_icon = "✅"
+            pace_feedback = "语速适中，符合专业演讲标准。"
+        elif wpm <= 180:
+            pace_category = "偏快"
+            pace_icon = "🏃"
+            pace_feedback = "语速偏快，观众可能跟不上。建议适当放慢或在重点处停顿。"
+        else:
+            pace_category = "太快"
+            pace_icon = "⚠️"
+            pace_feedback = "语速过快，观众容易疲劳。建议大幅放慢。"
+        
+        slide_count = len(slides)
+        suggested_pauses = max(1, slide_count // 4)
+        
+        slide_texts = []
+        for i, s in enumerate(slides[:5]):
+            title = s.get("title", "")
+            content = s.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(content)
+            slide_texts.append(f"【第{i+1}页】{title}\n{content[:200]}")
+        
+        all_text = "\n\n".join(slide_texts)
+        if len(all_text) > 1500:
+            all_text = all_text[:1500]
+        
+        detailed_tips = []
+        try:
+            prompt = f"""你是一个专业演讲教练。请分析以下内容的语速建议。
+
+内容预览：
+{all_text}
+
+当前估算：{wpm} WPM（每分钟{wpm}词），总{total_minutes}分钟。
+
+请给出3-5条改善语速的具体建议。
+
+请按以下JSON格式返回：
+{{
+    "tips": ["建议1（30字以内）", "建议2（30字以内）", "建议3（30字以内）"],
+    "pace_evaluation": "整体评价（20字以内）"
+}}
+
+请只返回JSON。"""
+            response = api.text_generation(prompt=prompt, max_tokens=800)
+            if response.get("success"):
+                data = self._extract_json(response.get("content", ""))
+                if data:
+                    detailed_tips = data.get("tips", [])
+        except Exception as e:
+            logger.warning(f"AI detailed tips failed: {e}")
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "wpm": wpm,
+            "total_words": total_words,
+            "total_minutes": total_minutes,
+            "pace_category": pace_category,
+            "pace_icon": pace_icon,
+            "pace_feedback": pace_feedback,
+            "suggested_pauses": suggested_pauses,
+            "tips": detailed_tips or [
+                f"建议语速保持在 120-150 WPM",
+                "重点数据处放慢语速",
+                "每页之间停顿2-3秒"
+            ],
+            "per_slide_pace": [
+                {
+                    "slide_num": i + 1,
+                    "title": s.get("title", "")[:30],
+                    "estimated_words": len(s.get("content", "")) if isinstance(s.get("content"), str) else sum(len(str(c)) for c in s.get("content", [])),
+                    "suggested_seconds": max(15, int(60 * (len(s.get("content", "")) if isinstance(s.get("content"), str) else 50) / wpm)) if wpm > 0 else 30
+                }
+                for i, s in enumerate(slides)
+            ]
+        }
+    
+    # ==================== R127: Content Score - Clarity, Conciseness, Impact ====================
+    
+    def analyze_content_dimensions(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+        api = self._get_api()
+        
+        slide_texts = []
+        for i, s in enumerate(slides):
+            title = s.get("title", "")
+            content = s.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(content)
+            slide_texts.append(f"【第{i+1}页】{title}\n{content}")
+        
+        all_text = "\n\n".join(slide_texts)
+        if len(all_text) > 3000:
+            all_text = all_text[:3000] + "\n\n[内容已截断]"
+        
+        prompt = f"""你是一个专业的PPT内容评审专家。请从以下三个维度评估内容质量：
+
+1. 清晰度（Clarity）：内容是否易于理解？逻辑是否清晰？
+2. 简洁度（Conciseness）：是否简洁明了？没有冗余信息？
+3. 影响力（Impact）：是否有说服力？是否能打动观众？
+
+内容：
+{all_text}
+
+请按以下JSON格式返回评分和分析：
+{{
+    "clarity_score": 8,
+    "conciseness_score": 7,
+    "impact_score": 8,
+    "overall_content_score": 8,
+    "clarity_analysis": "清晰度分析（50字以内）",
+    "conciseness_analysis": "简洁度分析（50字以内）",
+    "impact_analysis": "影响力分析（50字以内）",
+    "clarity_weaknesses": ["弱点1", "弱点2"],
+    "conciseness_weaknesses": ["冗余1", "冗余2"],
+    "impact_improvements": ["改进建议1", "改进建议2"],
+    "per_slide_scores": [
+        {{"slide_num": 1, "clarity": 8, "conciseness": 7, "impact": 8, "verdict": "这页的评价（20字以内）"}},
+        ...
+    ],
+    "top_content_improvements": ["最重要的内容改进建议1", "最重要的内容改进建议2", "最重要的内容改进建议3"]
+}}
+
+请只返回JSON。"""
+
+        try:
+            response = api.text_generation(prompt=prompt, max_tokens=2500)
+            if response.get("success"):
+                content = response.get("content", "")
+                data = self._extract_json(content)
+                if data:
+                    return {"success": True, "task_id": task_id, **data, "analyzed_at": datetime.now().isoformat()}
+            return {"success": False, "error": "内容分析失败，请重试"}
+        except Exception as e:
+            logger.error(f"内容维度分析失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    # ==================== R127: Visual Design Feedback ====================
+    
+    def analyze_visual_design(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+        api = self._get_api()
+        
+        slide_texts = []
+        for i, s in enumerate(slides):
+            title = s.get("title", "")
+            content = s.get("content", "")
+            layout = s.get("layout", "")
+            if isinstance(content, list):
+                content = "\n".join(content)
+            slide_texts.append(f"【第{i+1}页】布局:{layout} 标题:{title} 内容:{content[:300]}")
+        
+        all_text = "\n\n".join(slide_texts)
+        if len(all_text) > 3000:
+            all_text = all_text[:3000]
+        
+        prompt = f"""你是一个专业的PPT视觉设计师。请评价以下幻灯片的视觉设计质量。
+
+幻灯片信息：
+{all_text}
+
+请从以下维度评估（每项1-10分）：
+1. 布局合理性（Layout）：元素是否平衡、有层次？
+2. 配色协调性（Color）：颜色是否搭配和谐？
+3. 字体层级（Typography）：标题/正文字体大小是否清晰？
+4. 留白利用（White Space）：空白是否得当？
+5. 视觉一致性（Consistency）：整体风格是否统一？
+
+请按以下JSON格式返回：
+{{
+    "layout_score": 7,
+    "color_score": 8,
+    "typography_score": 7,
+    "whitespace_score": 6,
+    "consistency_score": 8,
+    "overall_design_score": 7,
+    "layout_analysis": "布局分析（40字以内）",
+    "color_analysis": "配色分析（40字以内）",
+    "typography_analysis": "字体层级分析（40字以内）",
+    "whitespace_analysis": "留白分析（40字以内）",
+    "consistency_analysis": "一致性分析（40字以内）",
+    "common_issues": ["共同问题1", "共同问题2"],
+    "design_strengths": ["设计优点1", "优点2"],
+    "per_slide_feedback": [
+        {{"slide_num": 1, "layout_score": 7, "color_score": 8, "typography_score": 7, "issues": ["问题1"], "suggestions": ["建议1"]}},
+        ...
+    ],
+    "top_3_design_improvements": ["最重要的视觉改进建议1", "最重要的视觉改进建议2", "最重要的视觉改进建议3"]
+}}
+
+请只返回JSON。"""
+
+        try:
+            response = api.text_generation(prompt=prompt, max_tokens=3000)
+            if response.get("success"):
+                content = response.get("content", "")
+                data = self._extract_json(content)
+                if data:
+                    return {"success": True, "task_id": task_id, **data, "analyzed_at": datetime.now().isoformat()}
+            return {"success": False, "error": "视觉设计分析失败，请重试"}
+        except Exception as e:
+            logger.error(f"视觉设计分析失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    # ==================== R127: Audience Engagement Prediction ====================
+    
+    def predict_audience_engagement(self, task_id: str, slides: List[Dict], 
+                                   audience_profile: str = "") -> Dict[str, Any]:
+        api = self._get_api()
+        
+        slide_texts = []
+        for i, s in enumerate(slides):
+            title = s.get("title", "")
+            content = s.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(content)
+            slide_texts.append(f"【第{i+1}页】{title}\n{content[:300]}")
+        
+        all_text = "\n\n".join(slide_texts)
+        if len(all_text) > 3000:
+            all_text = all_text[:3000]
+        
+        audience_context = f"目标观众：{audience_profile}" if audience_profile else "目标观众：一般商务人士"
+        
+        prompt = f"""你是一个专业的演讲心理学专家。请预测观众在演讲过程中每个阶段的参与度和情感反应。
+
+{audience_context}
+
+演讲内容：
+{all_text}
+
+请预测：
+1. 每页/每个阶段的观众情绪（兴趣/疲劳/疑惑/兴奋）
+2. 注意力变化（高/中/低）
+3. 可能的情感反应
+4. 最吸引观众的时刻
+5. 观众可能走神的时刻
+
+请按以下JSON格式返回：
+{{
+    "audience_profile": "观众画像描述",
+    "predicted_attention_score": 7,
+    "predicted_engagement_score": 8,
+    "predicted_emotion_curve": [
+        {{"slide_range": "1-3", "phase": "开场", "predicted_emotion": "好奇/期待", "attention_level": "high", "engagement": "high", "reason": "为什么这个阶段观众会这样反应"}},
+        ...
+    ],
+    "most_engaging_moment": {{"slide_num": 5, "reason": "为什么这页最吸引人"}},
+    "least_engaging_moment": {{"slide_num": 8, "reason": "为什么这页最无聊"}},
+    "engagement_tips": ["提升观众参与度的建议1", "建议2", "建议3"],
+    "emotional_peaks": [{{"slide_num": 3, "emotion": "兴奋", "trigger": "什么触发了这个情绪"}}],
+    "fatigue_risks": [{{"slide_range": "7-9", "risk_level": "high", "reason": "为什么观众可能疲劳"}}],
+    "overall_prediction": "整体预测总结（60字以内）"
+}}
+
+请只返回JSON。"""
+
+        try:
+            response = api.text_generation(prompt=prompt, max_tokens=3000)
+            if response.get("success"):
+                content = response.get("content", "")
+                data = self._extract_json(content)
+                if data:
+                    return {"success": True, "task_id": task_id, **data, "analyzed_at": datetime.now().isoformat()}
+            return {"success": False, "error": "观众参与度预测失败，请重试"}
+        except Exception as e:
+            logger.error(f"观众参与度预测失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    # ==================== R127: Personalized Coaching Based on Past Presentations ====================
+    
+    def get_personalized_coaching(self, task_id: str, slides: List[Dict], 
+                                   user_id: str = "default") -> Dict[str, Any]:
+        from pathlib import Path
+        
+        history_file = Path.home() / ".rabai" / "coach_history.json"
+        history_data = {}
+        
+        if history_file.exists():
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    history_data = json.load(f)
+            except Exception:
+                history_data = {}
+        
+        user_history = history_data.get(user_id, {}).get("sessions", [])
+        
+        api = self._get_api()
+        
+        slide_texts = []
+        for i, s in enumerate(slides):
+            title = s.get("title", "")
+            content = s.get("content", "")
+            if isinstance(content, list):
+                content = "\n".join(content)
+            slide_texts.append(f"【第{i+1}页】{title}\n{content[:300]}")
+        
+        all_text = "\n\n".join(slide_texts)
+        if len(all_text) > 2500:
+            all_text = all_text[:2500]
+        
+        common_past_issues = []
+        improvement_trends = []
+        
+        if user_history:
+            all_issues = []
+            for session in user_history[-5:]:
+                issues = session.get("issues", [])
+                all_issues.extend(issues)
+            
+            from collections import Counter
+            issue_counts = Counter(all_issues)
+            common_past_issues = [issue for issue, count in issue_counts.most_common(5)]
+            
+            if len(user_history) >= 2:
+                old_score = user_history[-2].get("score", 7)
+                new_score = user_history[-1].get("score", 7)
+                if new_score > old_score:
+                    improvement_trends.append("你的演讲评分正在提升，继续保持！")
+                elif new_score < old_score:
+                    improvement_trends.append("近期评分有所下降，建议加强练习")
+                else:
+                    improvement_trends.append("评分保持稳定，建议寻求突破")
+        
+        history_context = f"历史演讲次数：{len(user_history)}"
+        if common_past_issues:
+            history_context += f"\n常见问题：{', '.join(common_past_issues[:3])}"
+        if improvement_trends:
+            history_context += f"\n趋势：{improvement_trends[0]}"
+        
+        prompt = f"""你是一个个性化演讲教练。你需要根据用户的历史表现和当前内容，提供定制化的改进建议。
+
+用户历史信息：
+{history_context}
+
+当前演讲内容：
+{all_text}
+
+请根据历史数据和当前内容，提供：
+1. 针对性改进（针对用户过去常犯的问题）
+2. 保持优点（用户历史上做得好需要继续保持的）
+3. 本次演讲的特殊建议
+
+请按以下JSON格式返回：
+{{
+    "personalized_tips": [
+        {{"category": "针对历史问题", "tip": "具体建议（30字以内）", "reason": "为什么这个建议适合你"}},
+        {{"category": "保持优点", "tip": "继续保持的优点（30字以内）", "reason": "为什么这个要保持"}},
+        {{"category": "本次特别建议", "tip": "针对本次内容的建议（30字以内）", "reason": "为什么本次需要这样"}}
+    ],
+    "historical_summary": "历史表现总结（40字以内）",
+    "coaching_focus": "本次教练重点（20字以内）",
+    "improvement_priority": ["最优先改进1", "最优先改进2", "最优先改进3"],
+    "confidence_boost": "提升自信的建议（30字以内）"
+}}
+
+请只返回JSON。"""
+
+        try:
+            response = api.text_generation(prompt=prompt, max_tokens=2000)
+            personalized_result = {}
+            if response.get("success"):
+                data = self._extract_json(response.get("content", ""))
+                if data:
+                    personalized_result = data
+            
+            result = {
+                "success": True,
+                "task_id": task_id,
+                "user_id": user_id,
+                "total_past_sessions": len(user_history),
+                "has_history": len(user_history) > 0,
+                "common_past_issues": common_past_issues[:5],
+                "improvement_trends": improvement_trends,
+                **personalized_result,
+                "analyzed_at": datetime.now().isoformat()
+            }
+            
+            self._save_coaching_session(user_id, task_id, slides, result, history_file)
+            return result
+            
+        except Exception as e:
+            logger.error(f"个性化教练失败: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _save_coaching_session(self, user_id: str, task_id: str, slides: List[Dict],
+                                result: Dict[str, Any], history_file: Path) -> None:
+        try:
+            history_file.parent.mkdir(parents=True, exist_ok=True)
+            history_data = {}
+            if history_file.exists():
+                try:
+                    with open(history_file, "r", encoding="utf-8") as f:
+                        history_data = json.load(f)
+                except Exception:
+                    history_data = {}
+            
+            if user_id not in history_data:
+                history_data[user_id] = {"sessions": []}
+            
+            session = {
+                "task_id": task_id,
+                "timestamp": datetime.now().isoformat(),
+                "slide_count": len(slides),
+                "score": result.get("overall_content_score") or result.get("overall_design_score") or 7,
+                "issues": result.get("common_past_issues", [])[:3],
+                "focus": result.get("coaching_focus", "")
+            }
+            
+            history_data[user_id]["sessions"].append(session)
+            history_data[user_id]["sessions"] = history_data[user_id]["sessions"][-20:]
+            
+            with open(history_file, "w", encoding="utf-8") as f:
+                json.dump(history_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"保存教练历史失败: {e}")
+
 _coach_service: Optional[PresentationCoachService] = None
 
 

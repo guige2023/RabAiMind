@@ -168,6 +168,26 @@ async def collaboration_websocket(
                     content=data.get("content", ""),
                     mentions=data.get("mentions", []),
                 )
+                # Send email notifications to @mentioned users
+                if data.get("mentions"):
+                    try:
+                        from ...services.notification_service import get_notification_service
+                        notif_svc = get_notification_service()
+                        ppt_title = data.get("ppt_title", f"PPT {task_id}")
+                        thread_url = data.get("thread_url", "")
+                        # Fire-and-forget email sending (don't block the WebSocket)
+                        asyncio.create_task(asyncio.to_thread(
+                            notif_svc.notify_comment_added,
+                            ppt_title=ppt_title,
+                            slide_num=data.get("slide_num", 1),
+                            author_name=user_name,
+                            content=data.get("content", ""),
+                            mentions=data.get("mentions", []),
+                            is_reply=False,
+                            thread_url=thread_url,
+                        ))
+                    except Exception as e:
+                        logger.error(f"[collaboration] Failed to send comment email notifications: {e}")
                 await websocket.send_json({
                     "type": "comment_result",
                     "success": True,
@@ -184,6 +204,26 @@ async def collaboration_websocket(
                     content=data.get("content", ""),
                     mentions=data.get("mentions", []),
                 )
+                # Send email notifications to @mentioned users on replies
+                if reply and data.get("mentions"):
+                    try:
+                        from ...services.notification_service import get_notification_service
+                        notif_svc = get_notification_service()
+                        ppt_title = data.get("ppt_title", f"PPT {task_id}")
+                        thread_url = data.get("thread_url", "")
+                        asyncio.create_task(asyncio.to_thread(
+                            notif_svc.notify_comment_added,
+                            ppt_title=ppt_title,
+                            slide_num=data.get("slide_num", 1),
+                            author_name=user_name,
+                            content=data.get("content", ""),
+                            mentions=data.get("mentions", []),
+                            is_reply=True,
+                            reply_preview=data.get("content", "")[:100],
+                            thread_url=thread_url,
+                        ))
+                    except Exception as e:
+                        logger.error(f"[collaboration] Failed to send reply email notifications: {e}")
                 await websocket.send_json({
                     "type": "comment_result",
                     "success": reply is not None,
@@ -244,6 +284,23 @@ async def add_comment(
         content=request.get("content", ""),
         mentions=request.get("mentions", []),
     )
+    # Send email notifications to @mentioned users
+    mentions = request.get("mentions", [])
+    if mentions:
+        try:
+            from ...services.notification_service import get_notification_service
+            notif_svc = get_notification_service()
+            notif_svc.notify_comment_added(
+                ppt_title=request.get("ppt_title", f"PPT {task_id}"),
+                slide_num=request.get("slide_num", 1),
+                author_name=request.get("author_name", "Anonymous"),
+                content=request.get("content", ""),
+                mentions=mentions,
+                is_reply=False,
+                thread_url=request.get("thread_url", ""),
+            )
+        except Exception as e:
+            logger.error(f"[collaboration REST] Failed to send comment email notifications: {e}")
     return {"success": True, "comment": asdict(comment)}
 
 

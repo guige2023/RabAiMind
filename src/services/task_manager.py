@@ -1494,6 +1494,87 @@ class TaskManager:
             logging.warning(f"Translation failed: {e}")
             return text  # Return original on failure
 
+    def list_language_versions(self, task_id: str) -> dict:
+        """列出某个PPT的所有语言版本"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            versions = []
+            # The task itself
+            source_locale = task.get("_source_locale") or task.get("_target_locale") or ""
+            target_locale = task.get("_target_locale")
+            # If this task has a _source_locale, it's a translated version
+            if task.get("_localized_from"):
+                source_task = self.tasks.get(task["_localized_from"])
+                if source_task:
+                    versions.append({
+                        "task_id": task["_localized_from"],
+                        "locale": source_task.get("_source_locale") or source_task.get("_target_locale") or "zh",
+                        "locale_name": self._get_locale_name(source_task.get("_source_locale") or "zh"),
+                        "is_original": True,
+                        "is_rtl": False,
+                        "created_at": source_task.get("created_at", ""),
+                    })
+            else:
+                # This is the original - add it
+                versions.append({
+                    "task_id": task_id,
+                    "locale": source_locale or "zh",
+                    "locale_name": self._get_locale_name(source_locale or "zh"),
+                    "is_original": True,
+                    "is_rtl": {'ar', 'he'}.__contains__(source_locale or "zh"),
+                    "created_at": task.get("created_at", ""),
+                })
+
+            # Find all tasks that were localized FROM this task
+            for tid, t in self.tasks.items():
+                if t.get("_localized_from") == task_id:
+                    versions.append({
+                        "task_id": tid,
+                        "locale": t.get("_target_locale", ""),
+                        "locale_name": self._get_locale_name(t.get("_target_locale", "")),
+                        "is_original": False,
+                        "is_rtl": t.get("_apply_rtl", False),
+                        "created_at": t.get("created_at", ""),
+                    })
+                # Also check if this task was localized from a parent of task_id
+                if task.get("_localized_from") and t.get("_localized_from") == task.get("_localized_from"):
+                    # Skip - already found
+                    pass
+
+            # Also find other translated versions linked through _localized_from chain
+            # Get all tasks that share the same root
+            root_id = task.get("_localized_from") or task_id
+            for tid, t in self.tasks.items():
+                if tid != task_id and tid not in [v["task_id"] for v in versions]:
+                    if t.get("_localized_from") == root_id:
+                        versions.append({
+                            "task_id": tid,
+                            "locale": t.get("_target_locale", ""),
+                            "locale_name": self._get_locale_name(t.get("_target_locale", "")),
+                            "is_original": False,
+                            "is_rtl": t.get("_apply_rtl", False),
+                            "created_at": t.get("created_at", ""),
+                        })
+
+            return {
+                "success": True,
+                "root_task_id": root_id,
+                "versions": versions,
+                "count": len(versions),
+            }
+
+    def _get_locale_name(self, code: str) -> str:
+        """Get human-readable locale name"""
+        names = {
+            "zh": "中文", "en": "English", "ja": "日本語",
+            "ko": "한국어", "es": "Español", "fr": "Français",
+            "ar": "العربية", "he": "עברית",
+        }
+        return names.get(code, code)
+
     def _lazy_cleanup_unlocked(self) -> None:
         """懒清理：已持有锁时调用，清理超过30分钟的已完成任务"""
         from datetime import datetime

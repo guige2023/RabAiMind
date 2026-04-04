@@ -229,6 +229,78 @@
           </div>
         </div>
 
+        <!-- 品牌一致性评分 (R132) -->
+        <div class="consistency-section">
+          <h3>📊 品牌一致性评分</h3>
+          <p class="hint" style="margin-bottom:12px">检查 PPT 是否符合品牌配色和设计规范</p>
+
+          <!-- 选择 PPT -->
+          <div class="form-item" style="flex-direction:column; align-items:stretch">
+            <label style="width:auto;margin-bottom:6px">选择 PPT</label>
+            <select v-model="selectedTaskId" class="task-select">
+              <option value="">— 请选择 —</option>
+              <option v-for="task in recentTasks" :key="task.task_id" :value="task.task_id">
+                {{ task.title || task.task_id?.slice(0, 12) }} ({{ task.slide_count || task.result?.slide_count || '?' }}页)
+              </option>
+            </select>
+          </div>
+
+          <button class="btn-check-consistency" @click="checkConsistency" :disabled="!selectedTaskId || checkingConsistency">
+            {{ checkingConsistency ? '检查中...' : '🔍 检查一致性' }}
+          </button>
+
+          <!-- 评分结果 -->
+          <div v-if="consistencyResult" class="consistency-result">
+            <!-- 总分 -->
+            <div class="score-display">
+              <div class="score-circle" :style="{ borderColor: consistencyScoreColor }">
+                <span class="score-num" :style="{ color: consistencyScoreColor }">
+                  {{ consistencyResult.overall_score ?? consistencyResult.data?.overall_score ?? 0 }}
+                </span>
+                <span class="score-max">/ 100</span>
+              </div>
+              <span class="score-label" :style="{ color: consistencyScoreColor }">{{ consistencyScoreLabel }}</span>
+            </div>
+
+            <!-- 问题统计 -->
+            <div class="violation-summary" v-if="consistencyResult.data || consistencyResult.violations">
+              <span class="vio-tag critical" v-if="(consistencyResult.critical_count ?? 0) > 0">
+                🔴 严重 {{ consistencyResult.critical_count }}
+              </span>
+              <span class="vio-tag warning" v-if="(consistencyResult.warning_count ?? 0) > 0">
+                🟡 警告 {{ consistencyResult.warning_count }}
+              </span>
+              <span class="vio-tag suggestion" v-if="(consistencyResult.suggestion_count ?? 0) > 0">
+                🔵 建议 {{ consistencyResult.suggestion_count }}
+              </span>
+            </div>
+
+            <!-- 违规列表 -->
+            <div v-if="(consistencyResult.data?.violations?.length ?? 0) > 0" class="violation-list">
+              <div
+                v-for="(v, i) in (consistencyResult.data?.violations || []).slice(0, 5)"
+                :key="i"
+                class="violation-item"
+                :class="'sev-' + v.severity"
+              >
+                <span class="vio-sev">{{ v.severity === 'critical' ? '🔴' : v.severity === 'warning' ? '🟡' : '🔵' }}</span>
+                <div class="vio-content">
+                  <div class="vio-desc">{{ v.description }}</div>
+                  <div class="vio-fix" v-if="v.suggested_fix">→ {{ v.suggested_fix }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 改进建议 -->
+            <div v-if="(consistencyResult.data?.recommendations?.length ?? 0) > 0" class="recommendations">
+              <p class="rec-title">💡 改进建议</p>
+              <ul>
+                <li v-for="(rec, i) in (consistencyResult.data?.recommendations || []).slice(0, 3)" :key="i">{{ rec }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <!-- 已有品牌 -->
         <div class="history" v-if="brandList.length > 0">
           <h3>已有品牌配置</h3>
@@ -256,7 +328,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api/client'
 
@@ -284,6 +356,124 @@ const detectedColors = ref([])
 const logoInput = ref(null)
 const newKitName = ref('')
 const newKitLogo = ref('')
+
+// ===== 品牌套件管理 (R104) =====
+
+const saveKit = async () => {
+  if (!newKitName.value.trim()) return
+  try {
+    const payload = {
+      kit_name: newKitName.value.trim(),
+      primary_color: brand.value.primary_color,
+      secondary_color: brand.value.secondary_color,
+      accent_color: brand.value.accent_color,
+      fonts: brand.value.fonts.split(',').map(f => f.trim()).filter(Boolean),
+      logo_data: brand.value.logo_data,
+      logo_position: brand.value.logo_position,
+    }
+    await api.post('/brand/kit/save', payload)
+    newKitName.value = ''
+    alert('✅ 品牌套件已保存')
+    loadCurrentBrand()
+  } catch (e) {
+    console.error('保存套件失败:', e)
+    alert('保存套件失败')
+  }
+}
+
+const applyKit = async (kitId) => {
+  try {
+    const res = await api.post(`/brand/kit/apply/default/${kitId}`)
+    if (res.data?.kit) {
+      const k = res.data.kit
+      brand.value.primary_color = k.primary_color
+      brand.value.secondary_color = k.secondary_color
+      brand.value.accent_color = k.accent_color
+      brand.value.fonts = Array.isArray(k.fonts) ? k.fonts.join(', ') : (k.fonts || '思源黑体, Arial')
+      brand.value.logo_data = k.logo_data || ''
+      brand.value.logo_position = k.logo_position || 'bottom-right'
+      alert('✅ 品牌套件已应用')
+    }
+  } catch (e) {
+    console.error('应用套件失败:', e)
+    alert('应用套件失败')
+  }
+}
+
+const deleteKit = async (kitId) => {
+  if (!confirm('确定删除该品牌套件？')) return
+  try {
+    await api.delete(`/brand/kit/default/${kitId}`)
+    alert('✅ 品牌套件已删除')
+    loadCurrentBrand()
+  } catch (e) {
+    console.error('删除套件失败:', e)
+    alert('删除套件失败')
+  }
+}
+
+// ===== 品牌一致性评分 (R132) =====
+
+const recentTasks = ref([])
+const selectedTaskId = ref('')
+const consistencyResult = ref(null)
+const checkingConsistency = ref(false)
+
+const loadRecentTasks = async () => {
+  try {
+    const res = await api.get('/ppt/history?status=completed')
+    if (res.data?.tasks) {
+      recentTasks.value = (res.data.tasks || [])
+        .filter((t) => t.status === 'completed')
+        .slice(0, 10)
+    }
+  } catch (e) {
+    console.error('加载历史任务失败:', e)
+  }
+}
+
+const checkConsistency = async () => {
+  if (!selectedTaskId.value) {
+    alert('请先选择一个 PPT')
+    return
+  }
+  checkingConsistency.value = true
+  consistencyResult.value = null
+  try {
+    const res = await api.post('/brand/consistency-check', {
+      task_id: selectedTaskId.value,
+      user_id: 'default',
+    })
+    if (res.data?.success !== false) {
+      consistencyResult.value = res.data
+    } else {
+      alert(res.data?.message || '检查失败')
+    }
+  } catch (e) {
+    console.error('品牌一致性检查失败:', e)
+    alert('检查失败: ' + (e?.message || '未知错误'))
+  } finally {
+    checkingConsistency.value = false
+  }
+}
+
+const consistencyScoreLabel = computed(() => {
+  if (!consistencyResult.value) return ''
+  const s = consistencyResult.value.overall_score ?? consistencyResult.value.data?.overall_score ?? 0
+  if (s >= 90) return '优秀'
+  if (s >= 75) return '良好'
+  if (s >= 60) return '一般'
+  return '需改进'
+})
+
+const consistencyScoreColor = computed(() => {
+  if (!consistencyResult.value) return '#999'
+  const s = consistencyResult.value.overall_score ?? consistencyResult.value.data?.overall_score ?? 0
+  if (s >= 90) return '#52c41a'
+  if (s >= 75) return '#165DFF'
+  if (s >= 60) return '#faad14'
+  return '#ff4d4f'
+})
 
 const positions = [
   { value: 'top-left', label: '左上', icon: '↖' },
@@ -439,6 +629,7 @@ const loadCurrentBrand = async () => {
 onMounted(() => {
   loadCurrentBrand()
   loadBrandList()
+  loadRecentTasks()
 })
 </script>
 
@@ -934,5 +1125,261 @@ onMounted(() => {
   border-radius: 50%;
   display: inline-block;
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 品牌一致性评分 (R132) */
+.consistency-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.consistency-section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.task-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #333;
+  background: #fff;
+  margin-bottom: 10px;
+}
+
+.task-select:focus {
+  outline: none;
+  border-color: #165DFF;
+}
+
+.btn-check-consistency {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #165DFF, #0E42D2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: opacity 0.2s;
+  margin-bottom: 12px;
+}
+
+.btn-check-consistency:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-check-consistency:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.consistency-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.score-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-circle {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 4px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.score-num {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 11px;
+  color: #999;
+}
+
+.score-label {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.violation-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vio-tag {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vio-tag.critical { background: #fff1f0; color: #cf1322; }
+.vio-tag.warning { background: #fffbe6; color: #d46b08; }
+.vio-tag.suggestion { background: #f0f5ff; color: #1677ff; }
+
+.violation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.violation-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  align-items: flex-start;
+}
+
+.violation-item.sev-critical { background: #fff1f0; }
+.violation-item.sev-warning { background: #fffbe6; }
+.violation-item.sev-suggestion { background: #f0f5ff; }
+
+.vio-sev {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.vio-content {
+  flex: 1;
+}
+
+.vio-desc {
+  color: #333;
+  line-height: 1.4;
+}
+
+.vio-fix {
+  color: #666;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.recommendations {
+  background: #f6ffed;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.rec-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: #389e0d;
+}
+
+.recommendations ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.recommendations li {
+  margin-bottom: 4px;
+  color: #333;
+}
+
+/* 品牌套件按钮 */
+.btn-save-kit {
+  padding: 8px 14px;
+  background: #f0f5ff;
+  color: #165DFF;
+  border: 1px solid #165DFF;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-save-kit:hover:not(:disabled) {
+  background: #165DFF;
+  color: #fff;
+}
+
+.btn-save-kit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kit-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+}
+
+.kit-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kit-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.kit-colors {
+  display: flex;
+  gap: 4px;
+}
+
+.kit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.kit-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.kit-btn.apply {
+  background: #f0f5ff;
+  color: #165DFF;
+}
+
+.kit-btn.apply:hover {
+  background: #165DFF;
+  color: #fff;
+}
+
+.kit-btn.delete {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.kit-btn.delete:hover {
+  background: #ff4d4f;
+  color: #fff;
 }
 </style>

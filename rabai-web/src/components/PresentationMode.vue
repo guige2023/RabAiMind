@@ -80,6 +80,10 @@
             <option value="fade">淡入淡出</option>
             <option value="zoom">缩放</option>
             <option value="flip">翻转</option>
+            <option value="3d-cube">3D立方体</option>
+            <option value="3d-carousel">3D轮播</option>
+            <option value="3d-depth">3D纵深</option>
+            <option value="3d-flip">3D翻转</option>
           </select>
         </div>
 
@@ -898,6 +902,31 @@ import { recordHeatmapPoint } from '../composables/usePresentationAnalytics'
 import { useVoiceCommands } from '../composables/useVoiceCommands'
 import ARVRMode from './ARVRMode.vue'
 
+export interface SlideElementAnimation {
+  enabled: boolean
+  presetId: string
+  type: string
+  duration: number
+  delay: number
+  easing: string
+  textMode?: 'letter' | 'word' | 'line'
+  textStagger?: number
+  perspective?: number
+  customCurve?: [number, number, number, number]
+}
+
+export interface SlideElement {
+  id: string
+  type: string
+  x: number
+  y: number
+  width: number
+  height: number
+  content?: string
+  color?: string
+  animation?: SlideElementAnimation
+}
+
 export interface Slide {
   title: string
   content?: string
@@ -907,6 +936,7 @@ export interface Slide {
   transition?: 'slide' | 'fade' | 'zoom' | 'flip' | '3d'
   transition3d?: 'cube' | 'cylinder' | 'carousel' | 'flip' | 'depth' | 'flythrough'
   presenterNotes?: string  // 演讲者备注
+  elements?: SlideElement[]
 }
 
 export interface QAQuestion {
@@ -1509,7 +1539,7 @@ const durationMap = {
   slow: 0.8
 }
 
-const selectedTransition = ref<'slide' | 'fade' | 'zoom' | 'flip' | '3d'>('slide')
+const selectedTransition = ref<'slide' | 'fade' | 'zoom' | 'flip' | '3d' | '3d-cube' | '3d-carousel' | '3d-flip' | '3d-depth'>('slide')
 
 // AR/VR state
 const arvrActive = ref(false)
@@ -1642,13 +1672,69 @@ const getSlideClass = (index: number) => {
 const getSlideStyle = (index: number) => {
   const transition = getSlideTransition(index)
   const dur = currentDuration.value
+  const slide = props.slides[index]
 
   const baseStyle: Record<string, string> = {
     transition: `all ${dur}s cubic-bezier(0.4, 0, 0.2, 1)`,
-    background: props.slides[index]?.background || 'linear-gradient(135deg, #667eea, #764ba2)'
+    background: slide?.background || 'linear-gradient(135deg, #667eea, #764ba2)'
   }
 
-  if (transition === 'fade') {
+  // 3D transitions with perspective
+  if (transition === '3d-cube') {
+    const persp = 'perspective(1200px)'
+    if (index === currentSlide.value) {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} rotateY(0deg) scale(1)`
+      baseStyle.transformOrigin = 'center center'
+    } else if (index < currentSlide.value) {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} rotateY(90deg) scale(0.8)`
+      baseStyle.transformOrigin = 'left center'
+    } else {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} rotateY(-90deg) scale(0.8)`
+      baseStyle.transformOrigin = 'right center'
+    }
+  } else if (transition === '3d-carousel') {
+    const persp = 'perspective(1500px)'
+    if (index === currentSlide.value) {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} rotateY(0deg) scale(1)`
+      baseStyle.transformOrigin = 'center center'
+    } else if (index < currentSlide.value) {
+      baseStyle.opacity = '0.7'
+      baseStyle.transform = `${persp} rotateY(45deg) translateZ(-100px) scale(0.85)`
+    } else {
+      baseStyle.opacity = '0.7'
+      baseStyle.transform = `${persp} rotateY(-45deg) translateZ(-100px) scale(0.85)`
+    }
+  } else if (transition === '3d-depth') {
+    const persp = 'perspective(2000px)'
+    if (index === currentSlide.value) {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} translateZ(0) scale(1)`
+    } else if (index < currentSlide.value) {
+      baseStyle.opacity = '0'
+      baseStyle.transform = `${persp} translateZ(-300px) translateX(-100px) scale(0.6)`
+    } else {
+      baseStyle.opacity = '0'
+      baseStyle.transform = `${persp} translateZ(-300px) translateX(100px) scale(0.6)`
+    }
+  } else if (transition === '3d-flip') {
+    const persp = 'perspective(1200px)'
+    if (index === currentSlide.value) {
+      baseStyle.opacity = '1'
+      baseStyle.transform = `${persp} rotateX(0deg)`
+    } else if (index < currentSlide.value) {
+      baseStyle.opacity = '0'
+      baseStyle.transform = `${persp} rotateX(90deg)`
+      baseStyle.transformOrigin = 'top center'
+    } else {
+      baseStyle.opacity = '0'
+      baseStyle.transform = `${persp} rotateX(-90deg)`
+      baseStyle.transformOrigin = 'bottom center'
+    }
+  } else if (transition === 'fade') {
     baseStyle.opacity = index === currentSlide.value ? '1' : '0'
     baseStyle.transform = 'none'
   } else if (transition === 'zoom') {
@@ -2943,6 +3029,125 @@ onUnmounted(() => {
 .transition-flip.slide.next {
   opacity: 0;
   transform: rotateY(90deg);
+}
+
+/* TRANSITION: 3D CUBE */
+.transition-3d-cube.slide {
+  backface-visibility: visible;
+  transform-style: preserve-3d;
+}
+.transition-3d-cube.slide.active {
+  z-index: 5;
+}
+.transition-3d-cube.slide.prev,
+.transition-3d-cube.slide.next {
+  backface-visibility: visible;
+}
+
+/* TRANSITION: 3D CAROUSEL */
+.transition-3d-carousel.slide {
+  backface-visibility: visible;
+  transform-style: preserve-3d;
+}
+.transition-3d-carousel.slide.active {
+  z-index: 5;
+}
+
+/* TRANSITION: 3D DEPTH */
+.transition-3d-depth.slide {
+  backface-visibility: visible;
+  transform-style: preserve-3d;
+}
+.transition-3d-depth.slide.active {
+  z-index: 5;
+}
+
+/* TRANSITION: 3D FLIP (X-axis) */
+.transition-3d-flip.slide {
+  backface-visibility: visible;
+  transform-style: preserve-3d;
+}
+.transition-3d-flip.slide.active {
+  z-index: 5;
+}
+
+/* =====================
+   ELEMENT ANIMATIONS (R130)
+   ===================== */
+.element-animate-fade {
+  animation: el-fade-in var(--el-anim-duration, 0.5s) var(--el-anim-easing, cubic-bezier(0.4,0,0.2,1)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-slide-up {
+  animation: el-slide-up var(--el-anim-duration, 0.5s) var(--el-anim-easing, cubic-bezier(0.4,0,0.2,1)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-scale-in {
+  animation: el-scale-in var(--el-anim-duration, 0.5s) var(--el-anim-easing, cubic-bezier(0.68,-0.55,0.265,1.55)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-bounce-in {
+  animation: el-bounce-in var(--el-anim-duration, 0.6s) var(--el-anim-easing, cubic-bezier(0.68,-0.55,0.265,1.55)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-blur-in {
+  animation: el-blur-in var(--el-anim-duration, 0.6s) var(--el-anim-easing, cubic-bezier(0.0,0.0,0.6,1.0)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-wipe {
+  animation: el-wipe var(--el-anim-duration, 0.5s) linear both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-typewriter {
+  animation: el-typewriter var(--el-anim-duration, 1.5s) steps(var(--el-anim-chars, 30)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-letter {
+  animation: el-letter var(--el-anim-duration, 0.4s) var(--el-anim-easing, cubic-bezier(0.4,0,0.2,1)) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+.element-animate-word {
+  animation: el-word var(--el-anim-duration, 0.3s) var(--el-anim-easing, ease-out) both;
+  animation-delay: var(--el-anim-delay, 0s);
+}
+
+@keyframes el-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes el-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes el-scale-in {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes el-bounce-in {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { transform: scale(1.08); }
+  70% { transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes el-blur-in {
+  from { opacity: 0; filter: blur(12px); transform: scale(1.05); }
+  to { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+@keyframes el-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0% 0 0); }
+}
+@keyframes el-typewriter {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0% 0 0); }
+}
+@keyframes el-letter {
+  from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes el-word {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 /* =====================

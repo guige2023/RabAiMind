@@ -18,8 +18,33 @@ export interface Template {
   // 额外字段（来自真实API）
   colors?: string[]
   fonts?: string[]
-  // 用户生成模板
+  // R128: 用户生成模板
   is_ugc?: boolean
+  // R128: 子分类
+  subcategory?: string
+  // R128: 下载次数
+  download_count?: number
+  // R128: 评分细分
+  rating_breakdown?: {
+    design: number
+    usability: number
+    features: number
+    total: number
+    count: number
+  }
+  // R128: 预览幻灯片
+  preview_slides?: PreviewSlide[]
+}
+
+export interface PreviewSlide {
+  index: number
+  type: 'title' | 'toc' | 'content' | 'two_column' | 'data_visualization' | 'ending'
+  title: string
+  subtitle?: string
+  items?: string[]
+  layout: string
+  colors: string[]
+  content_preview?: string
 }
 
 // 真实API模板 → 前端模板的映射
@@ -35,10 +60,14 @@ function mapApiTemplate(apiT: any): Template {
     tags: [apiT.category, apiT.style],  // 派生
     popularity: 80,  // 默认热度
     isPremium: ['tech', 'creative'].includes(apiT.category),  // 简单判断
-    author: 'RabAi Mind',
-    createdAt: new Date().toISOString().split('T')[0],
+    author: apiT.author || 'RabAi Mind',
+    createdAt: apiT.created_at || new Date().toISOString().split('T')[0],
     colors: apiT.colors,
     fonts: apiT.fonts,
+    is_ugc: apiT.is_ugc || false,
+    subcategory: apiT.subcategory || '',
+    download_count: apiT.download_count || 0,
+    rating_breakdown: apiT.rating_breakdown,
   }
 }
 
@@ -49,8 +78,91 @@ const defaultCategories = [
   { id: 'tech', name: '科技', icon: '🚀', count: 6 },
   { id: 'creative', name: '创意', icon: '💡', count: 10 },
   { id: 'personal', name: '个人', icon: '👤', count: 5 },
-  { id: 'government', name: '政府', icon: '🏛️', count: 4 }
+  { id: 'government', name: '政府', icon: '🏛️', count: 4 },
+  { id: 'finance', name: '金融', icon: '💰', count: 5 },
+  { id: 'marketing', name: '营销', icon: '📢', count: 7 },
 ]
+
+// R128: 分类+子分类映射
+const CATEGORY_SUBCATEGORIES: Record<string, { id: string; name: string }[]> = {
+  business: [
+    { id: 'annual', name: '年度总结' },
+    { id: 'quarterly', name: '季度报告' },
+    { id: 'proposal', name: '项目提案' },
+    { id: 'company', name: '公司介绍' },
+    { id: 'roadshow', name: '投资路演' },
+    { id: 'meeting', name: '会议议程' },
+    { id: 'sales', name: '销售提案' },
+    { id: 'analysis', name: '市场分析' },
+    { id: 'team', name: '团队建设' },
+    { id: 'negotiation', name: '商务谈判' },
+  ],
+  education: [
+    { id: 'training', name: '培训课件' },
+    { id: 'defense', name: '学术答辩' },
+    { id: 'teaching', name: '教学教案' },
+    { id: 'campus', name: '校园活动' },
+    { id: 'graduation', name: '毕业典礼' },
+    { id: 'course', name: '课程介绍' },
+    { id: 'exam', name: '考试复习' },
+    { id: 'academic', name: '学术报告' },
+  ],
+  tech: [
+    { id: 'product_launch', name: '产品发布' },
+    { id: 'tech_share', name: '技术分享' },
+    { id: 'ai_demo', name: 'AI演示' },
+    { id: 'tech_conf', name: '科技大会' },
+    { id: 'internet_conf', name: '互联网峰会' },
+    { id: 'product_intro', name: '产品介绍' },
+    { id: 'tech_doc', name: '技术文档' },
+    { id: 'dev_conf', name: '开发者大会' },
+  ],
+  creative: [
+    { id: 'creative_show', name: '创意展示' },
+    { id: 'brand_design', name: '品牌设计' },
+    { id: 'marketing', name: '营销提案' },
+    { id: 'event', name: '活动策划' },
+    { id: 'art', name: '艺术展示' },
+    { id: 'resume', name: '个人简历' },
+    { id: 'portfolio', name: '作品集' },
+    { id: 'creative_writing', name: '创意写作' },
+  ],
+  personal: [
+    { id: 'birthday', name: '生日派对' },
+    { id: 'wedding', name: '婚礼请柬' },
+    { id: 'travel', name: '旅行分享' },
+    { id: 'food', name: '美食记录' },
+    { id: 'family', name: '家庭相册' },
+    { id: 'anniversary', name: '纪念日' },
+    { id: 'diary', name: '个人日记' },
+  ],
+  government: [
+    { id: 'gov_report', name: '政府汇报' },
+    { id: 'party', name: '党建工作' },
+    { id: 'gov_affairs', name: '政务公开' },
+    { id: 'policy', name: '政策解读' },
+    { id: 'meeting_report', name: '会议报告' },
+    { id: 'planning', name: '规划展示' },
+  ],
+  finance: [
+    { id: 'financial_report', name: '财务报告' },
+    { id: 'investment', name: '投资分析' },
+    { id: 'market_research', name: '市场研究' },
+    { id: 'business_plan', name: '商业计划' },
+    { id: 'audit', name: '审计汇报' },
+    { id: 'budget', name: '预算方案' },
+    { id: 'fund_roadshow', name: '基金路演' },
+  ],
+  marketing: [
+    { id: 'brand_promo', name: '品牌推广' },
+    { id: 'promotion', name: '产品促销' },
+    { id: 'ad_creative', name: '广告创意' },
+    { id: 'social_media', name: '社交媒体' },
+    { id: 'content_marketing', name: '内容营销' },
+    { id: 'event_promo', name: '活动宣传' },
+    { id: 'media', name: '媒体投放' },
+  ],
+}
 
 // 模板风格 - 硬编码兜底数据
 const defaultStyles = [
@@ -82,6 +194,9 @@ const sampleTemplates: Template[] = [
     popularity: 98,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'roadshow',
+    download_count: 1247,
+    rating_breakdown: {'design': 4.2, 'usability': 4.5, 'features': 4.0, 'total': 4.2, 'count': 312},
     createdAt: '2024-01-15'
   },
   {
@@ -96,6 +211,9 @@ const sampleTemplates: Template[] = [
     popularity: 95,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'product_launch',
+    download_count: 1834,
+    rating_breakdown: {'design': 4.8, 'usability': 4.5, 'features': 4.9, 'total': 4.7, 'count': 521},
     createdAt: '2024-02-01'
   },
   {
@@ -110,6 +228,9 @@ const sampleTemplates: Template[] = [
     popularity: 92,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'annual',
+    download_count: 2341,
+    rating_breakdown: {'design': 4.4, 'usability': 4.6, 'features': 4.5, 'total': 4.5, 'count': 678},
     createdAt: '2024-01-20'
   },
   {
@@ -124,6 +245,9 @@ const sampleTemplates: Template[] = [
     popularity: 88,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'training',
+    download_count: 1567,
+    rating_breakdown: {'design': 4.3, 'usability': 4.7, 'features': 4.4, 'total': 4.5, 'count': 389},
     createdAt: '2024-02-10'
   },
   // 更多模板
@@ -139,6 +263,9 @@ const sampleTemplates: Template[] = [
     popularity: 87,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'internet_conf',
+    download_count: 1765,
+    rating_breakdown: {'design': 4.7, 'usability': 4.4, 'features': 4.6, 'total': 4.6, 'count': 389},
     createdAt: '2024-02-20'
   },
   {
@@ -153,6 +280,9 @@ const sampleTemplates: Template[] = [
     popularity: 78,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'wedding',
+    download_count: 543,
+    rating_breakdown: {'design': 4.9, 'usability': 4.6, 'features': 4.2, 'total': 4.6, 'count': 132},
     createdAt: '2024-02-18'
   },
   {
@@ -167,6 +297,9 @@ const sampleTemplates: Template[] = [
     popularity: 85,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'gov_report',
+    download_count: 634,
+    rating_breakdown: {'design': 4.0, 'usability': 4.2, 'features': 4.1, 'total': 4.1, 'count': 98},
     createdAt: '2024-02-15'
   },
   {
@@ -181,6 +314,9 @@ const sampleTemplates: Template[] = [
     popularity: 82,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'defense',
+    download_count: 1087,
+    rating_breakdown: {'design': 4.2, 'usability': 4.5, 'features': 4.4, 'total': 4.4, 'count': 298},
     createdAt: '2024-02-12'
   },
   {
@@ -195,6 +331,9 @@ const sampleTemplates: Template[] = [
     popularity: 75,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'birthday',
+    download_count: 432,
+    rating_breakdown: {'design': 4.7, 'usability': 4.9, 'features': 4.3, 'total': 4.6, 'count': 156},
     createdAt: '2024-02-08'
   },
   {
@@ -209,6 +348,9 @@ const sampleTemplates: Template[] = [
     popularity: 89,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'product_intro',
+    download_count: 1123,
+    rating_breakdown: {'design': 4.5, 'usability': 4.6, 'features': 4.7, 'total': 4.6, 'count': 287},
     createdAt: '2024-02-05'
   },
   {
@@ -223,6 +365,9 @@ const sampleTemplates: Template[] = [
     popularity: 72,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'campus',
+    download_count: 567,
+    rating_breakdown: {'design': 4.3, 'usability': 4.7, 'features': 4.4, 'total': 4.5, 'count': 123},
     createdAt: '2024-02-02'
   },
   {
@@ -237,6 +382,9 @@ const sampleTemplates: Template[] = [
     popularity: 91,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'roadshow',
+    download_count: 1543,
+    rating_breakdown: {'design': 4.6, 'usability': 4.5, 'features': 4.7, 'total': 4.6, 'count': 345},
     createdAt: '2024-01-28'
   },
   {
@@ -251,6 +399,9 @@ const sampleTemplates: Template[] = [
     popularity: 83,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'art',
+    download_count: 678,
+    rating_breakdown: {'design': 4.9, 'usability': 4.2, 'features': 4.3, 'total': 4.5, 'count': 156},
     createdAt: '2024-01-25'
   },
   {
@@ -265,6 +416,9 @@ const sampleTemplates: Template[] = [
     popularity: 90,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'analysis',
+    download_count: 1654,
+    rating_breakdown: {'design': 4.5, 'usability': 4.6, 'features': 4.8, 'total': 4.6, 'count': 423},
     createdAt: '2024-01-22'
   },
   {
@@ -279,6 +433,9 @@ const sampleTemplates: Template[] = [
     popularity: 86,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'team',
+    download_count: 876,
+    rating_breakdown: {'design': 4.4, 'usability': 4.7, 'features': 4.3, 'total': 4.5, 'count': 234},
     createdAt: '2024-01-18'
   },
   {
@@ -293,6 +450,9 @@ const sampleTemplates: Template[] = [
     popularity: 94,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'tech_share',
+    download_count: 2543,
+    rating_breakdown: {'design': 4.8, 'usability': 4.5, 'features': 4.9, 'total': 4.7, 'count': 612},
     createdAt: '2024-01-15'
   },
   {
@@ -307,6 +467,9 @@ const sampleTemplates: Template[] = [
     popularity: 90,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'company',
+    download_count: 1432,
+    rating_breakdown: {'design': 4.6, 'usability': 4.4, 'features': 4.5, 'total': 4.5, 'count': 321},
     createdAt: '2024-01-25'
   },
   {
@@ -321,6 +484,9 @@ const sampleTemplates: Template[] = [
     popularity: 85,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'proposal',
+    download_count: 987,
+    rating_breakdown: {'design': 4.5, 'usability': 4.7, 'features': 4.6, 'total': 4.6, 'count': 245},
     createdAt: '2024-02-05'
   },
   {
@@ -335,6 +501,9 @@ const sampleTemplates: Template[] = [
     popularity: 82,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'marketing',
+    download_count: 756,
+    rating_breakdown: {'design': 4.9, 'usability': 4.3, 'features': 4.5, 'total': 4.6, 'count': 167},
     createdAt: '2024-02-15'
   },
   {
@@ -349,6 +518,9 @@ const sampleTemplates: Template[] = [
     popularity: 80,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'resume',
+    download_count: 654,
+    rating_breakdown: {'design': 4.4, 'usability': 4.8, 'features': 4.2, 'total': 4.5, 'count': 198},
     createdAt: '2024-01-30'
   },
   // R86: Document Generation Templates
@@ -364,6 +536,9 @@ const sampleTemplates: Template[] = [
     popularity: 93,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'quarterly',
+    download_count: 1876,
+    rating_breakdown: {'design': 4.5, 'usability': 4.7, 'features': 4.8, 'total': 4.7, 'count': 534},
     createdAt: '2024-03-15'
   },
   {
@@ -378,6 +553,9 @@ const sampleTemplates: Template[] = [
     popularity: 88,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'meeting',
+    download_count: 1563,
+    rating_breakdown: {'design': 4.3, 'usability': 4.9, 'features': 4.6, 'total': 4.6, 'count': 412},
     createdAt: '2024-03-15'
   },
   {
@@ -392,6 +570,9 @@ const sampleTemplates: Template[] = [
     popularity: 91,
     isPremium: true,
     author: 'RabAi Mind',
+    subcategory: 'sales',
+    download_count: 1432,
+    rating_breakdown: {'design': 4.6, 'usability': 4.4, 'features': 4.7, 'total': 4.6, 'count': 321},
     createdAt: '2024-03-15'
   },
   {
@@ -406,6 +587,9 @@ const sampleTemplates: Template[] = [
     popularity: 90,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'proposal',
+    download_count: 987,
+    rating_breakdown: {'design': 4.5, 'usability': 4.7, 'features': 4.6, 'total': 4.6, 'count': 245},
     createdAt: '2024-03-15'
   },
   {
@@ -420,6 +604,9 @@ const sampleTemplates: Template[] = [
     popularity: 87,
     isPremium: false,
     author: 'RabAi Mind',
+    subcategory: 'training',
+    download_count: 1123,
+    rating_breakdown: {'design': 4.4, 'usability': 4.8, 'features': 4.5, 'total': 4.6, 'count': 287},
     createdAt: '2024-03-15'
   }
 ]
@@ -690,12 +877,110 @@ export function useTemplateStore() {
     return template
   }
 
+  // R128: 子分类状态
+  const selectedSubcategory = ref<string | null>(null)
+  const subcategories = ref<Record<string, { id: string; name: string }[]>>(CATEGORY_SUBCATEGORIES)
+
+  // R128: 加载子分类
+  const loadSubcategories = async (category?: string) => {
+    try {
+      const res = await apiClient.get('/templates/subcategories', {
+        params: category ? { category } : {}
+      })
+      if (res.data?.success) {
+        if (category) {
+          subcategories.value = { ...subcategories.value, [category]: res.data.subcategories || [] }
+        } else {
+          subcategories.value = res.data.subcategories || CATEGORY_SUBCATEGORIES
+        }
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载子分类失败，使用默认数据')
+    }
+  }
+
+  // R128: 加载模板预览幻灯片
+  const loadPreviewSlides = async (templateId: string) => {
+    try {
+      const res = await apiClient.get(`/templates/${templateId}/preview-slides`)
+      if (res.data?.success) {
+        return res.data
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载预览幻灯片失败')
+    }
+    return null
+  }
+
+  // R128: 加载评分细分
+  const loadRatingsBreakdown = async (templateId: string) => {
+    try {
+      const res = await apiClient.get(`/templates/${templateId}/ratings-breakdown`)
+      if (res.data?.success) {
+        return res.data.ratings_breakdown
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载评分细分失败')
+    }
+    return null
+  }
+
+  // R128: 提交评分细分
+  const submitRatingsBreakdown = async (
+    templateId: string,
+    design: number,
+    usability: number,
+    features: number,
+    content: string = ''
+  ) => {
+    try {
+      const res = await apiClient.post(`/templates/${templateId}/ratings-breakdown`, {
+        user_id: 'anonymous',
+        user_name: '用户',
+        design,
+        usability,
+        features,
+        content,
+      })
+      if (res.data?.success) {
+        return res.data.ratings_breakdown
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 提交评分细分失败')
+    }
+    return null
+  }
+
+  // R128: 记录下载
+  const trackDownload = async (templateId: string) => {
+    try {
+      await apiClient.post(`/templates/${templateId}/download`)
+    } catch (e) {
+      console.warn('[TemplateStore] 记录下载失败')
+    }
+  }
+
+  // R128: 加载精选合集
+  const collections = ref<any[]>([])
+  const loadCollections = async () => {
+    try {
+      const res = await apiClient.get('/templates/collections')
+      if (res.data?.success) {
+        collections.value = res.data.collections || []
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载精选合集失败')
+    }
+  }
+
   return {
     templates,
     favorites,
     searchQuery,
     selectedCategory,
     selectedStyle,
+    selectedSubcategory,
+    subcategories,
     sortBy,
     filteredTemplates,
     favoriteTemplates,
@@ -710,6 +995,7 @@ export function useTemplateStore() {
     detectedStyle,
     categoryStats,
     isLoading,
+    collections,
     loadTemplates,
     loadTrendingTemplates,
     loadRecommendedTemplates,
@@ -718,6 +1004,12 @@ export function useTemplateStore() {
     loadTrendingQueries,
     trackTemplateEvent,
     loadCategoriesAndStyles,
+    loadSubcategories,
+    loadPreviewSlides,
+    loadRatingsBreakdown,
+    submitRatingsBreakdown,
+    trackDownload,
+    loadCollections,
     loadFavorites,
     toggleFavorite,
     isFavorite,

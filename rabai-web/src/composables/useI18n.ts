@@ -580,3 +580,48 @@ export function detectLanguage(text: string): Locale {
 
   return 'en'
 }
+// R131: Localized number formatting
+export function formatNumber(value: number, locale?: Locale): string {
+  const loc = locale || currentLocale.value
+  const localeMap: Record<Locale, string> = {
+    'zh': 'zh-CN', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'es': 'es-ES', 'fr': 'fr-FR', 'ar': 'ar-SA', 'he': 'he-IL'
+  }
+  return new Intl.NumberFormat(localeMap[loc]).format(value)
+}
+
+// R131: Localized date formatting
+export function formatDate(date: Date | string | number, options?: Intl.DateTimeFormatOptions, locale?: Locale): string {
+  const loc = locale || currentLocale.value
+  const localeMap: Record<Locale, string> = {
+    'zh': 'zh-CN', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'es': 'es-ES', 'fr': 'fr-FR', 'ar': 'ar-SA', 'he': 'he-IL'
+  }
+  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    year: 'numeric', month: 'long', day: 'numeric', ...options
+  }
+  return new Intl.DateTimeFormat(localeMap[loc], defaultOptions).format(d)
+}
+
+// R131: Localized relative time (e.g. "2 hours ago")
+export function formatRelativeTime(date: Date | string | number, locale?: Locale): string {
+  const loc = locale || currentLocale.value
+  const localeMap: Record<Locale, string> = {
+    'zh': 'zh-CN', 'en': 'en-US', 'ja': 'ja-JP', 'ko': 'ko-KR',
+    'es': 'es-ES', 'fr': 'fr-FR', 'ar': 'ar-SA', 'he': 'he-IL'
+  }
+  const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  const rtf = new Intl.RelativeTimeFormat(localeMap[loc], { numeric: 'auto' })
+  if (diffDay !== 0) return rtf.format(-diffDay, 'day')
+  if (diffHour !== 0) return rtf.format(-diffHour, 'hour')
+  if (diffMin !== 0) return rtf.format(-diffMin, 'minute')
+  return rtf.format(-diffSec, 'second')
+}
