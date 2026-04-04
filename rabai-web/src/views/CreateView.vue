@@ -68,6 +68,10 @@
                 <span class="import-icon">🌐</span>
                 <span>网页 URL</span>
               </button>
+              <button class="import-btn" @click="showDataSourceModal = true" title="连接数据源">
+                <span class="import-icon">📊</span>
+                <span>数据源</span>
+              </button>
             </div>
             <input
               type="file"
@@ -669,6 +673,84 @@
             <span v-if="isSubmitting" class="spinner"></span>
             <span v-else>✨ 开始生成</span>
           </button>
+          <!-- R92: Parallel generation toggle -->
+          <button
+            class="btn btn-outline btn-lg"
+            @click="showParallelMode = !showParallelMode"
+          >
+            🚀 {{ showParallelMode ? '收起并行生成' : '🚀 并行生成多个' }}
+          </button>
+        </div>
+
+        <!-- R92: Parallel generation panel -->
+        <div v-if="showParallelMode" class="parallel-generation-panel">
+          <div class="parallel-header">
+            <h3>🚀 并行生成多个PPT</h3>
+            <p>同时生成多个不同主题的PPT，最多 5 个</p>
+          </div>
+          <div
+            v-for="(outline, idx) in parallelOutlines"
+            :key="idx"
+            class="parallel-outline-item"
+          >
+            <div class="parallel-outline-header">
+              <span class="parallel-outline-label">大纲 {{ idx + 1 }}</span>
+              <button
+                v-if="parallelOutlines.length > 1"
+                class="btn btn-sm btn-outline"
+                @click="removeParallelOutline(idx)"
+              >
+                删除
+              </button>
+            </div>
+            <textarea
+              v-model="outline.request"
+              class="input textarea"
+              placeholder="描述你想要的内容，AI 将为你生成专业演示文稿..."
+              rows="3"
+            ></textarea>
+            <div class="parallel-outline-options">
+              <select v-model="outline.scene" class="input select-input">
+                <option value="business">💼 商务</option>
+                <option value="education">📚 教育</option>
+                <option value="tech">🚀 科技</option>
+                <option value="creative">💡 创意</option>
+                <option value="marketing">📢 营销</option>
+                <option value="finance">💰 金融</option>
+                <option value="medical">🏥 医疗</option>
+                <option value="government">🏛️ 政府</option>
+              </select>
+              <select v-model="outline.style" class="input select-input">
+                <option value="professional">💼 专业商务</option>
+                <option value="simple">✨ 简约现代</option>
+                <option value="energetic">🔥 活力动感</option>
+                <option value="premium">👑 高端大气</option>
+                <option value="tech">🚀 科技未来</option>
+                <option value="creative">🎨 创意艺术</option>
+                <option value="elegant">🌸 优雅古典</option>
+                <option value="playful">🎮 卡通趣味</option>
+                <option value="nature">🌿 自然清新</option>
+                <option value="minimalist">⬜ 极简留白</option>
+              </select>
+            </div>
+          </div>
+          <div class="parallel-actions">
+            <button
+              class="btn btn-outline"
+              @click="addParallelOutline"
+              :disabled="parallelOutlines.length >= 5"
+            >
+              ➕ 添加大纲
+            </button>
+            <button
+              class="btn btn-primary"
+              @click="handleParallelGenerate"
+              :disabled="isSubmitting"
+            >
+              <span v-if="isSubmitting" class="spinner"></span>
+              <span v-else>🚀 开始并行生成</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -733,6 +815,211 @@
           <button class="btn btn-secondary" @click="showUrlImportModal = false" :disabled="importLoading">
             取消
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 数据源弹窗 (R113) -->
+  <Teleport to="body">
+    <div v-if="showDataSourceModal" class="error-modal-overlay" @click.self="showDataSourceModal = false">
+      <div class="error-modal data-source-modal">
+        <div class="modal-header">
+          <h3>📊 数据源</h3>
+          <button class="modal-close" @click="showDataSourceModal = false">×</button>
+        </div>
+
+        <!-- Tab: 连接新数据源 -->
+        <div class="ds-tabs">
+          <button :class="{ active: dsTab === 'connect' }" @click="dsTab = 'connect'">连接数据源</button>
+          <button :class="{ active: dsTab === 'alerts' }" @click="dsTab = 'alerts'; loadDataSources()">阈值告警</button>
+          <button :class="{ active: dsTab === 'analyze' }" @click="dsTab = 'analyze'; loadDataSources()">数据分析</button>
+          <button :class="{ active: dsTab === 'forecast' }" @click="dsTab = 'forecast'; loadDataSources()">预测图表</button>
+        </div>
+
+        <!-- Tab: 连接数据源 -->
+        <div v-if="dsTab === 'connect'" class="modal-body ds-body">
+          <div class="ds-connect-grid">
+            <button class="ds-source-card" @click="dsConnectType = 'excel'; triggerDsFileImport('excel')">
+              <span class="ds-source-icon">📗</span>
+              <span class="ds-source-name">Excel</span>
+              <span class="ds-source-desc">.xlsx, .xls</span>
+            </button>
+            <button class="ds-source-card" @click="dsConnectType = 'csv'; triggerDsFileImport('csv')">
+              <span class="ds-source-icon">📄</span>
+              <span class="ds-source-name">CSV</span>
+              <span class="ds-source-desc">.csv, .tsv</span>
+            </button>
+            <button class="ds-source-card" @click="dsConnectType = 'google'; dsShowGoogle = true">
+              <span class="ds-source-icon">📗</span>
+              <span class="ds-source-name">Google Sheets</span>
+              <span class="ds-source-desc">在线表格</span>
+            </button>
+          </div>
+
+          <!-- 已连接的数据源列表 -->
+          <div v-if="dataSourceList.length > 0" class="ds-list">
+            <h4>已连接的数据源</h4>
+            <div v-for="ds in dataSourceList" :key="ds.id" class="ds-item">
+              <div class="ds-item-info">
+                <span class="ds-item-name">{{ ds.name }}</span>
+                <span class="ds-item-meta">{{ ds.source_type }} · {{ ds.total_rows }} 行</span>
+              </div>
+              <div class="ds-item-actions">
+                <button class="btn btn-small btn-primary" @click="handleGenerateFromDs(ds.id)">生成 PPT</button>
+                <button class="btn btn-small" @click="dsEditSource = ds">设置</button>
+                <button class="btn btn-small btn-danger" @click="handleDeleteDs(ds.id)">删除</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Google Sheets 表单 -->
+          <div v-if="dsShowGoogle" class="ds-google-form">
+            <h4>连接 Google Sheets</h4>
+            <input v-model="googleSheetUrl" type="url" class="input" placeholder="https://docs.google.com/spreadsheets/d/..." />
+            <div class="ds-google-hint">
+              <span>需要 Google OAuth 访问令牌</span>
+              <input v-model="googleAccessToken" type="text" class="input" placeholder="access_token" />
+            </div>
+            <div class="error-actions">
+              <button class="btn btn-primary" @click="handleImportGoogleSheets" :disabled="dsLoading">
+                {{ dsLoading ? '导入中...' : '连接' }}
+              </button>
+              <button class="btn btn-secondary" @click="dsShowGoogle = false">取消</button>
+            </div>
+          </div>
+
+          <div v-if="dsError" class="import-error">{{ dsError }}</div>
+        </div>
+
+        <!-- Tab: 阈值告警 -->
+        <div v-if="dsTab === 'alerts'" class="modal-body ds-body">
+          <div v-if="!dsAlertSource" class="ds-select-source">
+            <p>选择数据源：</p>
+            <select v-model="dsAlertSourceId" class="input">
+              <option value="">-- 选择数据源 --</option>
+              <option v-for="ds in dataSourceList" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
+            </select>
+          </div>
+          <div v-else class="ds-alerts-panel">
+            <h4>阈值告警: {{ dsAlertSource.name }}</h4>
+            <div v-for="(alert, idx) in dsAlerts" :key="idx" class="ds-alert-row">
+              <input v-model="alert.column" class="input" placeholder="列名" />
+              <select v-model="alert.condition" class="input">
+                <option value="gt">大于</option>
+                <option value="lt">小于</option>
+                <option value="gte">大于等于</option>
+                <option value="lte">小于等于</option>
+                <option value="eq">等于</option>
+              </select>
+              <input v-model.number="alert.value" type="number" class="input" placeholder="阈值" />
+              <input v-model="alert.label" class="input" placeholder="告警名称" />
+              <button class="btn btn-small btn-danger" @click="dsAlerts.splice(idx, 1)">×</button>
+            </div>
+            <button class="btn" @click="dsAlerts.push({ column: '', condition: 'gt', value: 0, label: '', enabled: true })">+ 添加告警</button>
+            <div v-if="dsTriggeredAlerts.length > 0" class="ds-triggered">
+              <h5>触发的告警 ({{ dsTriggeredAlerts.length }})</h5>
+              <div v-for="(t, idx) in dsTriggeredAlerts" :key="idx" class="ds-triggered-item">
+                <span class="ds-alert-badge">!</span>
+                <span>{{ t.alert_label }}: {{ t.actual_value }} ({{ t.condition }} {{ t.threshold }})</span>
+              </div>
+            </div>
+            <div class="error-actions">
+              <button class="btn btn-primary" @click="handleSaveAlerts" :disabled="dsLoading">保存告警</button>
+              <button class="btn btn-secondary" @click="dsAlertSource = null; dsAlertSourceId = ''">返回</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: 数据分析 -->
+        <div v-if="dsTab === 'analyze'" class="modal-body ds-body">
+          <div v-if="!dsAnalyzeResult" class="ds-select-source">
+            <p>选择数据源和分析列：</p>
+            <select v-model="dsAnalyzeSourceId" class="input" @change="loadDsColumns">
+              <option value="">-- 选择数据源 --</option>
+              <option v-for="ds in dataSourceList" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
+            </select>
+            <select v-if="dsAnalyzeColumns.length > 0" v-model="dsAnalyzeColumn" class="input">
+              <option value="">-- 选择数值列 --</option>
+              <option v-for="col in dsAnalyzeColumns" :key="col" :value="col">{{ col }}</option>
+            </select>
+            <div class="error-actions">
+              <button class="btn btn-primary" @click="handleAnalyzeData" :disabled="dsLoading || !dsAnalyzeColumn">分析</button>
+            </div>
+          </div>
+          <div v-else class="ds-analyze-result">
+            <h4>分析结果: {{ dsAnalyzeResult.compare_column }}</h4>
+            <div class="ds-stats-grid">
+              <div class="ds-stat"><span class="ds-stat-label">总和</span><span class="ds-stat-value">{{ dsAnalyzeResult.stats.sum }}</span></div>
+              <div class="ds-stat"><span class="ds-stat-label">平均值</span><span class="ds-stat-value">{{ dsAnalyzeResult.stats.avg }}</span></div>
+              <div class="ds-stat"><span class="ds-stat-label">最大值</span><span class="ds-stat-value">{{ dsAnalyzeResult.stats.max }} ({{ dsAnalyzeResult.stats.max_label }})</span></div>
+              <div class="ds-stat"><span class="ds-stat-label">最小值</span><span class="ds-stat-value">{{ dsAnalyzeResult.stats.min }} ({{ dsAnalyzeResult.stats.min_label }})</span></div>
+            </div>
+            <div class="ds-trend" :class="dsAnalyzeResult.trend.direction">
+              <span>趋势: {{ dsAnalyzeResult.trend.direction === 'increasing' ? '上升' : dsAnalyzeResult.trend.direction === 'decreasing' ? '下降' : '稳定' }}</span>
+              <span>变化: {{ dsAnalyzeResult.trend.change_pct }}%</span>
+            </div>
+            <div v-if="dsAnalyzeResult.group_stats" class="ds-group-stats">
+              <h5>分组统计</h5>
+              <div v-for="(stat, gKey) in dsAnalyzeResult.group_stats" :key="gKey" class="ds-group-item">
+                <span>{{ gKey }}: 均值={{ stat.avg }}, 合计={{ stat.sum }}</span>
+              </div>
+            </div>
+            <div class="error-actions">
+              <button class="btn btn-secondary" @click="dsAnalyzeResult = null; dsAnalyzeColumn = ''">重新分析</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: 预测图表 -->
+        <div v-if="dsTab === 'forecast'" class="modal-body ds-body">
+          <div v-if="!dsForecastResult" class="ds-select-source">
+            <p>选择数据源和预测列：</p>
+            <select v-model="dsForecastSourceId" class="input" @change="loadDsColumnsForForecast">
+              <option value="">-- 选择数据源 --</option>
+              <option v-for="ds in dataSourceList" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
+            </select>
+            <select v-if="dsForecastColumns.length > 0" v-model="dsForecastColumn" class="input">
+              <option value="">-- 选择数值列 --</option>
+              <option v-for="col in dsForecastColumns" :key="col" :value="col">{{ col }}</option>
+            </select>
+            <div class="ds-forecast-options">
+              <label>预测周期: <input v-model.number="dsForecastPeriods" type="number" min="1" max="10" class="input" /></label>
+              <label>图表类型:
+                <select v-model="dsForecastChartType" class="input">
+                  <option value="line">折线图</option>
+                  <option value="bar">柱状图</option>
+                </select>
+              </label>
+            </div>
+            <div class="error-actions">
+              <button class="btn btn-primary" @click="handleGetForecast" :disabled="dsLoading || !dsForecastColumn">生成预测</button>
+            </div>
+          </div>
+          <div v-else class="ds-forecast-result">
+            <h4>预测结果: {{ dsForecastResult.value_column }}</h4>
+            <div class="ds-regression">
+              <span>趋势: {{ dsForecastResult.trend_direction === 'up' ? '上升' : dsForecastResult.trend_direction === 'down' ? '下降' : '平稳' }}</span>
+              <span>R²: {{ dsForecastResult.regression.r_squared }}</span>
+              <span>斜率: {{ dsForecastResult.regression.slope }}</span>
+            </div>
+            <div class="ds-forecast-values">
+              <h5>预测值</h5>
+              <div v-for="(val, idx) in dsForecastResult.forecast.values" :key="idx" class="ds-forecast-item">
+                <span>{{ dsForecastResult.forecast.labels[idx] }}:</span>
+                <span class="ds-forecast-val">{{ val }}</span>
+              </div>
+            </div>
+            <div class="error-actions">
+              <button class="btn btn-secondary" @click="dsForecastResult = null; dsForecastColumn = ''">重新预测</button>
+              <button class="btn btn-primary" @click="handleGenerateFromDs(dsForecastSourceId)">生成 PPT</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="dsLoading" class="import-loading">
+          <div class="spinner"></div>
+          <span>{{ dsLoadingText }}</span>
         </div>
       </div>
     </div>
@@ -965,6 +1252,292 @@ const importLoading = ref(false)
 const importError = ref('')
 const pdfFileInput = ref<HTMLInputElement | null>(null)
 const docxFileInput = ref<HTMLInputElement | null>(null)
+
+// R92: Parallel generation
+const showParallelMode = ref(false)
+const parallelOutlines = ref<Array<{ request: string; scene: string; style: string }>>([
+  { request: '', scene: 'business', style: 'professional' }
+])
+
+const addParallelOutline = () => {
+  if (parallelOutlines.value.length >= 5) {
+    alert('最多同时生成 5 个PPT')
+    return
+  }
+  parallelOutlines.value.push({ request: '', scene: 'business', style: 'professional' })
+}
+
+// R113: Data Source Modal
+const showDataSourceModal = ref(false)
+const dsTab = ref<'connect' | 'alerts' | 'analyze' | 'forecast'>('connect')
+const dsConnectType = ref<'excel' | 'csv' | 'google'>('excel')
+const dsLoading = ref(false)
+const dsLoadingText = ref('')
+const dsError = ref('')
+const dsShowGoogle = ref(false)
+const googleSheetUrl = ref('')
+const googleAccessToken = ref('')
+const dataSourceList = ref<any[]>([])
+const dsAlertSource = ref<any>(null)
+const dsAlertSourceId = ref('')
+const dsAlerts = ref<Array<{ column: string; condition: string; value: number; label: string; enabled: boolean }>>([])
+const dsTriggeredAlerts = ref<any[]>([])
+const dsAnalyzeSourceId = ref('')
+const dsAnalyzeColumn = ref('')
+const dsAnalyzeColumns = ref<string[]>([])
+const dsAnalyzeResult = ref<any>(null)
+const dsForecastSourceId = ref('')
+const dsForecastColumn = ref('')
+const dsForecastColumns = ref<string[]>([])
+const dsForecastPeriods = ref(3)
+const dsForecastChartType = ref('line')
+const dsForecastResult = ref<any>(null)
+
+const loadDataSources = async () => {
+  try {
+    const res = await api.listDataSources()
+    if (res.data.success) {
+      dataSourceList.value = res.data.data_sources || []
+    }
+  } catch (e: any) {
+    console.error('loadDataSources error:', e)
+  }
+}
+
+const triggerDsFileImport = (type: 'excel' | 'csv') => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = type === 'excel' ? '.xlsx,.xls' : '.csv,.tsv'
+  input.onchange = async (e: any) => {
+    const file = e.target.files[0]
+    if (!file) return
+    dsLoading.value = true
+    dsLoadingText.value = '正在导入数据...'
+    dsError.value = ''
+    try {
+      let res
+      if (type === 'excel') {
+        res = await api.importExcel({ file, has_header: true, max_rows: 10000 })
+      } else {
+        res = await api.importCSV({ file, has_header: true, max_rows: 10000 })
+      }
+      if (res.data.success) {
+        await loadDataSources()
+        dsTab.value = 'connect'
+      } else {
+        dsError.value = res.data.message || '导入失败'
+      }
+    } catch (e: any) {
+      dsError.value = e?.response?.data?.message || e.message || '导入失败'
+    } finally {
+      dsLoading.value = false
+    }
+  }
+  input.click()
+}
+
+const handleImportGoogleSheets = async () => {
+  if (!googleSheetUrl.value) {
+    dsError.value = '请输入 Google Sheets URL'
+    return
+  }
+  dsLoading.value = true
+  dsLoadingText.value = '正在连接 Google Sheets...'
+  dsError.value = ''
+  try {
+    const res = await api.importGoogleSheets({
+      spreadsheet_url: googleSheetUrl.value,
+      access_token: googleAccessToken.value,
+      has_header: true,
+      max_rows: 10000,
+    })
+    if (res.data.success) {
+      dsShowGoogle.value = false
+      await loadDataSources()
+    } else {
+      dsError.value = res.data.message || '连接失败'
+    }
+  } catch (e: any) {
+    dsError.value = e?.response?.data?.message || e.message || '连接失败'
+  } finally {
+    dsLoading.value = false
+  }
+}
+
+const handleDeleteDs = async (sourceId: string) => {
+  if (!confirm('确定删除该数据源？')) return
+  try {
+    await api.deleteDataSource(sourceId)
+    await loadDataSources()
+  } catch (e: any) {
+    alert(e?.response?.data?.message || '删除失败')
+  }
+}
+
+const handleGenerateFromDs = async (sourceId: string) => {
+  dsLoading.value = true
+  dsLoadingText.value = '正在生成 PPT 大纲...'
+  dsError.value = ''
+  try {
+    const res = await api.generateFromDataSource({
+      source_id: sourceId,
+      include_charts: true,
+      include_threshold_alerts: true,
+      include_forecast: false,
+      slide_count: 10,
+    })
+    if (res.data.success) {
+      showDataSourceModal.value = false
+      outlineData.value = res.data.outline
+      autoEditing.value = true
+      scene.value = 'data_report'
+      style.value = 'professional'
+      formData.value.slideCount = res.data.outline.slides?.length || 10
+      formData.value.title = res.data.outline.title || ''
+    } else {
+      dsError.value = res.data.message || '生成失败'
+    }
+  } catch (e: any) {
+    dsError.value = e?.response?.data?.message || e.message || '生成失败'
+  } finally {
+    dsLoading.value = false
+  }
+}
+
+const handleSaveAlerts = async () => {
+  if (!dsAlertSourceId.value) return
+  dsLoading.value = true
+  dsError.value = ''
+  try {
+    const res = await api.setThresholdAlerts(dsAlertSourceId.value, dsAlerts.value)
+    if (res.data.success) {
+      dsTriggeredAlerts.value = res.data.triggered || []
+      alert('告警已保存')
+    } else {
+      dsError.value = res.data.message || '保存失败'
+    }
+  } catch (e: any) {
+    dsError.value = e?.response?.data?.message || e.message || '保存失败'
+  } finally {
+    dsLoading.value = false
+  }
+}
+
+const loadDsColumns = async () => {
+  if (!dsAnalyzeSourceId.value) return
+  try {
+    const res = await api.getDataSourcePreview(dsAnalyzeSourceId.value)
+    if (res.data.success) {
+      dsAnalyzeColumns.value = (res.data.column_info || [])
+        .filter((c: any) => c.type === 'number')
+        .map((c: any) => c.name)
+    }
+  } catch (e) {
+    console.error('loadDsColumns error:', e)
+  }
+}
+
+const handleAnalyzeData = async () => {
+  if (!dsAnalyzeSourceId.value || !dsAnalyzeColumn.value) return
+  dsLoading.value = true
+  dsError.value = ''
+  try {
+    const res = await api.analyzeData(dsAnalyzeSourceId.value, {
+      compare_column: dsAnalyzeColumn.value,
+    })
+    if (res.data.success) {
+      dsAnalyzeResult.value = res.data
+    } else {
+      dsError.value = res.data.message || '分析失败'
+    }
+  } catch (e: any) {
+    dsError.value = e?.response?.data?.message || e.message || '分析失败'
+  } finally {
+    dsLoading.value = false
+  }
+}
+
+const loadDsColumnsForForecast = async () => {
+  if (!dsForecastSourceId.value) return
+  try {
+    const res = await api.getDataSourcePreview(dsForecastSourceId.value)
+    if (res.data.success) {
+      dsForecastColumns.value = (res.data.column_info || [])
+        .filter((c: any) => c.type === 'number')
+        .map((c: any) => c.name)
+    }
+  } catch (e) {
+    console.error('loadDsColumnsForForecast error:', e)
+  }
+}
+
+const handleGetForecast = async () => {
+  if (!dsForecastSourceId.value || !dsForecastColumn.value) return
+  dsLoading.value = true
+  dsError.value = ''
+  try {
+    const res = await api.getForecast(dsForecastSourceId.value, {
+      value_column: dsForecastColumn.value,
+      forecast_periods: dsForecastPeriods.value,
+      chart_type: dsForecastChartType.value,
+    })
+    if (res.data.success) {
+      dsForecastResult.value = res.data
+    } else {
+      dsError.value = res.data.message || '预测失败'
+    }
+  } catch (e: any) {
+    dsError.value = e?.response?.data?.message || e.message || '预测失败'
+  } finally {
+    dsLoading.value = false
+  }
+}
+
+const removeParallelOutline = (index: number) => {
+  if (parallelOutlines.value.length <= 1) return
+  parallelOutlines.value.splice(index, 1)
+}
+
+const handleParallelGenerate = async () => {
+  const validOutlines = parallelOutlines.value.filter(o => o.request.trim().length >= 10)
+  if (validOutlines.length === 0) {
+    alert('请至少填写一个有效的大纲（至少10个字符）')
+    return
+  }
+  isSubmitting.value = true
+  try {
+    const requests = validOutlines.map(o => ({
+      user_request: o.request,
+      slide_count: formData.value.slideCount,
+      scene: o.scene || formData.value.scene,
+      style: o.style || formData.value.style,
+      template: formData.value.template,
+      theme_color: formData.value.themeColor,
+      text_style: formData.value.textStyle,
+      use_smart_layout: formData.value.useSmartLayout,
+      font_title: formData.value.fontTitle,
+      font_subtitle: formData.value.fontSubtitle,
+      font_content: formData.value.fontContent,
+      font_caption: formData.value.fontCaption,
+      generation_mode: formData.value.generationMode,
+      quality: formData.value.quality
+    }))
+    const res = await api.batch.generateParallel(requests)
+    if (res.data.success) {
+      alert(`成功创建 ${res.data.count} 个生成任务！`)
+      showParallelMode.value = false
+      parallelOutlines.value = [{ request: '', scene: 'business', style: 'professional' }]
+      // 跳转到 generating 页面
+      if (res.data.task_ids?.length > 0) {
+        router.push({ path: '/generating', query: { taskId: res.data.task_ids[0] } })
+      }
+    }
+  } catch (e) {
+    alert('并行生成失败: ' + (e as Error).message)
+  } finally {
+    isSubmitting.value = false
+  }
+}
 
 // 触发 PDF 导入
 const triggerPdfImport = () => {
@@ -2084,6 +2657,74 @@ useKeyboardShortcuts([
   animation: spin 0.8s linear infinite;
 }
 
+/* R92: Parallel Generation Panel */
+.parallel-generation-panel {
+  margin-top: 24px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+  border-radius: 16px;
+  border: 2px solid #667eea;
+}
+
+.parallel-header {
+  margin-bottom: 20px;
+}
+
+.parallel-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.parallel-header p {
+  font-size: 14px;
+  color: #666;
+}
+
+.parallel-outline-item {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid #e8ecf3;
+}
+
+.parallel-outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.parallel-outline-label {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 14px;
+}
+
+.parallel-outline-options {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.select-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+}
+
+.parallel-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
 /* 模式切换 */
 .mode-toggle {
   display: grid;
@@ -2888,5 +3529,337 @@ useKeyboardShortcuts([
   border-radius: 6px;
   color: #DC2626;
   font-size: 13px;
+}
+
+/* Data Source Modal (R113) */
+.data-source-modal {
+  max-width: 680px;
+  width: 95vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.ds-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #E5E7EB;
+  padding-bottom: 8px;
+}
+
+.ds-tabs button {
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  border-radius: 4px;
+}
+
+.ds-tabs button.active {
+  background: #165DFF;
+  color: #fff;
+}
+
+.ds-body {
+  min-height: 200px;
+}
+
+.ds-connect-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.ds-source-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px;
+  border: 2px solid #E5E7EB;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.2s;
+  gap: 6px;
+}
+
+.ds-source-card:hover {
+  border-color: #165DFF;
+  background: #F0F5FF;
+}
+
+.ds-source-icon {
+  font-size: 32px;
+}
+
+.ds-source-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.ds-source-desc {
+  font-size: 11px;
+  color: #999;
+}
+
+.ds-list {
+  margin-top: 16px;
+  border-top: 1px solid #E5E7EB;
+  padding-top: 12px;
+}
+
+.ds-list h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.ds-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #F9FAFB;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.ds-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ds-item-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: #333;
+}
+
+.ds-item-meta {
+  font-size: 11px;
+  color: #999;
+}
+
+.ds-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.btn-danger {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FCA5A5;
+}
+
+.ds-google-form {
+  margin-top: 16px;
+  padding: 12px;
+  background: #F9FAFB;
+  border-radius: 8px;
+}
+
+.ds-google-form h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+}
+
+.ds-google-hint {
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-google-hint span {
+  font-size: 12px;
+  color: #666;
+}
+
+.ds-select-source {
+  padding: 8px 0;
+}
+
+.ds-select-source p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.ds-select-source .input {
+  margin-bottom: 8px;
+}
+
+.ds-alerts-panel h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.ds-alert-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 1fr 30px;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.ds-triggered {
+  margin-top: 12px;
+  padding: 10px;
+  background: #FEF2F2;
+  border-radius: 6px;
+}
+
+.ds-triggered h5 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #DC2626;
+}
+
+.ds-triggered-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #991B1B;
+  margin-bottom: 4px;
+}
+
+.ds-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #DC2626;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.ds-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.ds-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: #F9FAFB;
+  border-radius: 6px;
+}
+
+.ds-stat-label {
+  font-size: 11px;
+  color: #999;
+}
+
+.ds-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.ds-trend {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.ds-trend.increasing {
+  background: #F0FDF4;
+  color: #15803D;
+}
+
+.ds-trend.decreasing {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+.ds-trend.stable {
+  background: #F9FAFB;
+  color: #666;
+}
+
+.ds-group-stats {
+  margin-top: 10px;
+}
+
+.ds-group-stats h5 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: #333;
+}
+
+.ds-group-item {
+  font-size: 12px;
+  color: #666;
+  padding: 3px 0;
+}
+
+.ds-forecast-options {
+  display: flex;
+  gap: 12px;
+  margin: 10px 0;
+  align-items: center;
+}
+
+.ds-forecast-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.ds-forecast-options .input {
+  width: 100px;
+}
+
+.ds-regression {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #F0F5FF;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.ds-forecast-values h5 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+}
+
+.ds-forecast-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.ds-forecast-val {
+  font-weight: 600;
+  color: #165DFF;
 }
 </style>

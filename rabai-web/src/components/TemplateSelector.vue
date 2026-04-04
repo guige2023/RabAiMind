@@ -275,7 +275,7 @@ const props = defineProps<{
   style?: string
 }>()
 
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'select-quickstart'])
 
 const activeCategory = ref('all')
 const activeQuickStart = ref<string | null>(null)
@@ -530,6 +530,33 @@ const templates = ref<Template[]>([
     id: 'soc3', name: '商务社交', description: '专业友好的社交风格', scene: '商务社交/名片展示', pageCount: 6,
     styles: ['专业', '友好', '商务'], background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     category: 'social', fontConfig: { h1: { family: '思源黑体', size: 56, color: '#ffffff' }, h2: { family: '思源黑体', size: 40, color: '#f3e8ff' }, h3: { family: '思源黑体', size: 28, color: '#e9d5ff' }, body: { family: '思源宋体', size: 18, color: '#ddc6ff' } }
+  },
+  // R86: Document Generation Templates
+  {
+    id: 'doc1', name: '季度报告', description: '专业季度报告模板，支持从数据源自动填充财务/运营数据', scene: '季度总结/财务汇报',
+    pageCount: 10, styles: ['季度报告', '数据填充', '自动填充'], background: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+    category: 'business', fontConfig: { h1: { family: '思源黑体', size: 54, color: '#ffffff' }, h2: { family: '思源黑体', size: 38, color: '#ffffff' }, h3: { family: '思源黑体', size: 26, color: '#b0b0b0' }, body: { family: '思源宋体', size: 16, color: '#909090' } }
+  },
+  {
+    id: 'doc2', name: '会议议程', description: '清晰高效的会议议程模板，包含时间分配和行动项', scene: '会议管理/团队协作',
+    pageCount: 5, styles: ['会议', '议程', '时间管理'], background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+    category: 'business', fontConfig: { h1: { family: '思源黑体', size: 54, color: '#ffffff' }, h2: { family: '思源黑体', size: 38, color: '#f0fdf4' }, h3: { family: '思源黑体', size: 26, color: '#dcfce7' }, body: { family: '思源宋体', size: 18, color: '#bbf7d0' } }
+  },
+  {
+    id: 'doc3', name: '销售提案', description: '结构化销售提案模板，基于AIDA说服模型设计', scene: '销售演示/客户提案',
+    pageCount: 12, styles: ['销售', 'AIDA', '说服结构'], background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
+    category: 'marketing', isPremium: true, price: '¥9.9',
+    fontConfig: { h1: { family: '思源黑体', size: 56, color: '#ffffff' }, h2: { family: '思源黑体', size: 40, color: '#fff5f5' }, h3: { family: '思源黑体', size: 28, color: '#ffe0e0' }, body: { family: '思源宋体', size: 18, color: '#fff0f0' } }
+  },
+  {
+    id: 'doc4', name: '项目提案', description: '完整项目提案模板，适合项目立项和资源申请', scene: '项目立项/资源申请',
+    pageCount: 14, styles: ['项目', '提案', '立项'], background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    category: 'business', fontConfig: { h1: { family: '思源黑体', size: 54, color: '#ffffff' }, h2: { family: '思源黑体', size: 38, color: '#f3e8ff' }, h3: { family: '思源黑体', size: 26, color: '#e9d5ff' }, body: { family: '思源宋体', size: 18, color: '#ddc6ff' } }
+  },
+  {
+    id: 'doc5', name: '培训手册', description: '章节导航式培训手册模板，适合企业内训和教学课件', scene: '培训教学/内训课件',
+    pageCount: 20, styles: ['培训', '章节导航', '教学'], background: 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 50%, #80deea 100%)',
+    category: 'education', fontConfig: { h1: { family: '思源黑体', size: 54, color: '#006064' }, h2: { family: '思源黑体', size: 38, color: '#00838f' }, h3: { family: '思源黑体', size: 26, color: '#0097a7' }, body: { family: '思源宋体', size: 18, color: '#006064' } }
   }
 ])
 
@@ -560,6 +587,8 @@ const selectTemplateById = (tpl: any) => {
     fontConfig: undefined,
   }
   selectedTemplate.value = matchedTemplate
+  // R93: Record template usage for template learning
+  recordTemplatePreference(tpl.id, tpl.category || 'business')
   emit('select', matchedTemplate)
 }
 
@@ -585,7 +614,30 @@ const getFontNames = (fontConfig: FontConfig) => {
 
 const selectTemplate = (template: Template) => {
   selectedTemplate.value = template
+  // R93: Record template usage for template learning
+  recordTemplatePreference(template.id, template.category)
   emit('select', template)
+}
+
+// R93: Record template preference for template learning
+async function recordTemplatePreference(templateId: string, category: string) {
+  try {
+    await api.template.saveLayoutPreference({
+      template_id: templateId,
+      content_type: category,
+      action: 'use',
+      user_id: 'anonymous',
+    })
+    // Also track the event
+    await api.template.trackEvent({
+      event_type: 'use',
+      template_id: templateId,
+      user_id: 'anonymous',
+    })
+  } catch (e) {
+    // Background tracking, silent failure
+    console.warn('[TemplateSelector] Record template preference failed:', e)
+  }
 }
 
 const openPreview = (template: Template) => {

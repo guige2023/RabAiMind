@@ -13,6 +13,12 @@
     <UserExperience ref="uxRef" />
     <HelpCenter ref="helpRef" />
     <PWAInstallPrompt />
+    <PerformanceProfiler />
+    <NotificationsPanel
+      v-if="showNotifications"
+      @close="showNotifications = false"
+      @view-task="handleNotificationViewTask"
+    />
 
     <!-- Initial Loading -->
     <div v-if="isLoading" class="app-loading" role="status" :aria-label="t('loading')">
@@ -25,9 +31,14 @@
     <template v-else>
       <header class="header" role="banner">
         <div class="header-content">
-          <router-link to="/" class="logo" aria-label="RabAi Mind - {{ t('nav.home') }}">
-            <span class="logo-icon" aria-hidden="true">✨</span>
-            <span class="logo-text">RabAi Mind</span>
+          <router-link to="/" class="logo" aria-label="{{ displayBrandName }} - {{ t('nav.home') }}">
+            <span v-if="brandLogo && isWhiteLabel" class="logo-img-wrap">
+              <img :src="brandLogo" alt="Logo" class="logo-img" />
+            </span>
+            <span v-else class="logo-icon" aria-hidden="true">✨</span>
+            <span class="logo-text" :style="isWhiteLabel ? `background: linear-gradient(135deg, var(--brand-primary, #165DFF) 0%, var(--brand-secondary, #0E42D2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;` : ''">
+              {{ displayBrandName }}
+            </span>
           </router-link>
           <!-- Mobile Menu Button -->
           <button
@@ -93,6 +104,18 @@
               <path d="M12 17h.01"/>
             </svg>
           </button>
+          <!-- Notification Bell -->
+          <button
+            class="notif-bell-btn"
+            @click="showNotifications = true"
+            aria-label="通知中心"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span v-if="notifUnreadCount > 0" class="notif-dot">{{ notifUnreadCount > 9 ? '9+' : notifUnreadCount }}</span>
+          </button>
           <!-- View Mode Toggle -->
           <button
             class="view-mode-toggle"
@@ -107,7 +130,9 @@
         <router-view />
       </main>
       <footer class="footer" role="contentinfo">
-        <p>{{ t('footer.copyright') }}</p>
+        <p v-if="isWhiteLabel && footerText">{{ footerText }}</p>
+        <p v-else>{{ t('footer.copyright') }}</p>
+        <p v-if="showPoweredBy" class="powered-by-inline">Powered by RabAiMind</p>
       </footer>
     </template>
   </div>
@@ -118,6 +143,8 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
+import NotificationsPanel from './components/NotificationsPanel.vue'
+import { useNotifications } from './composables/useNotifications'
 import ReduceMotionToggle from './components/ReduceMotionToggle.vue'
 import HighContrastToggle from './components/HighContrastToggle.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
@@ -128,9 +155,11 @@ import UserExperience from './components/UserExperience.vue'
 import HelpCenter from './components/HelpCenter.vue'
 import ToastNotifications from './components/ToastNotifications.vue'
 import PWAInstallPrompt from './components/PWAInstallPrompt.vue'
+import PerformanceProfiler from './components/PerformanceProfiler.vue'
 import TipsPanel from './components/TipsPanel.vue'
 import { useTemplateStore } from './composables/useTemplateStore'
 import { useDeviceMode, initDeviceMode, getDeviceMode } from './composables/useDeviceMode'
+import { useBrand } from './composables/useBrand'
 import { useI18n } from './composables/useI18n'
 import { useAccessibility } from './composables/useAccessibility'
 import { usePerformanceMode, applyPerformanceModeCSS } from './composables/usePerformanceMode'
@@ -139,11 +168,20 @@ const isLoading = ref(true)
 const { t } = useI18n()
 const { isReduceMotion, toggleReduceMotion, toggleHighContrast } = useAccessibility()
 const { isPerformanceMode } = usePerformanceMode()
+// Brand (R104 white-label)
+const { isWhiteLabel, displayBrandName, brandLogo, showPoweredBy, loadBrand, footerText } = useBrand()
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
 const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
 const tipsRef = ref<InstanceType<typeof TipsPanel> | null>(null)
+const showNotifications = ref(false)
+const notif = useNotifications()
+const notifUnreadCount = computed(() =>
+  notif.unreadMentionCount.value
+  + notif.alerts.value.filter(a => a.priority === 'high').length
+  + notif.unreadGenerationCount.value
+)
 
 // Device mode
 const deviceMode = getDeviceMode()
@@ -184,6 +222,13 @@ const openHelp = (tab?: string) => {
   helpRef.value?.open(tab)
 }
 
+// Notifications
+const handleNotificationViewTask = (taskId: string) => {
+  if (taskId) {
+    window.location.href = `/result?taskId=${taskId}`
+  }
+}
+
 // Global keyboard shortcuts
 const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Ctrl/Cmd + ? or Ctrl/Cmd + / → open shortcuts tab in help
@@ -208,6 +253,12 @@ onMounted(() => {
 
   // Apply performance mode CSS on load
   applyPerformanceModeCSS(isPerformanceMode.value)
+
+  // Load brand config (R104 white-label)
+  loadBrand()
+
+  // Init notifications
+  notif.init()
 
   // Simulate initial load
   setTimeout(() => {
@@ -544,8 +595,51 @@ watch(isPerformanceMode, (enabled) => {
   color: #aaa;
 }
 
+/* Notification Bell */
+.notif-bell-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.notif-bell-btn:hover {
+  background: #f0f0f0;
+}
+
+.notif-bell-btn svg {
+  width: 18px;
+  height: 18px;
+  color: #555;
+}
+
+.notif-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: #EF4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
 @media (max-width: 768px) {
-  .help-btn {
+  .help-btn, .notif-bell-btn {
     display: none;
   }
 }
@@ -642,6 +736,25 @@ watch(isPerformanceMode, (enabled) => {
   font-size: 14px;
   border-top: 1px solid var(--gray-200);
   background: var(--gray-100);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.powered-by-inline {
+  color: #bbb;
+  font-size: 12px;
+}
+
+.logo-img-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.logo-img {
+  max-height: 32px;
+  max-width: 120px;
+  object-fit: contain;
 }
 
 .fade-enter-active,

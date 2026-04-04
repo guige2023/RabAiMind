@@ -9,7 +9,8 @@ CORS 配置从环境变量 CORS_ORIGINS 读取（逗号分隔）。
 日期: 2026-03-17
 """
 
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from .api import api_router
 from .config import settings, get_cors_origins
@@ -18,41 +19,24 @@ from .utils import setup_logger
 # Import auth middleware
 from .api.middleware.auth import AuthMiddleware
 
+# Import shared HTTP client for connection pooling
+from .core.http_client import http_client
+
 # 配置日志
 logger = setup_logger("api")
 
-# 创建 FastAPI 应用
-app = FastAPI(
-    title="RabAi Mind API",
-    description="AI PPT 生成平台接口",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
 
-# 配置 CORS — 从环境变量读取
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=get_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 注册认证中间件 — 应用到所有 /api/v1/* 路由
-app.add_middleware(AuthMiddleware)
-
-
-# 注册路由
-app.include_router(api_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """启动事件"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
     logger.info("RabAi Mind API 启动中...")
     logger.info(f"配置: 端口={settings.API_PORT}, 日志级别={settings.LOG_LEVEL}")
     logger.info(f"CORS 允许源: {settings.CORS_ORIGINS}")
+
+    # 启动 HTTP 连接池
+    await http_client.start()
+    logger.info("✅ HTTP 连接池 (connection pool) 已启动")
 
     # 启动调度器（定时任务服务）
     from .services.scheduler_service import get_scheduler_service
@@ -76,11 +60,14 @@ async def startup_event():
         else:
             logger.info("✅ API 认证已启用")
 
+    yield
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """关闭事件"""
-    logger.info("RabAi Mind API 关闭")
+    # Shutdown
+    logger.info("RabAi Mind API 关闭中...")
+
+    # 关闭 HTTP 连接池
+    await http_client.close()
+    logger.info("✅ HTTP 连接池已关闭")
 
     # 停止调度器
     from .services.scheduler_service import get_scheduler_service
@@ -89,6 +76,48 @@ async def shutdown_event():
         logger.info("✅ 调度器 (SchedulerService) 已停止")
     except Exception as e:
         logger.warning(f"⚠️ 调度器停止失败: {e}")
+
+
+# 创建 FastAPI 应用
+app = FastAPI(
+    title="RabAi Mind API",
+    description="AI PPT 生成平台接口",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
+
+# 配置 CORS — 从环境变量读取
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 注册认证中间件 — 应用到所有 /api/v1/* 路由
+app.add_middleware(AuthMiddleware)
+
+
+# 注册路由
+app.include_router(api_router)
+
+
+# WebSocket 路由 — 协作服务 (已通过 api_router 挂载: /api/v1/collaboration/ws/{task_id})
+
+@app.websocket("/ws/ping")
+async def ws_ping(websocket: WebSocket):
+    """WebSocket 健康检查"""
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except Exception:
+        pass
 
 
 # 运行服务

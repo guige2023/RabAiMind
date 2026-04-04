@@ -206,8 +206,8 @@ class AnalyticsService:
         # Consistency score (max 30 points)
         # Count days with at least one generation
         active_days = len(set(
-            day for day_map in weekly_activity.values()
-            for _ in day_map.values() if _ > 0
+            day_key for day_key, day_map in weekly_activity.items()
+            if any(v > 0 for v in day_map.values())
         ))
         # Also factor in weekend vs weekday usage
         consistency_score = min(30, active_days * 3)

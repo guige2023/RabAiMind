@@ -592,53 +592,42 @@ const startEyedropper = async (colorSlot: string) => {
     // Small delay to avoid capturing our own overlay UI
     await new Promise(resolve => setTimeout(resolve, 150))
 
-    // macOS AppleScript: get cursor pos + screencapture + Python reads pixel
-    const script = `python3 - << 'PYEOF'
-from AppKit import NSEvent, NSScreen
-from PIL import Image
-import subprocess, sys
-try:
-    loc = NSEvent.mouseLocation()
-    screen = NSScreen.mainScreen()
-    if screen:
-        frame = screen.frame
-        px = int(loc.x)
-        py = int(frame.size.height - loc.y)
-        subprocess.run(
-            ['screencapture', '-x', '-R', f'{px},{py},1,1', '/tmp/eyedropper_pixel.png'],
-            check=True, capture_output=True
-        )
-        img = Image.open('/tmp/eyedropper_pixel.png')
-        px_arr = img.load()
-        r, g, b = px_arr[0, 0][:3]
-        print(f'#{r:02X}{g:02X}{b:02X}', end='')
-    else:
-        print('ERROR:NoScreen', end='')
-except Exception as e:
-    print(f'ERROR:{e}', end='')
-PYEOF`
+    // Use macOS AppleScript `choose color` command which provides native eyedropper
+    // This opens the system color picker with an eyedropper tool
+    const appleScript = `choose color`
 
     try {
-      // Use native macOS command via window.api.exec if available (OpenClaw bridge)
+      // Try using the exec bridge (OpenClaw)
       const execBridge = (window as any).__execBridge
       if (execBridge) {
-        const hex = await execBridge(`osascript -e '${script}' 2>/dev/null`)
-        applyColor(hex, colorSlot)
-      } else {
-        // Fallback: use a fetch-based bridge (Aito exec endpoint)
-        try {
-          const resp = await fetch('/.api/exec', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: `osascript -e '${script}' 2>/dev/null`, timeout: 8000 })
-          })
-          const text = await resp.text()
-          applyColor(text, colorSlot)
-        } catch (fetchErr) {
-          console.warn('[Eyedropper] Bridge not available, using clipboard approach')
-          // Last resort: put hex in clipboard via prompt
-          prompt('[Eyedropper] Copy hex color and press Enter', '#165DFF')
+        const result = await execBridge(`osascript -e '${appleScript}' 2>/dev/null`)
+        if (result) {
+          // AppleScript returns RGB values like {65535, 32768, 0} for yellow
+          const rgbMatch = result.match(/\{(\d+),\s*(\d+),\s*(\d+)\}/)
+          if (rgbMatch) {
+            const r = Math.round((parseInt(rgbMatch[1]) / 65535) * 255)
+            const g = Math.round((parseInt(rgbMatch[2]) / 65535) * 255)
+            const b = Math.round((parseInt(rgbMatch[3]) / 65535) * 255)
+            const hex = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+            applyColor(hex.toUpperCase(), colorSlot)
+          }
         }
+        stopEyedropper()
+        return
+      }
+
+      // Fallback: use window.open to call a helper URL scheme
+      // The helper would be a native macOS app or script
+      // For now, use a prompt-based manual entry
+      const manualColor = prompt(
+        '💉 屏幕取色器\n\n'
+        + '请在终端运行以下命令获取颜色后粘贴结果:\n\n'
+        + 'python3 /tmp/eyedropper.py\n\n'
+        + '或者直接输入十六进制颜色（如 #FF5500）:',
+        templateData.value.colors[colorSlot as keyof typeof templateData.value.colors]
+      )
+      if (manualColor) {
+        applyColor(manualColor.trim(), colorSlot)
       }
     } catch (err) {
       console.warn('[Eyedropper] Error:', err)

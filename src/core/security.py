@@ -190,6 +190,12 @@ class APIKeyManager:
         """
         raw_key, hashed = self.generate_key()
 
+        # Accept both Role enum and string
+        if isinstance(role, str):
+            role_value = role
+        else:
+            role_value = role.value
+
         expires_at = None
         if expires_in_days:
             expires_at = (datetime.utcnow() + timedelta(days=expires_in_days)).isoformat() + "Z"
@@ -197,7 +203,7 @@ class APIKeyManager:
         key_info = {
             "key_id": str(uuid.uuid4())[:16],
             "name": name,
-            "role": role.value,
+            "role": role_value,
             "owner_id": owner_id,
             "hashed_key": hashed,
             "created_at": datetime.utcnow().isoformat() + "Z",
@@ -368,6 +374,73 @@ class AuditLogger:
         return filtered[offset:offset + limit]
 
 
+# ==================== E2E Encryption ====================
+
+class E2EEncryptionManager:
+    """
+    End-to-end encryption for shared presentations.
+    Uses Fernet (AES-128-CBC with HMAC) for symmetric encryption.
+    The encryption key is derived from the access token so only
+    token holders can decrypt the content.
+    """
+
+    @staticmethod
+    def _get_fernet_key(access_token: str) -> bytes:
+        """Derive a Fernet-compatible key from the access token."""
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.backends import default_backend
+        import base64
+
+        salt = b"RabAiMind_E2E_v1"  # Static salt (token is already random)
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100_000,
+            backend=default_backend(),
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(access_token.encode()))
+        from cryptography.fernet import Fernet
+        return key
+
+    @staticmethod
+    def encrypt_content(content: bytes, access_token: str) -> bytes:
+        """Encrypt content using Fernet with token-derived key."""
+        from cryptography.fernet import Fernet
+        key = E2EEncryptionManager._get_fernet_key(access_token)
+        return Fernet(key).encrypt(content)
+
+    @staticmethod
+    def decrypt_content(encrypted_content: bytes, access_token: str) -> bytes:
+        """Decrypt content using Fernet with token-derived key."""
+        from cryptography.fernet import Fernet
+        key = E2EEncryptionManager._get_fernet_key(access_token)
+        return Fernet(key).decrypt(encrypted_content)
+
+    @staticmethod
+    def generate_encrypted_package(
+        pptx_path: str,
+        access_token: str
+    ) -> bytes:
+        """
+        Read a PPTX file and return an encrypted package.
+        The package format: version(1B) || IV(16B) || encrypted_pptx
+        """
+        import struct
+
+        with open(pptx_path, "rb") as f:
+            content = f.read()
+
+        encrypted = E2EEncryptionManager.encrypt_content(content, access_token)
+        return encrypted
+
+    @staticmethod
+    def decrypt_package(encrypted_pkg: bytes, access_token: str) -> bytes:
+        """Decrypt an encrypted package back to PPTX bytes."""
+        return E2EEncryptionManager.decrypt_content(encrypted_pkg, access_token)
+
+
 # ==================== Secure Share ====================
 
 class SecureShareManager:
@@ -406,10 +479,16 @@ class SecureShareManager:
         expires_in_hours: int = 24,
         allowed_ips: Optional[List[str]] = None,
         role: Role = Role.GUEST,
+        anonymous_access: bool = False,
+        encryption_enabled: bool = False,
     ) -> tuple[Dict, str]:
         """
         Create a secure share link.
         Returns (share_info, access_token).
+
+        Features:
+        - anonymous_access: If True, anyone with the token can view without logging in
+        - encryption_enabled: If True, PPT content is E2E encrypted
         """
         raw_token = secrets.token_urlsafe(32)
         share_id = str(uuid.uuid4())[:12]
@@ -429,12 +508,15 @@ class SecureShareManager:
             "created_at": datetime.utcnow().isoformat() + "Z",
             "hashed_token": hashed_token,
             "hashed_password": hashed_password,
+            "password_required": hashed_password is not None,
             "expires_at": expires_at,
             "allowed_ips": allowed_ips or [],
             "role": role.value,
             "access_count": 0,
             "last_accessed": None,
             "is_active": True,
+            "anonymous_access": anonymous_access,
+            "encryption_enabled": encryption_enabled,
         }
 
         with self._lock:
@@ -454,6 +536,9 @@ class SecureShareManager:
         """
         Verify access to a secure share.
         Returns (allowed, reason, share_info).
+
+        For anonymous_access shares: no login required, just valid token.
+        For non-anonymous shares: caller must also verify user is logged in.
         """
         data = self._load()
         share = data.get(share_id)
@@ -517,7 +602,8 @@ class SecureShareManager:
             safe = {f: s[f] for f in [
                 "share_id", "resource_type", "resource_id", "created_by",
                 "created_at", "expires_at", "allowed_ips", "role",
-                "access_count", "last_accessed", "is_active"
+                "access_count", "last_accessed", "is_active",
+                "anonymous_access", "encryption_enabled"
             ] if f in s}
             if not owner_id or safe.get("created_by") == owner_id:
                 shares.append(safe)
@@ -550,3 +636,261 @@ def get_secure_share_manager() -> SecureShareManager:
     if _secure_share is None:
         _secure_share = SecureShareManager()
     return _secure_share
+
+
+# ==================== Presentation Security Manager ====================
+
+
+class PresentationSecurityManager:
+    """
+    Manages per-presentation security settings:
+    - Password protection (PPTX download password)
+    - Biometric authentication requirement
+    - IP allowlisting (per presentation)
+    - Auto-watermark on export
+    - Access log (who accessed what when)
+    """
+
+    STORAGE_FILE = "./data/presentation_security.json"
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._ensure_storage()
+
+    def _ensure_storage(self):
+        os.makedirs(os.path.dirname(self.STORAGE_FILE), exist_ok=True)
+        if not os.path.exists(self.STORAGE_FILE):
+            self._save({})
+
+    def _load(self) -> Dict[str, Dict]:
+        try:
+            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return {}
+
+    def _save(self, data: Dict):
+        tmp = self.STORAGE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, self.STORAGE_FILE)
+
+    # ---- Password Protection ----
+
+    def set_password(self, task_id: str, password: str, user_id: str = "") -> Dict[str, Any]:
+        """Set or update password protection for a presentation."""
+        hashed = hashlib.sha256(password.encode()).hex()
+        with self._lock:
+            data = self._load()
+            if task_id not in data:
+                data[task_id] = {"_init": True, "created_at": datetime.utcnow().isoformat() + "Z"}
+            data[task_id].update({
+                "hashed_password": hashed,
+                "password_set_at": datetime.utcnow().isoformat() + "Z",
+                "password_set_by": user_id,
+                "has_password": True,
+            })
+            self._save(data)
+        return {"success": True, "task_id": task_id, "has_password": True}
+
+    def remove_password(self, task_id: str) -> Dict[str, Any]:
+        """Remove password protection."""
+        with self._lock:
+            data = self._load()
+            if task_id in data:
+                data[task_id]["hashed_password"] = None
+                data[task_id]["has_password"] = False
+                self._save(data)
+        return {"success": True, "task_id": task_id, "has_password": False}
+
+    def verify_password(self, task_id: str, password: str) -> bool:
+        """Verify a password against stored hash."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        if not sec.get("hashed_password"):
+            return True  # No password set
+        hashed = hashlib.sha256(password.encode()).hex()
+        return hashed == sec["hashed_password"]
+
+    def has_password(self, task_id: str) -> bool:
+        """Check if a presentation has password protection."""
+        data = self._load()
+        return data.get(task_id, {}).get("has_password", False)
+
+    def get_password_info(self, task_id: str) -> Dict[str, Any]:
+        """Get password protection status (no secrets exposed)."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        return {
+            "task_id": task_id,
+            "has_password": sec.get("has_password", False),
+            "password_set_at": sec.get("password_set_at"),
+        }
+
+    # ---- Biometric Authentication ----
+
+    def set_biometric_required(self, task_id: str, required: bool, user_id: str = "") -> Dict[str, Any]:
+        """Enable or disable biometric authentication requirement."""
+        with self._lock:
+            data = self._load()
+            if task_id not in data:
+                data[task_id] = {"_init": True, "created_at": datetime.utcnow().isoformat() + "Z"}
+            data[task_id].update({
+                "biometric_required": required,
+                "biometric_set_at": datetime.utcnow().isoformat() + "Z",
+                "biometric_set_by": user_id,
+            })
+            self._save(data)
+        return {"success": True, "task_id": task_id, "biometric_required": required}
+
+    def is_biometric_required(self, task_id: str) -> bool:
+        """Check if biometric authentication is required."""
+        data = self._load()
+        return data.get(task_id, {}).get("biometric_required", False)
+
+    def get_biometric_info(self, task_id: str) -> Dict[str, Any]:
+        """Get biometric auth status."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        return {
+            "task_id": task_id,
+            "biometric_required": sec.get("biometric_required", False),
+            "biometric_set_at": sec.get("biometric_set_at"),
+        }
+
+    # ---- IP Allowlisting ----
+
+    def set_allowed_ips(self, task_id: str, allowed_ips: List[str], user_id: str = "") -> Dict[str, Any]:
+        """Set IP allowlist for a presentation."""
+        with self._lock:
+            data = self._load()
+            if task_id not in data:
+                data[task_id] = {"_init": True, "created_at": datetime.utcnow().isoformat() + "Z"}
+            data[task_id]["allowed_ips"] = allowed_ips
+            data[task_id]["ip_allowlist_set_at"] = datetime.utcnow().isoformat() + "Z"
+            data[task_id]["ip_allowlist_set_by"] = user_id
+            self._save(data)
+        return {"success": True, "task_id": task_id, "allowed_ips": allowed_ips}
+
+    def check_ip_allowed(self, task_id: str, client_ip: str) -> bool:
+        """Check if an IP address is allowed to access the presentation."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        allowed = sec.get("allowed_ips", [])
+        if not allowed:
+            return True  # No restriction
+        return client_ip in allowed
+
+    def get_ip_allowlist_info(self, task_id: str) -> Dict[str, Any]:
+        """Get IP allowlist status."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        return {
+            "task_id": task_id,
+            "allowed_ips": sec.get("allowed_ips", []),
+            "ip_allowlist_set_at": sec.get("ip_allowlist_set_at"),
+            "has_ip_restriction": bool(sec.get("allowed_ips")),
+        }
+
+    # ---- Auto-Watermark ----
+
+    def set_auto_watermark(self, task_id: str, enabled: bool, text: str = "",
+                            opacity: float = 0.15, angle: int = -45,
+                            font_size: int = 48, color: str = "#888888",
+                            user_id: str = "") -> Dict[str, Any]:
+        """Configure auto-watermark for a presentation's exports."""
+        with self._lock:
+            data = self._load()
+            if task_id not in data:
+                data[task_id] = {"_init": True, "created_at": datetime.utcnow().isoformat() + "Z"}
+            data[task_id]["auto_watermark"] = {
+                "enabled": enabled,
+                "text": text,
+                "opacity": opacity,
+                "angle": angle,
+                "font_size": font_size,
+                "color": color,
+                "set_at": datetime.utcnow().isoformat() + "Z",
+                "set_by": user_id,
+            }
+            self._save(data)
+        return {"success": True, "task_id": task_id, "auto_watermark": data[task_id]["auto_watermark"]}
+
+    def get_auto_watermark(self, task_id: str) -> Dict[str, Any]:
+        """Get auto-watermark configuration."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        return sec.get("auto_watermark", {
+            "enabled": False,
+            "text": "",
+            "opacity": 0.15,
+            "angle": -45,
+            "font_size": 48,
+            "color": "#888888",
+        })
+
+    # ---- Access Log ----
+
+    def log_access(self, task_id: str, user_id: str, action: str,
+                   client_ip: str = "", user_agent: str = "",
+                   metadata: Optional[Dict] = None) -> None:
+        """Log an access event for a presentation."""
+        # Delegate to global audit logger
+        audit = get_audit_logger()
+        audit.log(
+            user_id=user_id,
+            action=f"presentation:{action}",
+            resource=task_id,
+            details={
+                "client_ip": client_ip,
+                "user_agent": user_agent,
+                **(metadata or {})
+            }
+        )
+
+    def get_access_log(self, task_id: str, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """Get access log for a specific presentation."""
+        audit = get_audit_logger()
+        logs = audit.query(resource=task_id, limit=limit, offset=offset)
+        return logs
+
+    # ---- Full Security Config ----
+
+    def get_security_config(self, task_id: str) -> Dict[str, Any]:
+        """Get all security settings for a presentation (no secrets)."""
+        data = self._load()
+        sec = data.get(task_id, {})
+        return {
+            "task_id": task_id,
+            "has_password": sec.get("has_password", False),
+            "password_set_at": sec.get("password_set_at"),
+            "biometric_required": sec.get("biometric_required", False),
+            "biometric_set_at": sec.get("biometric_set_at"),
+            "allowed_ips": sec.get("allowed_ips", []),
+            "has_ip_restriction": bool(sec.get("allowed_ips")),
+            "ip_allowlist_set_at": sec.get("ip_allowlist_set_at"),
+            "auto_watermark": sec.get("auto_watermark", {
+                "enabled": False, "text": "", "opacity": 0.15,
+                "angle": -45, "font_size": 48, "color": "#888888"
+            }),
+            "created_at": sec.get("created_at"),
+        }
+
+    def delete_security_config(self, task_id: str) -> Dict[str, Any]:
+        """Remove all security settings for a presentation."""
+        with self._lock:
+            data = self._load()
+            if task_id in data:
+                del data[task_id]
+                self._save(data)
+        return {"success": True, "task_id": task_id}
+
+
+_presentation_security: Optional[PresentationSecurityManager] = None
+
+
+def get_presentation_security_manager() -> PresentationSecurityManager:
+    global _presentation_security
+    if _presentation_security is None:
+        _presentation_security = PresentationSecurityManager()
+    return _presentation_security

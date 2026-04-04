@@ -28,6 +28,34 @@ LOGO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
+class BrandKit:
+    """品牌套件 - 一组可复用的品牌配置"""
+    kit_id: str = ""
+    kit_name: str = ""
+    primary_color: str = "#165DFF"
+    secondary_color: str = "#0E42D2"
+    accent_color: str = "#FF9500"
+    fonts: List[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
+    logo_data: str = ""
+    logo_position: str = "bottom-right"
+    created_at: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "BrandKit":
+        defaults = {"kit_id": "", "kit_name": "", "primary_color": "#165DFF",
+                    "secondary_color": "#0E42D2", "accent_color": "#FF9500",
+                    "fonts": ["思源黑体", "Arial"], "logo_data": "",
+                    "logo_position": "bottom-right", "created_at": ""}
+        for k, v in defaults.items():
+            if k not in data:
+                data[k] = v
+        return cls(**data)
+
+
+@dataclass
 class BrandProfile:
     user_id: str
     brand_name: str
@@ -44,6 +72,11 @@ class BrandProfile:
     footer_text: str = ""           # 自定义页脚文本
     white_label_mode: bool = False  # White-label 全站重品牌
     auto_color_detection: bool = False  # 从 LOGO 自动提取配色
+    # R104: 品牌套件 & 自定义域名
+    custom_domain: str = ""        # 自定义域名，如 "ppt.mydomain.com"
+    brand_kits: List[BrandKit] = field(default_factory=list)  # 保存的品牌套件列表
+    email_template_enabled: bool = True  # 分享邮件是否使用品牌模板
+    email_tagline: str = ""       # 邮件签名语
 
     def __post_init__(self):
         if self.fonts is None:
@@ -62,10 +95,17 @@ class BrandProfile:
             "footer_text": "",
             "white_label_mode": False,
             "auto_color_detection": False,
+            "custom_domain": "",
+            "brand_kits": [],
+            "email_template_enabled": True,
+            "email_tagline": "",
         }
         for k, v in defaults.items():
             if k not in data:
                 data[k] = v
+        # 转换 brand_kits
+        if "brand_kits" in data and isinstance(data["brand_kits"], list):
+            data["brand_kits"] = [BrandKit.from_dict(k) if isinstance(k, dict) else k for k in data["brand_kits"]]
         return cls(**data)
 
 
@@ -119,8 +159,60 @@ class BrandManager:
             "footer_text": brand.footer_text,
             "white_label_mode": brand.white_label_mode,
             "auto_color_detection": brand.auto_color_detection,
+            "custom_domain": brand.custom_domain,
+            "email_template_enabled": brand.email_template_enabled,
+            "email_tagline": brand.email_tagline,
             "use_brand": True,
         }
+
+    def save_brand_kit(self, user_id: str, kit: BrandKit) -> str:
+        """保存品牌套件，返回 kit_id"""
+        brand = self.get_brand(user_id)
+        if not brand:
+            brand = BrandProfile(user_id=user_id, brand_name="")
+        import time
+        if not kit.kit_id:
+            kit.kit_id = f"kit_{int(time.time() * 1000)}"
+            kit.created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+        # 更新或追加
+        existing = [k for k in brand.brand_kits if k.kit_id != kit.kit_id]
+        brand.brand_kits = existing + [kit]
+        self.save_brand(brand)
+        return kit.kit_id
+
+    def delete_brand_kit(self, user_id: str, kit_id: str) -> bool:
+        """删除品牌套件"""
+        brand = self.get_brand(user_id)
+        if not brand:
+            return False
+        brand.brand_kits = [k for k in brand.brand_kits if k.kit_id != kit_id]
+        self.save_brand(brand)
+        return True
+
+    def get_brand_kits(self, user_id: str) -> List[BrandKit]:
+        """获取品牌套件列表"""
+        brand = self.get_brand(user_id)
+        if not brand:
+            return []
+        return brand.brand_kits
+
+    def apply_brand_kit(self, user_id: str, kit_id: str) -> Optional[BrandKit]:
+        """应用品牌套件到主品牌配置"""
+        brand = self.get_brand(user_id)
+        if not brand:
+            return None
+        kit = next((k for k in brand.brand_kits if k.kit_id == kit_id), None)
+        if not kit:
+            return None
+        # 将套件颜色/字体等应用到主配置
+        brand.primary_color = kit.primary_color
+        brand.secondary_color = kit.secondary_color
+        brand.accent_color = kit.accent_color
+        brand.fonts = kit.fonts
+        brand.logo_data = kit.logo_data
+        brand.logo_position = kit.logo_position
+        self.save_brand(brand)
+        return kit
 
     def save_logo(self, user_id: str, logo_data: str) -> str:
         """保存 LOGO，返回存储路径"""

@@ -350,6 +350,77 @@ const sampleTemplates: Template[] = [
     isPremium: false,
     author: 'RabAi Mind',
     createdAt: '2024-01-30'
+  },
+  // R86: Document Generation Templates
+  {
+    id: 'doc1',
+    name: '季度报告',
+    description: '专业季度报告模板，支持从数据源自动填充财务/运营数据',
+    category: 'business',
+    style: 'professional',
+    slides: 10,
+    thumbnail: '',
+    tags: ['季度报告', '数据填充', '财务', '运营', '自动填充'],
+    popularity: 93,
+    isPremium: false,
+    author: 'RabAi Mind',
+    createdAt: '2024-03-15'
+  },
+  {
+    id: 'doc2',
+    name: '会议议程',
+    description: '清晰高效的会议议程模板，包含时间分配和行动项',
+    category: 'business',
+    style: 'simple',
+    slides: 5,
+    thumbnail: '',
+    tags: ['会议', '议程', '时间管理', '行动项'],
+    popularity: 88,
+    isPremium: false,
+    author: 'RabAi Mind',
+    createdAt: '2024-03-15'
+  },
+  {
+    id: 'doc3',
+    name: '销售提案',
+    description: '结构化销售提案模板，基于AIDA说服模型设计',
+    category: 'marketing',
+    style: 'energetic',
+    slides: 12,
+    thumbnail: '',
+    tags: ['销售', '提案', 'AIDA', '说服', '客户'],
+    popularity: 91,
+    isPremium: true,
+    author: 'RabAi Mind',
+    createdAt: '2024-03-15'
+  },
+  {
+    id: 'doc4',
+    name: '项目提案',
+    description: '完整项目提案模板，适合项目立项和资源申请',
+    category: 'business',
+    style: 'professional',
+    slides: 14,
+    thumbnail: '',
+    tags: ['项目', '提案', '立项', '资源', '计划'],
+    popularity: 90,
+    isPremium: false,
+    author: 'RabAi Mind',
+    createdAt: '2024-03-15'
+  },
+  {
+    id: 'doc5',
+    name: '培训手册',
+    description: '章节导航式培训手册模板，适合企业内训和教学课件',
+    category: 'education',
+    style: 'simple',
+    slides: 20,
+    thumbnail: '',
+    tags: ['培训', '手册', '章节导航', '教学', '课件'],
+    popularity: 87,
+    isPremium: false,
+    author: 'RabAi Mind',
+    createdAt: '2024-03-15'
   }
 ]
 

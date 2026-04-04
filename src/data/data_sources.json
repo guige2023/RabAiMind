@@ -1,0 +1,67 @@
+{
+  "0458124d-8fd5-48": {
+    "id": "0458124d-8fd5-48",
+    "name": "test.csv",
+    "source_type": "csv",
+    "status": "active",
+    "file_path": "/Users/guige/my_project/RabAiMind/src/services/../data/uploads/6c54b06d_test.csv",
+    "file_name": "test.csv",
+    "spreadsheet_url": null,
+    "spreadsheet_id": null,
+    "sheet_name": null,
+    "auto_update": false,
+    "last_synced_at": "2026-04-04T11:39:09.828557",
+    "sync_interval_minutes": 60,
+    "extracted_data": {
+      "headers": [
+        "name",
+        "value",
+        "amount"
+      ],
+      "data_rows": [
+        [
+          "产品A",
+          "100",
+          "500"
+        ],
+        [
+          "产品B",
+          "200",
+          "300"
+        ],
+        [
+          "产品C",
+          "150",
+          "400"
+        ]
+      ],
+      "total_rows": 3,
+      "total_columns": 3,
+      "delimiter": ",",
+      "table_type": "general",
+      "column_info": [
+        {
+          "index": 0,
+          "name": "name",
+          "type": "text",
+          "sample": "产品A"
+        },
+        {
+          "index": 1,
+          "name": "value",
+          "type": "number",
+          "sample": "100"
+        },
+        {
+          "index": 2,
+          "name": "amount",
+          "type": "number",
+          "sample": "500"
+        }
+      ]
+    },
+    "created_at": "2026-04-04T11:39:09.828557",
+    "updated_at": "2026-04-04T11:39:09.828557",
+    "user_id": "ip_127_0_0_1"
+  }
+}

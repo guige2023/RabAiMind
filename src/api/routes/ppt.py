@@ -38,6 +38,7 @@ from ...services.history_sync_service import get_history_sync_service
 from ...services.template_manager import get_template_manager
 from ...services.advanced_analytics_service import get_advanced_analytics_service
 from ...config import settings
+from ...core.http_client import http_client
 
 from ...api.middleware.rate_limit import (
     get_user_id_from_request,
@@ -76,6 +77,9 @@ async def upload_chart_file(
     theme_id: str = Form("default"),
     show_trend_line: bool = Form(False),
     annotations_json: str = Form("[]"),
+    # R89 新参数
+    show_animation: bool = Form(False),
+    animation_type: str = Form("fade_in"),
 ):
     """上传 CSV/Excel 文件，生成图表 SVG（R62: 支持模板/趋势线/标注）"""
     import json
@@ -92,6 +96,8 @@ async def upload_chart_file(
             theme_id=theme_id,
             annotations=annotations,
             show_trend_line=show_trend_line,
+            show_animation=show_animation,
+            animation_type=animation_type,
         )
         return result
     except ValueError as e:
@@ -186,6 +192,61 @@ async def get_chart_templates():
         "templates": CHART_STYLE_PRESETS,
         "details": CHART_TEMPLATES,
     }
+
+
+# R89: 智能图表建议
+@router.post("/chart/suggest")
+async def suggest_chart_type(
+    file: UploadFile = File(...),
+):
+    """
+    R89: 根据上传的数据文件，智能推荐最佳图表类型
+    - 分析数据特征（维度数量、数据范围、时间序列等）
+    - 返回推荐图表类型及理由
+    """
+    try:
+        content = await file.read()
+        cg = ChartGenerator()
+        df = cg.parse_file(content, file.filename)
+        suggestion = cg.suggest_chart_type(df)
+        return {
+            "success": True,
+            "suggestion": suggestion,
+            "columns": cg.extract_columns(df)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"智能图表建议失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"分析失败: {str(e)}")
+
+
+# R89: 图表下钻数据
+@router.post("/chart/drilldown")
+async def get_chart_drilldown(
+    file: UploadFile = File(...),
+    label_col: str = Form(...),
+    value_col: str = Form(...),
+    label_value: str = Form(...),
+    group_by: Optional[str] = Form(None),
+):
+    """
+    R89: 获取图表数据点的下钻详情
+    - label_value: 要下钻的具体行标签值
+    - group_by: 可选的分组列
+    返回该数据点的详细信息、与均值对比、分组数据
+    """
+    try:
+        content = await file.read()
+        cg = ChartGenerator()
+        df = cg.parse_file(content, file.filename)
+        drilldown = cg.get_drilldown_data(df, label_col, value_col, label_value, group_by)
+        return drilldown
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"下钻数据获取失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"下钻失败: {str(e)}")
 
 
 # ==================== 健康检查 ====================
@@ -668,8 +729,13 @@ async def cancel_task(task_id: str):
 # ==================== 文件下载 ====================
 
 @router.get("/download/{task_id}")
-async def download_ppt(request: Request, task_id: str):
-    """下载 PPT 文件"""
+async def download_ppt(
+    request: Request,
+    task_id: str,
+    password: str = Query(default=""),
+    biometric_token: str = Query(default=""),
+):
+    """下载 PPT 文件（支持密码保护和生物认证）"""
     # 速率限制检查
     rate_error = _check_rate_limit_middleware(request)
     if rate_error:
@@ -677,6 +743,57 @@ async def download_ppt(request: Request, task_id: str):
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
         )
+
+    # ---- Presentation Security Checks ----
+    from ...core.security import get_presentation_security_manager, get_audit_logger
+    security_mgr = get_presentation_security_manager()
+    audit_logger = get_audit_logger()
+
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                request.headers.get("X-Real-IP", "")
+
+    # IP Allowlist check
+    if not security_mgr.check_ip_allowed(task_id, client_ip):
+        audit_logger.log(
+            user_id="anonymous",
+            action="presentation:download_denied_ip",
+            resource=task_id,
+            details={"client_ip": client_ip}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "IP_NOT_ALLOWED", "message": "您的IP地址不在允许范围内"}
+        )
+
+    # Biometric check
+    if security_mgr.is_biometric_required(task_id):
+        if not biometric_token:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "BIOMETRIC_REQUIRED", "message": "此演示文稿需要生物认证才能下载"}
+            )
+
+    # Password check
+    if security_mgr.has_password(task_id):
+        if not password or not security_mgr.verify_password(task_id, password):
+            audit_logger.log(
+                user_id="anonymous",
+                action="presentation:download_denied_password",
+                resource=task_id,
+                details={"client_ip": client_ip}
+            )
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "PASSWORD_REQUIRED", "message": "此演示文稿需要密码才能下载"}
+            )
+
+    # Log access
+    security_mgr.log_access(
+        task_id=task_id,
+        user_id="anonymous",
+        action="downloaded",
+        client_ip=client_ip,
+    )
 
     task = get_task_manager().get_task(task_id)
 
@@ -1078,9 +1195,20 @@ async def _fallback_export_pdf_libreoffice(
 async def export_png_sequence(
     request: Request,
     task_id: str,
-    resolution: str = Query("1080p", description="分辨率: 720p, 1080p, 4K")
+    resolution: str = Query("1080p", description="分辨率: 720p, 1080p, 4K"),
+    watermark_enabled: bool = Query(False, description="启用水印"),
+    watermark_text: str = Query("RabAiMind", description="水印文字"),
+    watermark_opacity: float = Query(0.15, description="水印透明度 0-1"),
+    watermark_angle: int = Query(-45, description="水印角度"),
+    watermark_font_size: int = Query(48, description="水印字体大小"),
+    watermark_color: str = Query("#888888", description="水印颜色"),
 ):
-    """导出PNG图片序列（每页一张）"""
+    """
+    导出PNG图片序列（每页一张）
+
+    支持水印功能，用于防截图保护。
+    水印会绘制在每张幻灯片上，包含指定文字和样式。
+    """
     rate_error = _check_rate_limit_middleware(request)
     if rate_error:
         raise HTTPException(
@@ -1118,39 +1246,117 @@ async def export_png_sequence(
     }
     width, height = resolution_map.get(resolution, (1920, 1080))
 
+    # 水印辅助函数
+    def apply_watermark_to_png(png_data: bytes, wm_text: str, wm_opacity: float,
+                                wm_angle: int, wm_font_size: int, wm_color: str) -> bytes:
+        """Apply diagonal watermark text to a PNG image using PIL."""
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import io as pil_io
+
+            img = Image.open(pil_io.BytesIO(png_data)).convert("RGBA")
+            overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
+            draw = ImageDraw.Draw(overlay)
+
+            # Parse color
+            color_hex = wm_color.lstrip("#")
+            r = int(color_hex[0:2], 16)
+            g = int(color_hex[2:4], 16)
+            b = int(color_hex[4:6], 16)
+            wm_color_rgba = (r, g, b, int(255 * min(max(wm_opacity, 0), 1)))
+
+            # Font size scaled to image
+            scale_factor = img.width / 1920
+            scaled_font_size = max(24, int(wm_font_size * scale_factor))
+
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", scaled_font_size)
+            except Exception:
+                font = ImageFont.load_default()
+
+            # Calculate text size for tiling
+            bbox = draw.textbbox((0, 0), wm_text, font=font)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+
+            # Tile diagonal watermarks across the image
+            spacing_x = int(text_w * 2.5)
+            spacing_y = int(text_h * 3.0)
+
+            import math
+            angle_rad = math.radians(wm_angle)
+            cos_a = abs(math.cos(angle_rad))
+            sin_a = abs(math.sin(angle_rad))
+
+            # Estimate rotated bounding box
+            rotated_w = int(text_w * cos_a + text_h * sin_a)
+            rotated_h = int(text_w * sin_a + text_h * cos_a)
+
+            # Extend to cover full image diagonally
+            diagonal = int(math.hypot(img.width, img.height))
+            start_x = -diagonal
+            end_x = img.width + diagonal
+            start_y = -diagonal
+            end_y = img.height + diagonal
+
+            for y in range(start_y, end_y, spacing_y):
+                for x in range(start_x, end_x, spacing_x):
+                    # Rotate text
+                    rotated_x = int(x * cos_a - y * sin_a)
+                    rotated_y = int(x * sin_a + y * cos_a)
+                    draw.text((rotated_x, rotated_y), wm_text, font=font, fill=wm_color_rgba)
+
+            # Composite and convert back to RGB
+            watermarked = Image.alpha_composite(img, overlay).convert("RGB")
+            out_buf = pil_io.BytesIO()
+            watermarked.save(out_buf, format="PNG")
+            return out_buf.getvalue()
+        except Exception as e:
+            logger.warning(f"Watermark failed, returning original: {e}")
+            return png_data
+
     try:
         import zipfile
         import io
         import httpx
 
-        # 下载所有SVG并转换为PNG
+        # 下载所有SVG并转换为PNG（使用共享连接池）
         png_files = []
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for i, svg_url in enumerate(svg_urls):
-                # 构造完整URL
-                if svg_url.startswith('/'):
-                    svg_url = f"http://localhost:{settings.API_PORT}{svg_url}"
+        for i, svg_url in enumerate(svg_urls):
+            # 构造完整URL
+            if svg_url.startswith('/'):
+                svg_url = f"http://localhost:{chr(123)}settings.API_PORT{chr(125)}{svg_url}"
 
-                resp = await client.get(svg_url)
-                if resp.status_code != 200:
-                    continue
+            resp = await http_client.get(svg_url, timeout=httpx.Timeout(30.0))
+            if resp.status_code != 200:
+                continue
 
-                svg_content = resp.content
+            svg_content = resp.content
 
-                # 使用 cairosvg 或内置转换
-                try:
-                    import cairosvg
-                    png_data = cairosvg.svg2png(
-                        bytestring=svg_content,
-                        output_width=width,
-                        output_height=height
+            # 使用 cairosvg 或内置转换
+            try:
+                import cairosvg
+                png_data = cairosvg.svg2png(
+                    bytestring=svg_content,
+                    output_width=width,
+                    output_height=height
+                )
+            except ImportError:
+                # cairosvg 不可用，返回占位信息
+                png_data = None
+
+            if png_data:
+                # Apply watermark if enabled
+                if watermark_enabled:
+                    png_data = apply_watermark_to_png(
+                        png_data,
+                        watermark_text,
+                        watermark_opacity,
+                        watermark_angle,
+                        watermark_font_size,
+                        watermark_color
                     )
-                except ImportError:
-                    # cairosvg 不可用，返回占位信息
-                    png_data = None
-
-                if png_data:
-                    png_files.append((f"slide_{i+1:03d}.png", png_data))
+                png_files.append((f"slide_{chr(123)}i+1:03d{chr(125)}.png", png_data))
 
         if not png_files:
             raise HTTPException(
@@ -1743,6 +1949,100 @@ async def redo_last_action(task_id: str):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/timeline/{task_id}")
+async def get_action_timeline(task_id: str, limit: int = 100):
+    """获取完整操作时间线（用于可视化撤销时间线）"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    timeline = tm.get_action_timeline(task_id, limit)
+    return {"success": True, "timeline": timeline}
+
+
+@router.post("/undo/{task_id}/{action_id}")
+async def undo_by_action_id(task_id: str, action_id: str):
+    """撤销指定操作（分支撤销）- 不影响其他操作"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.undo_by_action_id(task_id, action_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/checkpoints/{task_id}")
+async def create_checkpoint(task_id: str, name: str = None, checkpoint_type: str = "auto"):
+    """创建检查点（用于自动保存，每5分钟）"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.create_checkpoint(task_id, name, checkpoint_type)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/checkpoints/{task_id}")
+async def get_checkpoints(task_id: str, limit: int = 20):
+    """获取检查点列表"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    checkpoints = tm.get_checkpoints(task_id, limit)
+    return {"success": True, "checkpoints": checkpoints}
+
+
+@router.post("/checkpoints/{task_id}/{checkpoint_id}/restore")
+async def restore_checkpoint(task_id: str, checkpoint_id: str):
+    """从检查点恢复"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.restore_checkpoint(task_id, checkpoint_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/collaborative-lock/{task_id}")
+async def acquire_collaborative_lock(task_id: str, user_id: str, slide_index: int = None):
+    """获取协作编辑锁"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.acquire_collaborative_lock(task_id, user_id, slide_index)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/collaborative-lock/{task_id}")
+async def release_collaborative_lock(task_id: str, user_id: str, slide_index: int = None):
+    """释放协作编辑锁"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.release_collaborative_lock(task_id, user_id, slide_index)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/collaborative-locks/{task_id}")
+async def get_collaborative_locks(task_id: str):
+    """获取当前协作锁状态"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    return tm.get_collaborative_locks(task_id)
+
+
 @router.post("/versions/{task_id}/{version_id}/branch")
 async def branch_from_version(task_id: str, version_id: str, name: str = None):
     """从指定版本创建分支"""
@@ -1751,6 +2051,24 @@ async def branch_from_version(task_id: str, version_id: str, name: str = None):
     tm = get_task_manager()
     try:
         result = tm.branch_version(task_id, version_id, name)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/versions/{task_id}/merge")
+async def merge_versions(
+    task_id: str,
+    source_version_id: str = Body(..., description="要合并的源版本ID"),
+    target_version_id: str = Body(None, description="目标版本ID，不传则合并到当前最新"),
+    strategy: str = Body("branch_wins", description="合并策略: branch_wins/main_wins/newest_first"),
+):
+    """合并分支版本到目标版本"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.merge_version(task_id, source_version_id, target_version_id, strategy)
         return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -2529,6 +2847,116 @@ async def import_url(
     return result
 
 
+# ==================== Google Slides Import ====================
+
+class ImportGoogleSlidesRequest(BaseModel):
+    presentation_url: str = Field(..., description="Google Slides 分享链接或 presentation ID")
+    access_token: Optional[str] = Field(None, description="OAuth access token (可选，有则用API导入)")
+
+
+@router.post("/import/google-slides")
+async def import_google_slides(
+    request: Request,
+    body: ImportGoogleSlidesRequest,
+):
+    """导入 Google Slides 内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_google_slides(
+        body.presentation_url,
+        body.access_token
+    )
+    return result
+
+
+# ==================== Pinterest/Canopy Import ====================
+
+class ImportPinterestRequest(BaseModel):
+    board_url: str = Field(..., description="Pinterest board URL or user profile URL")
+    access_token: Optional[str] = Field(None, description="Pinterest OAuth access token")
+
+
+@router.post("/import/pinterest")
+async def import_pinterest(
+    request: Request,
+    body: ImportPinterestRequest,
+):
+    """导入 Pinterest/Canopy board 内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_pinterest(
+        body.board_url,
+        body.access_token
+    )
+    return result
+
+
+# ==================== Images Import ====================
+
+class ImportImagesRequest(BaseModel):
+    titles: Optional[List[str]] = Field(None, description="每张图片对应的标题列表")
+    captions: Optional[List[str]] = Field(None, description="每张图片对应的描述列表")
+    layout: str = Field(default="center", description="布局: center, left_image_right_text, left_text_right_image")
+    scene: str = Field(default="general", description="场景类型")
+    style: str = Field(default="professional", description="风格类型")
+
+
+@router.post("/import/images")
+async def import_images(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    titles: Optional[List[str]] = Form(None),
+    captions: Optional[List[str]] = Form(None),
+    layout: str = Form("center"),
+    scene: str = Form("general"),
+    style: str = Form("professional"),
+):
+    """导入 JPG/PNG 图片，转换为 PPT 大纲（每张图片一页）"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请上传至少一张图片")
+
+    if len(files) > 50:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="最多支持 50 张图片")
+
+    allowed_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+    for f in files:
+        ext = "." + f.filename.lower().split(".")[-1] if f.filename and "." in f.filename else ""
+        if ext not in allowed_exts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"仅支持图片格式: JPG, PNG, GIF, WEBP (文件 {f.filename} 不支持)"
+            )
+
+    # Read all image bytes
+    image_data_list = []
+    for f in files:
+        content = await f.read()
+        if len(content) > 20 * 1024 * 1024:  # 20MB per image
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"图片 {f.filename} 超过 20MB")
+        image_data_list.append((f.filename or "image.jpg", content))
+
+    from ...services.import_service import get_import_service
+    result = await get_import_service().import_images(
+        image_data_list=image_data_list,
+        titles=titles,
+        captions=captions,
+        layout=layout,
+        scene=scene,
+        style=style
+    )
+    return result
+
+
 # ==================== Export Endpoints (Google Slides / Notion) ====================
 
 class ExportGoogleSlidesRequest(BaseModel):
@@ -2879,3 +3307,791 @@ async def get_layout_preferences(
     )
     
     return {"success": True, "preferences": preferences, "user_id": user_id}
+
+
+# ==================== Additional Export Formats ====================
+
+class ExportOdpRequest(BaseModel):
+    """ODP export options"""
+    pass
+
+
+@router.get("/export/odp/{task_id}")
+async def export_odp(
+    request: Request,
+    task_id: str,
+):
+    """导出 PPT 到 ODP (OpenDocument) 格式"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    # Validate path
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件路径不安全")
+
+    # Generate ODP path
+    odp_filename = f"presentation_{task_id}.odp"
+    odp_path_abs = os.path.join(os.path.dirname(pptx_path_abs), odp_filename)
+
+    from src.services.additional_export_service import get_additional_export_service
+    export_service = get_additional_export_service()
+    
+    export_result = await export_service.export_to_odp(task_id, pptx_path_abs, odp_path_abs)
+    
+    if not export_result.get("success"):
+        return JSONResponse(content=export_result, status_code=500)
+    
+    # Return file as download
+    if os.path.exists(odp_path_abs):
+        return FileResponse(
+            path=str(odp_path_abs),
+            filename=odp_filename,
+            media_type="application/vnd.oasis.opendocument.presentation"
+        )
+    
+    return JSONResponse(content=export_result)
+
+
+class ExportKeynoteRequest(BaseModel):
+    """Keynote export options"""
+    pass
+
+
+@router.get("/export/keynote/{task_id}")
+async def export_keynote(
+    request: Request,
+    task_id: str,
+):
+    """导出 PPT 到 Keynote (.key) 格式"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    # Validate path
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件路径不安全")
+
+    # Generate Keynote path
+    key_filename = f"presentation_{task_id}.key.zip"
+    key_path_abs = os.path.join(os.path.dirname(pptx_path_abs), key_filename)
+
+    from src.services.additional_export_service import get_additional_export_service
+    export_service = get_additional_export_service()
+    
+    export_result = await export_service.export_to_keynote(task_id, pptx_path_abs, key_path_abs)
+    
+    if not export_result.get("success"):
+        return JSONResponse(content=export_result, status_code=500)
+    
+    # Return file as download
+    output_file = export_result.get("output_path", key_path_abs)
+    if os.path.exists(output_file):
+        return FileResponse(
+            path=str(output_file),
+            filename=key_filename,
+            media_type="application/zip"
+        )
+    
+    return JSONResponse(content=export_result)
+
+
+class ExportAudioRequest(BaseModel):
+    """Audio export options"""
+    voice: str = Field(default="zh-CN-XiaoxiaoNeural", description="edge-tts 语音")
+    rate: str = Field(default="+0%", description="语速调整")
+    volume: str = Field(default="+0%", description="音量调整")
+    slides_content: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片内容列表")
+
+
+@router.post("/export/audio/{task_id}")
+async def export_audio(
+    request: Request,
+    task_id: str,
+    body: ExportAudioRequest,
+):
+    """导出 PPT 叙述为 MP3 音频"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    # Validate path
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件路径不安全")
+
+    # Generate MP3 path
+    mp3_filename = f"presentation_{task_id}.mp3"
+    mp3_path_abs = os.path.join(os.path.dirname(pptx_path_abs), mp3_filename)
+
+    from src.services.additional_export_service import get_additional_export_service
+    export_service = get_additional_export_service()
+    
+    # Use provided slides_content or try to get from task
+    slides_content = body.slides_content if body else None
+    if not slides_content:
+        slides_content = result.get("slides_content")
+    
+    voice = "zh-CN-XiaoxiaoNeural"
+    rate = "+0%"
+    volume = "+0%"
+    if body:
+        voice = body.voice or voice
+        rate = body.rate or rate
+        volume = body.volume or volume
+    
+    export_result = await export_service.export_to_mp3(
+        task_id, pptx_path_abs, mp3_path_abs,
+        slides_content=slides_content,
+        voice=voice, rate=rate, volume=volume
+    )
+    
+    if not export_result.get("success"):
+        return JSONResponse(content=export_result, status_code=500)
+    
+    # Return file as download
+    output_file = export_result.get("output_path", mp3_path_abs)
+    if os.path.exists(output_file):
+        return FileResponse(
+            path=str(output_file),
+            filename=mp3_filename,
+            media_type="audio/mpeg"
+        )
+    
+    return JSONResponse(content=export_result)
+
+
+# ==================== Video Export (MP4) ====================
+
+class ExportVideoRequest(BaseModel):
+    transition: str = Field(default="fade", description="过渡效果: fade, slide, zoom, none")
+    duration_per_slide: int = Field(default=3, description="每页持续时间（秒）", ge=1, le=30)
+    resolution: str = Field(default="1080p", description="分辨率: 720p, 1080p, 4k")
+    include_audio: bool = Field(default=False, description="是否包含语音旁白")
+    voice: str = Field(default="zh-CN-XiaoxiaoNeural", description="旁白语音")
+    slide_range: Optional[str] = Field(None, description="页码范围，如 '1-10' 或 'all'")
+
+
+@router.post("/export/video/{task_id}")
+async def export_video(
+    request: Request,
+    task_id: str,
+    body: ExportVideoRequest,
+):
+    """导出 PPT 为 MP4 视频，包含过渡动画和定时"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    task = get_task_manager().get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"任务 {task_id} 不存在")
+
+    if task["status"] != "completed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="任务尚未完成")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    import os
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PPTX 文件不存在")
+
+    output_dir = os.path.realpath(settings.OUTPUT_DIR)
+    pptx_path_abs = os.path.realpath(pptx_path)
+    if not pptx_path_abs.startswith(output_dir):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="文件路径不安全")
+
+    video_filename = f"presentation_{task_id}.mp4"
+    video_path_abs = os.path.join(os.path.dirname(pptx_path_abs), video_filename)
+
+    from src.services.additional_export_service import get_additional_export_service
+    export_service = get_additional_export_service()
+
+    # Get slides content for narration
+    slides_content = None
+    if body.include_audio:
+        outline = result.get("outline", {})
+        if isinstance(outline, dict):
+            slides_content = outline.get("slides", [])
+
+    export_result = await export_service.export_to_video(
+        task_id, pptx_path_abs, video_path_abs,
+        transition=body.transition,
+        duration_per_slide=body.duration_per_slide,
+        resolution=body.resolution,
+        include_audio=body.include_audio,
+        slides_content=slides_content,
+        voice=body.voice,
+        slide_range=body.slide_range
+    )
+
+    if not export_result.get("success"):
+        return JSONResponse(content=export_result, status_code=500)
+
+    output_file = export_result.get("output_path", video_path_abs)
+    if os.path.exists(output_file):
+        return FileResponse(
+            path=str(output_file),
+            filename=video_filename,
+            media_type="video/mp4"
+        )
+
+    return JSONResponse(content=export_result)
+
+
+# ==================== Embed Widget API ====================
+
+class EmbedConfigRequest(BaseModel):
+    embed_type: str = Field(..., description="Type: iframe, floating_button, inline_preview, analytics")
+    width: Optional[str] = "100%"
+    height: Optional[str] = "600px"
+    theme: Optional[str] = "light"  # light, dark, auto
+    position: Optional[str] = "bottom-right"  # for floating button
+    analytics_token: Optional[str] = None
+    show_controls: Optional[bool] = True
+    auto_slide: Optional[int] = 0  # 0 = disabled, seconds per slide
+    start_slide: Optional[int] = 1
+
+
+@router.get("/embed/{task_id}")
+async def get_embed_config(request: Request, task_id: str):
+    """Get embed configuration for a presentation"""
+    user_id = get_user_id_from_request(request) or "anonymous"
+    base_url = str(request.base_url).rstrip("/")
+    
+    return JSONResponse({
+        "success": True,
+        "embed_url": f"{base_url}/embed/{task_id}/viewer",
+        "full_url": f"{base_url}/result?taskId={task_id}",
+        "task_id": task_id,
+        "available_themes": ["light", "dark", "auto"],
+        "available_sizes": {
+            "small": {"width": "320px", "height": "240px"},
+            "medium": {"width": "640px", "height": "480px"},
+            "large": {"width": "960px", "height": "720px"},
+            "full": {"width": "100%", "height": "100vh"}
+        }
+    })
+
+
+@router.post("/embed/{task_id}/generate")
+async def generate_embed_code(request: Request, task_id: str, config: EmbedConfigRequest):
+    """Generate embed code snippet for a presentation"""
+    user_id = get_user_id_from_request(request) or "anonymous"
+    base_url = str(request.base_url).rstrip("/")
+    
+    embed_url = f"{base_url}/embed/{task_id}/viewer"
+    full_url = f"{base_url}/result?taskId={task_id}"
+    
+    if config.embed_type == "iframe":
+        code = f'''<iframe 
+  src="{embed_url}?theme={config.theme or "light"}&controls={str(config.show_controls).lower()}&auto_slide={config.auto_slide or 0}&start={config.start_slide or 1}"
+  width="{config.width or "100%"}"
+  height="{config.height or "600px"}"
+  frameborder="0"
+  allowfullscreen
+  style="border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.12);"
+></iframe>'''
+    
+    elif config.embed_type == "floating_button":
+        position = config.position or "bottom-right"
+        code = f'''<script>
+(function() {{
+  var btn = document.createElement('div');
+  btn.id = 'rabai-fab-{task_id}';
+  btn.innerHTML = '<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="28" cy="28" r="28" fill="#165DFF"/><path d="M18 28h20M28 18v20" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>';
+  btn.style.cssText = 'position:fixed;{position}:24px;bottom:24px;cursor:pointer;z-index:99999;border:none;background:none;box-shadow:0 4px 16px rgba(22,93,255,0.4);border-radius:50%;transition:transform .2s;width:56px;height:56px;';
+  btn.onmouseover = function(){{ this.style.transform='scale(1.1)'; }};
+  btn.onmouseout = function(){{ this.style.transform='scale(1)'; }};
+  btn.onclick = function(){{ window.open("{full_url}", "_blank"); }};
+  document.body.appendChild(btn);
+}})();
+</script>'''
+    
+    elif config.embed_type == "inline_preview":
+        code = f'''<div class="rabai-inline-preview" data-task="{task_id}" data-theme="{config.theme or "light"}" style="max-width:{config.width or "960px"};margin:0 auto;">
+  <div style="aspect-ratio:16/9;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="window.open('{full_url}','_blank')">
+    <div style="text-align:center;color:white;">
+      <div style="font-size:32px;margin-bottom:8px;">📊</div>
+      <div style="font-size:14px;font-weight:600;">点击查看完整演示</div>
+    </div>
+  </div>
+</div>'''
+    
+    elif config.embed_type == "analytics":
+        analytics_id = config.analytics_token or f"tk_{task_id[:8]}"
+        code = f'''<script async src="{base_url}/static/analytics-widget.js" data-presentation="{task_id}" data-token="{analytics_id}"></script>
+<div id="rabai-analytics-{task_id[:8]}" class="rabai-analytics-widget" style="font-family:system-ui;background:#f8f9fa;border-radius:8px;padding:16px;max-width:{config.width or "400px"};">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+    <span style="font-size:20px;">📊</span>
+    <strong style="font-size:14px;">演示分析</strong>
+    <span style="margin-left:auto;font-size:11px;color:#888;">rabai.com</span>
+  </div>
+  <div id="rabai-stats-{task_id[:8]}" style="font-size:12px;color:#555;">
+    正在加载统计数据...
+  </div>
+</div>
+<script>
+// Analytics widget initialization
+(function() {{
+  var pid = "{task_id}";
+  var token = "{analytics_id}";
+  var el = document.getElementById("rabai-stats-" + pid.slice(0,8));
+  if (!el) return;
+  fetch("/{task_id}/analytics").then(function(r) {{ return r.json(); }}).then(function(data) {{
+    if (data.success) {{
+      el.innerHTML = '<div style="margin:4px 0;"><span style="color:#888;">👁 总浏览</span> <strong>' + (data.total_views||0) + '</strong></div><div style="margin:4px 0;"><span style="color:#888;">⏱ 平均停留</span> <strong>' + Math.round(data.avg_duration||0) + 's</strong></div>';
+    }}
+  }}).catch(function() {{ el.innerHTML = '<span style="color:#aaa;">暂无数据</span>'; }});
+}})();
+</script>'''
+    
+    else:
+        return JSONResponse({"success": False, "error": "Unknown embed type"}, status_code=400)
+    
+    return JSONResponse({
+        "success": True,
+        "embed_type": config.embed_type,
+        "embed_code": code,
+        "preview_url": embed_url,
+        "task_id": task_id
+    })
+
+
+@router.get("/embed/{task_id}/analytics")
+async def get_embed_analytics(request: Request, task_id: str):
+    """Get analytics data for an embedded presentation"""
+    try:
+        analytics_service = get_presentation_analytics_service()
+        analytics_data = analytics_service.get_analytics(task_id)
+        return JSONResponse({
+            "success": True,
+            "task_id": task_id,
+            "total_views": analytics_data.get("total_views", 0),
+            "unique_viewers": analytics_data.get("unique_viewers", 0),
+            "avg_duration": analytics_data.get("avg_duration", 0),
+            "slide_views": analytics_data.get("slide_views", {}),
+            "top_regions": analytics_data.get("top_regions", [])
+        })
+    except Exception:
+        return JSONResponse({
+            "success": True,
+            "task_id": task_id,
+            "total_views": 0,
+            "unique_viewers": 0,
+            "avg_duration": 0,
+            "slide_views": {},
+            "top_regions": []
+        })
+
+
+# ==================== Presentation Coach API ====================
+
+class CoachAnalyzeRequest(BaseModel):
+    """教练分析请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    focus_areas: Optional[List[str]] = None  # 结构/内容/设计/参与度
+
+
+class CoachPracticeRequest(BaseModel):
+    """练习模式请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    difficulty: str = "mixed"  # easy / moderate / hard / mixed
+    count: int = 10
+
+
+class CoachTimingRequest(BaseModel):
+    """时间节奏请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    total_minutes: float = 15.0
+
+
+class CoachDeliveryRequest(BaseModel):
+    """演讲技巧请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+
+
+class CoachAudienceRequest(BaseModel):
+    """观众预测请求"""
+    task_id: str
+    slides: List[Dict[str, Any]]
+    audience_profile: str = ""
+
+
+@router.post("/coach/analyze")
+async def coach_analyze(request: Request, body: CoachAnalyzeRequest):
+    """AI演讲教练 - 分析幻灯片并给出反馈"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.analyze_slides(body.task_id, body.slides)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Coach analyze error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/practice")
+async def coach_practice(request: Request, body: CoachPracticeRequest):
+    """AI演讲教练 - 生成练习问答"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.generate_practice_qa(body.task_id, body.slides, body.difficulty)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Coach practice error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/timing")
+async def coach_timing(request: Request, body: CoachTimingRequest):
+    """AI演讲教练 - 时间节奏建议"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.get_timing_advice(body.task_id, body.slides, body.total_minutes)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Coach timing error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/delivery")
+async def coach_delivery(request: Request, body: CoachDeliveryRequest):
+    """AI演讲教练 - 演讲技巧建议"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.get_delivery_tips(body.task_id, body.slides)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Coach delivery error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/coach/audience")
+async def coach_audience(request: Request, body: CoachAudienceRequest):
+    """AI演讲教练 - 预测观众可能提问"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        coach = get_presentation_coach_service()
+        result = coach.predict_audience_questions(body.task_id, body.slides, body.audience_profile)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Coach audience error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@router.get("/coach/quick-score/{task_id}")
+async def coach_quick_score(request: Request, task_id: str):
+    """AI演讲教练 - 快速评分（无需AI调用）"""
+    try:
+        from ...services.presentation_coach import get_presentation_coach_service
+        from ...services.task_manager import get_task_manager
+        
+        tm = get_task_manager()
+        task = tm.get_task(task_id)
+        
+        if not task:
+            return JSONResponse({"success": False, "error": "任务不存在"}, status_code=404)
+        
+        # 获取大纲数据
+        slides = []
+        if task.result and hasattr(task.result, 'outline'):
+            outline = task.result.outline
+            if isinstance(outline, dict) and 'slides' in outline:
+                slides = outline['slides']
+        
+        coach = get_presentation_coach_service()
+        score = coach.quick_score(slides)
+        
+        return JSONResponse({
+            "success": True,
+            "task_id": task_id,
+            "quick_score": score,
+            "note": "基于规则快速评分，详细评分请使用 /coach/analyze"
+        })
+    except Exception as e:
+        logger.error(f"Quick score error: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+# ========== A/B Testing ==========
+
+@router.post("/ab_test/{task_id}")
+async def create_ab_test(task_id: str, slide_index: int = Query(..., ge=0), variant_count: int = Query(2, ge=2, le=4)):
+    """为指定幻灯片创建A/B测试"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.create_ab_test(task_id, slide_index, variant_count)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/ab_test/{task_id}")
+async def list_ab_tests(task_id: str):
+    """列出任务的所有A/B测试"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    tests = tm.list_ab_tests(task_id)
+    return {"success": True, "tests": tests}
+
+
+@router.get("/ab_test/{task_id}/{test_id}")
+async def get_ab_test(task_id: str, test_id: str):
+    """获取A/B测试详情及性能对比"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.get_ab_test(task_id, test_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/ab_test/{task_id}/{test_id}/view")
+async def track_ab_view(task_id: str, test_id: str, variant_id: str = Query(...), time_spent_ms: int = Query(0)):
+    """记录A/B测试变体查看"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.track_ab_view(task_id, test_id, variant_id, time_spent_ms)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/ab_test/{task_id}/{test_id}/click")
+async def track_ab_click(task_id: str, test_id: str, variant_id: str = Query(...)):
+    """记录A/B测试变体点击"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.track_ab_click(task_id, test_id, variant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/ab_test/{task_id}/{test_id}/select")
+async def select_ab_winner(task_id: str, test_id: str, variant_id: str = Query(...)):
+    """选择A/B测试获胜变体并应用到幻灯片"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.select_ab_winner(task_id, test_id, variant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/ab_test/{task_id}/{test_id}")
+async def delete_ab_test(task_id: str, test_id: str):
+    """删除A/B测试"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.delete_ab_test(task_id, test_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========== 幻灯片级版本历史 ==========
+
+@router.get("/slide_history/{task_id}/{slide_index}")
+async def get_slide_history(task_id: str, slide_index: int):
+    """获取指定幻灯片的版本历史"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    history = tm.get_slide_version_history(task_id, slide_index)
+    return {"success": True, "history": history}
+
+
+# ========== 智能改进建议 ==========
+
+@router.get("/suggest_improve/{task_id}")
+async def suggest_improvements(task_id: str):
+    """基于分析生成幻灯片改进建议"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.suggest_improvements(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========== 内容语言检测 ==========
+
+@router.get("/detect_language/{task_id}")
+async def detect_content_language(task_id: str):
+    """检测PPT内容的语言"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.detect_language(task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ========== 演示文稿本地化/翻译 ==========
+
+@router.post("/localize/{task_id}")
+async def localize_presentation(
+    task_id: str,
+    target_locale: str = Query(..., description="目标语言代码，如 en, zh, ar, he"),
+    source_locale: Optional[str] = Query(None, description="源语言代码，如不提供则自动检测"),
+    apply_rtl: bool = Query(False, description="是否应用RTL布局"),
+):
+    """将演示文稿翻译为指定语言"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        return tm.localize(task_id, target_locale, source_locale, apply_rtl)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============ R118: Smart Content Suggestions ============
+
+class SmartContentRequest(BaseModel):
+    topic: str = Field(default="", description="PPT主题")
+    slides: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片列表")
+    style: str = Field(default="professional", description="风格")
+    scene: str = Field(default="business", description="场景")
+    page_count: int = Field(default=10, description="页数")
+
+
+@router.post("/suggest/content-boost")
+async def suggest_content_boost(request: SmartContentRequest):
+    """
+    R118: 内容增强 - AI 建议相关的内容补充
+    """
+    from ...services.smart_content_service import get_smart_content_service
+    service = get_smart_content_service()
+    result = service.content_boost(
+        topic=request.topic,
+        slides=request.slides,
+        style=request.style,
+        scene=request.scene
+    )
+    return result
+
+
+@router.post("/suggest/citations")
+async def suggest_citations(request: SmartContentRequest):
+    """
+    R118: 引用查找 - 自动为声明找到来源
+    """
+    from ...services.smart_content_service import get_smart_content_service
+    service = get_smart_content_service()
+    result = service.citation_finder(
+        topic=request.topic,
+        slides=request.slides
+    )
+    return result
+
+
+@router.post("/suggest/images")
+async def suggest_images(request: SmartContentRequest):
+    """
+    R118: 图片建议 - 基于内容推荐相关图片
+    """
+    from ...services.smart_content_service import get_smart_content_service
+    service = get_smart_content_service()
+    result = service.image_suggestions(
+        topic=request.topic,
+        slides=request.slides
+    )
+    return result
+
+
+@router.post("/suggest/quotes")
+async def suggest_quotes(request: SmartContentRequest):
+    """
+    R118: 引用语建议 - 从知识库推荐相关引用
+    """
+    from ...services.smart_content_service import get_smart_content_service
+    service = get_smart_content_service()
+    result = service.quote_suggestions(
+        topic=request.topic,
+        slides=request.slides,
+        style=request.style,
+        scene=request.scene
+    )
+    return result
+
+
+@router.post("/suggest/related")
+async def suggest_related_presentations(request: SmartContentRequest):
+    """
+    R118: 相关演示文稿 - 链接相关演示文稿
+    """
+    from ...services.smart_content_service import get_smart_content_service
+    service = get_smart_content_service()
+    result = service.related_presentations(
+        topic=request.topic,
+        slides=request.slides,
+        style=request.style,
+        scene=request.scene,
+        page_count=request.page_count
+    )
+    return result
+
+

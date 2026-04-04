@@ -111,7 +111,7 @@
                 <button @click="showVersionPanel = true; showMoreMenu = false; loadVersionHistory()">
                   <span>📜</span> 版本历史
                 </button>
-                <button @click="handleRecordPresentation">
+                <button @click="openRecordingPanel(); showMoreMenu = false">
                   <span>🎬</span> 录制成视频
                 </button>
                 <button @click="showEmbedCode = true; showMoreMenu = false">
@@ -126,12 +126,21 @@
                 <button @click="openVoicePanel(); showMoreMenu = false">
                   <span>🎙️</span> 语音设置 / 配音
                 </button>
+                <button @click="openSecurityPanel()">
+                  <span>🔒</span> 安全设置
+                </button>
               </div>
             </div>
           </div>
 
           <!-- 浮动工具栏 -->
           <div class="function-toolbar">
+            <button class="toolbar-btn ai-toolbar-btn" @click="showSmartDesignPanel = true" title="智能设计" :class="{ active: showSmartDesignPanel }">
+              ✨
+            </button>
+            <button class="toolbar-btn ai-toolbar-btn" @click="showSmartContentSuggestions = true" title="智能内容建议" :class="{ active: showSmartContentSuggestions }">
+              💡
+            </button>
             <button class="toolbar-btn" @click="showLayoutPanel = true" title="快速调优">
               🎨
             </button>
@@ -167,6 +176,15 @@
             </button>
             <button class="toolbar-btn ai-toolbar-btn" @click="showAdvancedAIPanel = true" title="AI高级功能" :class="{ active: showAdvancedAIPanel }">
               🤖
+            </button>
+            <button class="toolbar-btn ai-toolbar-btn" @click="openPresentationCoach" title="AI演讲教练" :class="{ active: showPresentationCoach }">
+              🎯
+            </button>
+            <button class="toolbar-btn" @click="showAccessibilityPanel = true" title="无障碍与通用设计" :class="{ active: showAccessibilityPanel }">
+              ♿
+            </button>
+            <button class="toolbar-btn ai-toolbar-btn" @click="showLocalizeModal = true" title="翻译演示文稿" :class="{ active: showLocalizeModal }">
+              🌐
             </button>
           </div>
 
@@ -251,6 +269,47 @@
             </div>
           </div>
 
+          <!-- 翻译/本地化弹窗 -->
+          <div v-if="showLocalizeModal" class="modal-mask" @click.self="showLocalizeModal = false">
+            <div class="localize-modal">
+              <div class="modal-title">🌐 翻译演示文稿</div>
+              <div class="modal-desc">将演示文稿翻译为其他语言</div>
+
+              <div class="form-item">
+                <text class="form-label">检测到的语言</text>
+                <div class="detected-lang-display">
+                  <span>{{ detectedSourceLocale || '未检测' }}</span>
+                  <button class="btn btn-sm btn-outline" @click="handleDetectLanguage" :disabled="isLocalizing">
+                    {{ isLocalizing ? '检测中...' : '🔍 重新检测' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-item">
+                <text class="form-label">目标语言</text>
+                <select v-model="targetLocale" class="form-select">
+                  <option v-for="locale in availableTargetLocales" :key="locale.code" :value="locale.code">
+                    {{ locale.nativeName }} {{ locale.code !== currentLocale ? '' : '(当前)' }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="form-item">
+                <label class="checkbox-item">
+                  <input type="checkbox" v-model="applyRTL" />
+                  <span>应用 RTL 布局（适用于阿拉伯语/希伯来语）</span>
+                </label>
+              </div>
+
+              <div class="modal-actions">
+                <button class="btn btn-outline" @click="showLocalizeModal = false">取消</button>
+                <button class="btn btn-primary" @click="handleLocalize" :disabled="isLocalizing">
+                  {{ isLocalizing ? '翻译中...' : '🌐 开始翻译' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- 批量主题弹窗 -->
           <div v-if="showBatchThemeModal" class="modal-mask" @click.self="showBatchThemeModal = false">
             <div class="batch-theme-modal">
@@ -308,6 +367,7 @@
             @dragover.prevent="handleDragOver"
             @dragleave="handleDragLeave"
             @drop.prevent="handleDrop"
+            @mousemove="handleEditorMouseMove"
           >
             <!-- 拖拽提示层 -->
             <div v-if="isDragOver" class="drag-overlay">
@@ -348,25 +408,76 @@
                     <button class="slide-action-btn" @click="deleteSlide(index)" :disabled="editableSlides.length <= 1" title="删除">🗑️</button>
                   </div>
                 </div>
-                <input
-                  v-model="slide.title"
-                  type="text"
-                  class="edit-slide-title"
-                  placeholder="幻灯片标题"
-                />
-                <textarea
-                  v-model="slide.content"
-                  class="edit-slide-content"
-                  placeholder="幻灯片内容，每行一个要点"
-                  rows="4"
-                ></textarea>
+                <div class="edit-field-row">
+                  <input
+                    v-model="slide.title"
+                    type="text"
+                    class="edit-slide-title"
+                    placeholder="幻灯片标题"
+                  />
+                  <!-- Mobile voice dictation button for title -->
+                  <button
+                    v-if="isMobile && isDictationSupported"
+                    class="dictation-btn"
+                    :class="{ active: dictationActive && dictatingSlideIndex === index && dictatingField === 'title' }"
+                    @click="startDictationForField(index, 'title')"
+                    :title="dictationActive && dictatingSlideIndex === index ? '停止录音' : '语音输入标题'"
+                    type="button"
+                  >
+                    {{ dictationActive && dictatingSlideIndex === index && dictatingField === 'title' ? '⏹️' : '🎤' }}
+                  </button>
+                </div>
+                <!-- Dictation interim feedback -->
+                <div v-if="isMobile && dictationActive && dictatingSlideIndex === index && dictatingField === 'title'" class="dictation-feedback">
+                  {{ dictationInterim || '正在聆听...' }}
+                </div>
+                <div class="edit-field-row">
+                  <textarea
+                    v-model="slide.content"
+                    class="edit-slide-content"
+                    placeholder="幻灯片内容，每行一个要点"
+                    rows="4"
+                  ></textarea>
+                  <!-- Mobile voice dictation button for content -->
+                  <button
+                    v-if="isMobile && isDictationSupported"
+                    class="dictation-btn"
+                    :class="{ active: dictationActive && dictatingSlideIndex === index && dictatingField === 'content' }"
+                    @click="startDictationForField(index, 'content')"
+                    :title="dictationActive && dictatingSlideIndex === index ? '停止录音' : '语音输入内容'"
+                    type="button"
+                  >
+                    {{ dictationActive && dictatingSlideIndex === index && dictatingField === 'content' ? '⏹️' : '🎤' }}
+                  </button>
+                </div>
+                <!-- Dictation interim feedback for content -->
+                <div v-if="isMobile && dictationActive && dictatingSlideIndex === index && dictatingField === 'content'" class="dictation-feedback">
+                  {{ dictationInterim || '正在聆听...' }}
+                </div>
                 <!-- 演讲者备注 -->
-                <textarea
-                  v-model="slide.presenterNotes"
-                  class="edit-slide-notes"
-                  placeholder="💬 演讲者备注（仅演示模式可见）"
-                  rows="2"
-                ></textarea>
+                <div class="edit-field-row">
+                  <textarea
+                    v-model="slide.presenterNotes"
+                    class="edit-slide-notes"
+                    placeholder="💬 演讲者备注（仅演示模式可见）"
+                    rows="2"
+                  ></textarea>
+                  <!-- Mobile voice dictation button for notes -->
+                  <button
+                    v-if="isMobile && isDictationSupported"
+                    class="dictation-btn"
+                    :class="{ active: dictationActive && dictatingSlideIndex === index && dictatingField === 'notes' }"
+                    @click="startDictationForField(index, 'notes')"
+                    :title="dictationActive && dictatingSlideIndex === index ? '停止录音' : '语音输入备注'"
+                    type="button"
+                  >
+                    {{ dictationActive && dictatingSlideIndex === index && dictatingField === 'notes' ? '⏹️' : '🎤' }}
+                  </button>
+                </div>
+                <!-- Dictation interim feedback for notes -->
+                <div v-if="isMobile && dictationActive && dictatingSlideIndex === index && dictatingField === 'notes'" class="dictation-feedback">
+                  {{ dictationInterim || '正在聆听...' }}
+                </div>
                 <!-- 单页预览按钮 -->
                 <button class="btn btn-sm btn-preview" @click="previewSlide(index)">
                   👁️ 预览此页
@@ -789,6 +900,185 @@
           </div>
         </div>
 
+        <!-- 安全设置面板 -->
+        <div v-if="showSecurityPanel" class="security-panel-overlay" @click="showSecurityPanel = false">
+          <div class="security-panel" @click.stop>
+            <div class="security-panel-header">
+              <h3>🔒 安全设置</h3>
+              <button class="btn btn-sm" @click="showSecurityPanel = false">✕</button>
+            </div>
+            <div v-if="securityLoading" class="security-loading">
+              <div class="loading-spinner"></div>
+              <p>加载中...</p>
+            </div>
+            <div v-else class="security-panel-content">
+              <!-- Password Protection -->
+              <div class="security-section">
+                <div class="security-section-title">🔑 密码保护</div>
+                <div class="security-status-row">
+                  <span class="security-status-label">状态</span>
+                  <span :class="['security-badge', securityConfig?.has_password ? 'badge-active' : 'badge-inactive']">
+                    {{ securityConfig?.has_password ? '已启用' : '未启用' }}
+                  </span>
+                </div>
+                <div v-if="securityConfig?.has_password" class="security-info-row">
+                  <span class="security-info-label">设置时间</span>
+                  <span class="security-info-value">{{ securityConfig?.password_set_at ? new Date(securityConfig.password_set_at).toLocaleString('zh-CN') : '-' }}</span>
+                </div>
+                <div class="security-password-group">
+                  <input
+                    v-model="securityPassword"
+                    type="password"
+                    placeholder="设置新密码（4位以上）"
+                    class="security-input"
+                  />
+                  <button class="btn btn-sm btn-primary" @click="saveSecurityPassword" :disabled="!securityPassword || securityPassword.length < 4">
+                    {{ securityConfig?.has_password ? '更新密码' : '设置密码' }}
+                  </button>
+                </div>
+                <div v-if="securityConfig?.has_password">
+                  <button class="btn btn-sm btn-danger" @click="removeSecurityPassword">移除密码保护</button>
+                </div>
+              </div>
+
+              <!-- Biometric Authentication -->
+              <div class="security-section">
+                <div class="security-section-title">👆 生物认证</div>
+                <div class="security-status-row">
+                  <span class="security-status-label">状态</span>
+                  <span :class="['security-badge', securityBiometricRequired ? 'badge-active' : 'badge-inactive']">
+                    {{ securityBiometricRequired ? '已启用' : '未启用' }}
+                  </span>
+                </div>
+                <p class="security-desc">启用后，下载时需要使用 Touch ID / Face ID 进行身份验证</p>
+                <div class="security-toggle-row">
+                  <span>启用生物认证</span>
+                  <input
+                    type="checkbox"
+                    :checked="securityBiometricRequired"
+                    @change="securityBiometricRequired = ($event.target as HTMLInputElement).checked; saveSecurityBiometric()"
+                    class="security-checkbox"
+                  />
+                </div>
+              </div>
+
+              <!-- IP Allowlisting -->
+              <div class="security-section">
+                <div class="security-section-title">🌐 IP白名单</div>
+                <div class="security-status-row">
+                  <span class="security-status-label">状态</span>
+                  <span :class="['security-badge', securityConfig?.has_ip_restriction ? 'badge-active' : 'badge-inactive']">
+                    {{ securityConfig?.has_ip_restriction ? '已启用' : '未启用' }}
+                  </span>
+                </div>
+                <p class="security-desc">设置允许访问的IP地址范围，留空表示不限制</p>
+                <div class="security-ip-group">
+                  <textarea
+                    v-model="securityAllowedIPsInput"
+                    placeholder="输入IP地址，多个用逗号分隔，如：192.168.1.1, 10.0.0.0/8"
+                    class="security-textarea"
+                    rows="2"
+                  ></textarea>
+                  <button class="btn btn-sm btn-primary" @click="saveSecurityIPs">保存IP白名单</button>
+                </div>
+                <div v-if="securityAllowedIPs.length > 0" class="security-ip-list">
+                  <span v-for="ip in securityAllowedIPs" :key="ip" class="security-ip-badge">{{ ip }}</span>
+                </div>
+              </div>
+
+              <!-- Auto-Watermark -->
+              <div class="security-section">
+                <div class="security-section-title">💧 自动水印</div>
+                <div class="security-status-row">
+                  <span class="security-status-label">状态</span>
+                  <span :class="['security-badge', securityAutoWatermark.enabled ? 'badge-active' : 'badge-inactive']">
+                    {{ securityAutoWatermark.enabled ? '已启用' : '未启用' }}
+                  </span>
+                </div>
+                <p class="security-desc">导出时自动在每页添加水印，保护您的内容安全</p>
+                <div class="security-toggle-row">
+                  <span>启用自动水印</span>
+                  <input
+                    type="checkbox"
+                    v-model="securityAutoWatermark.enabled"
+                    class="security-checkbox"
+                  />
+                </div>
+                <div v-if="securityAutoWatermark.enabled" class="security-watermark-options">
+                  <input v-model="securityAutoWatermark.text" placeholder="水印文字" class="security-input" />
+                  <div class="security-slider-row">
+                    <span>透明度</span>
+                    <input type="range" v-model="securityAutoWatermark.opacity" min="0.05" max="0.5" step="0.05" class="security-slider" />
+                    <span>{{ Math.round(securityAutoWatermark.opacity * 100) }}%</span>
+                  </div>
+                  <div class="security-slider-row">
+                    <span>角度</span>
+                    <input type="range" v-model="securityAutoWatermark.angle" min="-90" max="90" step="5" class="security-slider" />
+                    <span>{{ securityAutoWatermark.angle }}°</span>
+                  </div>
+                  <div class="security-slider-row">
+                    <span>字号</span>
+                    <input type="range" v-model="securityAutoWatermark.font_size" min="12" max="120" step="4" class="security-slider" />
+                    <span>{{ securityAutoWatermark.font_size }}px</span>
+                  </div>
+                  <input v-model="securityAutoWatermark.color" type="color" class="security-color" />
+                  <button class="btn btn-sm btn-primary" @click="saveSecurityWatermark">保存水印设置</button>
+                </div>
+              </div>
+
+              <!-- Access Log -->
+              <div class="security-section">
+                <div class="security-section-title">📋 访问日志</div>
+                <div v-if="securityAccessLog.length === 0" class="security-empty-log">
+                  暂无访问记录
+                </div>
+                <div v-else class="security-log-list">
+                  <div v-for="log in securityAccessLog.slice(0, 20)" :key="log.timestamp" class="security-log-item">
+                    <span class="log-action">{{ log.action }}</span>
+                    <span class="log-time">{{ new Date(log.timestamp).toLocaleString('zh-CN') }}</span>
+                    <span class="log-ip">{{ log.details?.client_ip || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 安全下载验证弹窗 -->
+        <div v-if="showSecurityDownloadModal" class="security-download-modal-overlay" @click.self="showSecurityDownloadModal = false">
+          <div class="security-download-modal">
+            <div class="security-modal-header">
+              <h3>🔐 验证身份</h3>
+              <button class="btn btn-sm" @click="showSecurityDownloadModal = false">✕</button>
+            </div>
+            <div class="security-modal-body">
+              <div v-if="securityConfig?.has_password" class="security-modal-field">
+                <label>请输入密码</label>
+                <input
+                  v-model="securityDownloadPassword"
+                  type="password"
+                  placeholder="输入密码"
+                  class="security-input"
+                  @keyup.enter="handleSecurityDownload"
+                />
+              </div>
+              <div v-if="securityConfig?.biometric_required" class="security-modal-field">
+                <p class="security-modal-tip">请使用 Touch ID / Face ID 验证身份</p>
+                <button class="btn btn-primary" @click="triggerBiometric().then(() => doDownload('biometric_verified'))">
+                  👆 使用生物认证
+                </button>
+              </div>
+              <div v-if="securityConfig?.has_ip_restriction" class="security-modal-field">
+                <p class="security-modal-tip security-error">您的IP地址不在允许范围内，无法下载</p>
+              </div>
+            </div>
+            <div class="security-modal-footer">
+              <button class="btn btn-outline" @click="showSecurityDownloadModal = false">取消</button>
+              <button v-if="securityConfig?.has_password" class="btn btn-primary" @click="handleSecurityDownload">确认下载</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 失败状态 -->
         <div v-else-if="status === 'failed'" class="result-failed">
           <div class="failed-icon">😔</div>
@@ -827,6 +1117,10 @@
       :slides="presentationSlides"
       :transition-settings="transitionSettings"
       :replay-animation-signal="replayAnimationSignal"
+      :webcam-config="currentWebcamConfig"
+      :recording-mode="isRecordingMode"
+      :coach-timing-data="coachTimingData"
+      @add-chapter="handleAddChapter"
     />
 
     <!-- 版本历史侧边面板 -->
@@ -837,6 +1131,8 @@
           <view class="panel-actions">
             <button class="btn btn-sm btn-snapshot" @click="createSnapshot">💾 快照</button>
             <button class="btn btn-sm btn-recover" @click="checkRecoveryState">🔄 恢复</button>
+            <button class="btn btn-sm btn-abtest" @click="showABTestPanel = !showABTestPanel; showActionLog = false; showDiffView = false; loadABTests()">🔬 A/B测试</button>
+            <button class="btn btn-sm btn-suggest" @click="loadSuggestions()">💡 建议</button>
             <button class="btn btn-sm btn-close-panel" @click="showVersionPanel = false">✕</button>
           </view>
         </view>
@@ -846,13 +1142,114 @@
           <view :class="['tab-btn', !showActionLog ? 'active' : '']" @click="showActionLog = false; loadVersionHistory()">
             <text>📜 版本</text>
           </view>
-          <view :class="['tab-btn', showActionLog ? 'active' : '']" @click="showActionLog = true; loadActionLog(); loadUndoStack()">
+          <view :class="['tab-btn', showActionLog ? 'active' : '']" @click="showActionLog = true; loadActionLog(); loadUndoStack(); loadCheckpoints(); loadCollaborativeLocks()">
             <text>📝 操作日志</text>
           </view>
         </view>
         
+        <!-- A/B测试面板 -->
+        <view v-if="showABTestPanel" class="ab-test-panel">
+          <view class="ab-test-header">
+            <text class="section-title">🔬 A/B测试</text>
+            <text class="ab-test-tip">为重要页面创建变体，对比效果后选择最优版本</text>
+          </view>
+
+          <!-- 当前页面A/B测试入口 -->
+          <view class="ab-create-section" v-if="!showABResult">
+            <text class="ab-create-label">当前页面: 第 {{ currentSlideIndex + 1 }} 页</text>
+            <button class="btn btn-primary btn-create-ab" @click="createABTest(currentSlideIndex)">
+              🌟 为此页创建A/B测试
+            </button>
+          </view>
+
+          <!-- 测试列表 -->
+          <view class="ab-test-list" v-if="!showABResult">
+            <text class="list-title" v-if="abTestList.length > 0">已有测试 ({{ abTestList.length }})</text>
+            <view v-for="test in abTestList" :key="test.test_id" class="ab-test-item">
+              <view class="ab-test-info">
+                <text class="ab-test-name">第 {{ test.slide_index + 1 }} 页测试</text>
+                <view class="ab-test-meta">
+                  <span :class="['status-badge', test.status]">{{ test.status === 'running' ? '运行中' : '已完成' }}</span>
+                  <text class="meta-text">{{ test.variant_count }}个变体</text>
+                  <text class="meta-text">{{ test.total_views }}次展示</text>
+                </view>
+              </view>
+              <button class="btn btn-mini btn-view-result" @click="loadABTestResult(test.test_id)">查看结果</button>
+            </view>
+            <view v-if="abTestList.length === 0" class="empty-tip">暂无A/B测试记录</view>
+          </view>
+
+          <!-- 测试结果对比 -->
+          <view v-if="showABResult && currentABTest" class="ab-result-section">
+            <view class="ab-result-header">
+              <text class="section-title">📊 第 {{ currentABTest.slide_index + 1 }}页 A/B测试结果</text>
+              <button class="btn btn-mini" @click="showABResult = false">返回列表</button>
+            </view>
+            <view class="variant-cards">
+              <view v-for="(variant, idx) in currentABTest.variants" :key="variant.variant_id" class="variant-card">
+                <view class="variant-header">
+                  <text class="variant-label">变体 {{ idx + 1 }}</text>
+                  <span v-if="variant.is_winner" class="winner-badge">🏆 领先</span>
+                </view>
+                <view class="variant-strategy">
+                  {{ variant.slide_data?._variant_strategy === 'simplified' ? '📝 简化内容' : '🎨 增强视觉' }}
+                </view>
+                <view class="variant-stats">
+                  <view class="stat-row">
+                    <text class="stat-label">展示次数</text>
+                    <text class="stat-value">{{ currentABTest.performance?.[idx]?.views || 0 }}</text>
+                  </view>
+                  <view class="stat-row">
+                    <text class="stat-label">点击次数</text>
+                    <text class="stat-value">{{ currentABTest.performance?.[idx]?.clicks || 0 }}</text>
+                  </view>
+                  <view class="stat-row">
+                    <text class="stat-label">平均停留</text>
+                    <text class="stat-value">{{ currentABTest.performance?.[idx]?.avg_time_seconds || 0 }}s</text>
+                  </view>
+                  <view class="stat-row">
+                    <text class="stat-label">点击率</text>
+                    <text class="stat-value highlight">{{ currentABTest.performance?.[idx]?.engagement_rate || 0 }}%</text>
+                  </view>
+                </view>
+                <view class="variant-preview">
+                  <text class="preview-title">{{ variant.slide_data?.title || '(无标题)' }}</text>
+                  <text class="preview-content">{{ (variant.slide_data?.content || '').substring(0, 80) }}...</text>
+                </view>
+                <button class="btn btn-primary btn-apply-winner" @click="applyABWinner(currentABTest.test_id, variant.variant_id)">
+                  选用此版本
+                </button>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 改进建议面板 -->
+        <view v-if="showSuggestPanel" class="suggest-panel">
+          <view class="suggest-header">
+            <text class="section-title">💡 改进建议</text>
+            <button class="btn btn-mini" @click="showSuggestPanel = false">✕</button>
+          </view>
+          <view v-if="suggestLoading" class="loading-state">
+            <text>分析中...</text>
+          </view>
+          <view v-else class="suggest-list">
+            <view v-for="(s, idx) in suggestList" :key="idx" :class="['suggest-item', 'priority-' + s.priority]">
+              <view class="suggest-icon">{{ s.type === 'title' ? '📝' : s.type === 'content_density' ? '📄' : s.type === 'visual' ? '📊' : s.type === 'layout' ? '🎨' : s.type === 'ab_test' ? '🔬' : '💡' }}</view>
+              <view class="suggest-content">
+                <text class="suggest-title">{{ s.title }}</text>
+                <text class="suggest-desc">{{ s.description }}</text>
+                <text class="suggest-action">{{ s.action }}</text>
+                <text v-if="s.slide" class="suggest-slide">适用: 第{{ s.slide }}页</text>
+              </view>
+              <span :class="['priority-badge', s.priority]">{{ s.priority === 'high' ? '高' : s.priority === 'medium' ? '中' : '低' }}</span>
+            </view>
+            <view v-if="suggestList.length === 0" class="empty-tip">暂无可用建议</view>
+          </view>
+        </view>
+
         <!-- 版本历史列表 -->
-        <view v-if="!showActionLog" class="version-list">
+        <view v-if="!showActionLog && !showABTestPanel && !showSuggestPanel" class="version-list">
           <view v-for="v in versionList" 
                 :key="v.version_id"
                 :class="['version-item', v.version_id === currentVersionId ? 'current' : '']">
@@ -864,6 +1261,7 @@
             <view class="version-actions">
               <button class="btn btn-mini" @click="compareVersion(v.version_id)">对比</button>
               <button class="btn btn-mini btn-branch" @click="branchFromVersion(v.version_id)">📌 分支</button>
+              <button class="btn btn-mini btn-merge" @click="mergeFromVersion(v.version_id)">🔀 合并</button>
               <button class="btn btn-mini btn-rollback" @click="rollbackToVersion(v.version_id)">回滚</button>
             </view>
           </view>
@@ -872,16 +1270,91 @@
         
         <!-- 操作日志列表 -->
         <view v-if="showActionLog" class="action-log-container">
-          <!-- 撤销/重做按钮 -->
-          <view class="undo-bar" v-if="undoStack.length > 0 || redoStack.length > 0">
-            <button class="btn btn-sm btn-undo" @click="undoLastAction" v-if="undoStack.length > 0">
-              ↩️ 撤销 ({{ undoStack.length }})
-            </button>
-            <button class="btn btn-sm btn-redo" @click="redoLastAction" v-if="redoStack.length > 0">
-              ↪️ 重做 ({{ redoStack.length }})
-            </button>
+          <!-- 高级撤销/重做工具栏 -->
+          <view class="undo-toolbar">
+            <view class="undo-info">
+              <text class="undo-count">撤销栈: {{ undoStack.length }} | 重做栈: {{ redoStack.length }}</text>
+              <text class="checkpoint-info" v-if="lastCheckpointTime">
+                📌 上次检查点: {{ formatTime(new Date(lastCheckpointTime).toISOString()) }}
+              </text>
+            </view>
+            <view class="undo-actions">
+              <button class="btn btn-sm btn-undo" @click="undoLastAction" v-if="undoStack.length > 0">
+                ↩️ 撤销 ({{ undoStack.length }})
+              </button>
+              <button class="btn btn-sm btn-redo" @click="redoLastAction" v-if="redoStack.length > 0">
+                ↪️ 重做 ({{ redoStack.length }})
+              </button>
+              <button class="btn btn-sm btn-timeline" @click="toggleTimeline" :class="{'active': showTimeline}">
+                📊 时间线
+              </button>
+              <button class="btn btn-sm btn-branch" @click="toggleBranchUndo" :class="{'active': showBranchUndo}">
+                🌳 分支撤销
+              </button>
+              <button class="btn btn-sm btn-checkpoint" @click="createCheckpointManual">
+                💾 创建检查点
+              </button>
+            </view>
           </view>
-          <view class="action-log-list">
+          
+          <!-- 可视化撤销时间线 -->
+          <view v-if="showTimeline" class="timeline-container">
+            <view class="timeline-header">
+              <text class="timeline-title">📊 操作时间线（可选择撤销任意操作）</text>
+              <text class="timeline-count">{{ actionTimeline.length }} 个操作</text>
+            </view>
+            <scroll-view class="timeline-scroll" scroll-y>
+              <view class="timeline-list">
+                <view v-for="(item, idx) in actionTimeline" 
+                      :key="item.action_id || idx"
+                      :class="['timeline-item', 
+                               item.action_type === 'undo' ? 'timeline-undo' : '',
+                               item.action_type === 'redo' ? 'timeline-redo' : '',
+                               item.action_type === 'checkpoint' ? 'timeline-checkpoint' : '',
+                               item.action_type === 'branch_undo' ? 'timeline-branch' : '']">
+                  <view class="timeline-dot"></view>
+                  <view class="timeline-line" v-if="idx < actionTimeline.length - 1"></view>
+                  <view class="timeline-content" @click="undoByActionId(item.action_id)">
+                    <view class="timeline-icon">{{ getActionIcon(item.action_type) }}</view>
+                    <view class="timeline-info">
+                      <text class="timeline-desc">{{ item.description }}</text>
+                      <text class="timeline-time">{{ formatTime(item.timestamp) }}</text>
+                    </view>
+                    <view class="timeline-action" v-if="item.action_id && item.action_type !== 'undo' && item.action_type !== 'redo'">
+                      <button class="btn btn-mini btn-branch-undo">撤销此步</button>
+                    </view>
+                  </view>
+                </view>
+                <view v-if="actionTimeline.length === 0" class="empty-tip">暂无时间线记录</view>
+              </view>
+            </scroll-view>
+          </view>
+          
+          <!-- 检查点列表 -->
+          <view v-if="checkpoints.length > 0" class="checkpoint-list">
+            <view class="checkpoint-header">
+              <text class="checkpoint-title">💾 检查点历史</text>
+            </view>
+            <view v-for="cp in checkpoints" :key="cp.checkpoint_id" class="checkpoint-item">
+              <view class="checkpoint-info" @click="restoreFromCheckpoint(cp.checkpoint_id, cp.name)">
+                <text class="checkpoint-name">{{ cp.name }}</text>
+                <text class="checkpoint-time">{{ formatTime(cp.created_at) }}</text>
+                <text class="checkpoint-type">{{ cp.type === 'auto' ? '自动' : '手动' }}</text>
+              </view>
+              <button class="btn btn-mini" @click="restoreFromCheckpoint(cp.checkpoint_id, cp.name)">恢复</button>
+            </view>
+          </view>
+          
+          <!-- 协作锁状态 -->
+          <view v-if="Object.keys(collaborativeLocks).length > 0" class="collab-locks">
+            <text class="collab-title">👥 当前协作状态</text>
+            <view v-for="(lock, key) in collaborativeLocks" :key="key" class="collab-lock-item">
+              <text>🔒 {{ key === 'outline' ? '大纲' : `第${lock.slide_index}页` }} - {{ lock.user_id }}</text>
+            </view>
+          </view>
+          
+          <!-- 传统操作日志列表 -->
+          <view v-if="!showTimeline" class="action-log-list">
             <view v-for="(log, idx) in actionLog" 
                   :key="idx"
                   :class="['action-item', log.action_type === 'undo' ? 'undo-entry' : '']">
@@ -895,29 +1368,46 @@
           </view>
         </view>
         
-        <!-- 版本对比视图 -->
+        <!-- 版本对比视图 (侧边对比) -->
         <view v-if="showDiffView" class="diff-view">
           <view class="diff-header">
-            <text class="diff-title">{{ diffData.version_a }} vs {{ diffData.version_b }}</text>
-            <text class="diff-count">{{ diffData.total_changes }} 处变更</text>
+            <text class="diff-title">🔍 {{ diffData.version_a }} vs {{ diffData.version_b }}</text>
+            <view class="diff-header-actions">
+              <text class="diff-count">{{ diffData.total_changes }} 处变更</text>
+              <button class="btn btn-sm" @click="showDiffView = false">✕</button>
+            </view>
           </view>
           <view class="diff-slides">
             <view v-for="d in diffData.diff" :key="d.slide_index" class="diff-item">
               <view class="diff-slide-title">第 {{ d.slide_index }} 页</view>
-              <view class="diff-content">
-                <view class="diff-before" v-if="d.before">
-                  <text class="label">变更前</text>
-                  <text class="diff-slide-text">{{ d.before.title || '(无)' }}</text>
+              <view class="diff-content side-by-side">
+                <view class="diff-side diff-side-left" v-if="d.before">
+                  <view class="side-header">
+                    <span class="side-badge before-badge">{{ diffData.version_a }}</span>
+                    <text class="side-label">变更前</text>
+                  </view>
+                  <view class="slide-preview-box">
+                    <text class="preview-label-title">{{ d.before.title || '(无标题)' }}</text>
+                    <text class="preview-label-layout">布局: {{ d.before.layout || 'default' }}</text>
+                    <div class="preview-text">{{ (d.before.content || '').substring(0, 100) }}</div>
+                  </view>
                 </view>
-                <view class="diff-after" v-if="d.after">
-                  <text class="label">变更后</text>
-                  <text class="diff-slide-text">{{ d.after.title || '(无)' }}</text>
+                <view class="diff-side diff-side-right" v-if="d.after">
+                  <view class="side-header">
+                    <span class="side-badge after-badge">{{ diffData.version_b }}</span>
+                    <text class="side-label">变更后</text>
+                  </view>
+                  <view class="slide-preview-box">
+                    <text class="preview-label-title">{{ d.after.title || '(无标题)' }}</text>
+                    <text class="preview-label-layout">布局: {{ d.after.layout || 'default' }}</text>
+                    <div class="preview-text">{{ (d.after.content || '').substring(0, 100) }}</div>
+                  </view>
                 </view>
               </view>
             </view>
           </view>
           <view class="diff-footer">
-            <button class="btn btn-sm" @click="showDiffView = false">关闭对比</button>
+            <button class="btn btn-sm btn-secondary" @click="showDiffView = false">关闭对比</button>
           </view>
         </view>
 
@@ -1426,14 +1916,24 @@
     <!-- 团队活动动态面板 -->
     <div v-if="showActivityFeed" class="activity-panel-overlay" @click="showActivityFeed = false">
       <div class="activity-panel" @click.stop>
-        <ActivityFeedPanel :ppt-id="taskId" />
+        <ActivityFeedPanel :ppt-id="taskId" :task-id="taskId" />
       </div>
     </div>
 
     <!-- 幻灯片评论/建议面板 -->
     <div v-if="showCommentsPanel" class="comments-panel-overlay" @click="showCommentsPanel = false">
       <div class="comments-panel" @click.stop>
-        <SlideCommentsPanel :ppt-id="taskId" :slide-num="currentVisibleSlide + 1" />
+        <SlideCommentsPanel
+          :ppt-id="taskId"
+          :task-id="taskId"
+          :slide-num="currentVisibleSlide + 1"
+          :presence-list="collaborationEnabled && _collaborationInstance ? _collaborationInstance.presenceList.value : []"
+          :collaboration="collaborationEnabled && _collaborationInstance ? {
+            addComment: _collaborationInstance.addComment,
+            replyComment: _collaborationInstance.replyComment,
+            resolveComment: _collaborationInstance.resolveComment,
+          } : null"
+        />
       </div>
     </div>
 
@@ -1442,6 +1942,52 @@
       :show="showAdvancedAIPanel"
       :task-id="taskId"
       @close="showAdvancedAIPanel = false"
+    />
+
+    <!-- 智能设计面板 (R90) -->
+    <SmartDesignPanel
+      :show="showSmartDesignPanel"
+      :slides="editableSlides"
+      :current-slide-index="currentEditingSlide - 1"
+      :task-id="taskId"
+      :preview-slides="previewSlides"
+      @close="showSmartDesignPanel = false"
+      @apply="handleSmartDesignApply"
+      @toggle-guides="handleToggleGuides"
+      @spacing-change="handleSpacingChange"
+    />
+
+    <!-- R118: 智能内容建议面板 -->
+    <SmartContentSuggestions
+      :show="showSmartContentSuggestions"
+      :slides="editableSlides"
+      :current-slide-index="currentEditingSlide - 1"
+      :task-id="taskId"
+      :topic="outline?.topic || ''"
+      :style="outline?.style || 'professional'"
+      :scene="outline?.scene || 'business'"
+      :page-count="editableSlides.length"
+      @close="showSmartContentSuggestions = false"
+      @apply-addition="handleApplyAddition"
+    />
+
+    <!-- 无障碍与通用设计面板 -->
+    <AccessibilityPanel
+      :visible="showAccessibilityPanel"
+      :slides="editableSlides"
+      :theme-color="activeMasterColors.themeColor"
+      :body-bg-color="activeMasterColors.bgColor"
+      @close="showAccessibilityPanel = false"
+    />
+
+    <!-- AI演讲教练面板 -->
+    <PresentationCoach
+      :visible="showPresentationCoach"
+      :task-id="taskId"
+      :slides="editableSlides"
+      @close="showPresentationCoach = false"
+      @view-slide="handleCoachViewSlide"
+      @apply-timing="handleCoachApplyTiming"
     />
 
     <!-- 自定义分享链接弹窗 -->
@@ -1454,11 +2000,74 @@
       @close="showShareLinkModal = false"
       @saved="onShareLinkSaved"
     />
+
+    <!-- Embed Widget 代码生成 -->
+    <EmbedWidget
+      :show="showEmbedCode"
+      :task-id="taskId"
+      :slide-count="slides.length || taskResult?.slides?.length || 1"
+      @close="showEmbedCode = false"
+    />
+
+    <!-- Voice Panel -->
+    <VoicePanel
+      v-if="showVoicePanel"
+      :settings="voiceSettings"
+      :custom-commands="voiceCustomCommands"
+      :is-listening="isVoiceListening"
+      :is-speaking="isVoiceSpeaking"
+      :captions="voiceCaptions"
+      :captions-visible="voiceCaptionsVisible"
+      :current-transcript="voiceCurrentTranscript"
+      :last-recognized-command="voiceLastCommand"
+      :command-error="voiceCommandError"
+      :slide-title="currentSlideTitle"
+      :slide-content="currentSlideContent"
+      @close="showVoicePanel = false"
+      @update-settings="updateVoiceSettings"
+      @toggle-listening="toggleVoiceListening"
+      @read-current-slide="startReadAloud"
+      @stop-speaking="stopVoiceSpeaking"
+      @toggle-captions="toggleVoiceCaptions"
+      @batch-generate="batchGenerateVoiceover"
+      @add-command="addVoiceCommand"
+      @remove-command="removeVoiceCommand"
+    />
+
+    <!-- Real-time Collaboration Overlay (R98) -->
+    <CollaborationOverlay
+      v-if="showCollaborationOverlay && _collaborationInstance"
+      :show="showCollaborationOverlay"
+      :cursors="_collaborationInstance.cursors"
+      :presence-list="_collaborationInstance.presenceList.value"
+      :current-user="currentUser"
+      :connected="_collaborationInstance.connected.value"
+      :my-color="_collaborationInstance.myColor.value"
+      :following-user-id="_collaborationInstance.followingUserId.value"
+      :follow-viewport="_collaborationInstance.followViewport.value"
+      :current-slide-num="currentVisibleSlide + 1"
+      @start-follow="(uid) => _collaborationInstance?.startFollowMode(uid)"
+      @stop-follow="() => _collaborationInstance?.stopFollowMode()"
+    />
+
+    <!-- Recording Panel -->
+    <RecordingPanel
+      :show="showRecordingPanel"
+      :task-id="taskId"
+      :slides="editableSlides"
+      @close="handleRecordingPanelClose"
+      @start-record="handleStartRecord"
+      @stop-record="handleStopRecord"
+      @add-chapter="handleRecordingAddChapter"
+      @webcam-config="handleWebcamConfig"
+      @stream-config="handleStreamConfig"
+      @export-recording="handleExportRecording"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
@@ -1467,9 +2076,19 @@ import ChartEditor from '../components/ChartEditor.vue'
 import TeamWorkspacePanel from '../components/TeamWorkspacePanel.vue'
 import ActivityFeedPanel from '../components/ActivityFeedPanel.vue'
 import SlideCommentsPanel from '../components/SlideCommentsPanel.vue'
+import CollaborationOverlay from '../components/CollaborationOverlay.vue'
 import AdvancedAIPanel from '../components/AdvancedAIPanel.vue'
+import SmartDesignPanel from '../components/SmartDesignPanel.vue'
+import SmartContentSuggestions from '../components/SmartContentSuggestions.vue'
+import AccessibilityPanel from '../components/AccessibilityPanel.vue'
+import PresentationCoach from '../components/PresentationCoach.vue'
 import ReactionButtons from '../components/ReactionButtons.vue'
 import ShareLinkModal from '../components/ShareLinkModal.vue'
+import EmbedWidget from '../components/EmbedWidget.vue'
+import VoicePanel from '../components/VoicePanel.vue'
+import RecordingPanel from '../components/RecordingPanel.vue'
+import { useVoiceCommands } from '../composables/useVoiceCommands'
+import { useVoiceDictation } from '../composables/useVoiceDictation'
 import { useSwipeGesture } from '../composables/useSwipeGesture'
 import { getDeviceMode } from '../composables/useDeviceMode'
 import { useInteractionFeedback } from '../composables/useInteractionFeedback'
@@ -1477,7 +2096,12 @@ import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useImageCompressor } from '../composables/useImageCompressor'
 import { usePerformanceMode } from '../composables/usePerformanceMode'
 import { useEngagement } from '../composables/useEngagement'
+import { useBrand } from '../composables/useBrand'
 import { useClipboardAndContent } from '../composables/useClipboardAndContent'
+import { useCollaboration } from '../composables/useCollaboration'
+import { usePushNotification } from '../composables/usePushNotification'
+import { usePresentationAnalytics, startViewSession, endViewSession, trackScrollDepth, setupScrollTracking } from '../composables/usePresentationAnalytics'
+import { useI18n, LOCALES, detectLanguage, RTL_LOCALES } from '../composables/useI18n'
 
 const router = useRouter()
 const route = useRoute()
@@ -1486,12 +2110,26 @@ const route = useRoute()
 const deviceMode = getDeviceMode()
 const isMobile = deviceMode.isMobile
 
+// Voice dictation for mobile slide editing
+const {
+  isListening: isDictating,
+  interimTranscript: dictationInterim,
+  error: dictationError,
+  isSupported: isDictationSupported,
+  start: startDictation,
+  stop: stopDictation
+} = useVoiceDictation({ language: 'zh-CN', continuous: false })
+
 // Toast notifications
 const { showSuccess, showError, showWarning, showInfo } = useInteractionFeedback()
 
 // Image compression
 const { compressImage } = useImageCompressor()
 const { isPerformanceMode: isPerfMode } = usePerformanceMode()
+// Brand (R104 white-label)
+const { displayBrandName } = useBrand()
+// Push notifications
+const { notifyGenerationComplete, notifyGenerationFailed, prepareForGeneration } = usePushNotification()
 
 // Clipboard & Content Integration
 const {
@@ -1739,6 +2377,26 @@ const isFavorite = ref(false)
 const exportTheme = ref<'light' | 'dark'>('light')
 const showPresentation = ref(false)
 
+// Presentation analytics tracking
+let _scrollCleanup: (() => void) | null = null
+
+watch(showPresentation, async (isActive) => {
+  if (isActive && taskId.value) {
+    const sessionId = await startViewSession(taskId.value)
+    if (sessionId) {
+      // Setup scroll tracking on the presentation overlay
+      const cleanup = setupScrollTracking(document.documentElement)
+      _scrollCleanup = cleanup
+    }
+  } else {
+    if (_scrollCleanup) {
+      _scrollCleanup()
+      _scrollCleanup = null
+    }
+    await endViewSession()
+  }
+})
+
 // 内容编辑模式
 const isEditMode = ref(false)
 const isRegenerating = ref(false)
@@ -1755,6 +2413,176 @@ const showChartEditor = ref(false)
 // 幻灯片过渡设置
 const showTransitionPanel = ref(false)
 const transitionApplyScope = ref<'current' | 'all'>('all')
+
+// Voice dictation state for mobile editing
+const dictatingSlideIndex = ref<number | null>(null)
+const dictatingField = ref<'title' | 'content' | 'notes' | null>(null)
+const dictationActive = ref(false)
+
+// ===== Presentation Security (R122) =====
+const showSecurityPanel = ref(false)
+const securityConfig = ref<{
+  task_id: string
+  has_password: boolean
+  password_set_at: string | null
+  biometric_required: boolean
+  biometric_set_at: string | null
+  allowed_ips: string[]
+  has_ip_restriction: boolean
+  ip_allowlist_set_at: string | null
+  auto_watermark: {
+    enabled: boolean
+    text: string
+    opacity: number
+    angle: number
+    font_size: number
+    color: string
+  }
+  created_at: string | null
+} | null>(null)
+const securityLoading = ref(false)
+const securityPassword = ref('')
+const securityBiometricRequired = ref(false)
+const securityAllowedIPs = ref<string[]>([])
+const securityAllowedIPsInput = ref('')
+const securityAutoWatermark = ref({
+  enabled: false,
+  text: '',
+  opacity: 0.15,
+  angle: -45,
+  font_size: 48,
+  color: '#888888'
+})
+const securityAccessLog = ref<any[]>([])
+const securityDownloadPassword = ref('')
+const showSecurityDownloadModal = ref(false)
+
+const loadSecurityConfig = async () => {
+  if (!taskId.value) return
+  securityLoading.value = true
+  try {
+    const res = await api.security.getConfig(taskId.value) as any
+    securityConfig.value = res.data
+    securityBiometricRequired.value = res.data.biometric_required
+    securityAllowedIPs.value = res.data.allowed_ips || []
+    securityAutoWatermark.value = res.data.auto_watermark || {
+      enabled: false, text: '', opacity: 0.15, angle: -45, font_size: 48, color: '#888888'
+    }
+  } catch (e) {
+    console.error('Failed to load security config:', e)
+  } finally {
+    securityLoading.value = false
+  }
+}
+
+const saveSecurityPassword = async () => {
+  if (!taskId.value || !securityPassword.value) return
+  try {
+    await api.security.setPassword(taskId.value, securityPassword.value)
+    securityPassword.value = ''
+    await loadSecurityConfig()
+    showSuccess('密码已设置', '演示文稿下载时需要密码验证')
+  } catch (e: any) {
+    showError('设置失败', e?.message || '密码设置失败')
+  }
+}
+
+const removeSecurityPassword = async () => {
+  if (!taskId.value) return
+  try {
+    await api.security.removePassword(taskId.value)
+    await loadSecurityConfig()
+    showSuccess('密码已移除', '演示文稿下载不再需要密码')
+  } catch (e: any) {
+    showError('移除失败', e?.message || '密码移除失败')
+  }
+}
+
+const saveSecurityBiometric = async () => {
+  if (!taskId.value) return
+  try {
+    await api.security.setBiometric(taskId.value, securityBiometricRequired.value)
+    await loadSecurityConfig()
+    showSuccess(
+      securityBiometricRequired.value ? '生物认证已启用' : '生物认证已关闭',
+      securityBiometricRequired.value ? '下载前需要生物认证' : '下载不再需要生物认证'
+    )
+  } catch (e: any) {
+    showError('设置失败', e?.message || '生物认证设置失败')
+  }
+}
+
+const saveSecurityIPs = async () => {
+  if (!taskId.value) return
+  const ips = securityAllowedIPsInput.value
+    .split(/[,;\n]/)
+    .map(ip => ip.trim())
+    .filter(ip => ip.length > 0)
+  try {
+    await api.security.setIPAllowlist(taskId.value, ips)
+    securityAllowedIPs.value = ips
+    securityAllowedIPsInput.value = ips.join(', ')
+    await loadSecurityConfig()
+    showSuccess('IP白名单已保存', ips.length > 0 ? `允许 ${ips.length} 个IP地址` : 'IP限制已清除')
+  } catch (e: any) {
+    showError('设置失败', e?.message || 'IP白名单设置失败')
+  }
+}
+
+const saveSecurityWatermark = async () => {
+  if (!taskId.value) return
+  try {
+    await api.security.setWatermark(taskId.value, {
+      enabled: securityAutoWatermark.value.enabled,
+      text: securityAutoWatermark.value.text,
+      opacity: securityAutoWatermark.value.opacity,
+      angle: securityAutoWatermark.value.angle,
+      font_size: securityAutoWatermark.value.font_size,
+      color: securityAutoWatermark.value.color,
+    })
+    await loadSecurityConfig()
+    showSuccess('水印设置已保存', securityAutoWatermark.value.enabled ? '导出时将自动添加水印' : '自动水印已关闭')
+  } catch (e: any) {
+    showError('设置失败', e?.message || '水印设置失败')
+  }
+}
+
+const loadSecurityAccessLog = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.security.getAccessLog(taskId.value) as any
+    securityAccessLog.value = res.data.logs || []
+  } catch (e: any) {
+    console.error('Failed to load access log:', e)
+  }
+}
+
+const triggerBiometric = async (): Promise<string> => {
+  // Use WebAuthn API for biometric verification
+  if ('credentials' in navigator) {
+    try {
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: new Uint8Array(32),
+          rp: { name: 'RabAiMind' },
+          user: { id: new TextEncoder().encode(taskId.value), name: taskId.value },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+        }
+      } as any)
+      return btoa(JSON.stringify(credential))
+    } catch (e) {
+      console.warn('WebAuthn not available, using fallback')
+    }
+  }
+  return 'biometric_fallback_token'
+}
+
+const openSecurityPanel = () => {
+  showSecurityPanel.value = true
+  loadSecurityConfig()
+  loadSecurityAccessLog()
+  showMoreMenu.value = false
+}
 
 // ===== Master Slide System =====
 interface MasterSlide {
@@ -1833,6 +2661,14 @@ const editingMaster = reactive<Partial<MasterSlide>>({})
 
 const getSelectedMaster = () => masterSlides.value.find(m => m.id === selectedMasterId.value)
 
+const activeMasterColors = computed(() => {
+  const master = getSelectedMaster()
+  return {
+    themeColor: master?.primaryColor || '#2563eb',
+    bgColor: master?.background || '#ffffff'
+  }
+})
+
 const openMasterEditor = (masterId?: string) => {
   const id = masterId || selectedMasterId.value
   selectedMasterId.value = id
@@ -1841,6 +2677,34 @@ const openMasterEditor = (masterId?: string) => {
     Object.assign(editingMaster, { ...master })
   }
   showMasterEditor.value = true
+}
+
+// AI演讲教练
+const openPresentationCoach = () => {
+  // 确保有slides数据
+  if (editableSlides.value.length === 0) {
+    showWarning('请先进入编辑模式加载幻灯片', '演讲教练需要幻灯片内容')
+    return
+  }
+  showPresentationCoach.value = true
+}
+
+const handleCoachViewSlide = (slideNum: number) => {
+  // 从教练面板跳转到指定页
+  if (!isEditMode.value) {
+    toggleEditMode()
+  }
+  currentEditingSlide.value = slideNum
+  showPresentationCoach.value = false
+}
+
+const coachTimingData = ref<any>(null)
+
+const handleCoachApplyTiming = (timingResult: any) => {
+  coachTimingData.value = timingResult
+  showPresentationCoach.value = false
+  showPresentation.value = true
+  showSuccess('⏱', '已应用AI节奏建议，自动播放已开启')
 }
 
 const applyMasterToSlide = (slideIndex: number, masterId: string) => {
@@ -1955,8 +2819,229 @@ const getSlideAnimation = (slideIndex: number): SlideAnimation | undefined => {
 const showTeamWorkspace = ref(false)
 const showActivityFeed = ref(false)
 const showCommentsPanel = ref(false)
+
+// ─── 实时协作 (R71) ─────────────────────────────────────────────────────────────
+// 用户身份 (如果没有则生成一个匿名 ID 存储在 localStorage)
+const getOrCreateUserId = () => {
+  let uid = localStorage.getItem('rabai_user_id')
+  if (!uid) {
+    uid = `u_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    localStorage.setItem('rabai_user_id', uid)
+  }
+  return uid
+}
+const getOrCreateUserName = () => {
+  let name = localStorage.getItem('rabai_user_name')
+  if (!name) {
+    const adjectives = ['开心的', '热情的', '冷静的', '活泼的', '认真的']
+    const nouns = ['兔子', '熊猫', '老虎', '小猫', '小狗']
+    name = adjectives[Math.floor(Math.random() * adjectives.length)] +
+           nouns[Math.floor(Math.random() * nouns.length)]
+    localStorage.setItem('rabai_user_name', name)
+  }
+  return name
+}
+const currentUser = {
+  id: getOrCreateUserId(),
+  name: getOrCreateUserName(),
+  avatar: '',
+  role: 'editor',
+}
+
+// 协作实例 (条件初始化: 仅当有 taskId 时)
+let _collaborationInstance: ReturnType<typeof useCollaboration> | null = null
+const collaborationEnabled = ref(false)
+const showCollaborationOverlay = ref(false)
+
+const initCollaboration = () => {
+  if (!taskId.value || _collaborationInstance) return
+  _collaborationInstance = useCollaboration(taskId.value, currentUser)
+  collaborationEnabled.value = true
+  showCollaborationOverlay.value = true
+
+  // 监听被跟随时的视口变化 → 自动跳转到对应幻灯片
+  _collaborationInstance.onViewportChange((viewport) => {
+    if (viewport && viewport.slide_num) {
+      const targetSlide = viewport.slide_num - 1
+      if (targetSlide >= 0 && targetSlide < editableSlides.value.length) {
+        currentVisibleSlide.value = targetSlide
+      }
+    }
+  })
+}
+
+// 鼠标移动 → 更新光标位置 (节流)
+let _cursorThrottle = 0
+const handleEditorMouseMove = (event: MouseEvent) => {
+  if (!collaborationEnabled.value || !_collaborationInstance) return
+  const now = Date.now()
+  if (now - _cursorThrottle < 50) return
+  _cursorThrottle = now
+
+  const container = (event.currentTarget as HTMLElement)
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  const x = (event.clientX - rect.left) / rect.width
+  const y = (event.clientY - rect.top) / rect.height
+
+  _collaborationInstance.updateCursor(
+    x, y,
+    currentVisibleSlide.value + 1,
+    {
+      viewportX: container.scrollLeft,
+      viewportY: container.scrollTop,
+      viewportZoom: 1,
+    }
+  )
+}
+
+// 协作评论 → 传递给 SlideCommentsPanel
+const collabCommentsRef = computed(() => {
+  if (!_collaborationInstance) return null
+  return {
+    addComment: _collaborationInstance.addComment,
+    replyComment: _collaborationInstance.replyComment,
+    resolveComment: _collaborationInstance.resolveComment,
+  }
+})
 const showAdvancedAIPanel = ref(false)
+const showSmartDesignPanel = ref(false)
+const showSmartContentSuggestions = ref(false)
+const showAccessibilityPanel = ref(false)
+const showPresentationCoach = ref(false)
 const currentEditingSlide = ref(1)
+
+// ── Voice / Speech ────────────────────────────────────────────────────────
+const showVoicePanel = ref(false)
+const showRecordingPanel = ref(false)
+
+// Recording & Webcam State
+const isRecordingMode = ref(false)
+const recordingChapters = ref<Array<{ id: string; title: string; time: number }>>([])
+const currentWebcamConfig = ref<{
+  enabled: boolean
+  position: string
+  size: number
+  borderRadius: number
+  mirror: boolean
+  border: boolean
+  stream: MediaStream | null
+} | null>(null)
+
+function handleAddChapter(time: number) {
+  const chapter = {
+    id: `ch-${Date.now()}`,
+    title: `章节 ${recordingChapters.value.length + 1}`,
+    time
+  }
+  recordingChapters.value.push(chapter)
+}
+
+function handleWebcamConfig(config: any) {
+  currentWebcamConfig.value = config
+}
+const voice = useVoiceCommands()
+const voiceSettings = voice.settings
+const voiceCustomCommands = voice.customCommands
+const isVoiceListening = voice.isListening
+const isVoiceSpeaking = voice.isSpeaking
+const voiceCaptions = voice.captions
+const voiceCaptionsVisible = voice.captionsVisible
+const voiceCurrentTranscript = voice.currentTranscript
+const voiceLastCommand = voice.lastRecognizedCommand
+const voiceCommandError = voice.commandError
+
+function updateVoiceSettings(updates: any) {
+  voice.updateSettings(updates)
+}
+
+function toggleVoiceListening() {
+  voice.toggleListening()
+}
+
+function stopVoiceSpeaking() {
+  voice.stopSpeaking()
+}
+
+function toggleVoiceCaptions() {
+  voice.toggleCaptions()
+}
+
+function addVoiceCommand(cmd: any) {
+  voice.addCustomCommand(cmd)
+}
+
+function removeVoiceCommand(id: string) {
+  voice.removeCustomCommand(id)
+}
+
+function openVoicePanel() {
+  showVoicePanel.value = true
+}
+
+function openRecordingPanel() {
+  showRecordingPanel.value = true
+}
+
+async function startReadAloud() {
+  const idx = currentEditingSlide.value - 1
+  const slide = editableSlides.value[idx]
+  if (!slide) return
+
+  const text = [slide.title, slide.content].filter(Boolean).join('。')
+  if (!text) {
+    alert('当前页没有内容可朗读')
+    return
+  }
+
+  await voice.readSlideAloud(text)
+}
+
+async function batchGenerateVoiceover() {
+  alert('批量配音功能开发中，敬请期待！')
+}
+
+// Set up voice navigation handler to work with slide navigation
+voice.setNavigationHandler((action, value) => {
+  if (value === 'next') {
+    if (currentEditingSlide.value < slideCount.value) {
+      currentEditingSlide.value++
+    }
+  } else if (value === 'prev') {
+    if (currentEditingSlide.value > 1) {
+      currentEditingSlide.value--
+    }
+  } else if (value === 'first') {
+    currentEditingSlide.value = 1
+  } else if (value === 'last') {
+    currentEditingSlide.value = slideCount.value
+  } else if (value?.startsWith('slide:')) {
+    const num = parseInt(value.split(':')[1])
+    if (num >= 1 && num <= slideCount.value) {
+      currentEditingSlide.value = num
+    }
+  }
+})
+
+voice.setControlHandler((action, value) => {
+  if (value === 'read') {
+    startReadAloud()
+  } else if (value === 'stop') {
+    stopVoiceSpeaking()
+  } else if (value === 'captions') {
+    toggleVoiceCaptions()
+  }
+})
+
+const currentSlideTitle = computed(() => {
+  const idx = currentEditingSlide.value - 1
+  return editableSlides.value[idx]?.title || ''
+})
+
+const currentSlideContent = computed(() => {
+  const idx = currentEditingSlide.value - 1
+  return editableSlides.value[idx]?.content || ''
+})
 
 const transitionTypes = [
   { value: 'slide', name: '滑动', icon: '→' },
@@ -1995,14 +3080,33 @@ const showVersionPanel = ref(false)
 const versionList = ref<Array<{version_id: string; name: string; created_at: string; slide_count: number}>>([])
 const currentVersionId = ref('')
 const showDiffView = ref(false)
-// 操作日志 & 撤销相关
-const actionLog = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
-const undoStack = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
-const redoStack = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
-const showAutoSaveSettings = ref(false)
+// A/B Testing
+const showABTestPanel = ref(false)
+const abTestList = ref<Array<{test_id: string; slide_index: number; variant_count: number; status: string; winner?: string; total_views: number}>>([])
+const currentABTest = ref<any>(null)
+const showABResult = ref(false)
+// Suggest Improvements
+const showSuggestPanel = ref(false)
+const suggestList = ref<any[]>([])
+const suggestLoading = ref(false)
+// Slide-level version history
+const slideHistoryMap = ref<Record<number, any[]>>({})
+const expandedSlideHistory = ref<number | null>(null)
+// 操作日志 & 撤销相关（高级版 - 支持100+级别和分支撤销）
+const actionLog = ref<Array<{action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any; branch_id?: string}>>([])
+const undoStack = ref<Array<{action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const redoStack = ref<Array<{action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const actionTimeline = ref<Array<{action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any; branch_id?: string}>>([])  // 完整时间线
+const showTimeline = ref(false)  // 显示可视化时间线
+const showBranchUndo = ref(false)  // 显示分支撤销选择器
+const selectedBranchAction = ref<string | null>(null)  // 选中的分支撤销动作
+const checkpoints = ref<Array<{checkpoint_id: string; name: string; type: string; created_at: string; action_count: number}>>([])  // 检查点列表
+const collaborativeLocks = ref<Record<string, {user_id: string; slide_index?: number; locked_at: string}>>({})  // 协作编辑锁
 const autoSaveEnabled = ref(true)
-const autoSaveInterval = ref(30000) // 默认30秒
+const autoSaveInterval = ref(300000) // 默认5分钟（300秒 = 300000毫秒）
 const lastAutoSaveTime = ref<number | null>(null)
+const lastCheckpointTime = ref<number | null>(null)
+const checkpointInterval = 300000  // 5分钟检查点
 const showRecoveryModal = ref(false)
 const recoveryInfo = ref<{savedAt: number; state: any} | null>(null)
 const showActionLog = ref(false)  // 是否显示操作日志tab
@@ -2028,10 +3132,69 @@ const regeneratingSlideIndex = ref<number | null>(null)
 
 // 存为模板相关
 const showSaveTemplateModal = ref(false)
+const showLocalizeModal = ref(false)
 const showBatchThemeModal = ref(false)
 const batchThemePrimary = ref('#165DFF')
 const batchThemeSecondary = ref('#0E42D2')
 const batchThemeAccent = ref('#64D2FF')
+
+// Localize / Translation state
+const { locale: currentLocale, t } = useI18n()
+const detectedSourceLocale = ref('')
+const targetLocale = ref('en')
+const applyRTL = ref(false)
+const isLocalizing = ref(false)
+
+// Available target locales (exclude current locale)
+const availableTargetLocales = computed(() => {
+  return LOCALES.filter(l => l.code !== currentLocale.value)
+})
+
+// Detect content language
+const handleDetectLanguage = async () => {
+  if (!taskId.value) return
+  isLocalizing.value = true
+  try {
+    const res = await api.ppt.detectContentLanguage(taskId.value)
+    if (res.data.success) {
+      detectedSourceLocale.value = LOCALES.find(l => l.code === res.data.detected_locale)?.nativeName || res.data.detected_locale
+    }
+  } catch (e) {
+    console.error('Detect language failed:', e)
+    // Fallback to client-side detection
+    detectedSourceLocale.value = detectLanguage(outlineText || '')
+  } finally {
+    isLocalizing.value = false
+  }
+}
+
+// Handle localize / translate
+const handleLocalize = async () => {
+  if (!taskId.value || !targetLocale.value) return
+  isLocalizing.value = true
+  try {
+    const res = await api.ppt.localize(taskId.value, {
+      target_locale: targetLocale.value,
+      source_locale: detectedSourceLocale.value,
+      translate_content: true,
+      apply_rtl: applyRTL.value || RTL_LOCALES.includes(targetLocale.value as any)
+    })
+    if (res.data.success) {
+      showLocalizeModal.value = false
+      // Reload the page with new task or notify success
+      if (res.data.new_task_id) {
+        router.push(`/result?taskId=${res.data.new_task_id}`)
+      } else {
+        window.location.reload()
+      }
+    }
+  } catch (e) {
+    console.error('Localize failed:', e)
+    alert('翻译失败，请重试')
+  } finally {
+    isLocalizing.value = false
+  }
+}
 
 const newTemplate = ref({
   name: '',
@@ -2194,7 +3357,21 @@ const pdfOptions = ref({
 
 const handleElementApply = (editedSlides: any) => {
   console.log('元素已更新:', editedSlides)
+  triggerSignificantEditCheckpoint('元素编辑')
   alert('元素微调已保存！请下载更新后的PPT。')
+}
+
+// R118: 智能内容建议 - 应用添加的内容
+const handleApplyAddition = (addition: any) => {
+  console.log('应用添加的内容:', addition)
+  const slideIndex = addition.slide_index
+  if (slideIndex !== undefined && editableSlides.value[slideIndex]) {
+    const slide = editableSlides.value[slideIndex]
+    const newContent = slide.content ? slide.content + '\n\n' + addition.suggestion : addition.suggestion
+    slide.content = newContent
+    triggerSignificantEditCheckpoint('内容添加')
+    alert('内容已添加到第 ' + (slideIndex + 1) + ' 页！')
+  }
 }
 
 // 图表已生成
@@ -2206,6 +3383,7 @@ const handleChartGenerated = (chartData: any) => {
 // 插入图表到幻灯片
 const handleInsertChartIntoSlide = (chartData: any) => {
   console.log('插入图表到幻灯片:', chartData)
+  triggerSignificantEditCheckpoint('图表插入')
   alert('图表已插入到幻灯片！请下载查看。')
   showChartEditor.value = false
 }
@@ -2239,6 +3417,7 @@ const regenerateSingleSlide = async (index: number) => {
           ...slide,
           url: newUrl + '?t=' + Date.now() // 防止缓存
         }
+        triggerSignificantEditCheckpoint('单页重生成')
         alert(`第 ${slide.slideNum} 页已更新`)
       }
     } else {
@@ -2344,6 +3523,7 @@ const applyTuning = async () => {
   
   if (failedCount === 0) {
     showSuccess('布局更新成功', `已更新为「${newLayout}」，共${updatedCount}页`)
+    triggerSignificantEditCheckpoint('布局调整')
   } else {
     showWarning('布局部分更新', `成功${updatedCount}页，失败${failedCount}页`)
   }
@@ -2491,6 +3671,7 @@ const deleteSlide = (index: number) => {
     return
   }
   editableSlides.value.splice(index, 1)
+  triggerSignificantEditCheckpoint('删除幻灯片')
 }
 
 // 上移幻灯片
@@ -2560,6 +3741,54 @@ const previewSlide = async (index: number) => {
   }
 }
 
+// Voice dictation for mobile slide content editing
+const startDictationForField = async (slideIndex: number, field: 'title' | 'content' | 'notes') => {
+  if (dictationActive.value) {
+    stopDictation()
+    dictationActive.value = false
+    dictatingSlideIndex.value = null
+    dictatingField.value = null
+    return
+  }
+
+  const success = await startDictation()
+  if (success) {
+    dictationActive.value = true
+    dictatingSlideIndex.value = slideIndex
+    dictatingField.value = field
+  }
+}
+
+// Watch for dictation state changes and inject results into the active field
+watch(isDictating, (listening) => {
+  if (listening) return
+  // Dictation just stopped - inject the transcript into the active field
+  if (dictatingSlideIndex.value === null || dictatingField.value === null) return
+  const idx = dictatingSlideIndex.value
+  const field = dictatingField.value
+  const slide = editableSlides.value[idx]
+  if (!slide) return
+  const text = stopDictation() // also stops recognition
+  if (text) {
+    if (field === 'title') {
+      slide.title = (slide.title || '') + text
+    } else if (field === 'content') {
+      slide.content = (slide.content || '') + text
+    } else if (field === 'notes') {
+      slide.presenterNotes = (slide.presenterNotes || '') + text
+    }
+  }
+  dictationActive.value = false
+  dictatingSlideIndex.value = null
+  dictatingField.value = null
+})
+
+watch(dictationError, (err) => {
+  if (err) {
+    showError(err)
+  }
+})
+
 // 图片上传 refs
 const imageUploadRefs = ref<HTMLElement[]>([])
 
@@ -2601,6 +3830,7 @@ const handleImageUpload = async (index: number, event: Event) => {
       if (editableSlides.value[index]) {
         editableSlides.value[index].imageUrl = data.image_url
       }
+      triggerSignificantEditCheckpoint('图片上传')
       showSuccess('图片上传成功', '图片已更新到幻灯片')
       // 刷新预览
       await previewSlide(index)
@@ -2754,7 +3984,7 @@ const regenerateWithEdits = async () => {
 }
 
 // 导出格式选项
-type ExportFormat = 'pptx' | 'pdf' | 'png' | 'jpg'
+type ExportFormat = 'pptx' | 'pdf' | 'png' | 'jpg' | 'odp' | 'keynote' | 'mp3'
 const selectedFormat = ref<ExportFormat>('pptx')
 const isExporting = ref(false)
 
@@ -2860,6 +4090,9 @@ const exportFormats = [
   { id: 'pdf', name: 'PDF', icon: '📕', desc: '便携式文档格式', ext: '.pdf', quality: true },
   { id: 'png', name: 'PNG', icon: '🖼️', desc: 'PNG高清图片', ext: '.png', quality: true },
   { id: 'jpg', name: 'JPG', icon: '📷', desc: 'JPEG图片', ext: '.jpg', quality: true },
+  { id: 'odp', name: 'ODP', icon: '📗', desc: 'OpenDocument演示文稿', ext: '.odp', quality: false },
+  { id: 'keynote', name: 'Keynote', icon: '🍎', desc: 'Apple Keynote演示文稿', ext: '.key', quality: false },
+  { id: 'mp3', name: 'MP3', icon: '🎧', desc: '音频叙述', ext: '.mp3', quality: false },
   { id: 'google-slides', name: 'Google Slides', icon: '📽️', desc: '导出到 Google Slides', ext: '', quality: false, platform: true },
   { id: 'notion', name: 'Notion', icon: '📒', desc: '导出到 Notion', ext: '', quality: false, platform: true }
 ]
@@ -2892,6 +4125,15 @@ const handleExport = () => {
         return
       }
       handleExportImages()
+      break
+    case 'odp':
+      handleExportOdp()
+      break
+    case 'keynote':
+      handleExportKeynote()
+      break
+    case 'mp3':
+      handleExportMp3()
       break
     case 'google-slides':
       handleExportGoogleSlides()
@@ -3026,6 +4268,10 @@ const loadStatus = async () => {
         })
         localStorage.setItem('ppt_history', JSON.stringify(historyList))
       }
+
+      // Trigger push notification for generation complete
+      const taskTitle = data.user_request?.slice(0, 30) || 'PPT 生成完成'
+      notifyGenerationComplete(taskId.value, taskTitle)
     } else if (data.status === 'failed') {
       errorMessage.value = data.error?.message || '未知错误'
     }
@@ -3050,28 +4296,53 @@ const formatSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-// 下载
+// 下载 — 支持密码保护和生物认证
 const handleDownload = async () => {
+  if (!taskId.value || isExporting.value) return
+
+  // Pre-flight security check
+  try {
+    const configRes = await api.security.getConfig(taskId.value) as any
+    const cfg = configRes.data
+
+    // If password or biometric is required, show the unlock modal
+    if (cfg.has_password || cfg.biometric_required || cfg.has_ip_restriction) {
+      securityDownloadPassword.value = ''
+      showSecurityDownloadModal.value = true
+      // Store security config for modal to use
+      securityConfig.value = cfg
+      securityBiometricRequired.value = cfg.biometric_required
+      return
+    }
+  } catch (e) {
+    // If security check fails (e.g. not logged in), proceed without security
+    console.warn('Security check skipped:', e)
+  }
+
+  await doDownload()
+}
+
+const doDownload = async (password = '') => {
   if (!taskId.value || isExporting.value) return
 
   isExporting.value = true
   exportProgress.value = 0
   exportStatusText.value = '正在准备...'
   showExportMenu.value = false
+  showSecurityDownloadModal.value = false
 
   try {
-    // 根据质量设置调整请求参数
-    const qualityParams = {
+    const qualityParams: Record<string, any> = {
       quality: selectedQuality.value,
       dpi: selectedQuality.value === 'ultra' ? 300 : (selectedQuality.value === 'high' ? 150 : 96)
     }
+    if (password) qualityParams.password = password
 
     exportStatusText.value = '正在下载...'
     exportProgress.value = 30
 
     const response = await api.ppt.downloadPpt(taskId.value, qualityParams)
 
-    // 根据质量添加后缀
     const qualitySuffix = selectedQuality.value === 'standard' ? '' : `_${selectedQuality.value}`
     const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
 
@@ -3088,14 +4359,30 @@ const handleDownload = async () => {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
 
-    // 记录到导出历史
     addExportHistory('PPTX', qualityName, fileName, formatSize(response.data.size || 0))
 
     exportProgress.value = 100
     exportStatusText.value = '导出完成!'
     showSuccess('下载成功', `PPT已保存为 ${fileName}`)
-  } catch (error) {
+  } catch (error: any) {
     console.error('下载失败:', error)
+    const errData = error?.response?.data
+    if (errData?.error === 'PASSWORD_REQUIRED') {
+      showError('密码错误', '请输入正确的密码')
+      securityDownloadPassword.value = ''
+      showSecurityDownloadModal.value = true
+      isExporting.value = false
+      return
+    } else if (errData?.error === 'BIOMETRIC_REQUIRED') {
+      showError('需要生物认证', '请使用生物认证解锁')
+      showSecurityDownloadModal.value = true
+      isExporting.value = false
+      return
+    } else if (errData?.error === 'IP_NOT_ALLOWED') {
+      showError('IP限制', '您的IP地址不在允许范围内')
+      isExporting.value = false
+      return
+    }
     showError('下载失败', '请检查网络后重试')
   } finally {
     setTimeout(() => {
@@ -3104,6 +4391,11 @@ const handleDownload = async () => {
       exportStatusText.value = ''
     }, 1500)
   }
+}
+
+const handleSecurityDownload = async () => {
+  const pw = securityDownloadPassword.value
+  await doDownload(pw)
 }
 
 // 重试
@@ -3268,10 +4560,21 @@ const exportViaPrint = () => {
   printWindow.document.close()
 }
 
-// 批量导出
+// R92: 批量导出 - 导出当前PPT为ZIP（调用后端批量导出API）
 const handleBatchExport = async () => {
   showExportMenu.value = false
-  alert('批量导出功能开发中，将同时导出PDF和图片格式')
+  try {
+    const blob = await api.batch.exportPpts([taskId.value], 'pptx')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `batch_export_${taskId.value.slice(0, 8)}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    alert('批量导出成功！')
+  } catch (e) {
+    alert('批量导出失败: ' + (e as Error).message)
+  }
 }
 
 // 导出图片 - 使用真实SVG预览图（支持分辨率选择）
@@ -3431,7 +4734,7 @@ const handleExportGoogleSlides = async () => {
   try {
     const title = slideCount.value > 0 
       ? `PPT ${new Date().toLocaleDateString('zh-CN')}` 
-      : 'RabAiMind PPT'
+      : `${displayBrandName.value} PPT`
     
     const response = await fetch(`/api/v1/ppt/export/google-slides/${taskId.value}`, {
       method: 'POST',
@@ -3482,7 +4785,7 @@ const handleExportNotion = async () => {
   try {
     const title = slideCount.value > 0 
       ? `PPT ${new Date().toLocaleDateString('zh-CN')}` 
-      : 'RabAiMind PPT'
+      : `${displayBrandName.value} PPT`
     
     // Extract slide content for Notion page
     const slidesContent = previewSlides.value.map((slide: any) => ({
@@ -3523,6 +4826,139 @@ const handleExportNotion = async () => {
   }
 }
 
+// 导出到 ODP
+const handleExportOdp = async () => {
+  if (taskStatus.value !== 'completed') {
+    alert('请等待 PPT 生成完成')
+    return
+  }
+  
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在转换为 ODP...'
+  
+  try {
+    const response = await fetch(`/api/v1/ppt/export/odp/${taskId.value}`, {
+      method: 'GET'
+    })
+    
+    if (response.ok) {
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `presentation_${taskId.value}.odp`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      showSuccess('ODP 导出成功', '文件已下载')
+    } else {
+      const result = await response.json()
+      showError('ODP 导出失败', result.error || '未知错误')
+    }
+  } catch (err) {
+    console.error('ODP export error:', err)
+    showError('导出失败', '网络错误，请稍后重试')
+  } finally {
+    isExporting.value = false
+    exportProgress.value = 0
+    exportStatusText.value = ''
+  }
+}
+
+// 导出到 Keynote
+const handleExportKeynote = async () => {
+  if (taskStatus.value !== 'completed') {
+    alert('请等待 PPT 生成完成')
+    return
+  }
+  
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在转换为 Keynote...'
+  
+  try {
+    const response = await fetch(`/api/v1/ppt/export/keynote/${taskId.value}`, {
+      method: 'GET'
+    })
+    
+    if (response.ok) {
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `presentation_${taskId.value}.key.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      showSuccess('Keynote 导出成功', '文件已下载，请在 Mac 上用 Keynote 打开')
+    } else {
+      const result = await response.json()
+      showError('Keynote 导出失败', result.error || '未知错误')
+    }
+  } catch (err) {
+    console.error('Keynote export error:', err)
+    showError('导出失败', '网络错误，请稍后重试')
+  } finally {
+    isExporting.value = false
+    exportProgress.value = 0
+    exportStatusText.value = ''
+  }
+}
+
+// 导出为 MP3 音频
+const handleExportMp3 = async () => {
+  if (taskStatus.value !== 'completed') {
+    alert('请等待 PPT 生成完成')
+    return
+  }
+  
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在生成音频叙述...'
+  
+  try {
+    // Build slides content for narration
+    const slidesContent = previewSlides.value.map((slide: any, idx: number) => ({
+      title: `第 ${idx + 1} 页`,
+      content: ''
+    }))
+    
+    const response = await fetch(`/api/v1/ppt/export/audio/${taskId.value}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        slides_content: slidesContent 
+      })
+    })
+    
+    if (response.ok) {
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `presentation_${taskId.value}.mp3`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      showSuccess('MP3 导出成功', '音频叙述已下载')
+    } else {
+      const result = await response.json()
+      showError('MP3 导出失败', result.error || '未知错误')
+    }
+  } catch (err) {
+    console.error('MP3 export error:', err)
+    showError('导出失败', '网络错误，请稍后重试')
+  } finally {
+    isExporting.value = false
+    exportProgress.value = 0
+    exportStatusText.value = ''
+  }
+}
+
 // 打印
 const handlePrint = () => {
   showExportMenu.value = false
@@ -3535,6 +4971,7 @@ const showMoreMenu = ref(false)
 const showQRCode = ref(false)
 const shareTitle = ref('RabAi Mind PPT')
 const showShareLinkModal = ref(false)
+const showEmbedCode = ref(false)
 const shareLinkTitle = ref('RabAi Mind PPT')
 const shareLinkDescription = ref('来看看我创建的精彩演示文稿')
 const shareLinkThumbnail = ref<string | undefined>(undefined)
@@ -3791,6 +5228,179 @@ const redoLastAction = async () => {
   }
 }
 
+// ========== 高级撤销/重做功能 ==========
+
+// 加载完整操作时间线
+const loadActionTimeline = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getActionTimeline(taskId.value, 100)
+    if (res.data && res.data.success) {
+      actionTimeline.value = res.data.timeline || []
+    }
+  } catch (e) {
+    console.warn('加载操作时间线失败:', e)
+  }
+}
+
+// 分支撤销 - 撤销指定操作（不影响其他操作）
+const undoByActionId = async (actionId: string) => {
+  if (!taskId.value) return
+  const action = actionTimeline.value.find(a => a.action_id === actionId)
+  if (!action) {
+    showError('操作不存在', `未找到操作 ${actionId}`)
+    return
+  }
+  if (!confirm(`确认分支撤销「${action.description}」？这将撤销该操作之后的所有操作。`)) return
+  
+  try {
+    const res = await api.ppt.undoByActionId(taskId.value, actionId)
+    if (res.data && res.data.success) {
+      showSuccess('分支撤销成功', `已撤销: ${res.data.undone_action}（影响${res.data.affected_actions}个操作）`)
+      await loadStatus()
+      await loadActionLog()
+      await loadUndoStack()
+      await loadRedoStack()
+      await loadActionTimeline()
+      await loadVersionHistory()
+    } else {
+      showError('分支撤销失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('分支撤销失败:', e)
+    showError('分支撤销失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 切换时间线视图
+const toggleTimeline = async () => {
+  showTimeline.value = !showTimeline.value
+  if (showTimeline.value) {
+    showBranchUndo.value = false
+    await loadActionTimeline()
+  }
+}
+
+// 切换分支撤销视图
+const toggleBranchUndo = async () => {
+  showBranchUndo.value = !showBranchUndo.value
+  if (showBranchUndo.value) {
+    showTimeline.value = false
+    await loadActionTimeline()
+  }
+}
+
+// 加载检查点列表
+const loadCheckpoints = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getCheckpoints(taskId.value, 20)
+    if (res.data && res.data.success) {
+      checkpoints.value = res.data.checkpoints || []
+    }
+  } catch (e) {
+    console.warn('加载检查点列表失败:', e)
+  }
+}
+
+// 创建检查点（手动）
+const createCheckpointManual = async () => {
+  if (!taskId.value) return
+  const name = prompt('请输入检查点名称:', `手动检查点 ${new Date().toLocaleString()}`)
+  if (name === null) return
+  
+  try {
+    const res = await api.ppt.createCheckpoint(taskId.value, name, 'manual')
+    if (res.data && res.data.success) {
+      showSuccess('检查点已创建', `检查点「${name}」已创建`)
+      await loadCheckpoints()
+    } else {
+      showError('创建检查点失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('创建检查点失败:', e)
+    showError('创建检查点失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 从检查点恢复
+const restoreFromCheckpoint = async (checkpointId: string, checkpointName: string) => {
+  if (!taskId.value) return
+  if (!confirm(`确认从检查点「${checkpointName}」恢复？这将撤销所有后续操作。`)) return
+  
+  try {
+    const res = await api.ppt.restoreCheckpoint(taskId.value, checkpointId)
+    if (res.data && res.data.success) {
+      showSuccess('已从检查点恢复', res.data.message)
+      await loadStatus()
+      await loadActionLog()
+      await loadUndoStack()
+      await loadRedoStack()
+      await loadActionTimeline()
+      await loadVersionHistory()
+    } else {
+      showError('恢复失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('从检查点恢复失败:', e)
+    showError('从检查点恢复失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 加载协作编辑锁
+const loadCollaborativeLocks = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getCollaborativeLocks(taskId.value)
+    if (res.data && res.data.success) {
+      collaborativeLocks.value = res.data.locks || {}
+    }
+  } catch (e) {
+    console.warn('加载协作锁失败:', e)
+  }
+}
+
+// 自动创建检查点（每5分钟）
+const autoCreateCheckpoint = async () => {
+  if (!taskId.value || !autoSaveEnabled.value) return
+  const now = Date.now()
+  if (lastCheckpointTime.value && (now - lastCheckpointTime.value) < checkpointInterval) {
+    return  // 距离上次检查点不足5分钟
+  }
+  
+  try {
+    const res = await api.ppt.createCheckpoint(taskId.value, `自动检查点`, 'auto')
+    if (res.data && res.data.success) {
+      lastCheckpointTime.value = now
+      await loadCheckpoints()
+    }
+  } catch (e) {
+    console.warn('自动创建检查点失败:', e)
+  }
+}
+
+// 重要编辑后自动创建检查点（减少间隔限制，加速备份）
+const triggerSignificantEditCheckpoint = async (editType: string) => {
+  if (!taskId.value || !autoSaveEnabled.value) return
+  const now = Date.now()
+  // 重要编辑后缩短检查点间隔：至少30秒
+  const minInterval = 30000
+  if (lastCheckpointTime.value && (now - lastCheckpointTime.value) < minInterval) {
+    return  // 距离上次检查点不足30秒
+  }
+  
+  try {
+    const res = await api.ppt.createCheckpoint(taskId.value, `编辑备份: ${editType}`, 'auto')
+    if (res.data && res.data.success) {
+      lastCheckpointTime.value = now
+      await loadCheckpoints()
+      console.log(`[自动备份] ${editType} - 检查点已创建`)
+    }
+  } catch (e) {
+    console.warn('自动备份失败:', e)
+  }
+}
+
 // 从指定版本创建分支
 const branchFromVersion = async (versionId: string) => {
   if (!taskId.value) return
@@ -3808,6 +5418,40 @@ const branchFromVersion = async (versionId: string) => {
   } catch (e: any) {
     console.error('创建分支失败:', e)
     showError('创建分支失败', e?.response?.data?.detail || '网络错误')
+  }
+}
+
+// 合并分支版本到当前版本
+const mergeFromVersion = async (sourceVersionId: string) => {
+  if (!taskId.value) return
+  
+  // 选择合并策略
+  const strategyOptions = ['branch_wins:main优先', 'main_wins:当前优先', 'newest_first:最新优先']
+  const strategyMap: Record<string, string> = {
+    'branch_wins:main优先': 'branch_wins',
+    'main_wins:当前优先': 'main_wins',
+    'newest_first:最新优先': 'newest_first'
+  }
+  const selected = prompt(`选择合并策略（输入数字）：\n1: branch_wins（分支优先）\n2: main_wins（当前优先）\n3: newest_first（最新优先）`, '1')
+  if (selected === null) return // 用户取消
+  
+  let strategy = 'branch_wins'
+  if (selected === '2') strategy = 'main_wins'
+  else if (selected === '3') strategy = 'newest_first'
+  
+  if (!confirm(`确认合并分支到当前版本？\n策略: ${strategy}\n\n这将创建新的合并版本。`)) return
+  
+  try {
+    const res = await api.ppt.mergeVersions(taskId.value, sourceVersionId, undefined, strategy)
+    if (res.data && res.data.success) {
+      showSuccess('合并成功', `合并版本 ${res.data.version_id} 已创建`)
+      await loadVersionHistory()
+    } else {
+      showError('合并失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('合并失败:', e)
+    showError('合并失败', e?.response?.data?.detail || '网络错误')
   }
 }
 
@@ -3875,6 +5519,96 @@ const compareVersion = async (versionId: string) => {
   }
 }
 
+// ========== A/B Testing ==========
+const loadABTests = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.listABTests(taskId.value)
+    if (res.data && res.data.success) {
+      abTestList.value = res.data.tests || []
+    }
+  } catch (e) {
+    console.error('加载A/B测试失败:', e)
+  }
+}
+
+const createABTest = async (slideIndex: number) => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.createABTest(taskId.value, slideIndex, 2)
+    if (res.data && res.data.success) {
+      showSuccess('A/B测试已创建', '生成了2个变体版本')
+      await loadABTests()
+      // 显示结果
+      currentABTest.value = res.data
+      showABResult.value = true
+    }
+  } catch (e: any) {
+    console.error('创建A/B测试失败:', e)
+    showError('创建失败', e?.response?.data?.detail || '请稍后重试')
+  }
+}
+
+const loadABTestResult = async (testId: string) => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getABTest(taskId.value, testId)
+    if (res.data && res.data.success) {
+      currentABTest.value = res.data.test
+      showABResult.value = true
+    }
+  } catch (e) {
+    console.error('加载A/B测试结果失败:', e)
+  }
+}
+
+const applyABWinner = async (testId: string, variantId: string) => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.selectABWinner(taskId.value, testId, variantId)
+    if (res.data && res.data.success) {
+      showSuccess('获胜变体已应用', '幻灯片已更新')
+      showABResult.value = false
+      await loadABTests()
+    }
+  } catch (e) {
+    console.error('应用获胜变体失败:', e)
+    showError('应用失败', '请稍后重试')
+  }
+}
+
+// ========== Suggest Improvements ==========
+const loadSuggestions = async () => {
+  if (!taskId.value) return
+  suggestLoading.value = true
+  try {
+    const res = await api.ppt.suggestImprovements(taskId.value)
+    if (res.data && res.data.success) {
+      suggestList.value = res.data.suggestions || []
+      showSuggestPanel.value = true
+    }
+  } catch (e) {
+    console.error('加载改进建议失败:', e)
+    showError('加载失败', '请稍后重试')
+  } finally {
+    suggestLoading.value = false
+  }
+}
+
+// ========== Slide Version History ==========
+const loadSlideHistory = async (slideIndex: number) => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getSlideHistory(taskId.value, slideIndex)
+    if (res.data && res.data.success) {
+      slideHistoryMap.value[slideIndex] = res.data.history || []
+      expandedSlideHistory.value = expandedSlideHistory.value === slideIndex ? null : slideIndex
+    }
+  } catch (e) {
+    console.error('加载幻灯片历史失败:', e)
+  }
+}
+
 // 手动创建快照
 const createSnapshot = async () => {
   if (!taskId.value) return
@@ -3890,9 +5624,10 @@ const createSnapshot = async () => {
   }
 }
 
-// ========== 自动保存 & 崩溃恢复 ==========
+// ========== 自动保存 & 崩溃恢复 & 检查点 ==========
 
 let autoSaveTimer: number | null = null
+let checkpointTimer: number | null = null  // 检查点定时器（每5分钟）
 
 // 保存自动保存设置到 localStorage
 const saveAutoSaveSettings = () => {
@@ -3934,6 +5669,22 @@ const stopAutoSaveTimer = () => {
   if (autoSaveTimer) {
     clearInterval(autoSaveTimer)
     autoSaveTimer = null
+  }
+}
+
+// 启动检查点定时器（每5分钟自动保存检查点）
+const startCheckpointTimer = () => {
+  if (checkpointTimer) return
+  checkpointTimer = window.setInterval(() => {
+    autoCreateCheckpoint()
+  }, checkpointInterval)  // 5分钟 = 300000毫秒
+}
+
+// 停止检查点定时器
+const stopCheckpointTimer = () => {
+  if (checkpointTimer) {
+    clearInterval(checkpointTimer)
+    checkpointTimer = null
   }
 }
 
@@ -4081,15 +5832,34 @@ onMounted(() => {
   if (autoSaveEnabled.value) {
     startAutoSaveTimer()
   }
+  // 启动检查点定时器（每5分钟自动保存）
+  if (autoSaveEnabled.value) {
+    startCheckpointTimer()
+    lastCheckpointTime.value = Date.now()
+  }
   // 检查崩溃恢复
   checkRecoveryState()
   // 粘贴事件监听（编辑模式下全局捕获）
   document.addEventListener('paste', handleGlobalPaste)
+  // 初始化实时协作 (R71)
+  initCollaboration()
+  // Prepare push notification permission
+  prepareForGeneration()
 })
 
 onUnmounted(() => {
   stopAutoSaveTimer()
+  stopCheckpointTimer()
   document.removeEventListener('paste', handleGlobalPaste)
+  if (_collaborationInstance) {
+    _collaborationInstance.disconnect()
+    _collaborationInstance = null
+  }
+  if (_scrollCleanup) {
+    _scrollCleanup()
+    _scrollCleanup = null
+  }
+  endViewSession()
 })
 </script>
 
@@ -4655,6 +6425,79 @@ onUnmounted(() => {
 
 .edit-slide-title:focus {
   border-color: #165DFF;
+}
+
+/* Edit field row with dictation button */
+.edit-field-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: nowrap;
+}
+
+.edit-field-row input,
+.edit-field-row textarea {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* Voice dictation button - touch friendly 44px+ */
+.dictation-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e5e5;
+  background: white;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(22, 93, 255, 0.12);
+}
+
+.dictation-btn:active {
+  transform: scale(0.93);
+  opacity: 0.85;
+}
+
+.dictation-btn.active {
+  background: #165DFF;
+  border-color: #165DFF;
+  color: white;
+  animation: dictation-pulse 1.2s infinite;
+}
+
+@keyframes dictation-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 93, 255, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(22, 93, 255, 0); }
+}
+
+/* Dictation live feedback text */
+.dictation-feedback {
+  font-size: 13px;
+  color: #165DFF;
+  padding: 4px 8px;
+  margin-top: -6px;
+  margin-bottom: 10px;
+  min-height: 28px;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Mobile dictation button */
+@media (max-width: 768px) {
+  .dictation-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
 }
 
 .edit-slide-content {
@@ -5404,6 +7247,326 @@ onUnmounted(() => {
   margin: 0;
 }
 
+/* 安全设置面板 (R122) */
+.security-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.security-panel {
+  background: white;
+  border-radius: 16px;
+  width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.security-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.security-panel-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #222;
+}
+
+.security-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 12px;
+}
+
+.security-panel-content {
+  padding: 0 24px 24px;
+}
+
+.security-section {
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.security-section:last-child {
+  border-bottom: none;
+}
+
+.security-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.security-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.security-status-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.security-badge {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.security-badge.badge-active {
+  background: #e6f7e6;
+  color: #52c41a;
+}
+
+.security-badge.badge-inactive {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.security-info-row {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.security-info-label {
+  color: #666;
+}
+
+.security-desc {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 10px;
+}
+
+.security-password-group,
+.security-ip-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.security-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #555;
+  padding: 4px 0;
+}
+
+.security-checkbox {
+  width: 40px;
+  height: 22px;
+  accent-color: #165DFF;
+  cursor: pointer;
+}
+
+.security-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.security-input:focus {
+  border-color: #165DFF;
+}
+
+.security-textarea {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+}
+
+.security-textarea:focus {
+  border-color: #165DFF;
+}
+
+.security-ip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.security-ip-badge {
+  background: #f0f0f0;
+  color: #555;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.security-watermark-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.security-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.security-slider {
+  flex: 1;
+  accent-color: #165DFF;
+}
+
+.security-color {
+  width: 40px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.security-empty-log {
+  font-size: 13px;
+  color: #999;
+  padding: 12px 0;
+  text-align: center;
+}
+
+.security-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.security-log-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #555;
+  padding: 6px 8px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+.log-action {
+  flex: 1;
+  font-weight: 500;
+  color: #333;
+}
+
+.log-time {
+  color: #999;
+  white-space: nowrap;
+}
+
+.log-ip {
+  color: #888;
+  font-family: monospace;
+}
+
+/* 安全下载验证弹窗 */
+.security-download-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.security-download-modal {
+  background: white;
+  border-radius: 16px;
+  width: 400px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.security-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.security-modal-header h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #222;
+}
+
+.security-modal-body {
+  padding: 20px 24px;
+}
+
+.security-modal-field {
+  margin-bottom: 16px;
+}
+
+.security-modal-field:last-child {
+  margin-bottom: 0;
+}
+
+.security-modal-field label {
+  display: block;
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.security-modal-tip {
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 12px;
+}
+
+.security-modal-tip.security-error {
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+.security-modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 24px 20px;
+}
+
 /* 移动端适配 */
 @media (max-width: 768px) {
   .result-card {
@@ -5777,6 +7940,240 @@ onUnmounted(() => {
   color: #999;
 }
 
+/* ========== 高级撤销/重做工具栏 ========== */
+.undo-toolbar {
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.undo-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.undo-count {
+  font-size: 12px;
+  color: #666;
+}
+.checkpoint-info {
+  font-size: 11px;
+  color: #4caf50;
+}
+.undo-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn-timeline {
+  background: #e3f2fd !important;
+  color: #1976d2 !important;
+  border: 1px solid #bbdefb !important;
+}
+.btn-timeline.active {
+  background: #1976d2 !important;
+  color: #fff !important;
+}
+.btn-branch {
+  background: #f3e5f5 !important;
+  color: #7b1fa2 !important;
+  border: 1px solid #e1bee7 !important;
+}
+.btn-branch.active {
+  background: #7b1fa2 !important;
+  color: #fff !important;
+}
+.btn-merge {
+  background: #fff3e0 !important;
+  color: #e65100 !important;
+  border: 1px solid #ffe0b2 !important;
+}
+.btn-merge:hover {
+  background: #ffe0b2 !important;
+}
+.btn-checkpoint {
+  background: #e8f5e9 !important;
+  color: #388e3c !important;
+  border: 1px solid #c8e6c9 !important;
+}
+
+/* ========== 可视化时间线 ========== */
+.timeline-container {
+  padding: 12px;
+  max-height: 50%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.timeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.timeline-count {
+  font-size: 11px;
+  color: #999;
+}
+.timeline-scroll {
+  flex: 1;
+  max-height: 300px;
+}
+.timeline-list {
+  position: relative;
+  padding-left: 20px;
+}
+.timeline-item {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+.timeline-dot {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2196f3;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #e3f2fd;
+  z-index: 1;
+}
+.timeline-item.timeline-undo .timeline-dot {
+  background: #ff9800;
+  box-shadow: 0 0 0 2px #fff3e0;
+}
+.timeline-item.timeline-redo .timeline-dot {
+  background: #4caf50;
+  box-shadow: 0 0 0 2px #e8f5e9;
+}
+.timeline-item.timeline-checkpoint .timeline-dot {
+  background: #9c27b0;
+  box-shadow: 0 0 0 2px #f3e5f5;
+}
+.timeline-item.timeline-branch .timeline-dot {
+  background: #e91e63;
+  box-shadow: 0 0 0 2px #fce4ec;
+}
+.timeline-line {
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  width: 2px;
+  height: calc(100% - 4px);
+  background: #e0e0e0;
+}
+.timeline-content {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.timeline-content:hover {
+  background: #f0f0f0;
+}
+.timeline-icon {
+  font-size: 16px;
+}
+.timeline-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.timeline-desc {
+  font-size: 12px;
+  color: #333;
+}
+.timeline-time {
+  font-size: 10px;
+  color: #999;
+}
+.timeline-action {
+  flex-shrink: 0;
+}
+.btn-branch-undo {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffe0b2;
+  border-radius: 4px;
+}
+
+/* ========== 检查点列表 ========== */
+.checkpoint-list {
+  padding: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+.checkpoint-header {
+  margin-bottom: 10px;
+}
+.checkpoint-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.checkpoint-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.checkpoint-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+.checkpoint-name {
+  font-size: 12px;
+  color: #333;
+}
+.checkpoint-time {
+  font-size: 10px;
+  color: #999;
+}
+.checkpoint-type {
+  font-size: 10px;
+  color: #4caf50;
+}
+
+/* ========== 协作锁状态 ========== */
+.collab-locks {
+  padding: 12px;
+  border-top: 1px solid #e0e0e0;
+  background: #fff8e1;
+}
+.collab-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f57c00;
+  display: block;
+  margin-bottom: 8px;
+}
+.collab-lock-item {
+  font-size: 11px;
+  color: #e65100;
+  padding: 4px 0;
+}
+
 .empty-tip {
   text-align: center;
   color: #999;
@@ -5784,15 +8181,286 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-/* 版本对比视图 */
+/* ========== A/B Testing ========== */
+.ab-test-panel {
+  padding: 12px;
+  max-height: 70%;
+  overflow-y: auto;
+}
+.ab-test-header {
+  margin-bottom: 12px;
+}
+.ab-test-header .section-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+.ab-test-tip {
+  font-size: 11px;
+  color: #999;
+}
+.ab-create-section {
+  background: #f0f7ff;
+  border: 1px solid #d0e8ff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.ab-create-label {
+  display: block;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 8px;
+}
+.btn-create-ab {
+  font-size: 13px;
+  padding: 6px 16px;
+}
+.ab-test-list {
+  margin-top: 8px;
+}
+.list-title {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.ab-test-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.ab-test-info {
+  flex: 1;
+}
+.ab-test-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.ab-test-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.status-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.status-badge.running {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+.status-badge.completed {
+  background: #e8f5e9;
+  color: #388e3c;
+}
+.meta-text {
+  font-size: 11px;
+  color: #999;
+}
+.btn-view-result {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+/* A/B Result */
+.ab-result-section {
+  margin-top: 8px;
+}
+.ab-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.variant-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.variant-card {
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 12px;
+}
+.variant-card:first-child {
+  border-color: #bbdefb;
+}
+.variant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.variant-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+.winner-badge {
+  font-size: 11px;
+  background: #fff8e1;
+  color: #f57f17;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.variant-strategy {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.variant-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.stat-label {
+  color: #999;
+}
+.stat-value {
+  color: #333;
+  font-weight: 500;
+}
+.stat-value.highlight {
+  color: #e65100;
+  font-weight: 700;
+}
+.variant-preview {
+  background: #fafafa;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.preview-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+.preview-content {
+  font-size: 11px;
+  color: #666;
+}
+.btn-apply-winner {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px;
+}
+/* ========== Suggest Improvements ========== */
+.suggest-panel {
+  padding: 12px;
+  max-height: 70%;
+  overflow-y: auto;
+}
+.suggest-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.suggest-header .section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.suggest-item {
+  display: flex;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  align-items: flex-start;
+}
+.suggest-item.priority-high {
+  border-left: 3px solid #f44336;
+}
+.suggest-item.priority-medium {
+  border-left: 3px solid #ff9800;
+}
+.suggest-item.priority-low {
+  border-left: 3px solid #4caf50;
+}
+.suggest-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.suggest-content {
+  flex: 1;
+}
+.suggest-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+}
+.suggest-desc {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+.suggest-action {
+  display: block;
+  font-size: 11px;
+  color: #165DFF;
+  margin-bottom: 2px;
+}
+.suggest-slide {
+  display: block;
+  font-size: 11px;
+  color: #999;
+}
+.priority-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.priority-badge.high {
+  background: #ffebee;
+  color: #c62828;
+}
+.priority-badge.medium {
+  background: #fff3e0;
+  color: #e65100;
+}
+.priority-badge.low {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+/* ========== Enhanced Diff View ========== */
 .diff-view {
   border-top: 1px solid #eee;
   padding: 12px;
   background: #fafafa;
-  max-height: 50%;
+  max-height: 70%;
   overflow-y: auto;
 }
-
 .diff-header {
   display: flex;
   justify-content: space-between;
@@ -5801,13 +8469,16 @@ onUnmounted(() => {
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;
 }
-
+.diff-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .diff-title {
   font-size: 13px;
   font-weight: 600;
   color: #333;
 }
-
 .diff-count {
   font-size: 12px;
   color: #e65100;
@@ -5815,25 +8486,100 @@ onUnmounted(() => {
   padding: 2px 8px;
   border-radius: 4px;
 }
-
 .diff-slides {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
-
 .diff-item {
   background: #fff;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
-  padding: 10px;
+  padding: 12px;
 }
-
 .diff-slide-title {
   font-size: 12px;
   font-weight: 600;
   color: #165DFF;
   margin-bottom: 8px;
+}
+.diff-content.side-by-side {
+  display: flex;
+  gap: 8px;
+  flex-direction: row;
+}
+.diff-side {
+  flex: 1;
+  min-width: 0;
+}
+.side-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.side-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.before-badge {
+  background: #ffebee;
+  color: #c62828;
+}
+.after-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.side-label {
+  font-size: 10px;
+  color: #999;
+}
+.slide-preview-box {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 8px;
+}
+.preview-label-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+}
+.preview-label-layout {
+  display: block;
+  font-size: 10px;
+  color: #999;
+  margin-bottom: 4px;
+}
+.preview-text {
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.diff-footer {
+  margin-top: 12px;
+  text-align: center;
+}
+/* ========== Panel Action Buttons ========== */
+.btn-abtest {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: none;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.btn-suggest {
+  background: #fff8e1;
+  color: #f57f17;
+  border: none;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .diff-content {
@@ -7229,6 +9975,72 @@ onUnmounted(() => {
 
   .edit-actions .btn-clip span {
     display: none;
+  }
+}
+
+/* Localize Modal */
+.localize-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.localize-modal .modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1a1a1a;
+}
+
+.localize-modal .modal-desc {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.detected-lang-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* RWD: security panel (R122) */
+@media (max-width: 767px) {
+  .security-panel {
+    width: 100vw !important;
+    max-height: 90vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    height: auto !important;
+  }
+
+  .security-download-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 20px 20px 0 0 !important;
+    height: auto !important;
   }
 }
 

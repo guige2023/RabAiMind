@@ -52,7 +52,7 @@
               <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
               <span v-if="comment.resolved" class="resolved-tag">✓ 已解决</span>
             </div>
-            <div class="comment-content">{{ comment.content }}</div>
+            <div class="comment-content" v-html="renderCommentContent(comment.content)"></div>
 
             <!-- 回复列表 -->
             <div v-if="comment.replies.length > 0" class="replies-list">
@@ -62,7 +62,7 @@
                 </div>
                 <div class="reply-body">
                   <span class="reply-author">{{ reply.authorName }}</span>
-                  <span class="reply-content">{{ reply.content }}</span>
+                  <span class="reply-content" v-html="renderCommentContent(reply.content)"></span>
                 </div>
               </div>
             </div>
@@ -76,12 +76,37 @@
 
             <!-- 回复输入框 -->
             <div v-if="replyingTo === comment.id" class="reply-input-area">
-              <input
+              <textarea
                 v-model="replyContent"
                 class="reply-input"
-                placeholder="写下你的回复..."
-                @keyup.enter="submitReply(comment.id)"
-              />
+                placeholder="写下你的回复... (@提及)"
+                rows="2"
+                @input="onReplyInput"
+                @keydown="handleReplyKeydown"
+                @blur="replyMentionState.active = false"
+              ></textarea>
+              <!-- Reply mention dropdown -->
+              <div
+                v-if="replyMentionState.active && filteredReplyMentionUsers.length > 0"
+                class="mention-dropdown"
+                :style="{ left: replyMentionState.position.x + 'px', top: replyMentionState.position.y + 'px' }"
+              >
+                <div
+                  v-for="(user, idx) in filteredReplyMentionUsers"
+                  :key="user.user_id"
+                  class="mention-item"
+                  :class="{ selected: idx === replyMentionState.selectedIndex }"
+                  @mousedown.prevent="selectReplyMentionUser(user)"
+                >
+                  <div class="mention-avatar" :style="{ background: user.color }">
+                    {{ user.user_name.charAt(0) }}
+                  </div>
+                  <div class="mention-info">
+                    <span class="mention-name">{{ user.user_name }}</span>
+                    <span class="mention-role">{{ user.role }}</span>
+                  </div>
+                </div>
+              </div>
               <button class="submit-btn" @click="submitReply(comment.id)">发送</button>
             </div>
           </div>
@@ -89,16 +114,40 @@
       </div>
 
       <!-- 添加评论 -->
-      <div class="add-comment-section">
+      <div class="add-comment-section" @click.outside="closeMentionDropdowns">
         <div class="current-avatar" :style="{ background: getAvatarColor('我') }">我</div>
         <div class="add-comment-input">
           <textarea
             v-model="newComment"
             class="comment-textarea"
-            :placeholder="`评论第 ${slideNum} 页...`"
+            :placeholder="`评论第 ${slideNum} 页... (@提及协作者)`"
             rows="2"
-            @keyup.ctrl.enter="submitComment"
+            @input="onCommentInput"
+            @keydown="handleCommentKeydown"
+            @blur="mentionState.active = false"
           ></textarea>
+          <!-- @mention dropdown -->
+          <div
+            v-if="mentionState.active && filteredMentionUsers.length > 0"
+            class="mention-dropdown"
+            :style="{ left: mentionState.position.x + 'px', top: mentionState.position.y + 'px' }"
+          >
+            <div
+              v-for="(user, idx) in filteredMentionUsers"
+              :key="user.user_id"
+              class="mention-item"
+              :class="{ selected: idx === mentionState.selectedIndex }"
+              @mousedown.prevent="selectMentionUser(user)"
+            >
+              <div class="mention-avatar" :style="{ background: user.color }">
+                {{ user.user_name.charAt(0) }}
+              </div>
+              <div class="mention-info">
+                <span class="mention-name">{{ user.user_name }}</span>
+                <span class="mention-role">{{ user.role }}</span>
+              </div>
+            </div>
+          </div>
           <button
             class="submit-comment-btn"
             @click="submitComment"
@@ -202,12 +251,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useSlideComments } from '../composables/useSlideComments'
+
+interface PresenceUser {
+  user_id: string
+  user_name: string
+  color: string
+  role: string
+}
+
+interface Mention {
+  user_id: string
+  user_name: string
+  start: number
+  end: number
+}
 
 const props = defineProps<{
   pptId?: string
+  taskId?: string
   slideNum?: number
+  presenceList?: PresenceUser[]
+  collaboration?: {
+    addComment: (slideNum: number, content: string, mentions: Mention[]) => Promise<any>
+    replyComment: (commentId: string, content: string, mentions: Mention[]) => Promise<any>
+    resolveComment: (commentId: string, resolved: boolean) => void
+  } | null
 }>()
 
 const {
@@ -227,13 +297,161 @@ const {
   rejectSuggestEdit,
   formatTime,
   loadComments
-} = useSlideComments(props.pptId)
+} = useSlideComments(props.pptId, props.taskId)
 
 const activeTab = ref<'comments' | 'suggestions'>('comments')
 const newComment = ref('')
 const replyContent = ref('')
 const replyingTo = ref<string | null>(null)
 const showSuggestModal = ref(false)
+
+// @mention state
+const mentionState = ref({
+  active: false,         // dropdown visible
+  query: '',             // text after @
+  position: { x: 0, y: 0 }, // dropdown position
+  selectedIndex: 0,
+})
+
+const replyMentionState = ref({
+  active: false,
+  query: '',
+  position: { x: 0, y: 0 },
+  selectedIndex: 0,
+})
+
+// Filtered users for mention dropdown
+const filteredMentionUsers = computed(() => {
+  if (!props.presenceList) return []
+  const q = mentionState.value.query.toLowerCase()
+  return props.presenceList.filter(u =>
+    u.user_name.toLowerCase().includes(q) ||
+    u.user_id.toLowerCase().includes(q)
+  ).slice(0, 5)
+})
+
+const filteredReplyMentionUsers = computed(() => {
+  if (!props.presenceList) return []
+  const q = replyMentionState.value.query.toLowerCase()
+  return props.presenceList.filter(u =>
+    u.user_name.toLowerCase().includes(q) ||
+    u.user_id.toLowerCase().includes(q)
+  ).slice(0, 5)
+})
+
+// Parse mentions from text content
+const parseMentions = (text: string): Mention[] => {
+  const mentions: Mention[] = []
+  const regex = /@([\w\u4e00-\u9fa5]+)/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    const name = match[1]
+    const user = props.presenceList?.find(u => u.user_name === name || u.user_id === name)
+    if (user) {
+      mentions.push({
+        user_id: user.user_id,
+        user_name: user.user_name,
+        start: match.index,
+        end: match.index + match[0].length,
+      })
+    }
+  }
+  return mentions
+}
+
+// Render comment content with highlighted @mentions
+const renderCommentContent = (content: string): string => {
+  return content.replace(
+    /@([\w\u4e00-\u9fa5]+)/g,
+    '<span class="mention-tag">@$1</span>'
+  )
+}
+
+// Handle text input for @mention detection (main comment textarea)
+const onCommentInput = (event: Event) => {
+  const textarea = event.target as HTMLTextAreaElement
+  const text = textarea.value
+  const cursorPos = textarea.selectionStart
+
+  // Find the @ symbol before cursor
+  const textBeforeCursor = text.slice(0, cursorPos)
+  const atIndex = textBeforeCursor.lastIndexOf('@')
+
+  if (atIndex >= 0) {
+    const textAfterAt = textBeforeCursor.slice(atIndex + 1)
+    // Only trigger if no space between @ and cursor
+    if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+      mentionState.value.active = true
+      mentionState.value.query = textAfterAt
+      mentionState.value.selectedIndex = 0
+      // Position dropdown near cursor (approximate)
+      const rect = textarea.getBoundingClientRect()
+      mentionState.value.position = {
+        x: Math.min(rect.left + 20, window.innerWidth - 220),
+        y: Math.max(rect.top - 200, 10),
+      }
+      return
+    }
+  }
+  mentionState.value.active = false
+}
+
+// Handle text input for @mention in reply textarea
+const onReplyInput = (event: Event) => {
+  const textarea = event.target as HTMLTextAreaElement
+  const text = textarea.value
+  const cursorPos = textarea.selectionStart
+
+  const textBeforeCursor = text.slice(0, cursorPos)
+  const atIndex = textBeforeCursor.lastIndexOf('@')
+
+  if (atIndex >= 0) {
+    const textAfterAt = textBeforeCursor.slice(atIndex + 1)
+    if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+      replyMentionState.value.active = true
+      replyMentionState.value.query = textAfterAt
+      replyMentionState.value.selectedIndex = 0
+      const rect = textarea.getBoundingClientRect()
+      replyMentionState.value.position = {
+        x: Math.min(rect.left + 20, window.innerWidth - 220),
+        y: Math.max(rect.top - 200, 10),
+      }
+      return
+    }
+  }
+  replyMentionState.value.active = false
+}
+
+const selectMentionUser = (user: PresenceUser) => {
+  // Replace @query in newComment with @username
+  const textBeforeCursor = newComment.value.slice(0, newComment.value.length)
+  const atIndex = textBeforeCursor.lastIndexOf('@' + mentionState.value.query)
+  if (atIndex >= 0) {
+    newComment.value =
+      textBeforeCursor.slice(0, atIndex) +
+      '@' + user.user_name + ' ' +
+      textBeforeCursor.slice(atIndex + 1 + mentionState.value.query.length)
+  }
+  mentionState.value.active = false
+}
+
+const selectReplyMentionUser = (user: PresenceUser) => {
+  const textBeforeCursor = replyContent.value.slice(0, replyContent.value.length)
+  const atIndex = textBeforeCursor.lastIndexOf('@' + replyMentionState.value.query)
+  if (atIndex >= 0) {
+    replyContent.value =
+      textBeforeCursor.slice(0, atIndex) +
+      '@' + user.user_name + ' ' +
+      textBeforeCursor.slice(atIndex + 1 + replyMentionState.value.query.length)
+  }
+  replyMentionState.value.active = false
+}
+
+// Close mention dropdowns on outside click
+const closeMentionDropdowns = () => {
+  mentionState.value.active = false
+  replyMentionState.value.active = false
+}
 const suggestForm = ref({
   type: 'text' as 'text' | 'image' | 'layout' | 'style',
   reason: '',
@@ -284,10 +502,26 @@ const getStatusText = (status: string): string => {
   return map[status] || status
 }
 
-const submitComment = () => {
+const submitComment = async () => {
   if (!newComment.value.trim()) return
-  addComment(currentSlideNum.value, newComment.value)
-  newComment.value = ''
+  const mentions = parseMentions(newComment.value)
+
+  // Use collaboration WebSocket if available
+  if (props.collaboration) {
+    const result = await props.collaboration.addComment(currentSlideNum.value, newComment.value, mentions)
+    if (result) {
+      // Comment broadcast via WebSocket - just clear input
+      newComment.value = ''
+      mentionState.value.active = false
+    } else {
+      // Fallback to local
+      addComment(currentSlideNum.value, newComment.value)
+      newComment.value = ''
+    }
+  } else {
+    addComment(currentSlideNum.value, newComment.value)
+    newComment.value = ''
+  }
 }
 
 const toggleReply = (commentId: string) => {
@@ -295,8 +529,19 @@ const toggleReply = (commentId: string) => {
   replyContent.value = ''
 }
 
-const submitReply = (commentId: string) => {
+const submitReply = async (commentId: string) => {
   if (!replyContent.value.trim()) return
+  const mentions = parseMentions(replyContent.value)
+
+  if (props.collaboration) {
+    const result = await props.collaboration.replyComment(commentId, replyContent.value, mentions)
+    if (result) {
+      replyContent.value = ''
+      replyingTo.value = null
+      replyMentionState.value.active = false
+      return
+    }
+  }
   replyComment(commentId, replyContent.value)
   replyContent.value = ''
   replyingTo.value = null
@@ -329,6 +574,47 @@ const submitSuggestion = () => {
   )
   suggestForm.value = { type: 'text', reason: '', content: '' }
   showSuggestModal.value = false
+}
+
+// Keyboard navigation for mention dropdown
+const handleCommentKeydown = (event: KeyboardEvent) => {
+  if (!mentionState.value.active) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    mentionState.value.selectedIndex = Math.min(
+      mentionState.value.selectedIndex + 1,
+      filteredMentionUsers.value.length - 1
+    )
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    mentionState.value.selectedIndex = Math.max(mentionState.value.selectedIndex - 1, 0)
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault()
+    const user = filteredMentionUsers.value[mentionState.value.selectedIndex]
+    if (user) selectMentionUser(user)
+  } else if (event.key === 'Escape') {
+    mentionState.value.active = false
+  }
+}
+
+const handleReplyKeydown = (event: KeyboardEvent) => {
+  if (!replyMentionState.value.active) return
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    replyMentionState.value.selectedIndex = Math.min(
+      replyMentionState.value.selectedIndex + 1,
+      filteredReplyMentionUsers.value.length - 1
+    )
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    replyMentionState.value.selectedIndex = Math.max(replyMentionState.value.selectedIndex - 1, 0)
+  } else if (event.key === 'Enter' || event.key === 'Tab') {
+    event.preventDefault()
+    const user = filteredReplyMentionUsers.value[replyMentionState.value.selectedIndex]
+    if (user) selectReplyMentionUser(user)
+  } else if (event.key === 'Escape') {
+    replyMentionState.value.active = false
+  }
 }
 </script>
 
@@ -1042,5 +1328,84 @@ const submitSuggestion = () => {
 
 .submit-btn:hover {
   background: #0d47e6;
+}
+
+/* @mention dropdown */
+.mention-dropdown {
+  position: fixed;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  min-width: 200px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 99999;
+}
+
+:global(.dark) .mention-dropdown {
+  background: #1a1a1a;
+  border-color: #333;
+}
+
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.mention-item:hover,
+.mention-item.selected {
+  background: #f3f4f6;
+}
+
+:global(.dark) .mention-item:hover,
+:global(.dark) .mention-item.selected {
+  background: #2a2a2a;
+}
+
+.mention-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mention-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mention-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+:global(.dark) .mention-name {
+  color: #eee;
+}
+
+.mention-role {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Highlighted mention in comment content */
+:deep(.mention-tag) {
+  color: #165DFF;
+  font-weight: 600;
+  background: rgba(22, 93, 255, 0.1);
+  padding: 0 4px;
+  border-radius: 4px;
 }
 </style>

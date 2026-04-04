@@ -7,7 +7,7 @@ Social Engagement Service - 社交互动服务
 import json
 import os
 import threading
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from datetime import datetime
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'engagement')
@@ -94,7 +94,9 @@ class EngagementService:
                 "title": "",
                 "description": "",
                 "thumbnail": None
-            }
+            },
+            "polls": {},
+            "qa_list": []
         }
     
     # ==================== View Counter ====================
@@ -253,3 +255,221 @@ def get_engagement_service() -> EngagementService:
     if _engagement_service is None:
         _engagement_service = EngagementService()
     return _engagement_service
+
+    # ==================== Polls ====================
+    
+    def create_poll(self, task_id: str, question: str, options: List[str]) -> dict:
+        """Create a new poll for a slide"""
+        import uuid
+        data = self._get_data(task_id)
+        
+        poll_id = f"poll_{uuid.uuid4().hex[:12]}"
+        poll = {
+            "poll_id": poll_id,
+            "question": question,
+            "options": options,
+            "option_votes": {str(i): 0 for i in range(len(options))},
+            "total_votes": 0,
+            "user_votes": {},  # user_id -> option_index
+            "is_active": True,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        data.setdefault('polls', {})[poll_id] = poll
+        data['updated_at'] = datetime.now().isoformat()
+        self._save(task_id, data)
+        
+        return {
+            "success": True,
+            "poll_id": poll_id,
+            "question": question,
+            "options": options,
+            "is_active": True
+        }
+    
+    def vote_poll(self, task_id: str, poll_id: str, user_id: str, option_index: int) -> dict:
+        """Vote on a poll"""
+        data = self._get_data(task_id)
+        polls = data.get('polls', {})
+        
+        if poll_id not in polls:
+            return {"success": False, "error": "Poll not found"}
+        
+        poll = polls[poll_id]
+        
+        # Check if user already voted
+        old_vote = poll['user_votes'].get(user_id)
+        if old_vote is not None:
+            # Remove old vote
+            poll['option_votes'][str(old_vote)] = max(0, poll['option_votes'][str(old_vote)] - 1)
+            poll['total_votes'] = max(0, poll['total_votes'] - 1)
+        
+        # Add new vote
+        poll['option_votes'][str(option_index)] = poll['option_votes'].get(str(option_index), 0) + 1
+        poll['total_votes'] += 1
+        poll['user_votes'][user_id] = option_index
+        
+        data['updated_at'] = datetime.now().isoformat()
+        self._save(task_id, data)
+        
+        return {
+            "success": True,
+            "poll_id": poll_id,
+            "total_votes": poll['total_votes'],
+            "option_results": poll['option_votes'],
+            "user_voted_option": option_index
+        }
+    
+    def get_poll_results(self, task_id: str, poll_id: str) -> dict:
+        """Get poll results"""
+        data = self._get_data(task_id)
+        polls = data.get('polls', {})
+        
+        if poll_id not in polls:
+            return {"success": False, "error": "Poll not found"}
+        
+        poll = polls[poll_id]
+        total = poll['total_votes'] or 1
+        percentage = {k: round(v / total * 100, 1) for k, v in poll['option_votes'].items()}
+        
+        return {
+            "success": True,
+            "poll_id": poll_id,
+            "question": poll['question'],
+            "options": poll['options'],
+            "option_votes": poll['option_votes'],
+            "total_votes": poll['total_votes'],
+            "percentage": percentage,
+            "is_active": poll['is_active']
+        }
+    
+    def get_polls_for_task(self, task_id: str) -> dict:
+        """Get all polls for a task"""
+        data = self._get_data(task_id)
+        polls = data.get('polls', {})
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "polls": [
+                {
+                    "poll_id": pid,
+                    "question": p['question'],
+                    "options": p['options'],
+                    "is_active": p['is_active'],
+                    "total_votes": p['total_votes']
+                }
+                for pid, p in polls.items()
+            ]
+        }
+    
+    def close_poll(self, task_id: str, poll_id: str) -> dict:
+        """Close/deactivate a poll"""
+        data = self._get_data(task_id)
+        polls = data.get('polls', {})
+        
+        if poll_id in polls:
+            polls[poll_id]['is_active'] = False
+            data['updated_at'] = datetime.now().isoformat()
+            self._save(task_id, data)
+        
+        return {"success": True, "poll_id": poll_id, "is_active": False}
+    
+    # ==================== Q&A ====================
+    
+    def submit_qa(self, task_id: str, question: str, asker_name: str = "匿名用户") -> dict:
+        """Submit a Q&A question"""
+        import uuid
+        data = self._get_data(task_id)
+        
+        qa_id = f"qa_{uuid.uuid4().hex[:12]}"
+        qa = {
+            "qa_id": qa_id,
+            "question": question,
+            "asker": asker_name,
+            "is_answered": False,
+            "upvotes": 0,
+            "upvoters": [],
+            "created_at": datetime.now().isoformat(),
+            "answers": []
+        }
+        
+        data.setdefault('qa_list', []).insert(0, qa)  # newest first
+        data['updated_at'] = datetime.now().isoformat()
+        self._save(task_id, data)
+        
+        return {
+            "success": True,
+            "qa_id": qa_id,
+            "question": question,
+            "asker": asker_name,
+            "created_at": qa['created_at']
+        }
+    
+    def upvote_qa(self, task_id: str, qa_id: str, user_id: str) -> dict:
+        """Upvote a Q&A question"""
+        data = self._get_data(task_id)
+        qa_list = data.get('qa_list', [])
+        
+        for qa in qa_list:
+            if qa['qa_id'] == qa_id:
+                if user_id not in qa['upvoters']:
+                    qa['upvotes'] += 1
+                    qa['upvoters'].append(user_id)
+                break
+        
+        data['updated_at'] = datetime.now().isoformat()
+        self._save(task_id, data)
+        
+        qa = next((q for q in qa_list if q['qa_id'] == qa_id), None)
+        return {
+            "success": True,
+            "qa_id": qa_id,
+            "upvotes": qa['upvotes'] if qa else 0
+        }
+    
+    def get_qa_list(self, task_id: str) -> dict:
+        """Get all Q&A for a task, sorted by upvotes then time"""
+        data = self._get_data(task_id)
+        qa_list = data.get('qa_list', [])
+        
+        # Sort by upvotes desc, then newest first
+        sorted_qa = sorted(qa_list, key=lambda x: (-x.get('upvotes', 0), x.get('created_at', '')))
+        
+        return {
+            "success": True,
+            "task_id": task_id,
+            "questions": [
+                {
+                    "qa_id": q['qa_id'],
+                    "question": q['question'],
+                    "asker": q['asker'],
+                    "is_answered": q['is_answered'],
+                    "upvotes": q.get('upvotes', 0),
+                    "created_at": q['created_at'],
+                    "answer_count": len(q.get('answers', []))
+                }
+                for q in sorted_qa
+            ],
+            "total": len(sorted_qa)
+        }
+    
+    def answer_qa(self, task_id: str, qa_id: str, answer: str, answerer: str = "演讲者") -> dict:
+        """Mark a Q&A as answered"""
+        data = self._get_data(task_id)
+        qa_list = data.get('qa_list', [])
+        
+        for qa in qa_list:
+            if qa['qa_id'] == qa_id:
+                qa['is_answered'] = True
+                qa['answers'].append({
+                    "text": answer,
+                    "answerer": answerer,
+                    "answered_at": datetime.now().isoformat()
+                })
+                break
+        
+        data['updated_at'] = datetime.now().isoformat()
+        self._save(task_id, data)
+        
+        return {"success": True, "qa_id": qa_id, "is_answered": True}

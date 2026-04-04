@@ -1281,3 +1281,132 @@ button:focus-visible {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+/* =============================================
+   RTL (Right-to-Left) Language Support
+   ============================================= */
+[dir="rtl"] {
+  --text-align-start: right;
+  --text-align-end: left;
+  --flex-direction: row-reverse;
+}
+
+[dir="rtl"] .header-content {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .logo {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .nav-link {
+  text-align: right;
+}
+
+[dir="rtl"] .skip-link {
+  left: auto;
+  right: -9999px;
+}
+
+[dir="rtl"] .skip-link:focus {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+[dir="rtl"] .btn-icon {
+  margin-right: 0;
+  margin-left: 6px;
+}
+
+[dir="rtl"] .card {
+  text-align: right;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir="rtl"] .modal-content {
+  text-align: right;
+}
+
+[dir="rtl"] .modal-header {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .modal-footer {
+  flex-direction: row-reverse;
+}
+
+/* Language-specific font rendering */
+[lang="zh"] body,
+[lang="zh"] * {
+  font-family: var(--font-family-i18n, 'Noto Sans SC', 'PingFang SC', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+[lang="ja"] body,
+[lang="ja"] * {
+  font-family: var(--font-family-i18n, 'Noto Sans JP', 'Hiragino Sans', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "palt" 1;
+}
+
+[lang="ko"] body,
+[lang="ko"] * {
+  font-family: var(--font-family-i18n, 'Noto Sans KR', 'Malgun Gothic', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+[lang="ar"] body,
+[lang="ar"] * {
+  font-family: var(--font-family-i18n, 'Noto Sans Arabic', 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01" 1, "ss02" 1;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+[lang="he"] body,
+[lang="he"] * {
+  font-family: var(--font-family-i18n, 'Noto Sans Hebrew', 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  line-height: 1.6;
+}
+
+[lang="es"] body,
+[lang="es"] *,
+[lang="fr"] body,
+[lang="fr"] * {
+  font-family: var(--font-family-i18n, 'Inter', 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subpixel rendering for Latin scripts */
+[lang="en"] body,
+[lang="en"] * {
+  font-family: var(--font-family-i18n, 'Inter', 'Segoe UI', sans-serif);
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+}

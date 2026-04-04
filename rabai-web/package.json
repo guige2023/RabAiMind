@@ -11,9 +11,11 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@types/three": "^0.183.1",
     "@vueuse/core": "^12.5.0",
     "axios": "^1.7.9",
     "tesseract.js": "^7.0.0",
+    "three": "^0.183.2",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

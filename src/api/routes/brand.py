@@ -9,6 +9,7 @@ R46: Custom Branding & White-label
 - White-label 全站重品牌
 - 从 LOGO 自动提取品牌色
 - R64: AI 智能提取图片主题色
+- R104: 自定义域名、品牌套件、品牌邮件模板
 """
 
 import base64
@@ -16,13 +17,14 @@ import io
 import json
 import logging
 import time
+import re
 from collections import Counter
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional
 
-from ...services.brand_manager import get_brand_manager, BrandProfile
+from ...services.brand_manager import get_brand_manager, BrandProfile, BrandKit
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,30 @@ class BrandSaveRequest(BaseModel):
     footer_text: str = ""
     white_label_mode: bool = False
     auto_color_detection: bool = False
+    # R104: 自定义域名 & 邮件模板
+    custom_domain: str = ""
+    email_template_enabled: bool = True
+    email_tagline: str = ""
+
+
+class BrandKitRequest(BaseModel):
+    user_id: str = "default"
+    kit_id: str = ""
+    kit_name: str = ""
+    primary_color: str = "#165DFF"
+    secondary_color: str = "#0E42D2"
+    accent_color: str = "#FF9500"
+    fonts: Optional[List[str]] = None
+    logo_data: str = ""
+    logo_position: str = "bottom-right"
+
+
+class EmailShareRequest(BaseModel):
+    user_id: str = "default"
+    to_email: str = ""
+    ppt_title: str = ""
+    share_url: str = ""
+    message: str = ""
 
 
 class LogoUploadResponse(BaseModel):
@@ -62,9 +88,11 @@ class ColorDetectionResponse(BaseModel):
     message: str = ""
 
 
+# ===== 核心品牌保存/获取 =====
+
 @router.post("/save")
 async def save_brand(request: BrandSaveRequest):
-    """保存品牌配置（含 R46 扩展字段）"""
+    """保存品牌配置（含 R46+R104 扩展字段）"""
     bm = get_brand_manager()
     if request.fonts is None:
         request.fonts = ["思源黑体", "Arial"]
@@ -84,6 +112,9 @@ async def save_brand(request: BrandSaveRequest):
         footer_text=request.footer_text,
         white_label_mode=request.white_label_mode,
         auto_color_detection=request.auto_color_detection,
+        custom_domain=request.custom_domain,
+        email_template_enabled=request.email_template_enabled,
+        email_tagline=request.email_tagline,
     )
     bm.save_brand(brand)
 
@@ -112,12 +143,11 @@ async def delete_brand(user_id: str = "default"):
     return {"success": result, "message": "品牌配置已删除" if result else "品牌配置不存在"}
 
 
+# ===== LOGO 上传 =====
+
 @router.post("/upload-logo", response_model=LogoUploadResponse)
 async def upload_logo(user_id: str = "default", file: UploadFile = File(...)):
     """上传 LOGO 图片，返回 base64 编码"""
-    import base64
-    import io
-    
     if not file.content_type or not file.content_type.startswith("image/"):
         return LogoUploadResponse(success=False, message="仅支持图片文件（PNG/JPG/SVG）")
     
@@ -143,22 +173,19 @@ async def upload_logo(user_id: str = "default", file: UploadFile = File(...)):
     )
 
 
+# ===== 颜色提取 =====
+
 @router.post("/detect-colors", response_model=ColorDetectionResponse)
-async def detect_colors(user_id: str = "default", file: UploadFile = File(...)):
+async def detect_colors(file: UploadFile = File(...)):
     """从 LOGO 图片自动提取品牌配色"""
-    import base64
-    import io
-    
     if not file.content_type or not file.content_type.startswith("image/"):
         return ColorDetectionResponse(success=False, message="仅支持图片文件")
     
     contents = await file.read()
     
-    # 限制 2MB
     if len(contents) > 2 * 1024 * 1024:
         return ColorDetectionResponse(success=False, message="图片大小不能超过 2MB")
     
-    # 调用颜色提取
     colors = _extract_colors_from_image(contents)
     
     if not colors:
@@ -181,20 +208,14 @@ def _extract_colors_from_image(image_bytes: bytes) -> List[str]:
         import io
         
         img = Image.open(io.BytesIO(image_bytes))
-        
-        # 缩放以加快处理
         img = img.convert("RGB")
         img.thumbnail((50, 50))
         
-        # 统计颜色频率
-        from collections import Counter
         pixels = list(img.getdata())
         color_counts = Counter(pixels)
         
-        # 取最常见的非白色非黑色颜色
         colors = []
         for (r, g, b), count in color_counts.most_common(20):
-            # 跳过太白、太黑、灰色
             brightness = (r * 299 + g * 587 + b * 114) / 1000
             saturation = (max(r, g, b) - min(r, g, b)) / 255.0
             if brightness < 30 or brightness > 225 or saturation < 0.1:
@@ -207,13 +228,115 @@ def _extract_colors_from_image(image_bytes: bytes) -> List[str]:
         return colors
         
     except ImportError:
-        # PIL 不可用，返回默认值
         return ["#165DFF", "#0E42D2", "#FF9500"]
     except Exception:
         return []
 
 
-# ===== R64: AI 智能主题色提取 =====
+# ===== 品牌套件 API (R104) =====
+
+@router.post("/kit/save")
+async def save_brand_kit(request: BrandKitRequest):
+    """保存品牌套件"""
+    bm = get_brand_manager()
+    if request.fonts is None:
+        request.fonts = ["思源黑体", "Arial"]
+
+    kit = BrandKit(
+        kit_id=request.kit_id,
+        kit_name=request.kit_name,
+        primary_color=request.primary_color,
+        secondary_color=request.secondary_color,
+        accent_color=request.accent_color,
+        fonts=request.fonts,
+        logo_data=request.logo_data,
+        logo_position=request.logo_position,
+    )
+    kit_id = bm.save_brand_kit(request.user_id, kit)
+    return {"success": True, "kit_id": kit_id, "message": "品牌套件已保存"}
+
+
+@router.get("/kit/list/{user_id}")
+async def list_brand_kits(user_id: str = "default"):
+    """获取品牌套件列表"""
+    bm = get_brand_manager()
+    kits = bm.get_brand_kits(user_id)
+    return {
+        "success": True,
+        "kits": [k.to_dict() for k in kits]
+    }
+
+
+@router.delete("/kit/{user_id}/{kit_id}")
+async def delete_brand_kit(user_id: str, kit_id: str):
+    """删除品牌套件"""
+    bm = get_brand_manager()
+    result = bm.delete_brand_kit(user_id, kit_id)
+    return {"success": result, "message": "品牌套件已删除" if result else "品牌套件不存在"}
+
+
+@router.post("/kit/apply/{user_id}/{kit_id}")
+async def apply_brand_kit(user_id: str, kit_id: str):
+    """应用品牌套件到主品牌配置"""
+    bm = get_brand_manager()
+    kit = bm.apply_brand_kit(user_id, kit_id)
+    if not kit:
+        return {"success": False, "message": "品牌套件不存在"}
+    return {"success": True, "message": "品牌套件已应用", "kit": kit.to_dict()}
+
+
+# ===== 品牌邮件发送 API (R104) =====
+
+@router.post("/email/send")
+async def send_branded_email(request: EmailShareRequest):
+    """发送品牌化分享邮件"""
+    bm = get_brand_manager()
+    brand = bm.get_brand(request.user_id)
+
+    try:
+        from ...services.email_service import send_ppt_share_email
+    except ImportError:
+        return {"success": False, "message": "邮件服务未配置"}
+
+    # 获取品牌配置
+    if brand:
+        primary = brand.primary_color
+        secondary = brand.secondary_color
+        brand_name = brand.brand_name
+        logo_data = brand.logo_data
+        email_tagline = brand.email_tagline
+        white_label = brand.white_label_mode
+        email_enabled = brand.email_template_enabled
+    else:
+        primary = "#165DFF"
+        secondary = "#0E42D2"
+        brand_name = "RabAiMind"
+        logo_data = ""
+        email_tagline = ""
+        white_label = False
+        email_enabled = True
+
+    sent = send_ppt_share_email(
+        to_email=request.to_email,
+        from_name=brand_name or "RabAiMind",
+        ppt_title=request.ppt_title,
+        share_url=request.share_url,
+        message=request.message,
+        primary_color=primary,
+        secondary_color=secondary,
+        logo_data=logo_data,
+        email_tagline=email_tagline,
+        white_label=white_label,
+        use_branded_template=email_enabled,
+    )
+
+    if sent:
+        return {"success": True, "message": "邮件发送成功"}
+    else:
+        return {"success": False, "message": "邮件发送失败，请检查 SMTP 配置"}
+
+
+# ===== AI 智能主题色提取 (R64) =====
 
 class AIExtractResponse(BaseModel):
     success: bool
@@ -221,13 +344,13 @@ class AIExtractResponse(BaseModel):
     primary_color: str = ""
     secondary_color: str = ""
     accent_color: str = ""
-    color_names: List[str] = []  # AI 给出的颜色名称，如["深蓝","浅蓝","金色"]
+    color_names: List[str] = []
     theme_description: str = ""
     message: str = ""
 
 
 def _call_volcano_vision(prompt: str, image_b64: str, max_retries: int = 2) -> Optional[str]:
-    """调用火山引擎视觉理解 API（如果有视觉模型）"""
+    """调用火山引擎视觉理解 API"""
     try:
         from ...config import settings
         import requests
@@ -243,7 +366,6 @@ def _call_volcano_vision(prompt: str, image_b64: str, max_retries: int = 2) -> O
             "Authorization": f"Bearer {cfg['api_key']}"
         }
 
-        # 尝试使用视觉模型
         vision_model = getattr(settings, 'VOLCANO_IMAGE_MODEL', None)
         if not vision_model:
             return None
@@ -324,7 +446,7 @@ def _call_volcano_text(prompt: str, max_retries: int = 2) -> Optional[str]:
 
 
 def _parse_ai_color_response(content: str, default_colors: List[str]) -> dict:
-    """解析 AI 返回的颜色响应，返回结构化数据"""
+    """解析 AI 返回的颜色响应"""
     result = {
         "colors": default_colors[:3],
         "color_names": [],
@@ -334,8 +456,6 @@ def _parse_ai_color_response(content: str, default_colors: List[str]) -> dict:
     if not content:
         return result
 
-    # 尝试提取 JSON
-    import re
     json_match = re.search(r'\{[\s\S]*\}', content)
     if json_match:
         try:
@@ -351,7 +471,6 @@ def _parse_ai_color_response(content: str, default_colors: List[str]) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # 尝试直接提取 hex 颜色
     hex_colors = re.findall(r'#[0-9A-Fa-f]{6}', content)
     if hex_colors:
         result["colors"] = hex_colors[:3]
@@ -361,7 +480,7 @@ def _parse_ai_color_response(content: str, default_colors: List[str]) -> dict:
 
 @router.post("/ai-extract-colors", response_model=AIExtractResponse)
 async def ai_extract_colors(file: UploadFile = File(...)):
-    """R64: AI 智能提取图片主题色（优先视觉模型，fallback 到 PIL + 文本分析）"""
+    """R64: AI 智能提取图片主题色"""
     if not file.content_type or not file.content_type.startswith("image/"):
         return AIExtractResponse(success=False, message="仅支持图片文件（PNG/JPG/SVG）")
 
@@ -369,12 +488,10 @@ async def ai_extract_colors(file: UploadFile = File(...)):
     if len(contents) > 5 * 1024 * 1024:
         return AIExtractResponse(success=False, message="图片大小不能超过 5MB")
 
-    # Step 1: 用 PIL 提取基础颜色
     pil_colors = _extract_colors_from_image(contents)
     if not pil_colors:
         pil_colors = ["#165DFF", "#0E42D2", "#FF9500"]
 
-    # Step 2: 尝试 AI 视觉分析（如果有视觉模型）
     image_b64 = base64.b64encode(contents).decode("utf-8")
     vision_prompt = (
         "你是一个专业的品牌色彩分析 AI。请分析这张图片，输出一个 JSON 对象，包含以下字段：\n"
@@ -392,7 +509,6 @@ async def ai_extract_colors(file: UploadFile = File(...)):
     if ai_result:
         ai_colors = _parse_ai_color_response(ai_result, pil_colors)
     else:
-        # Fallback: 用文本模型基于颜色描述分析
         color_desc = ", ".join(pil_colors[:5])
         text_prompt = (
             f"给定颜色色板：{color_desc}。"
@@ -408,13 +524,11 @@ async def ai_extract_colors(file: UploadFile = File(...)):
         if text_result:
             ai_colors = _parse_ai_color_response(text_result, pil_colors)
 
-    # 合并结果
     if ai_colors:
         final_colors = ai_colors["colors"] if ai_colors["colors"] else pil_colors[:3]
     else:
         final_colors = pil_colors[:3]
 
-    # 确保有3个颜色
     while len(final_colors) < 3:
         final_colors.append(pil_colors[len(final_colors) % len(pil_colors)])
 

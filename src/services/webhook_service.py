@@ -220,6 +220,13 @@ class WebhookService:
         headers["X-RabAiMind-Event"] = delivery.event.value
         headers["X-RabAiMind-Delivery"] = delivery.id
 
+        # Log attempt start via developer_service (import lazily to avoid circular)
+        import_time = time.time()
+        logged_delivery_id = delivery.id
+        logged_webhook_id = list(self._registrations.keys())[
+            list(self._registrations.values()).index(reg)
+        ] if reg in self._registrations.values() else "unknown"
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -229,10 +236,30 @@ class WebhookService:
                     timeout=aiohttp.ClientTimeout(total=15),
                 ) as resp:
                     delivery.response_status = resp.status
+                    duration_ms = int((time.time() - import_time) * 1000)
                     try:
                         delivery.response_body = await resp.text()
                     except Exception:
                         delivery.response_body = None
+
+                    # ── Log delivery to developer service ──────────────────
+                    try:
+                        from .developer_service import get_developer_service
+                        ds = get_developer_service()
+                        ds.log_webhook_delivery(
+                            webhook_id=logged_webhook_id,
+                            event=delivery.event.value,
+                            payload=delivery.payload,
+                            url=reg.url,
+                            attempt=delivery.attempt,
+                            max_attempts=delivery.max_attempts,
+                            response_status=resp.status,
+                            response_body=delivery.response_body,
+                            duration_ms=duration_ms,
+                        )
+                    except Exception:
+                        pass  # non-critical
+                    # ───────────────────────────────────────────────────
 
                     if resp.status < 300:
                         delivery.delivered_at = time.time()
@@ -254,19 +281,56 @@ class WebhookService:
 
         except asyncio.TimeoutError:
             delivery.response_status = 408
+            duration_ms = int((time.time() - import_time) * 1000)
             delivery.attempt += 1
             delivery.next_retry = time.time() + 30
             async with self._lock:
                 self._delivery_queue.append(delivery)
             logger.warning(f"Webhook 投递超时: {delivery.id}")
+            # Log failure
+            try:
+                from .developer_service import get_developer_service
+                ds = get_developer_service()
+                ds.log_webhook_delivery(
+                    webhook_id=logged_webhook_id,
+                    event=delivery.event.value,
+                    payload=delivery.payload,
+                    url=reg.url,
+                    attempt=delivery.attempt - 1,
+                    max_attempts=delivery.max_attempts,
+                    response_status=408,
+                    response_body="Request timeout",
+                    error="Timeout",
+                    duration_ms=duration_ms,
+                )
+            except Exception:
+                pass
 
         except Exception as e:
             delivery.response_status = 0
+            duration_ms = int((time.time() - import_time) * 1000)
             delivery.attempt += 1
             delivery.next_retry = time.time() + 30
             async with self._lock:
                 self._delivery_queue.append(delivery)
             logger.error(f"Webhook 投递异常: {delivery.id} error={e}")
+            # Log failure
+            try:
+                from .developer_service import get_developer_service
+                ds = get_developer_service()
+                ds.log_webhook_delivery(
+                    webhook_id=logged_webhook_id,
+                    event=delivery.event.value,
+                    payload=delivery.payload,
+                    url=reg.url,
+                    attempt=delivery.attempt - 1,
+                    max_attempts=delivery.max_attempts,
+                    response_status=0,
+                    error=str(e),
+                    duration_ms=duration_ms,
+                )
+            except Exception:
+                pass
 
 
 # 全局单例

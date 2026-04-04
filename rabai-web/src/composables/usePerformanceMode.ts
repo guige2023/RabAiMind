@@ -8,11 +8,25 @@ export interface PerformanceModeState {
   virtualListEnabled: boolean
 }
 
+export interface PowerSaverOptions {
+  animationsDisabled: boolean
+  lazyLoadImages: boolean
+  compressImages: boolean
+  reduceDOM: boolean
+}
+
 const PERF_MODE_KEY = 'rabai_perf_mode'
+const POWER_SAVER_OPTIONS_KEY = 'rabai_power_saver_options'
 
 // Global performance mode state (shared across components)
 const globalPerfMode = ref(false)
 const globalInitialized = ref(false)
+const globalPowerSaverOptions = ref<PowerSaverOptions>({
+  animationsDisabled: true,
+  lazyLoadImages: true,
+  compressImages: true,
+  reduceDOM: false
+})
 
 export function usePerformanceMode() {
   // Initialize from localStorage on first call
@@ -21,19 +35,31 @@ export function usePerformanceMode() {
     if (stored !== null) {
       globalPerfMode.value = stored === 'true'
     }
+    const savedOptions = localStorage.getItem(POWER_SAVER_OPTIONS_KEY)
+    if (savedOptions) {
+      try {
+        globalPowerSaverOptions.value = { ...globalPowerSaverOptions.value, ...JSON.parse(savedOptions) }
+      } catch {}
+    }
     globalInitialized.value = true
   }
 
   const isPerformanceMode = computed(() => globalPerfMode.value)
 
   // Whether animations should be disabled
-  const animationsDisabled = computed(() => globalPerfMode.value)
+  const animationsDisabled = computed(() =>
+    globalPerfMode.value || globalPowerSaverOptions.value.animationsDisabled
+  )
 
   // Lazy load thumbnails
-  const thumbnailsLazy = computed(() => globalPerfMode.value)
+  const thumbnailsLazy = computed(() =>
+    globalPerfMode.value || globalPowerSaverOptions.value.lazyLoadImages
+  )
 
   // Compress images before upload
-  const imagesCompressed = computed(() => globalPerfMode.value)
+  const imagesCompressed = computed(() =>
+    globalPerfMode.value || globalPowerSaverOptions.value.compressImages
+  )
 
   // Enable virtual list for large slide counts
   const virtualListEnabled = computed(() => globalPerfMode.value)
@@ -48,6 +74,13 @@ export function usePerformanceMode() {
     localStorage.setItem(PERF_MODE_KEY, String(enabled))
   }
 
+  const setPowerSaverOptions = (options: Partial<PowerSaverOptions>) => {
+    globalPowerSaverOptions.value = { ...globalPowerSaverOptions.value, ...options }
+    localStorage.setItem(POWER_SAVER_OPTIONS_KEY, JSON.stringify(globalPowerSaverOptions.value))
+  }
+
+  const getPowerSaverOptions = () => globalPowerSaverOptions.value
+
   return {
     isPerformanceMode,
     animationsDisabled,
@@ -55,7 +88,9 @@ export function usePerformanceMode() {
     imagesCompressed,
     virtualListEnabled,
     togglePerformanceMode,
-    setPerformanceMode
+    setPerformanceMode,
+    setPowerSaverOptions,
+    getPowerSaverOptions
   }
 }
 

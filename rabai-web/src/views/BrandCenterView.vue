@@ -147,6 +147,61 @@
           </div>
         </section>
 
+        <!-- 自定义域名 (R104) -->
+        <section class="form-section">
+          <h3>🌐 自定义域名</h3>
+          <div class="form-item">
+            <label>自定义域名</label>
+            <input v-model="brand.custom_domain" placeholder="例如：ppt.yourcompany.com" />
+          </div>
+          <p class="hint">设置后，分享链接将使用此域名。需配置 DNS CNAME 指向 RabAiMind 服务器。</p>
+        </section>
+
+        <!-- 品牌邮件模板 (R104) -->
+        <section class="form-section">
+          <h3>📧 品牌邮件模板</h3>
+          <div class="form-item toggle-row">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="brand.email_template_enabled" />
+              <span class="toggle-switch"></span>
+              <span>启用品牌邮件模板</span>
+            </label>
+            <p class="hint">开启后，邮件分享将使用品牌配色和 LOGO</p>
+          </div>
+          <div class="form-item">
+            <label>邮件签名语</label>
+            <input v-model="brand.email_tagline" placeholder="例如：由 XX 公司提供" />
+          </div>
+        </section>
+
+        <!-- 品牌套件 (R104) -->
+        <section class="form-section">
+          <h3>🎨 品牌套件</h3>
+          <p class="hint" style="margin-bottom:12px">将当前配色方案保存为可复用的品牌套件，方便在不同场合快速切换</p>
+          <div class="form-item">
+            <label>套件名称</label>
+            <input v-model="newKitName" placeholder="例如：企业蓝、活力橙" style="flex:1" />
+            <button class="btn-save-kit" @click="saveKit" :disabled="!newKitName.trim()">保存当前为套件</button>
+          </div>
+          <div v-if="brand.brand_kits && brand.brand_kits.length > 0" class="kit-list">
+            <div v-for="kit in brand.brand_kits" :key="kit.kit_id" class="kit-item">
+              <div class="kit-info">
+                <span class="kit-name">{{ kit.kit_name }}</span>
+                <span class="kit-colors">
+                  <span class="color-dot" :style="{ background: kit.primary_color }"></span>
+                  <span class="color-dot" :style="{ background: kit.secondary_color }"></span>
+                  <span class="color-dot" :style="{ background: kit.accent_color }"></span>
+                </span>
+              </div>
+              <div class="kit-actions">
+                <button class="kit-btn apply" @click="applyKit(kit.kit_id)">应用</button>
+                <button class="kit-btn delete" @click="deleteKit(kit.kit_id)">删除</button>
+              </div>
+            </div>
+          </div>
+          <p v-else class="hint">暂无品牌套件，保存当前配置后可创建</p>
+        </section>
+
         <button class="btn-save" @click="saveBrand">💾 保存品牌配置</button>
       </div>
 
@@ -218,11 +273,17 @@ const brand = ref({
   footer_text: '',
   white_label_mode: false,
   auto_color_detection: false,
+  custom_domain: '',
+  brand_kits: [],
+  email_template_enabled: true,
+  email_tagline: '',
 })
 
 const brandList = ref([])
 const detectedColors = ref([])
 const logoInput = ref(null)
+const newKitName = ref('')
+const newKitLogo = ref('')
 
 const positions = [
   { value: 'top-left', label: '左上', icon: '↖' },

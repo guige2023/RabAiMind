@@ -19,7 +19,7 @@
           <div class="preview-content">
             <div class="preview-title">{{ form.title || 'RabAi Mind PPT' }}</div>
             <div class="preview-desc">{{ form.description || '来看看我创建的精彩演示文稿' }}</div>
-            <div class="preview-domain">rabai.com</div>
+            <div class="preview-domain">{{ shareDomain }}</div>
           </div>
         </div>
 
@@ -73,6 +73,46 @@
           </div>
         </div>
 
+        <!-- Security Options -->
+        <div class="security-options">
+          <div class="form-item">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.anonymousAccess" class="toggle-checkbox" />
+              <div class="toggle-content">
+                <span class="toggle-title">🔓 匿名访问</span>
+                <span class="toggle-desc">无需登录即可查看（分享链接即可访问）</span>
+              </div>
+            </label>
+          </div>
+          <div class="form-item">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.encryptionEnabled" class="toggle-checkbox" />
+              <div class="toggle-content">
+                <span class="toggle-title">🔐 端到端加密</span>
+                <span class="toggle-desc">PPT内容加密传输，仅限有链接者查看</span>
+              </div>
+            </label>
+          </div>
+          <div class="form-item">
+            <label class="toggle-label">
+              <input type="checkbox" v-model="form.passwordProtected" class="toggle-checkbox" />
+              <div class="toggle-content">
+                <span class="toggle-title">🔑 密码保护</span>
+                <span class="toggle-desc">访问需要输入密码</span>
+              </div>
+            </label>
+          </div>
+          <div v-if="form.passwordProtected" class="form-item password-field">
+            <input
+              v-model="form.password"
+              type="password"
+              class="form-input"
+              placeholder="设置访问密码（至少4位）"
+              maxlength="20"
+            />
+          </div>
+        </div>
+
         <!-- Quick Presets -->
         <div class="quick-presets">
           <label>快速填充</label>
@@ -116,7 +156,37 @@
               <span class="platform-icon">🔗</span>
               <span>复制链接</span>
             </button>
+            <button class="platform-btn" @click="showEmailForm = !showEmailForm">
+              <span class="platform-icon">📧</span>
+              <span>邮件</span>
+            </button>
           </div>
+        </div>
+
+        <!-- Email Share Form (R104) -->
+        <div v-if="showEmailForm" class="email-share-form">
+          <div class="form-item">
+            <label>收件人邮箱</label>
+            <input
+              v-model="emailForm.toEmail"
+              type="email"
+              class="form-input"
+              placeholder="colleague@company.com"
+            />
+          </div>
+          <div class="form-item">
+            <label>附言 <span class="optional">(可选)</span></label>
+            <textarea
+              v-model="emailForm.message"
+              class="form-textarea"
+              placeholder="给你的同事留个言..."
+              rows="2"
+            ></textarea>
+          </div>
+          <button class="btn-email-send" @click="sendEmailShare" :disabled="!emailForm.toEmail || sendingEmail">
+            {{ sendingEmail ? '发送中...' : '📧 发送品牌邮件' }}
+          </button>
+          <p v-if="emailResult" class="email-result">{{ emailResult }}</p>
         </div>
       </div>
 
@@ -133,6 +203,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useEngagement } from '../composables/useEngagement'
+import { useBrand } from '../composables/useBrand'
+import apiClient from '../api/client'
+
+// Brand (R104 white-label)
+const { shareDomain, displayBrandName, sendBrandingEmail } = useBrand()
 
 interface Props {
   show: boolean
@@ -158,14 +233,54 @@ const emit = defineEmits<Emits>()
 const { updateShareLink, shareLink, loadShareLink } = useEngagement(props.taskId)
 
 const form = ref({
-  title: props.initialTitle || 'RabAi Mind PPT',
+  title: props.initialTitle || `${displayBrandName.value} PPT`,
   description: props.initialDescription || '来看看我创建的精彩演示文稿！',
-  thumbnail: props.initialThumbnail || ''
+  thumbnail: props.initialThumbnail || '',
+  anonymousAccess: false,
+  encryptionEnabled: false,
+  passwordProtected: false,
+  password: '',
 })
 
 const saving = ref(false)
 const copied = ref(false)
 const urlInputRef = ref<HTMLInputElement | null>(null)
+
+// Email share state (R104)
+const showEmailForm = ref(false)
+const sendingEmail = ref(false)
+const emailResult = ref('')
+const emailForm = ref({
+  toEmail: '',
+  message: '',
+})
+
+// Send branded email share (R104)
+const sendEmailShare = async () => {
+  if (!emailForm.value.toEmail) return
+  sendingEmail.value = true
+  emailResult.value = ''
+  try {
+    const res = await sendBrandingEmail({
+      to_email: emailForm.value.toEmail,
+      ppt_title: form.value.title,
+      share_url: generatedUrl.value,
+      message: emailForm.value.message,
+    })
+    if (res.success) {
+      emailResult.value = '✅ 邮件发送成功！'
+      emailForm.value.toEmail = ''
+      emailForm.value.message = ''
+      setTimeout(() => { showEmailForm.value = false; emailResult.value = '' }, 2000)
+    } else {
+      emailResult.value = '❌ ' + (res.message || '发送失败')
+    }
+  } catch (e) {
+    emailResult.value = '❌ 发送失败，请检查 SMTP 配置'
+  } finally {
+    sendingEmail.value = false
+  }
+}
 
 const presets = [
   { emoji: '📊', label: '数据分析', title: '数据分析报告', description: '基于最新数据的深度分析，洞察业务趋势' },
@@ -180,12 +295,20 @@ const generatedUrl = computed(() => {
   return shareLink.value?.share_url || `${window.location.origin}/result?taskId=${props.taskId}`
 })
 
+// Computed secure share URL
+const secureShareUrl = computed(() => {
+  if (shareLink.value?.share_url) {
+    return shareLink.value.share_url
+  }
+  return `${window.location.origin}/result?taskId=${props.taskId}`
+})
+
 watch(() => props.show, async (val) => {
   if (val) {
     // Load existing share link data
     await loadShareLink()
     if (shareLink.value) {
-      form.value.title = shareLink.value.title || props.initialTitle || 'RabAi Mind PPT'
+      form.value.title = shareLink.value.title || props.initialTitle || `${displayBrandName.value} PPT`
       form.value.description = shareLink.value.description || props.initialDescription || '来看看我创建的精彩演示文稿！'
       form.value.thumbnail = shareLink.value.thumbnail || ''
     }
@@ -213,7 +336,31 @@ const copyUrl = async () => {
 const saveAndClose = async () => {
   saving.value = true
   try {
+    // Always save social metadata
     await updateShareLink(form.value.title, form.value.description, form.value.thumbnail || undefined)
+
+    // Create secure share with security options
+    if (form.value.anonymousAccess || form.value.encryptionEnabled || form.value.passwordProtected) {
+      try {
+        const payload: any = {
+          resource_type: 'ppt',
+          resource_id: props.taskId,
+          anonymous_access: form.value.anonymousAccess,
+          encryption_enabled: form.value.encryptionEnabled,
+        }
+        if (form.value.passwordProtected && form.value.password) {
+          payload.password = form.value.password
+        }
+        const res = await apiClient.post('/security/shares', payload)
+        if (res.data.share_id) {
+          const baseUrl = window.location.origin
+          form.value.shareUrl = `${baseUrl}/share/${res.data.share_id}?token=${res.data.raw_token}`
+        }
+      } catch (e) {
+        console.warn('Failed to create secure share, continuing without it:', e)
+      }
+    }
+
     emit('saved', {
       title: form.value.title,
       description: form.value.description,
@@ -480,6 +627,73 @@ const shareTo = async (platform: string) => {
   margin-top: 4px;
 }
 
+/* Security Options */
+.security-options {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+}
+
+:global(.dark) .security-options {
+  background: #1a1a1a;
+  border-color: #333;
+}
+
+.security-options .form-item {
+  margin-bottom: 10px;
+}
+
+.security-options .form-item:last-child {
+  margin-bottom: 0;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle-checkbox {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+:global(.dark) .toggle-title {
+  color: #eee;
+}
+
+.toggle-desc {
+  font-size: 11px;
+  color: #888;
+}
+
+:global(.dark) .toggle-desc {
+  color: #aaa;
+}
+
+.password-field {
+  margin-left: 26px;
+  margin-top: 4px;
+}
+
 /* URL Preview */
 .url-preview {
   margin-bottom: 16px;
@@ -679,5 +893,53 @@ const shareTo = async (platform: string) => {
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Email Share Form (R104) */
+.email-share-form {
+  margin-top: 12px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+}
+
+:global(.dark) .email-share-form {
+  background: #1a1a1a;
+  border-color: #333;
+}
+
+.btn-email-send {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, var(--brand-primary, #165DFF), var(--brand-secondary, #0E42D2));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 8px;
+  transition: opacity 0.2s;
+}
+
+.btn-email-send:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-email-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.email-result {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 8px;
+  color: #666;
+}
+
+:global(.dark) .email-result {
+  color: #aaa;
 }
 </style>

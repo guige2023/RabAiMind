@@ -1,5 +1,6 @@
 // Team Workspace composable - 团队工作空间功能
 import { ref, computed } from 'vue'
+import api from '../api/client'
 
 export interface WorkspaceMember {
   id: string
@@ -202,6 +203,39 @@ export function useTeamWorkspace(pptId?: string) {
     saveWorkspace()
   }
 
+  // 分享PPT通过邮件
+  const shareViaEmail = async (
+    toEmail: string,
+    pptTitle?: string,
+    message?: string
+  ): Promise<{ success: boolean; mailtoUrl?: string }> => {
+    try {
+      const res = await api.shareViaEmail({
+        to_email: toEmail,
+        from_name: currentUser.name,
+        ppt_title: pptTitle || '我的演示文稿',
+        share_url: window.location.href,
+        message: message || '',
+      })
+      if (res.data.success) {
+        return { success: true }
+      }
+      // Fallback to mailto
+      if (res.data.fallback === 'mailto' && res.data.mailto_url) {
+        window.open(res.data.mailto_url, '_blank')
+        return { success: false, mailtoUrl: res.data.mailto_url }
+      }
+      return { success: false }
+    } catch {
+      // Fallback to mailto
+      const subject = encodeURIComponent(pptTitle ? `📄 ${currentUser.name} 邀请你查看: ${pptTitle}` : '来看看我的演示文稿')
+      const body = encodeURIComponent(message ? `${message}\n\n查看链接: ${window.location.href}` : `邀请你查看我的演示文稿:\n${window.location.href}`)
+      const mailtoUrl = `mailto:${toEmail}?subject=${subject}&body=${body}`
+      window.open(mailtoUrl, '_blank')
+      return { success: false, mailtoUrl }
+    }
+  }
+
   // 获取在线成员
   const onlineMembers = computed(() => {
     return workspace.value?.members.filter(m => m.status === 'online' && m.id !== currentUser.id) || []
@@ -226,6 +260,7 @@ export function useTeamWorkspace(pptId?: string) {
     updateMemberRole,
     acceptInvitation,
     togglePublic,
+    shareViaEmail,
     initWorkspace,
     saveWorkspace
   }

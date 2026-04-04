@@ -20,6 +20,7 @@ const routes = [
   { path: '/brand', name: 'brand', component: () => import('./views/BrandCenterView.vue') },
   { path: '/settings', name: 'settings', component: () => import('./views/SettingsView.vue') },
   { path: '/template-editor', name: 'template-editor', component: () => import('./views/TemplateEditorView.vue') },
+  { path: '/presenter', name: 'presenter', component: () => import('./views/PresenterView.vue') },
 ]
 
 const router = createRouter({

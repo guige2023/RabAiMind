@@ -39,6 +39,14 @@ class ContentScoreRequest(BaseModel):
     elements: List[Dict[str, Any]]
     slide_content: str
 
+class ExpandShortenRequest(BaseModel):
+    text: str
+    ratio: float = 1.5  # 1.0=原长度, 2.0=扩展2倍, 0.5=压缩50%
+    mode: str = "expand"  # expand or shorten
+
+class GrammarCheckRequest(BaseModel):
+    text: str
+
 
 # ==================== Helper ====================
 
@@ -142,7 +150,15 @@ async def translate_text(req: TranslateRequest):
         "zh": "中文",
         "en": "英文",
         "ja": "日语",
-        "ko": "韩文"
+        "ko": "韩文",
+        "fr": "法文",
+        "de": "德文",
+        "es": "西班牙文",
+        "pt": "葡萄牙文",
+        "it": "意大利文",
+        "ru": "俄文",
+        "ar": "阿拉伯文",
+        "hi": "印地文",
     }
     target = lang_map.get(req.target_lang, "英文")
     
@@ -339,4 +355,267 @@ async def content_score(req: ContentScoreRequest):
         raise
     except Exception as e:
         logger.error(f"content-score失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/expand-shorten")
+async def expand_shorten_text(req: ExpandShortenRequest):
+    """
+    AI 内容扩展/压缩
+    根据ratio扩展或压缩文本内容，保持核心信息
+    - ratio: 1.0=原长度, 2.0=扩展2倍, 0.5=压缩50%
+    """
+    ratio = req.ratio
+    if ratio > 1.0:
+        mode_desc = f"将以下文本扩展至{int(ratio * 100)}%，增加细节和论述"
+    else:
+        mode_desc = f"将以下文本压缩至{int(ratio * 100)}%，保留核心信息"
+    
+    prompt = f"""{mode_desc}，使内容更加充实或简洁。
+
+原文：
+{req.text}
+
+请直接返回扩展/压缩后的文本，不要添加任何解释或标记。"""
+    
+    system = "你是一个专业的文案写作专家，擅长扩展或精简文本内容。直接返回结果，不要添加前缀。"
+    
+    try:
+        result = call_ai(prompt, system)
+        return {"success": True, "result": result.strip(), "ratio": ratio}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"expand-shorten失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/grammar-check")
+async def grammar_check(req: GrammarCheckRequest):
+    """
+    AI 语法和拼写检查
+    检查文本中的语法错误、拼写错误和标点问题
+    """
+    prompt = f"""请检查以下文本的语法、拼写和标点错误，并给出修正版本。
+
+原文：
+{req.text}
+
+请按以下JSON格式返回：
+{{
+    "corrected": "修正后的文本（如果没有错误则与原文相同）",
+    "errors": [
+        {{
+            "type": "grammar|spelling|punctuation|other",
+            "original": "错误原文",
+            "correction": "修正建议",
+            "reason": "修正理由"
+        }}
+    ],
+    "has_errors": true或false
+}}
+
+只返回JSON，不要其他内容。"""
+    
+    system = "你是一个专业的语言纠错专家，精确检查语法、拼写和标点错误。"
+    
+    try:
+        result = call_ai(prompt, system)
+        parsed = safe_json_parse(result)
+        if parsed:
+            return {"success": True, "check": parsed}
+        return {
+            "success": True,
+            "check": {
+                "corrected": req.text,
+                "errors": [],
+                "has_errors": False
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"grammar-check失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== New R109: AI Content Enhancement ====================
+
+class SmartFootnotesRequest(BaseModel):
+    text: str
+    topic: Optional[str] = ""  # optional topic context
+    count: Optional[int] = 3   # number of footnotes to generate
+
+class ToneAdjustRequest(BaseModel):
+    text: str
+    tone: str = "formal"  # formal, casual, technical, persuasive, warm
+
+class ClicheDetectRequest(BaseModel):
+    text: str
+
+
+@router.post("/smart-footnotes")
+async def smart_footnotes(req: SmartFootnotesRequest):
+    """
+    AI 智能脚注 - 为内容添加相关引用和来源
+    根据文本内容，AI自动生成相关 citations、统计数据来源、参考文献等脚注
+    """
+    topic_hint = f"\n内容主题：{req.topic}" if req.topic else ""
+    
+    prompt = f"""请为以下文本内容生成相关引用、来源和参考文献脚注。
+
+文本内容：
+{req.text}
+{topic_hint}
+
+请根据内容主题，生成 {req.count} 个相关的脚注引用。每个脚注需要包含：
+1. 来源标题
+2. 来源类型（官方报告/学术论文/新闻报道/权威网站/统计数据等）
+3. 简短说明（这条来源如何支持原文内容）
+
+请按以下JSON格式返回：
+{{
+    "footnotes": [
+        {{
+            "source": "来源标题",
+            "source_type": "官方报告",
+            "description": "这条来源如何支持原文",
+            "in_text_mark": "[1]"  
+        }}
+    ],
+    "formatted_footnotes": "脚注列表的纯文本格式，适合直接添加到PPT底部"
+}}
+
+只返回JSON，不要其他内容。"""
+    
+    system = "你是一个专业的学术写作助手，擅长为内容添加准确的引用和来源。"
+    
+    try:
+        result = call_ai(prompt, system)
+        parsed = safe_json_parse(result)
+        if parsed:
+            return {"success": True, "footnotes": parsed}
+        return {
+            "success": True,
+            "footnotes": {
+                "footnotes": [],
+                "formatted_footnotes": ""
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"smart-footnotes失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tone-adjust")
+async def tone_adjust(req: ToneAdjustRequest):
+    """
+    AI 语气调整 - 调整文本的语气风格
+    支持：formal(正式), casual(休闲), technical(技术), persuasive(说服), warm(温暖)
+    """
+    tone_map = {
+        "formal": "正式商务语气，严肃专业，适合正式场合",
+        "casual": "轻松休闲语气，亲切友好，适合内部分享",
+        "technical": "技术专业语气，准确严谨，适合技术人员",
+        "persuasive": "有说服力语气，富有感染力，适合营销推广",
+        "warm": "温暖友好语气，富有同理心，适合关怀场景"
+    }
+    tone_desc = tone_map.get(req.tone, "正式语气")
+    
+    prompt = f"""请将以下文本改写为「{tone_desc}」的语气风格。
+
+原文：
+{req.text}
+
+要求：
+1. 保持原文的核心信息和要点不变
+2. 语气调整为指定的风格
+3. 同时给出一个简要的风格调整说明
+
+请按以下JSON格式返回：
+{{
+    "adjusted": "语气调整后的文本",
+    "tone": "{req.tone}",
+    "tone_description": "风格调整说明",
+    "changes_summary": "主要改动了哪些部分，为什么这样改"
+}}
+
+只返回JSON，不要其他内容。"""
+    
+    system = "你是一个专业的文案写作专家，擅长调整文本的语气风格。"
+    
+    try:
+        result = call_ai(prompt, system)
+        parsed = safe_json_parse(result)
+        if parsed:
+            return {"success": True, "adjusted": parsed}
+        return {
+            "success": True,
+            "adjusted": {
+                "adjusted": req.text,
+                "tone": req.tone,
+                "tone_description": "未找到有效的语气调整",
+                "changes_summary": ""
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"tone-adjust失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cliche-detect")
+async def cliche_detect(req: ClicheDetectRequest):
+    """
+    AI 陈词滥调检测 - 检测文本中的陈词滥调和过度使用的短语
+    并为每个检测到的陈词滥调提供更生动、更有创意的替代方案
+    """
+    prompt = f"""请检测以下文本中的陈词滥调（clichés）和过度使用的短语，
+并为每一个提供更有创意、更生动的替代表达。
+
+原文：
+{req.text}
+
+请按以下JSON格式返回：
+{{
+    "detected": [
+        {{
+            "phrase": "检测到的陈词滥调原文",
+            "reason": "为什么这是陈词滥调（使用过度/表达陈旧/缺乏新意）",
+            "alternatives": [
+                {{"text": "替代表达1", "style": "简洁有力"}},
+                {{"text": "替代表达2", "style": "生动形象"}}
+            ]
+        }}
+    ],
+    "has_cliches": true或false,
+    "cleaned_text": "将所有陈词滥调替换为第一个替代方案后的清洁文本",
+    "summary": "整体评价：文本中陈词滥调的使用情况"
+}}
+
+只返回JSON，不要其他内容。如果文本中没有发现明显的陈词滥调，返回空的detected数组。"""
+    
+    system = "你是一个专业的文案编辑专家，擅长识别陈词滥调并提供创意替代方案。"
+    
+    try:
+        result = call_ai(prompt, system)
+        parsed = safe_json_parse(result)
+        if parsed:
+            return {"success": True, "detection": parsed}
+        return {
+            "success": True,
+            "detection": {
+                "detected": [],
+                "has_cliches": False,
+                "cleaned_text": req.text,
+                "summary": "未检测到明显的陈词滥调"
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"cliche-detect失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

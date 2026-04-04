@@ -29,7 +29,9 @@ DEFAULT_PREFERENCES = {
     "notifications": {
         "email_on_complete": True,
         "push_on_complete": True,
-        "weekly_summary": False
+        "weekly_summary": False,
+        "collab_joined_push": True,
+        "collab_joined_email": False,
     },
     "accessibility": {
         "reduce_motion": False,

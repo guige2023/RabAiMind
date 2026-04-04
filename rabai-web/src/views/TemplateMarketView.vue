@@ -3,8 +3,21 @@
     <!-- Header -->
     <header class="market-header">
       <div class="container">
-        <h1 class="market-title">模板市场</h1>
-        <p class="market-subtitle">发现适合您演示的精美模板</p>
+        <div class="market-title-row">
+          <div>
+            <h1 class="market-title">模板市场</h1>
+            <p class="market-subtitle">发现适合您演示的精美模板</p>
+          </div>
+          <!-- R102: Share your template button -->
+          <button class="share-template-btn" @click="openUploadModal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16,6 12,2 8,6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+            分享模板
+          </button>
+        </div>
 
         <!-- Search Bar -->
         <div class="search-bar">
@@ -19,7 +32,24 @@
             class="search-input"
             @focus="showSearchHistory = true"
             @blur="hideSearchHistory"
+            @keyup.enter="performAdvancedSearch()"
           />
+          <!-- R111: AI Semantic Search toggle -->
+          <button class="ai-search-btn" @click="performAdvancedSearch()" title="AI智能搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/>
+              <path d="M2 12l10 5 10-5"/>
+            </svg>
+          </button>
+          <!-- R111: Search Analytics button -->
+          <button class="analytics-btn" @click="openSearchAnalytics()" title="搜索分析">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16">
+              <line x1="18" y1="20" x2="18" y2="10"/>
+              <line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </button>
           <button v-if="searchQuery" class="clear-btn" @click="clear()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -149,6 +179,77 @@
           </select>
         </div>
 
+        <!-- R111: Advanced Multi-filter: Author -->
+        <div class="filter-section">
+          <h3 class="filter-title">作者</h3>
+          <input
+            v-model="advancedAuthor"
+            type="text"
+            placeholder="按作者筛选..."
+            class="advanced-filter-input"
+            @keyup.enter="performAdvancedSearch()"
+          />
+        </div>
+
+        <!-- R111: Advanced Multi-filter: Date Range -->
+        <div class="filter-section">
+          <h3 class="filter-title">日期范围</h3>
+          <div class="date-range-inputs">
+            <input v-model="advancedDateFrom" type="date" class="advanced-filter-input date-input" placeholder="开始日期" />
+            <span class="date-separator">至</span>
+            <input v-model="advancedDateTo" type="date" class="advanced-filter-input date-input" placeholder="结束日期" />
+          </div>
+        </div>
+
+        <!-- R111: Advanced Multi-filter: Template Type -->
+        <div class="filter-section">
+          <h3 class="filter-title">模板类型</h3>
+          <div class="filter-options">
+            <button
+              class="filter-btn"
+              :class="{ active: advancedTemplateType === 'all' }"
+              @click="advancedTemplateType = 'all'"
+            >全部</button>
+            <button
+              class="filter-btn"
+              :class="{ active: advancedTemplateType === 'ugc' }"
+              @click="advancedTemplateType = 'ugc'"
+            >用户上传</button>
+            <button
+              class="filter-btn"
+              :class="{ active: advancedTemplateType === 'system' }"
+              @click="advancedTemplateType = 'system'"
+            >系统模板</button>
+          </div>
+        </div>
+
+        <!-- R111: Advanced Multi-filter: Tags -->
+        <div class="filter-section">
+          <h3 class="filter-title">标签</h3>
+          <div class="filter-options tag-filter-options">
+            <button
+              v-for="tag in ['商务', '创意', '简约', '科技', '教育', '金融']"
+              :key="tag"
+              class="filter-btn tag-filter-btn"
+              :class="{ active: advancedTags.includes(tag) }"
+              @click="toggleAdvancedTag(tag)"
+            >{{ tag }}</button>
+          </div>
+        </div>
+
+        <!-- R111: Advanced Search Actions -->
+        <div class="filter-section">
+          <button class="advanced-search-btn" @click="performAdvancedSearch()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="14" height="14">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+              <path d="M2 17l10 5 10-5"/>
+              <path d="M2 12l10 5 10-5"/>
+            </svg>
+            AI智能搜索
+          </button>
+          <button class="clear-filters-btn" @click="clearAdvancedFilters()">清除筛选</button>
+        </div>
+
         <!-- Favorites Toggle -->
         <div class="filter-section">
           <button
@@ -202,6 +303,19 @@
               @click="showMyTemplates = true; showFavorites = false">
               📁 我的模板
             </button>
+            <!-- R92: Batch select toggle (only in 我的模板 tab) -->
+            <button 
+              v-if="showMyTemplates"
+              class="tab-btn tab-btn-batch"
+              :class="{ active: isTemplateSelectMode }"
+              @click="toggleTemplateSelectMode">
+              {{ isTemplateSelectMode ? '✓ 完成选择' : '☐ 批量选择' }}
+            </button>
+            <button
+              class="tab-btn tab-btn-create"
+              @click="goToTemplateEditor">
+              ✨ 创建模板
+            </button>
             <button 
               class="tab-btn" 
               :class="{ active: showFavorites }"
@@ -218,6 +332,56 @@
           <span class="templates-count">
             {{ displayTemplates.length }} 个模板
           </span>
+        </div>
+
+        <!-- R92: Batch action bar -->
+        <div v-if="isTemplateSelectMode && showMyTemplates" class="batch-action-bar">
+          <span class="batch-selected-count">已选择 {{ selectedTemplates.size }} 个模板</span>
+          <div class="batch-actions">
+            <button class="batch-action-btn select-all" @click="selectAllTemplates">全选</button>
+            <button class="batch-action-btn deselect-all" @click="deselectAllTemplates">取消全选</button>
+            <button class="batch-action-btn batch-rename" @click="openBatchRename" :disabled="selectedTemplates.size === 0">
+              ✏️ 批量重命名
+            </button>
+            <button class="batch-action-btn batch-delete" @click="batchDeleteTemplates" :disabled="selectedTemplates.size === 0">
+              🗑️ 批量删除
+            </button>
+          </div>
+        </div>
+
+        <!-- R102: 今日推荐模板 -->
+        <div v-if="!showMyTemplates && !showFavorites && templateOfTheDay" class="recommendation-section daily-section">
+          <div class="recommendation-header">
+            <div class="recommendation-title">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="daily-icon">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+              <span>🌟 今日推荐</span>
+            </div>
+            <span class="recommendation-subtitle">{{ templateOfTheDay.date }} · 每日自动更新</span>
+          </div>
+          <div class="daily-template-card" @click="selectTemplate(templateOfTheDay.template)">
+            <div class="daily-thumbnail">
+              <div class="thumbnail-placeholder daily-thumb-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M9 9h6M9 12h6M9 15h4"/>
+                </svg>
+              </div>
+              <span class="daily-badge">今日</span>
+            </div>
+            <div class="daily-info">
+              <h3 class="daily-name">{{ templateOfTheDay.template.name }}</h3>
+              <p class="daily-desc">{{ templateOfTheDay.template.description }}</p>
+              <div class="daily-tags">
+                <span class="daily-tag category-tag">{{ templateOfTheDay.template.category }}</span>
+                <span class="daily-tag style-tag">{{ templateOfTheDay.template.style }}</span>
+              </div>
+              <button class="daily-use-btn" @click.stop="selectTemplate(templateOfTheDay.template)">
+                使用此模板 →
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- R48: 精选模板（仅"全部模板"标签页显示） -->
@@ -457,6 +621,16 @@
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
               </button>
+
+              <!-- R92: Batch select checkbox -->
+              <div v-if="isTemplateSelectMode && isMyTemplate(template)" 
+                   class="batch-select-checkbox"
+                   :class="{ selected: selectedTemplates.has(template.id) }"
+                   @click.stop="toggleTemplateSelection(template)">
+                <svg v-if="selectedTemplates.has(template.id)" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+              </div>
               
               <!-- My Template Actions (Edit/Delete/Publish) -->
               <div v-if="showMyTemplates && isMyTemplate(template)" class="my-template-actions">
@@ -586,6 +760,35 @@
           <div class="dialog-actions">
             <button class="dialog-btn cancel-btn" @click="deleteConfirmTemplate = null">取消</button>
             <button class="dialog-btn confirm-btn" @click="executeDelete">确认删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- R92: Batch Rename Modal -->
+    <Teleport to="body">
+      <div v-if="showBatchRenameModal" class="modal-overlay" @click.self="showBatchRenameModal = false">
+        <div class="delete-confirm-dialog">
+          <div class="dialog-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </div>
+          <h3>批量重命名 {{ selectedTemplates.size }} 个模板</h3>
+          <p>将统一修改为：</p>
+          <input
+            v-model="batchRenameValue"
+            class="input"
+            placeholder="输入新的模板名称"
+            @keyup.enter="executeBatchRename"
+            style="margin-top: 12px; width: 100%"
+          />
+          <div class="dialog-actions">
+            <button class="dialog-btn cancel-btn" @click="showBatchRenameModal = false">取消</button>
+            <button class="dialog-btn confirm-btn" @click="executeBatchRename" :disabled="!batchRenameValue.trim()">
+              确认重命名
+            </button>
           </div>
         </div>
       </div>
@@ -775,6 +978,88 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- R102: Upload/Share Template Modal -->
+    <Teleport to="body">
+      <div v-if="showUploadModal" class="modal-overlay" @click="showUploadModal = false">
+        <div class="modal-content upload-modal" @click.stop>
+          <button class="modal-close" @click="showUploadModal = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+          <div class="upload-modal-body">
+            <h2 class="upload-modal-title">📤 发布模板到市场</h2>
+            <p class="upload-modal-subtitle">分享您的创意模板，供其他用户下载使用</p>
+
+            <div class="upload-form">
+              <div class="upload-field">
+                <label class="upload-label">模板名称 <span class="required">*</span></label>
+                <input v-model="uploadForm.name" class="upload-input" placeholder="例如：科技感产品发布会" maxlength="50" />
+              </div>
+
+              <div class="upload-field">
+                <label class="upload-label">模板描述 <span class="required">*</span></label>
+                <textarea v-model="uploadForm.description" class="upload-textarea" placeholder="简要描述模板的适用场景、特点等..." rows="3" maxlength="300"></textarea>
+              </div>
+
+              <div class="upload-row">
+                <div class="upload-field">
+                  <label class="upload-label">场景分类 <span class="required">*</span></label>
+                  <select v-model="uploadForm.scene" class="upload-select">
+                    <option value="business">💼 商业</option>
+                    <option value="education">📚 教育</option>
+                    <option value="tech">🚀 科技</option>
+                    <option value="creative">💡 创意</option>
+                    <option value="personal">👤 个人</option>
+                    <option value="government">🏛️ 政府</option>
+                  </select>
+                </div>
+                <div class="upload-field">
+                  <label class="upload-label">设计风格 <span class="required">*</span></label>
+                  <select v-model="uploadForm.style" class="upload-select">
+                    <option value="professional">💼 专业商务</option>
+                    <option value="minimal">✨ 简约现代</option>
+                    <option value="energetic">🔥 活力动感</option>
+                    <option value="premium">👑 高端大气</option>
+                    <option value="tech">🔬 科技未来</option>
+                    <option value="creative">🎨 创意艺术</option>
+                    <option value="elegant">🌸 优雅古典</option>
+                    <option value="playful">🎮 卡通趣味</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="upload-field">
+                <label class="upload-label">可见性</label>
+                <div class="upload-radio-group">
+                  <label class="upload-radio">
+                    <input type="radio" v-model="uploadForm.visibility" value="public" />
+                    <span>🌐 公开</span> — 所有人可见
+                  </label>
+                  <label class="upload-radio">
+                    <input type="radio" v-model="uploadForm.visibility" value="private" />
+                    <span>🔒 私有</span> — 仅自己可见
+                  </label>
+                </div>
+              </div>
+
+              <div class="upload-actions">
+                <button class="upload-cancel-btn" @click="showUploadModal = false">取消</button>
+                <button
+                  class="upload-submit-btn"
+                  :disabled="uploadingTemplate || !uploadForm.name.trim() || !uploadForm.description.trim()"
+                  @click="submitUpload"
+                >
+                  <span v-if="uploadingTemplate">⏳ 发布中...</span>
+                  <span v-else>🚀 发布模板</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -817,6 +1102,118 @@ const myTemplates = ref<Template[]>([])
 const selectedTemplate = ref<Template | null>(null)
 const showSearchHistory = ref(false)
 
+// R111: Advanced Search State
+const showSearchAnalytics = ref(false)
+const searchAnalytics = ref<{
+  trendingQueries: Array<{ query: string; count: number }>
+  searchVolumeOverTime: Array<{ date: string; count: number }>
+  noResultQueries: Array<{ query: string; count: number }>
+  topClickedTemplates: Array<{ id: string; name: string; category: string; click_count: number }>
+  popularFilterCombinations: Array<{ filters: string; count: number }>
+  totalSearches: number
+  uniqueQueries: number
+} | null>(null)
+const searchAnalyticsLoading = ref(false)
+
+// R111: Advanced filters (multi-filter combination)
+const advancedSearchQuery = ref('')
+const advancedDateFrom = ref('')
+const advancedDateTo = ref('')
+const advancedAuthor = ref('')
+const advancedTags = ref<string[]>([])
+const advancedTemplateType = ref<'all' | 'ugc' | 'system'>('all')
+const advancedSortBy = ref<'relevance' | 'newest' | 'popularity' | 'name'>('relevance')
+const advancedResults = ref<any[]>([])
+const advancedTotal = ref(0)
+const advancedLoading = ref(false)
+const advancedHighlighted = ref<Record<string, any>>({})
+const advancedPage = ref(1)
+const advancedTotalPages = ref(1)
+
+// R111: Perform advanced search via API
+const performAdvancedSearch = async (page = 1) => {
+  advancedLoading.value = true
+  try {
+    const res = await api.template.advancedSearch({
+      query: advancedSearchQuery.value || searchQuery.value,
+      category: selectedCategory.value || undefined,
+      style: selectedStyle.value || undefined,
+      author: advancedAuthor.value || undefined,
+      tags: advancedTags.value.length > 0 ? advancedTags.value : undefined,
+      date_from: advancedDateFrom.value || undefined,
+      date_to: advancedDateTo.value || undefined,
+      template_type: advancedTemplateType.value,
+      sort_by: advancedSortBy.value,
+      page,
+      limit: 20,
+      use_semantic: true,
+    })
+    if (res.data.success) {
+      advancedResults.value = res.data.results
+      advancedTotal.value = res.data.total
+      advancedPage.value = res.data.page
+      advancedTotalPages.value = res.data.total_pages
+      advancedHighlighted.value = res.data.highlighted_fields || {}
+    }
+  } catch (e) {
+    console.error('[AdvancedSearch] failed:', e)
+  } finally {
+    advancedLoading.value = false
+  }
+}
+
+// R111: Load search analytics dashboard
+const loadSearchAnalytics = async (days = 30) => {
+  searchAnalyticsLoading.value = true
+  try {
+    const res = await api.template.getSearchAnalyticsDashboard(days)
+    if (res.data.success) {
+      searchAnalytics.value = {
+        trendingQueries: res.data.trending_queries,
+        searchVolumeOverTime: res.data.search_volume_over_time,
+        noResultQueries: res.data.no_result_queries,
+        topClickedTemplates: res.data.top_clicked_templates,
+        popularFilterCombinations: res.data.popular_filter_combinations,
+        totalSearches: res.data.total_searches,
+        uniqueQueries: res.data.unique_queries,
+      }
+    }
+  } catch (e) {
+    console.error('[SearchAnalytics] failed:', e)
+  } finally {
+    searchAnalyticsLoading.value = false
+  }
+}
+
+// R111: Open search analytics panel
+const openSearchAnalytics = () => {
+  showSearchAnalytics.value = true
+  loadSearchAnalytics()
+}
+
+// R111: Toggle tag filter
+const toggleAdvancedTag = (tag: string) => {
+  const idx = advancedTags.value.indexOf(tag)
+  if (idx >= 0) {
+    advancedTags.value.splice(idx, 1)
+  } else {
+    advancedTags.value.push(tag)
+  }
+}
+
+// R111: Clear all advanced filters
+const clearAdvancedFilters = () => {
+  advancedSearchQuery.value = ''
+  advancedDateFrom.value = ''
+  advancedDateTo.value = ''
+  advancedAuthor.value = ''
+  advancedTags.value = []
+  advancedTemplateType.value = 'all'
+  advancedSortBy.value = 'relevance'
+  advancedResults.value = []
+  advancedTotal.value = 0
+}
+
 // Delete confirmation
 const deleteConfirmTemplate = ref<Template | null>(null)
 
@@ -824,6 +1221,12 @@ const deleteConfirmTemplate = ref<Template | null>(null)
 const renamingTemplate = ref<Template | null>(null)
 const renameValue = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
+
+// R92: Batch rename state
+const isTemplateSelectMode = ref(false)
+const selectedTemplates = ref<Set<string>>(new Set())
+const showBatchRenameModal = ref(false)
+const batchRenameValue = ref('')
 
 // R35: 推荐相关状态
 const selectedTemplateSimilar = ref<Template[]>([])
@@ -892,6 +1295,38 @@ const loadTrendingQueries = async () => {
 
 // R48: Featured templates state & data
 const featuredTemplates = ref<Template[]>([])
+// R102: Template of the day
+const templateOfTheDay = ref<{ template: Template; date: string; reason: string } | null>(null)
+const loadTemplateOfTheDay = async () => {
+  try {
+    const res = await api.template.getTemplateOfTheDay()
+    if (res.data?.success && res.data.template) {
+      templateOfTheDay.value = {
+        template: {
+          id: res.data.template.id,
+          name: res.data.template.name,
+          description: res.data.template.description || '',
+          category: res.data.template.category || 'business',
+          style: res.data.template.style || 'professional',
+          thumbnail: res.data.template.thumbnail || '',
+          tags: [res.data.template.category, res.data.template.style].filter(Boolean),
+          slides: 8,
+          popularity: 100,
+          isPremium: false,
+          isFavorite: false,
+          is_ugc: false,
+          author: '每日推荐',
+          createdAt: new Date().toISOString().split('T')[0]
+        },
+        date: res.data.date || new Date().toISOString().split('T')[0],
+        reason: res.data.reason || ''
+      }
+    }
+  } catch (e) {
+    console.warn('加载今日推荐失败:', e)
+  }
+}
+
 const loadFeaturedTemplates = async () => {
   try {
     const res = await api.template.getFeatured(10)
@@ -1028,6 +1463,53 @@ const publishTemplate = async (template: Template) => {
   publishingTemplate.value = null
 }
 
+// R102: Upload/Share template modal
+const showUploadModal = ref(false)
+const uploadingTemplate = ref(false)
+const uploadForm = ref({
+  name: '',
+  description: '',
+  scene: 'business',
+  style: 'professional',
+  visibility: 'public'
+})
+
+const openUploadModal = () => {
+  uploadForm.value = {
+    name: '',
+    description: '',
+    scene: 'business',
+    style: 'professional',
+    visibility: 'public'
+  }
+  showUploadModal.value = true
+}
+
+const submitUpload = async () => {
+  if (!uploadForm.value.name.trim() || !uploadForm.value.description.trim()) return
+  uploadingTemplate.value = true
+  try {
+    const res = await apiClient.post('/templates/upload', null, {
+      params: {
+        name: uploadForm.value.name.trim(),
+        description: uploadForm.value.description.trim(),
+        scene: uploadForm.value.scene,
+        style: uploadForm.value.style,
+        visibility: uploadForm.value.visibility
+      }
+    })
+    if (res.data?.success) {
+      alert(`"${uploadForm.value.name}" 发布成功！`)
+      showUploadModal.value = false
+      await loadMyTemplates()
+    }
+  } catch (e) {
+    console.error('发布模板失败:', e)
+    alert('发布失败，请重试')
+  }
+  uploadingTemplate.value = false
+}
+
 // 隐藏搜索历史
 const hideSearchHistory = () => {
   setTimeout(() => {
@@ -1065,7 +1547,14 @@ onMounted(() => {
   loadFeaturedTemplates()
   loadSubscriptions()
   loadBundles()
+  // R102: 加载今日推荐
+  loadTemplateOfTheDay()
 })
+
+// 模板创建工作室
+const goToTemplateEditor = () => {
+  router.push('/template-editor')
+}
 
 // 加载我的模板
 const loadMyTemplates = async () => {
@@ -1252,6 +1741,88 @@ const cancelRename = () => {
   renameValue.value = ''
 }
 
+// R92: Batch selection
+const toggleTemplateSelectMode = () => {
+  isTemplateSelectMode.value = !isTemplateSelectMode.value
+  if (!isTemplateSelectMode.value) {
+    selectedTemplates.value.clear()
+  }
+}
+
+const toggleTemplateSelection = (template: Template) => {
+  if (selectedTemplates.value.has(template.id)) {
+    selectedTemplates.value.delete(template.id)
+  } else {
+    selectedTemplates.value.add(template.id)
+  }
+}
+
+const selectAllTemplates = () => {
+  displayTemplates.value.forEach(t => {
+    if (isMyTemplate(t)) selectedTemplates.value.add(t.id)
+  })
+}
+
+const deselectAllTemplates = () => {
+  selectedTemplates.value.clear()
+}
+
+// R92: Batch rename
+const openBatchRename = () => {
+  if (selectedTemplates.value.size === 0) return
+  batchRenameValue.value = ''
+  showBatchRenameModal.value = true
+}
+
+const executeBatchRename = async () => {
+  if (!batchRenameValue.value.trim() || selectedTemplates.value.size === 0) {
+    showBatchRenameModal.value = false
+    return
+  }
+  try {
+    const renames = Array.from(selectedTemplates.value).map(template_id => ({
+      template_id,
+      new_name: batchRenameValue.value.trim()
+    }))
+    const res = await api.batch.renameTemplates(renames)
+    if (res.data.success) {
+      // Update local state
+      res.data.renamed?.forEach((r: { template_id: string; new_name: string }) => {
+        const idx = myTemplates.value.findIndex(t => t.id === r.template_id)
+        if (idx !== -1) myTemplates.value[idx].name = r.new_name
+        const storeIdx = store.templates.value.findIndex(t => t.id === r.template_id)
+        if (storeIdx !== -1) store.templates.value[storeIdx].name = r.new_name
+      })
+      alert(`成功重命名 ${res.data.renamed?.length || 0} 个模板`)
+    } else {
+      alert(res.data.summary || '批量重命名失败')
+    }
+  } catch (e) {
+    alert('批量重命名失败: ' + (e as Error).message)
+  }
+  selectedTemplates.value.clear()
+  isTemplateSelectMode.value = false
+  showBatchRenameModal.value = false
+}
+
+// R92: Batch delete templates
+const batchDeleteTemplates = async () => {
+  if (selectedTemplates.value.size === 0) return
+  if (!confirm(`确定要删除选中的 ${selectedTemplates.value.size} 个模板吗？`)) return
+  try {
+    const ids = Array.from(selectedTemplates.value)
+    for (const id of ids) {
+      await api.template.deleteTemplate(id)
+    }
+    myTemplates.value = myTemplates.value.filter(t => !selectedTemplates.value.has(t.id))
+    selectedTemplates.value.clear()
+    isTemplateSelectMode.value = false
+    alert(`成功删除 ${ids.length} 个模板`)
+  } catch (e) {
+    alert('批量删除失败: ' + (e as Error).message)
+  }
+}
+
 // Delete template
 const confirmDelete = (template: Template) => {
   deleteConfirmTemplate.value = template
@@ -1306,6 +1877,155 @@ const executeDelete = async () => {
   font-size: 18px;
   opacity: 0.9;
   margin-bottom: 24px;
+}
+
+/* R102: Share template button */
+.market-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.share-template-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.share-template-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.share-template-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* R111: AI Search & Analytics buttons */
+.ai-search-btn,
+.analytics-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #f0f0f0;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 4px;
+}
+.ai-search-btn:hover,
+.analytics-btn:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+.ai-search-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.ai-search-btn:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f91 100%);
+}
+.analytics-btn:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+/* R111: Advanced filter inputs */
+.advanced-filter-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #333;
+  box-sizing: border-box;
+}
+.advanced-filter-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+.date-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-separator {
+  color: #999;
+  font-size: 12px;
+}
+.date-input {
+  flex: 1;
+}
+.tag-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tag-filter-btn {
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+}
+
+/* R111: Advanced search action buttons */
+.advanced-search-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+.advanced-search-btn:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f91 100%);
+  transform: translateY(-1px);
+}
+.clear-filters-btn {
+  width: 100%;
+  padding: 8px;
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.clear-filters-btn:hover {
+  background: #e8e8e8;
+  color: #333;
+}
+
+/* R111: Search result highlighting */
+:deep(.search-highlight) {
+  background: linear-gradient(135deg, #fef08a 0%, #fde047 100%);
+  color: #333;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 /* Search Bar */
@@ -1610,6 +2330,19 @@ const executeDelete = async () => {
   color: white;
 }
 
+.tab-btn-create {
+  background: linear-gradient(135deg, #5856D6, #165DFF) !important;
+  color: white !important;
+  border-color: transparent !important;
+  margin-left: auto;
+}
+
+.tab-btn-create:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(88, 86, 214, 0.3);
+}
+
 .templates-count {
   font-size: 14px;
   color: #666;
@@ -1829,6 +2562,120 @@ const executeDelete = async () => {
 .delete-btn:hover {
   background: #ff4757;
   transform: scale(1.05);
+}
+
+/* R92: Batch Selection */
+.tab-btn-batch {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  margin-left: 8px;
+}
+
+.tab-btn-batch.active {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.batch-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 2px solid #667eea;
+}
+
+.batch-selected-count {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 14px;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-action-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.batch-action-btn.select-all {
+  background: #e8ecf3;
+  color: #667eea;
+}
+
+.batch-action-btn.deselect-all {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.batch-action-btn.batch-rename {
+  background: #667eea;
+  color: white;
+}
+
+.batch-action-btn.batch-rename:hover:not(:disabled) {
+  background: #5a70d6;
+  transform: scale(1.02);
+}
+
+.batch-action-btn.batch-delete {
+  background: #ff4757;
+  color: white;
+}
+
+.batch-action-btn.batch-delete:hover:not(:disabled) {
+  background: #e63946;
+  transform: scale(1.02);
+}
+
+.batch-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.batch-select-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid white;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.batch-select-checkbox:hover {
+  background: rgba(102, 126, 234, 0.3);
+  transform: scale(1.1);
+}
+
+.batch-select-checkbox.selected {
+  background: #667eea;
+  border-color: #667eea;
+}
+
+.batch-select-checkbox svg {
+  width: 16px;
+  height: 16px;
+  color: white;
 }
 
 /* Inline Rename */
@@ -2464,6 +3311,140 @@ const executeDelete = async () => {
   }
 }
 
+/* R102: Template of the day */
+.daily-section {
+  margin-bottom: 32px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+}
+
+.daily-section .recommendation-title {
+  color: white;
+}
+
+.daily-section .recommendation-subtitle {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+}
+
+.daily-icon {
+  color: #ffd700;
+}
+
+.daily-template-card {
+  display: flex;
+  gap: 24px;
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.daily-template-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.daily-thumbnail {
+  position: relative;
+  width: 200px;
+  height: 140px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.daily-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+}
+
+.daily-thumb-placeholder svg {
+  width: 48px;
+  height: 48px;
+  stroke: white;
+  opacity: 0.6;
+}
+
+.daily-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: #ff6b35;
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.daily-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.daily-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.daily-desc {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+  flex: 1;
+}
+
+.daily-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.daily-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.category-tag {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.style-tag {
+  background: #fce8e6;
+  color: #d93025;
+}
+
+.daily-use-btn {
+  align-self: flex-start;
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.daily-use-btn:hover {
+  opacity: 0.9;
+}
+
 /* R48: Featured templates */
 .featured-badge {
   position: absolute;
@@ -2857,5 +3838,143 @@ const executeDelete = async () => {
   border: 2px solid #ffd700;
 }
 
+/* R102: Upload/Share Template Modal */
+.upload-modal {
+  max-width: 560px;
+  width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.upload-modal-body {
+  padding: 32px;
+}
+
+.upload-modal-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 8px;
+}
+
+.upload-modal-subtitle {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 24px;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upload-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.required {
+  color: #e53935;
+}
+
+.upload-input,
+.upload-textarea,
+.upload-select {
+  padding: 10px 14px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  background: white;
+  color: #333;
+}
+
+.upload-input:focus,
+.upload-textarea:focus,
+.upload-select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.upload-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.upload-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.upload-radio-group {
+  display: flex;
+  gap: 16px;
+}
+
+.upload-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+.upload-radio input[type="radio"] {
+  cursor: pointer;
+}
+
+.upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.upload-cancel-btn {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.upload-cancel-btn:hover {
+  background: #f5f5f5;
+}
+
+.upload-submit-btn {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.upload-submit-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.upload-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 </style>

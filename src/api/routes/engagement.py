@@ -4,11 +4,12 @@ Social Engagement API Routes
 """
 
 from fastapi import APIRouter, HTTPException, Request, Query
-from typing import Optional
+from typing import Optional, List, Dict
 import logging
+from pydantic import BaseModel, Field
 
 from ...services.engagement_service import get_engagement_service
-from ...models import ReactionType, ReactionRequest, ReactionResponse, ShareLinkRequest, ShareLinkResponse, ViewCountResponse, EngagementStats
+from ...models import ReactionType, ReactionRequest, ReactionResponse, ShareLinkRequest, ShareLinkResponse, ViewCountResponse, EngagementStats, PollVoteRequest, PollVoteResponse, QASubmitRequest, QASubmitResponse
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +139,85 @@ async def get_public_status(task_id: str):
         "task_id": task_id,
         "is_public": stats.get('is_public', False)
     }
+
+
+# ==================== Polls ====================
+
+class CreatePollRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=300)
+    options: List[str] = Field(..., min_items=2, max_items=10)
+
+
+@router.post("/polls/{task_id}", response_model=Dict)
+async def create_poll(task_id: str, req: CreatePollRequest, request: Request):
+    """Create a new poll for a slide"""
+    service = get_engagement_service()
+    result = service.create_poll(task_id, req.question, req.options)
+    return result
+
+
+@router.post("/polls/{task_id}/vote", response_model=PollVoteResponse)
+async def vote_poll(task_id: str, req: PollVoteRequest, request: Request):
+    """Vote on a poll"""
+    service = get_engagement_service()
+    user_id = _get_user_id(request)
+    result = service.vote_poll(task_id, req.poll_id, user_id, req.option_index)
+    if not result.get('success'):
+        raise HTTPException(status_code=404, detail="Poll not found")
+    return PollVoteResponse(**result)
+
+
+@router.get("/polls/{task_id}/{poll_id}")
+async def get_poll_results(task_id: str, poll_id: str):
+    """Get poll results"""
+    service = get_engagement_service()
+    result = service.get_poll_results(task_id, poll_id)
+    if not result.get('success'):
+        raise HTTPException(status_code=404, detail="Poll not found")
+    return result
+
+
+@router.get("/polls/{task_id}")
+async def get_polls_for_task(task_id: str):
+    """Get all polls for a task"""
+    service = get_engagement_service()
+    return service.get_polls_for_task(task_id)
+
+
+@router.post("/polls/{task_id}/{poll_id}/close")
+async def close_poll(task_id: str, poll_id: str):
+    """Close/deactivate a poll"""
+    service = get_engagement_service()
+    return service.close_poll(task_id, poll_id)
+
+
+# ==================== Q&A ====================
+
+@router.post("/qa/{task_id}", response_model=QASubmitResponse)
+async def submit_qa(task_id: str, req: QASubmitRequest, request: Request):
+    """Submit a Q&A question"""
+    service = get_engagement_service()
+    result = service.submit_qa(task_id, req.question, req.asker_name or "匿名用户")
+    return QASubmitResponse(**result)
+
+
+@router.get("/qa/{task_id}")
+async def get_qa_list(task_id: str):
+    """Get all Q&A for a task"""
+    service = get_engagement_service()
+    return service.get_qa_list(task_id)
+
+
+@router.post("/qa/{task_id}/{qa_id}/upvote")
+async def upvote_qa(task_id: str, qa_id: str, request: Request):
+    """Upvote a Q&A question"""
+    service = get_engagement_service()
+    user_id = _get_user_id(request)
+    return service.upvote_qa(task_id, qa_id, user_id)
+
+
+@router.post("/qa/{task_id}/{qa_id}/answer")
+async def answer_qa(task_id: str, qa_id: str, answer_text: str = Query(...), request: Request = None):
+    """Mark a Q&A as answered"""
+    service = get_engagement_service()
+    return service.answer_qa(task_id, qa_id, answer_text)

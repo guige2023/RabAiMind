@@ -164,6 +164,122 @@ export function useGlobalSearch() {
   const voiceError = ref<string | null>(null)
   const speechRecognizer = ref<any>(null)
 
+  // R111: Advanced Search State
+  const advancedSearchResults = ref<any[]>([])
+  const advancedSearchLoading = ref(false)
+  const advancedSearchTotal = ref(0)
+  const advancedSearchPage = ref(1)
+  const advancedSearchTotalPages = ref(1)
+  const advancedSearchHighlighted = ref<Record<string, any>>({})
+
+  // R111: Multi-filter options (date + type + author + tags)
+  const advancedFilters = ref({
+    dateFrom: '',
+    dateTo: '',
+    templateType: 'all' as 'all' | 'ugc' | 'system',
+    author: '',
+    tags: [] as string[],
+    sortBy: 'relevance' as 'relevance' | 'newest' | 'popularity' | 'name',
+    useSemantic: true,
+  })
+
+  // R111: Search Analytics Dashboard
+  const searchAnalytics = ref<{
+    trendingQueries: Array<{ query: string; count: number }>
+    searchVolumeOverTime: Array<{ date: string; count: number }>
+    noResultQueries: Array<{ query: string; count: number }>
+    topClickedTemplates: Array<{ id: string; name: string; category: string; click_count: number }>
+    popularFilterCombinations: Array<{ filters: string; count: number }>
+    totalSearches: number
+    uniqueQueries: number
+  } | null>(null)
+  const analyticsLoading = ref(false)
+
+  // R111: Advanced Search - Multi-filter + semantic search
+  const performAdvancedSearch = async (page = 1) => {
+    advancedSearchLoading.value = true
+    try {
+      const res = await api.template.advancedSearch({
+        query: searchQuery.value,
+        category: activeFilters.value.find(f => f.type === 'theme')?.value,
+        style: activeFilters.value.find(f => f.type === 'theme')?.value,
+        author: advancedFilters.value.author || undefined,
+        tags: advancedFilters.value.tags.length > 0 ? advancedFilters.value.tags : undefined,
+        date_from: advancedFilters.value.dateFrom || undefined,
+        date_to: advancedFilters.value.dateTo || undefined,
+        template_type: advancedFilters.value.templateType,
+        sort_by: advancedFilters.value.sortBy,
+        page,
+        limit: 20,
+        use_semantic: advancedFilters.value.useSemantic,
+      })
+      if (res.data.success) {
+        advancedSearchResults.value = res.data.results
+        advancedSearchTotal.value = res.data.total
+        advancedSearchPage.value = res.data.page
+        advancedSearchTotalPages.value = res.data.total_pages
+        advancedSearchHighlighted.value = res.data.highlighted_fields || {}
+      }
+    } catch (e) {
+      console.error('[AdvancedSearch] failed:', e)
+    } finally {
+      advancedSearchLoading.value = false
+    }
+  }
+
+  // R111: AI Semantic Search (dedicated endpoint)
+  const performSemanticSearch = async () => {
+    if (!searchQuery.value.trim()) return
+    advancedSearchLoading.value = true
+    try {
+      const res = await api.template.semanticSearch({
+        query: searchQuery.value,
+        limit: 10,
+        category: activeFilters.value.find(f => f.type === 'theme')?.value,
+        style: activeFilters.value.find(f => f.type === 'theme')?.value,
+      })
+      if (res.data.success) {
+        advancedSearchResults.value = res.data.results
+        advancedSearchTotal.value = res.data.total
+      }
+    } catch (e) {
+      console.error('[SemanticSearch] failed:', e)
+    } finally {
+      advancedSearchLoading.value = false
+    }
+  }
+
+  // R111: Load Search Analytics Dashboard
+  const loadSearchAnalytics = async (days = 30) => {
+    analyticsLoading.value = true
+    try {
+      const res = await api.template.getSearchAnalyticsDashboard(days)
+      if (res.data.success) {
+        searchAnalytics.value = {
+          trendingQueries: res.data.trending_queries,
+          searchVolumeOverTime: res.data.search_volume_over_time,
+          noResultQueries: res.data.no_result_queries,
+          topClickedTemplates: res.data.top_clicked_templates,
+          popularFilterCombinations: res.data.popular_filter_combinations,
+          totalSearches: res.data.total_searches,
+          uniqueQueries: res.data.unique_queries,
+        }
+      }
+    } catch (e) {
+      console.error('[SearchAnalytics] failed:', e)
+    } finally {
+      analyticsLoading.value = false
+    }
+  }
+
+  // R111: Highlight search match text in results
+  const highlightText = (text: string, query: string): string => {
+    if (!query || !text) return text
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(${escaped})`, 'gi')
+    return text.replace(regex, '<mark class="search-highlight">$1</mark>')
+  }
+
   // 搜索历史
   const searchHistory = ref<string[]>([])
 
@@ -503,10 +619,41 @@ export function useGlobalSearch() {
 
     closeSearch()
 
-    // 导航到模板市场并搜索
+    // R111: 导航到模板市场并使用高级搜索
+    // Parse natural language query to extract filters
+    const parsed = parseNaturalLanguage(q)
+    const filters: Record<string, any> = {}
+    for (const f of parsed.filters) {
+      if (f.type === 'theme') filters.category = f.value
+      if (f.type === 'type') filters.template_type = f.value
+      if (f.type === 'date') {
+        // Map date filter to date range
+        const now = new Date()
+        if (f.value === 'today') filters.date_from = now.toISOString().split('T')[0]
+        if (f.value === 'week') {
+          const d = new Date(now); d.setDate(d.getDate() - 7)
+          filters.date_from = d.toISOString().split('T')[0]
+        }
+        if (f.value === 'month') {
+          const d = new Date(now); d.setDate(d.getDate() - 30)
+          filters.date_from = d.toISOString().split('T')[0]
+        }
+        if (f.value === 'year') {
+          const d = new Date(now); d.setDate(d.getDate() - 365)
+          filters.date_from = d.toISOString().split('T')[0]
+        }
+      }
+    }
+    // Merge parsed keyword (if any extracted)
+    const keyword = parsed.keywords || q
+
     router.push({
       path: '/templates',
-      query: { search: q }
+      query: {
+        search: keyword,
+        ...filters,
+        use_semantic: 'true',
+      }
     })
   }
 
@@ -627,7 +774,21 @@ export function useGlobalSearch() {
     // 快速链接
     quickLinks,
     // R69: Utilities
-    parseNaturalLanguage
+    parseNaturalLanguage,
+    // R111: Advanced Search
+    advancedSearchResults,
+    advancedSearchLoading,
+    advancedSearchTotal,
+    advancedSearchPage,
+    advancedSearchTotalPages,
+    advancedSearchHighlighted,
+    advancedFilters,
+    searchAnalytics,
+    analyticsLoading,
+    performAdvancedSearch,
+    performSemanticSearch,
+    loadSearchAnalytics,
+    highlightText,
   }
 }
 

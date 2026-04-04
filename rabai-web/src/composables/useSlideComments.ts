@@ -1,5 +1,7 @@
 // Slide Comments composable - 幻灯片评论功能
 import { ref, computed } from 'vue'
+import api from '../api/client'
+import { useCollaboration } from './useCollaboration'
 
 export interface Comment {
   id: string
@@ -42,14 +44,19 @@ export interface SuggestEdit {
   resolvedAt: string | null
 }
 
-// 当前用户
-const currentUser = {
+// 当前用户（默认值，可被覆盖）
+const defaultUser = {
   id: 'u_current',
   name: '我',
   avatar: ''
 }
 
-export function useSlideComments(pptId?: string) {
+export function useSlideComments(
+  pptId?: string,
+  taskIdForApi?: string,
+  userInfo?: { id: string; name: string; avatar?: string }
+) {
+  const currentUser = userInfo || defaultUser
   const comments = ref<Comment[]>([])
   const suggestEdits = ref<SuggestEdit[]>([])
   const isLoading = ref(false)
@@ -77,8 +84,35 @@ export function useSlideComments(pptId?: string) {
     }
   }
 
-  // 加载建议编辑
-  const loadSuggestEdits = () => {
+  // 加载建议编辑（优先后端，其次本地）
+  const loadSuggestEdits = async () => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        const res = await api.getSuggestEdits(taskIdForApi)
+        if (res.data.success && res.data.edits) {
+          suggestEdits.value = res.data.edits.map((e: any) => ({
+            id: e.id,
+            slideNum: e.slide_num,
+            authorId: e.author_id,
+            authorName: e.author_name,
+            authorAvatar: e.author_avatar,
+            type: e.edit_type,
+            originalContent: e.original_content,
+            suggestedContent: e.suggested_content,
+            reason: e.reason,
+            status: e.status,
+            createdAt: e.created_at,
+            resolvedBy: e.resolved_by,
+            resolvedAt: e.resolved_at,
+          }))
+          return
+        }
+      } catch {
+        // Fall through to localStorage
+      }
+    }
+    // Fallback to localStorage
     try {
       const saved = localStorage.getItem(`suggestEdits_${pptId || 'default'}`)
       if (saved) {
@@ -219,19 +253,61 @@ export function useSlideComments(pptId?: string) {
   }
 
   // 添加建议编辑
-  const addSuggestEdit = (
+  const addSuggestEdit = async (
     slideNum: number,
     type: 'text' | 'image' | 'layout' | 'style',
     originalContent: any,
     suggestedContent: any,
     reason: string
-  ): SuggestEdit | null => {
+  ): Promise<SuggestEdit | null> => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        const res = await api.addSuggestEdit(taskIdForApi, {
+          slide_num: slideNum,
+          author_id: currentUser.id,
+          author_name: currentUser.name,
+          author_avatar: currentUser.avatar || '',
+          edit_type: type,
+          original_content: originalContent,
+          suggested_content: suggestedContent,
+          reason,
+        })
+        if (res.data.success && res.data.edit) {
+          const e = res.data.edit
+          const edit: SuggestEdit = {
+            id: e.id,
+            slideNum: e.slide_num,
+            authorId: e.author_id,
+            authorName: e.author_name,
+            authorAvatar: e.author_avatar,
+            type: e.edit_type,
+            originalContent: e.original_content,
+            suggestedContent: e.suggested_content,
+            reason: e.reason,
+            status: e.status,
+            createdAt: e.created_at,
+            resolvedBy: e.resolved_by,
+            resolvedAt: e.resolved_at,
+          }
+          // Add to list if not already there
+          if (!suggestEdits.value.find(x => x.id === edit.id)) {
+            suggestEdits.value.push(edit)
+          }
+          saveSuggestEdits()
+          return edit
+        }
+      } catch {
+        // Fall through to local
+      }
+    }
+    // Local fallback
     const edit: SuggestEdit = {
       id: `sug_${Date.now()}`,
       slideNum,
       authorId: currentUser.id,
       authorName: currentUser.name,
-      authorAvatar: currentUser.avatar,
+      authorAvatar: currentUser.avatar || '',
       type,
       originalContent,
       suggestedContent,
@@ -241,17 +317,37 @@ export function useSlideComments(pptId?: string) {
       resolvedBy: null,
       resolvedAt: null
     }
-
     suggestEdits.value.push(edit)
     saveSuggestEdits()
     return edit
   }
 
   // 接受建议编辑
-  const acceptSuggestEdit = (editId: string): boolean => {
+  const acceptSuggestEdit = async (editId: string): Promise<boolean> => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        const res = await api.resolveSuggestEdit(taskIdForApi, editId, {
+          status: 'accepted',
+          resolved_by: currentUser.id,
+        })
+        if (res.data.success) {
+          const edit = suggestEdits.value.find(e => e.id === editId)
+          if (edit) {
+            edit.status = 'accepted'
+            edit.resolvedBy = currentUser.id
+            edit.resolvedAt = new Date().toISOString()
+            saveSuggestEdits()
+          }
+          return true
+        }
+      } catch {
+        // Fall through to local
+      }
+    }
+    // Local fallback
     const edit = suggestEdits.value.find(e => e.id === editId)
     if (!edit) return false
-
     edit.status = 'accepted'
     edit.resolvedBy = currentUser.id
     edit.resolvedAt = new Date().toISOString()
@@ -260,10 +356,31 @@ export function useSlideComments(pptId?: string) {
   }
 
   // 拒绝建议编辑
-  const rejectSuggestEdit = (editId: string): boolean => {
+  const rejectSuggestEdit = async (editId: string): Promise<boolean> => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        const res = await api.resolveSuggestEdit(taskIdForApi, editId, {
+          status: 'rejected',
+          resolved_by: currentUser.id,
+        })
+        if (res.data.success) {
+          const edit = suggestEdits.value.find(e => e.id === editId)
+          if (edit) {
+            edit.status = 'rejected'
+            edit.resolvedBy = currentUser.id
+            edit.resolvedAt = new Date().toISOString()
+            saveSuggestEdits()
+          }
+          return true
+        }
+      } catch {
+        // Fall through to local
+      }
+    }
+    // Local fallback
     const edit = suggestEdits.value.find(e => e.id === editId)
     if (!edit) return false
-
     edit.status = 'rejected'
     edit.resolvedBy = currentUser.id
     edit.resolvedAt = new Date().toISOString()

@@ -71,6 +71,10 @@
               <option value="en">English</option>
               <option value="ja">日本語</option>
               <option value="ko">한국어</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="ar">العربية (RTL)</option>
+              <option value="he">עברית (RTL)</option>
             </select>
           </div>
         </div>
@@ -98,6 +102,16 @@
             <label class="toggle-row">
               <span>每周使用摘要</span>
               <input type="checkbox" :checked="prefs.notifications?.weekly_summary" @change="updateNotif('weekly_summary', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>协作者加入时推送通知</span>
+              <input type="checkbox" :checked="prefs.notifications?.collab_joined_push" @change="updateNotif('collab_joined_push', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>协作者加入时发送邮件</span>
+              <input type="checkbox" :checked="prefs.notifications?.collab_joined_email" @change="updateNotif('collab_joined_email', ($event.target as HTMLInputElement).checked)" />
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -368,6 +382,179 @@
         </div>
       </div>
 
+      <!-- ── Performance Tab ─────────────────────────────────── -->
+      <div v-if="activeTab === 'performance'" class="tab-panel" role="tabpanel">
+        <h2 class="section-title">🚀 性能优化</h2>
+
+        <!-- Power Saver Mode -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">🔋</span>
+            <div>
+              <div class="label-title">省电/低性能模式</div>
+              <div class="label-desc">减少动画、延迟加载图片、降低图片质量以节省电量和流量</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <label class="toggle-row">
+              <span>启用省电模式</span>
+              <input type="checkbox" :checked="isPowerSaver" @change="togglePowerSaver" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Power Saver Options -->
+        <div v-if="isPowerSaver" class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">⚡</span>
+            <div>
+              <div class="label-title">省电选项</div>
+              <div class="label-desc">自定义省电模式的行为</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <label class="toggle-row">
+              <span>禁用动画</span>
+              <input type="checkbox" v-model="powerSaverOptions.animationsDisabled" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>延迟加载图片</span>
+              <input type="checkbox" v-model="powerSaverOptions.lazyLoadImages" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>压缩图片</span>
+              <input type="checkbox" v-model="powerSaverOptions.compressImages" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>减少DOM复杂度</span>
+              <input type="checkbox" v-model="powerSaverOptions.reduceDOM" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Performance Profiler -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">📊</span>
+            <div>
+              <div class="label-title">性能监控面板</div>
+              <div class="label-desc">显示实时FPS、内存使用、渲染时间等性能指标</div>
+            </div>
+          </div>
+          <div class="setting-control">
+            <button class="btn" @click="toggleProfilerPanel" :class="profilerVisible ? 'btn-primary' : 'btn-secondary'">
+              {{ profilerVisible ? '🟢 性能面板已开启' : '⚪ 开启性能面板' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Performance Summary -->
+        <div class="panel" v-if="perfSummary">
+          <div class="panel-header"><h3>📈 当前性能</h3></div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span class="stat-icon">🎬</span>
+              <div>
+                <div class="stat-value" :class="perfSummary.fps.grade">{{ perfSummary.fps.current }} FPS</div>
+                <div class="stat-label">平均 {{ perfSummary.fps.average }} FPS</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-icon">💾</span>
+              <div>
+                <div class="stat-value" :class="perfSummary.memory.grade">{{ perfSummary.memory.used }}MB</div>
+                <div class="stat-label">限制 {{ perfSummary.memory.limit }}MB</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-icon">🏗️</span>
+              <div>
+                <div class="stat-value">{{ perfSummary.domNodes.toLocaleString() }}</div>
+                <div class="stat-label">DOM节点数</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <span class="stat-icon">⏱️</span>
+              <div>
+                <div class="stat-value">{{ perfSummary.longTasks }}</div>
+                <div class="stat-label">慢任务数</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Startup Optimization -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">⚡</span>
+            <div>
+              <div class="label-title">启动优化</div>
+              <div class="label-desc">加快应用启动速度</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <label class="toggle-row">
+              <span>预加载关键资源</span>
+              <input type="checkbox" v-model="startupOptions.preloadCritical" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>延迟加载非首屏组件</span>
+              <input type="checkbox" v-model="startupOptions.lazyLoadComponents" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>启用 Service Worker 缓存</span>
+              <input type="checkbox" v-model="startupOptions.serviceWorkerCache" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Startup Time Measurement -->
+        <div class="panel">
+          <div class="panel-header"><h3>⏱️ 启动时间</h3></div>
+          <div v-if="startupTime" class="startup-metrics">
+            <div class="startup-metric">
+              <span class="startup-label">首次内容绘制</span>
+              <span class="startup-value">{{ startupTime.fcp }}ms</span>
+            </div>
+            <div class="startup-metric">
+              <span class="startup-label">最大内容绘制</span>
+              <span class="startup-value">{{ startupTime.lcp }}ms</span>
+            </div>
+            <div class="startup-metric">
+              <span class="startup-label">DOM加载完成</span>
+              <span class="startup-value">{{ startupTime.domContentLoaded }}ms</span>
+            </div>
+            <div class="startup-metric">
+              <span class="startup-label">页面完全加载</span>
+              <span class="startup-value">{{ startupTime.load }}ms</span>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            <p>正在测量启动时间...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Cache Tab ───────────────────────────────────────── -->
+      <div v-if="activeTab === 'cache'" class="tab-panel" role="tabpanel">
+        <h2 class="section-title">💾 缓存管理</h2>
+        <CacheManager />
+      </div>
+
+      <!-- ── Sync Tab ────────────────────────────────────────── -->
+      <div v-if="activeTab === 'sync'" class="tab-panel" role="tabpanel">
+        <h2 class="section-title">☁️ 离线同步</h2>
+        <SyncStatus />
+      </div>
+
       <!-- ── Export Tab ──────────────────────────────────────── -->
       <div v-if="activeTab === 'export'" class="tab-panel" role="tabpanel">
         <h2 class="section-title">📦 数据导出</h2>
@@ -397,6 +584,47 @@
           </ul>
           <p class="export-note">数据以 JSON 格式导出，可用于备份或迁移账户。</p>
         </div>
+
+        <!-- GDPR Delete All My Data -->
+        <div class="danger-zone">
+          <h2 class="section-title danger-title">🗑️ GDPR 数据删除（不可逆）</h2>
+          <div class="setting-group danger-group">
+            <div class="setting-label">
+              <span class="label-icon">⚠️</span>
+              <div>
+                <div class="label-title">删除所有我的数据</div>
+                <div class="label-desc">
+                  根据 GDPR 第17条（被遗忘权），彻底删除您的所有个人数据。<br/>
+                  删除后，所有PPT、模板、品牌资产、收藏记录将被永久清除。
+                </div>
+              </div>
+            </div>
+            <div class="setting-control">
+              <label class="secure-delete-toggle">
+                <input type="checkbox" v-model="secureDelete" />
+                <span>🔒 安全删除（覆写擦除，数据不可恢复）</span>
+              </label>
+              <button
+                class="btn btn-danger btn-lg"
+                @click="deleteAllMyData"
+                :disabled="deleting || !deleteConfirmText"
+              >
+                {{ deleting ? '删除中...' : '🗑️ 删除所有我的数据' }}
+              </button>
+            </div>
+          </div>
+          <div class="delete-confirm-row">
+            <input
+              v-model="deleteConfirmText"
+              class="form-input"
+              placeholder="输入「删除」确认"
+              style="max-width: 200px;"
+            />
+          </div>
+          <p class="danger-note">
+            ⚠️ 此操作不可撤销。数据删除后无法恢复，请在执行前使用上方"导出JSON数据"功能备份。
+          </p>
+        </div>
       </div>
 
     </div>
@@ -409,13 +637,21 @@ import axios from '../api/client'
 import { useAccessibility } from '../composables/useAccessibility'
 import { useI18n } from '../composables/useI18n'
 import { usePerformanceMode } from '../composables/usePerformanceMode'
+import { usePerformanceProfiler } from '../composables/usePerformanceProfiler'
+import { useBackgroundSync } from '../composables/useBackgroundSync'
 import { usePWAInstall } from '../composables/usePWAInstall'
+import PerformanceProfiler from '../components/PerformanceProfiler.vue'
+import CacheManager from '../components/CacheManager.vue'
+import SyncStatus from '../components/SyncStatus.vue'
 
 const activeTab = ref('preferences')
 const tabs = [
   { id: 'preferences', label: '偏好设置', icon: '⚙️' },
   { id: 'account', label: '账户', icon: '👤' },
   { id: 'stats', label: '使用统计', icon: '📊' },
+  { id: 'performance', label: '性能优化', icon: '🚀' },
+  { id: 'cache', label: '缓存管理', icon: '💾' },
+  { id: 'sync', label: '离线同步', icon: '☁️' },
   { id: 'export', label: '数据导出', icon: '📦' },
 ]
 
@@ -429,7 +665,7 @@ const themeOptions = [
 const prefs = reactive<any>({
   theme: 'auto',
   language: 'zh',
-  notifications: { email_on_complete: true, push_on_complete: true, weekly_summary: false },
+  notifications: { email_on_complete: true, push_on_complete: true, weekly_summary: false, collab_joined_push: true, collab_joined_email: false },
   accessibility: { reduce_motion: false, high_contrast: false, font_size: 'medium' },
   editor: { auto_save: true, show_grid: true, snap_to_grid: true },
 })
@@ -447,6 +683,110 @@ const toggleReduceData = async () => {
     console.error('Failed to save performance mode preference', e)
   }
 }
+
+// ── Performance Tab ─────────────────────────────────────────────────────────
+const { isRunning: profilerRunning, isVisible: profilerVisible, toggle: toggleProfiler, getSummary: getProfilerSummary } = usePerformanceProfiler()
+
+// Power saver mode
+const isPowerSaver = ref(false)
+const powerSaverOptions = reactive({
+  animationsDisabled: true,
+  lazyLoadImages: true,
+  compressImages: true,
+  reduceDOM: false
+})
+
+const togglePowerSaver = () => {
+  isPowerSaver.value = !isPowerSaver.value
+  localStorage.setItem('rabai_power_saver', JSON.stringify(isPowerSaver.value))
+  localStorage.setItem('rabai_power_saver_options', JSON.stringify(powerSaverOptions))
+}
+
+// Load power saver state
+const loadPowerSaverState = () => {
+  try {
+    const saved = localStorage.getItem('rabai_power_saver')
+    if (saved !== null) {
+      isPowerSaver.value = JSON.parse(saved)
+    }
+    const savedOptions = localStorage.getItem('rabai_power_saver_options')
+    if (savedOptions) {
+      Object.assign(powerSaverOptions, JSON.parse(savedOptions))
+    }
+  } catch {}
+}
+
+// Performance summary
+const perfSummary = ref<any>(null)
+
+const updatePerfSummary = () => {
+  if (profilerRunning.value) {
+    perfSummary.value = getProfilerSummary()
+  }
+}
+
+// Toggle profiler panel
+const toggleProfilerPanel = () => {
+  toggleProfiler()
+  if (profilerRunning.value) {
+    updatePerfSummary()
+  }
+}
+
+// Startup optimization options
+const startupOptions = reactive({
+  preloadCritical: true,
+  lazyLoadComponents: true,
+  serviceWorkerCache: true
+})
+
+// Startup time measurement
+const startupTime = ref<{ fcp: number; lcp: number; domContentLoaded: number; load: number } | null>(null)
+
+const measureStartupTime = () => {
+  if (window.performance) {
+    const nav = performance.getEntriesByEntries('navigation')[0] as PerformanceNavigationTiming
+    if (nav) {
+      const paintEntries = performance.getEntriesByType('paint')
+      const fcp = paintEntries.find(e => e.name === 'first-contentful-paint')
+      const lcp = (performance.getEntriesByType('largest-contentful-paint')[0] as any)?.startTime || 0
+
+      startupTime.value = {
+        fcp: Math.round(fcp?.startTime || 0),
+        lcp: Math.round(lcp),
+        domContentLoaded: Math.round(nav.domContentLoadedEventEnd - nav.fetchStart),
+        load: Math.round(nav.loadEventEnd - nav.fetchStart)
+      }
+    }
+  }
+}
+
+// Auto-update performance summary
+let perfInterval: number | null = null
+
+onMounted(() => {
+  loadPowerSaverState()
+  measureStartupTime()
+  if (profilerRunning.value) {
+    perfInterval = window.setInterval(updatePerfSummary, 2000)
+  }
+})
+
+// Load startup options
+const loadStartupOptions = () => {
+  try {
+    const saved = localStorage.getItem('rabai_startup_options')
+    if (saved) {
+      Object.assign(startupOptions, JSON.parse(saved))
+    }
+  } catch {}
+}
+
+// Watch startup options changes
+import { watch } from 'vue'
+watch(startupOptions, (val) => {
+  localStorage.setItem('rabai_startup_options', JSON.stringify(val))
+}, { deep: true })
 
 // ── Offline / PWA Install ───────────────────────────────────────────────────
 const { installApp, canInstall } = usePWAInstall()
@@ -633,6 +973,9 @@ const formatTime = (seconds: number) => {
 
 // ── Export ──────────────────────────────────────────────────────────────────
 const exporting = ref(false)
+const deleting = ref(false)
+const deleteConfirmText = ref('')
+const secureDelete = ref(false)
 
 const exportData = async () => {
   exporting.value = true
@@ -652,6 +995,33 @@ const exportData = async () => {
     alert('导出失败，请重试')
   } finally {
     exporting.value = false
+  }
+}
+
+const deleteAllMyData = async () => {
+  if (deleteConfirmText.value !== '删除') {
+    alert('请在上方输入「删除」确认')
+    return
+  }
+  if (!confirm(`确定要删除所有数据吗？${secureDelete.value ? '（安全删除，数据不可恢复）' : ''}此操作不可撤销！`)) {
+    return
+  }
+  deleting.value = true
+  try {
+    // Get current username from profile
+    const username = profile.name || ''
+    await axios.post('/gdpr/delete', {
+      confirm_username: username,
+      secure_delete: secureDelete.value,
+    })
+    alert('数据删除请求已记录，数据将在保留期到期后自动清除')
+    deleteConfirmText.value = ''
+  } catch (e: any) {
+    console.error('Failed to delete data', e)
+    const msg = e?.response?.data?.detail || '删除失败，请重试'
+    alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -1239,6 +1609,48 @@ watch(activeTab, async (tab) => {
   margin: 0;
 }
 
+/* GDPR Delete Zone */
+.danger-zone {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px dashed #ef4444;
+}
+
+.danger-title {
+  color: #ef4444 !important;
+}
+
+.danger-group {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+
+.secure-delete-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.secure-delete-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.delete-confirm-row {
+  margin-top: 12px;
+}
+
+.danger-note {
+  font-size: 12px;
+  color: #ef4444;
+  margin: 8px 0 0 0;
+}
+
 /* Loading */
 .loading-state {
   display: flex;
@@ -1267,4 +1679,52 @@ watch(activeTab, async (tab) => {
   padding: 40px;
   color: var(--gray-500);
 }
+
+/* Performance Tab */
+.startup-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.startup-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--gray-100);
+  border-radius: 6px;
+}
+
+:root.dark .startup-metric {
+  background: var(--gray-700);
+}
+
+.startup-label {
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+:root.dark .startup-label {
+  color: var(--gray-400);
+}
+
+.startup-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+
+.fps-good { color: #34C759; }
+.fps-warning { color: #FF9500; }
+.fps-poor { color: #FF3B30; }
+
+.memory-good { color: #34C759; }
+.memory-warning { color: #FF9500; }
+.memory-poor { color: #FF3B30; }
+
+.stat-card .stat-value.good { color: #34C759; }
+.stat-card .stat-value.warning { color: #FF9500; }
+.stat-card .stat-value.poor { color: #FF3B30; }
 </style>

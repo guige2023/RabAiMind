@@ -95,6 +95,7 @@ import { useActivityFeed } from '../composables/useActivityFeed'
 
 const props = defineProps<{
   pptId?: string
+  taskId?: string
 }>()
 
 const {
@@ -113,7 +114,7 @@ const {
   getTimeDescription,
   simulateTeamActivity,
   loadActivities
-} = useActivityFeed(props.pptId)
+} = useActivityFeed(props.pptId, props.taskId)
 
 const showFilter = ref(false)
 

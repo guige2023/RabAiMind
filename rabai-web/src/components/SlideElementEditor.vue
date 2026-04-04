@@ -116,16 +116,25 @@
       <div class="ai-toolbar">
         <div class="ai-toolbar-title">🤖 AI 智能工具</div>
         <div class="ai-toolbar-buttons">
-          <!-- AI 改写（仅文本元素） -->
-          <button
-            class="ai-btn ai-btn-rephrase"
-            :class="{ disabled: selectedElement?.type !== 'text' || aiLoading }"
-            @click="rephraseText"
-            :disabled="selectedElement?.type !== 'text' || aiLoading"
-            title="AI 改写选中文字"
-          >
-            ✨ 改写
-          </button>
+          <!-- AI 改写 + 语气调整（仅文本元素） -->
+          <div class="ai-rephrase-group" v-if="selectedElement?.type === 'text'">
+            <select v-model="rephraseStyle" class="ai-tone-select" title="语气风格">
+              <option value="natural">自然流畅</option>
+              <option value="formal">正式专业</option>
+              <option value="casual">轻松随意</option>
+              <option value="creative">创意生动</option>
+              <option value="concise">简洁精炼</option>
+            </select>
+            <button
+              class="ai-btn ai-btn-rephrase"
+              :class="{ disabled: aiLoading }"
+              @click="rephraseText"
+              :disabled="aiLoading"
+              title="AI 改写"
+            >
+              ✨ 改写
+            </button>
+          </div>
 
           <!-- AI 翻译（仅文本元素） -->
           <div class="ai-translate-group" v-if="selectedElement?.type === 'text'">
@@ -145,7 +154,88 @@
             </button>
           </div>
 
+          <!-- AI 语法检查（仅文本元素） -->
+          <button
+            v-if="selectedElement?.type === 'text'"
+            class="ai-btn ai-btn-grammar"
+            :class="{ disabled: aiLoading }"
+            @click="grammarCheckText"
+            :disabled="aiLoading"
+            title="语法拼写检查"
+          >
+            ✅ 检查
+          </button>
+
+          <!-- R109: AI 智能脚注（仅文本元素） -->
+          <button
+            v-if="selectedElement?.type === 'text'"
+            class="ai-btn ai-btn-footnote"
+            :class="{ disabled: aiLoading }"
+            @click="addSmartFootnotes"
+            :disabled="aiLoading"
+            title="AI 添加脚注引用"
+          >
+            📎 脚注
+          </button>
+
           <div class="ai-toolbar-sep"></div>
+
+          <!-- AI 扩展/压缩（仅文本元素） -->
+          <div class="ai-expand-group" v-if="selectedElement?.type === 'text'">
+            <span class="expand-label">📝</span>
+            <button class="ai-btn ai-btn-expand" @click="setExpandRatio(0.5)" :disabled="aiLoading" title="压缩内容">➖</button>
+            <input
+              type="range"
+              v-model.number="expandRatio"
+              min="0.5"
+              max="2.0"
+              step="0.1"
+              class="expand-slider"
+              title="内容扩展/压缩"
+            />
+            <button class="ai-btn ai-btn-expand" @click="setExpandRatio(2.0)" :disabled="aiLoading" title="扩展内容">➕</button>
+            <button
+              class="ai-btn ai-btn-apply"
+              :class="{ disabled: aiLoading }"
+              @click="expandShortenText"
+              :disabled="aiLoading"
+              title="应用扩展/压缩"
+            >
+              {{ expandRatio > 1.0 ? '↗️ 扩展' : '↘️ 压缩' }}
+            </button>
+          </div>
+
+          <!-- R109: AI 语气调整（仅文本元素） -->
+          <div class="ai-tone-group" v-if="selectedElement?.type === 'text'">
+            <select v-model="toneStyle" class="ai-tone-select" title="语气调整">
+              <option value="formal">📋 正式</option>
+              <option value="casual">💬 休闲</option>
+              <option value="technical">🔧 技术</option>
+              <option value="persuasive">🎯 有说服力</option>
+              <option value="warm">💡 温暖</option>
+            </select>
+            <button
+              class="ai-btn ai-btn-tone"
+              :class="{ disabled: aiLoading }"
+              @click="adjustTone"
+              :disabled="aiLoading"
+              title="AI 语气调整"
+            >
+              🎯 语气
+            </button>
+          </div>
+
+          <!-- R109: AI 陈词滥调检测（仅文本元素） -->
+          <button
+            v-if="selectedElement?.type === 'text'"
+            class="ai-btn ai-btn-cliche"
+            :class="{ disabled: aiLoading }"
+            @click="detectCliches"
+            :disabled="aiLoading"
+            title="AI 检测陈词滥调"
+          >
+            💎 检测
+          </button>
 
           <!-- 智能布局建议 -->
           <button
@@ -862,8 +952,69 @@
             <p>选择画布中的元素进行编辑</p>
           </div>
 
+          <!-- R121: Smart Layout Engine -->
+          <div class="panel-header" style="margin-top: 8px;">🧠 智能布局</div>
+          <div class="smart-layout-section">
+            <!-- Auto-balance -->
+            <button class="btn btn-sm smart-layout-btn" @click="handleAutoBalance" title="自动平衡分布">
+              ⚖️ 自动平衡
+            </button>
+            <!-- Content reflow -->
+            <button class="btn btn-sm smart-layout-btn" @click="handleContentReflow" title="文字环绕重排">
+              🔄 内容重排
+            </button>
+            <!-- Apply smart grid -->
+            <button class="btn btn-sm smart-layout-btn" @click="handleApplySmartGrid" title="智能网格对齐">
+              📐 网格对齐
+            </button>
+          </div>
+
+          <!-- R121: Smart Grid Controls -->
+          <div class="panel-header" style="margin-top: 8px;">🔲 智能网格</div>
+          <div class="smart-grid-section">
+            <div class="grid-toggle-row">
+              <label class="prop-label">启用智能网格</label>
+              <button
+                class="toggle-btn"
+                :class="{ active: smartGridEnabled }"
+                @click="smartGridEnabled = !smartGridEnabled"
+              >
+                {{ smartGridEnabled ? 'ON' : 'OFF' }}
+              </button>
+            </div>
+            <div class="grid-presets-row" v-if="smartGridEnabled">
+              <select
+                class="grid-select"
+                v-model="smartGridSize"
+                @change="handleApplySmartGrid"
+              >
+                <option v-for="preset in GRID_PRESETS" :key="preset.id" :value="preset.size">
+                  {{ preset.icon }} {{ preset.name }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- R121: Aspect Ratio Selector -->
+          <div class="panel-header" style="margin-top: 8px;">📐 响应式比例</div>
+          <div class="aspect-ratio-section">
+            <div class="aspect-ratio-grid">
+              <div
+                v-for="ratio in ASPECT_RATIOS"
+                :key="ratio.id"
+                class="aspect-ratio-item"
+                :class="{ active: activeAspectRatio === ratio.id }"
+                @click="handleAspectRatioChange(ratio.id)"
+                :title="ratio.name"
+              >
+                <span class="aspect-icon">{{ ratio.icon }}</span>
+                <span class="aspect-name">{{ ratio.id }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- R20/R21: 布局可视化选择 -->
-          <div class="panel-header" style="margin-top: 8px;">📐 布局选择</div>
+          <div class="panel-header" style="margin-top: 8px;">📐 布局预设</div>
           <div class="layout-grid">
             <div
               v-for="layout in layoutPresets"
@@ -981,6 +1132,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../api/client'
+import { useSmartLayout, LAYOUT_PRESETS, GRID_PRESETS, ASPECT_RATIOS } from '../composables/useSmartLayout'
+
+// R121: Smart Layout Engine
+const {
+  smartGridEnabled,
+  smartGridSize,
+  smartGridCols,
+  smartGridRows,
+  activeSmartLayout,
+  activeAspectRatio,
+  autoBalanceElements,
+  reflowTextContent,
+  applySmartLayoutPreset,
+  snapElementToSmartGrid,
+  adaptToAspectRatio,
+  scaleElements,
+} = useSmartLayout()
 
 interface SlideElement {
   id: string
@@ -1037,13 +1205,8 @@ const guideY = ref<number | null>(null)
 
 // R20: 布局预设
 const activeLayout = ref('default')
-const layoutPresets = [
-  { id: 'default', name: '默认', icon: '📐' },
-  { id: 'center', name: '居中', icon: '🎯' },
-  { id: 'left-heavy', name: '左重', icon: '◀️' },
-  { id: 'right-heavy', name: '右重', icon: '▶️' },
-  { id: 'grid', name: '网格', icon: '🔲' },
-]
+// R121: Expanded layout presets from smart layout engine
+const layoutPresets = LAYOUT_PRESETS
 
 // R21: 字体主题
 const activeFontTheme = ref('default')
@@ -1092,9 +1255,22 @@ const translateOptions = [
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'es', label: 'Español' },
+  { value: 'pt', label: 'Português' },
+  { value: 'it', label: 'Italiano' },
+  { value: 'ru', label: 'Русский' },
+  { value: 'ar', label: 'العربية' },
+  { value: 'hi', label: 'हिन्दी' },
 ]
 
-// R32: AI 改写
+// R32: AI 改写 + R72: 语气风格
+const rephraseStyle = ref('natural')
+
+// R109: AI 语气调整
+const toneStyle = ref('formal')
+
 const rephraseText = async () => {
   if (selectedElementIndex.value === null) return
   const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
@@ -1102,7 +1278,7 @@ const rephraseText = async () => {
   aiLoading.value = true
   aiLoadingText.value = '改写中...'
   try {
-    const res = await api.ai.rephrase(el.content, 'natural')
+    const res = await api.ai.rephrase(el.content, rephraseStyle.value)
     if (res.data.success) {
       saveHistory()
       el.content = res.data.rephrased
@@ -1110,6 +1286,167 @@ const rephraseText = async () => {
   } catch (e: any) {
     console.error('改写失败', e)
     alert('改写失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R72: AI 内容扩展/压缩
+const expandRatio = ref(1.5)
+
+const setExpandRatio = (val: number) => {
+  expandRatio.value = val
+}
+
+const expandShortenText = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = expandRatio.value > 1.0 ? '扩展中...' : '压缩中...'
+  try {
+    const res = await api.ai.expandShorten(el.content, expandRatio.value)
+    if (res.data.success) {
+      saveHistory()
+      el.content = res.data.result
+    }
+  } catch (e: any) {
+    console.error('扩展/压缩失败', e)
+    alert('扩展/压缩失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R72: AI 语法拼写检查
+const grammarCheckText = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '检查中...'
+  try {
+    const res = await api.ai.grammarCheck(el.content)
+    if (res.data.success) {
+      const check = res.data.check
+      if (check.has_errors && check.errors.length > 0) {
+        const errorList = check.errors.map((e: any) => `• ${e.original} → ${e.correction} (${e.reason})`).join('\n')
+        const confirmed = confirm(`发现 ${check.errors.length} 处问题：\n${errorList}\n\n是否应用修正？`)
+        if (confirmed) {
+          saveHistory()
+          el.content = check.corrected
+        }
+      } else {
+        alert('✅ 未发现语法或拼写错误')
+      }
+    }
+  } catch (e: any) {
+    console.error('语法检查失败', e)
+    alert('语法检查失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R109: AI 智能脚注
+const addSmartFootnotes = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '添加脚注...'
+  try {
+    const res = await api.ai.smartFootnotes(el.content)
+    if (res.data.success) {
+      const data = res.data.footnotes
+      if (data.footnotes && data.footnotes.length > 0) {
+        const footnotesList = data.footnotes.map((fn: any, i: number) =>
+          `${fn.in_text_mark || '[*]'} ${fn.source} (${fn.source_type}): ${fn.description}`
+        ).join('\n')
+        const msg = `找到 ${data.footnotes.length} 条相关引用：\n${footnotesList}\n\n是否将脚注添加到文本末尾？`
+        const confirmed = confirm(msg)
+        if (confirmed) {
+          saveHistory()
+          const footnoteText = '\n\n—— 参考文献 ——\n' + data.footnotes.map((fn: any, i: number) =>
+            `${i + 1}. ${fn.source} (${fn.source_type}): ${fn.description}`
+          ).join('\n')
+          el.content = el.content + footnoteText
+        }
+      } else {
+        alert('📎 未找到相关引用来源')
+      }
+    }
+  } catch (e: any) {
+    console.error('添加脚注失败', e)
+    alert('添加脚注失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R109: AI 语气调整
+const adjustTone = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '调整语气...'
+  try {
+    const res = await api.ai.toneAdjust(el.content, toneStyle.value)
+    if (res.data.success) {
+      const adjusted = res.data.adjusted
+      const toneNames: Record<string, string> = {
+        formal: '正式', casual: '休闲', technical: '技术', persuasive: '有说服力', warm: '温暖'
+      }
+      const toneName = toneNames[adjusted.tone] || adjusted.tone
+      const msg = `【语气调整为 ${toneName}】\n\n${adjusted.adjusted}\n\n调整说明: ${adjusted.changes_summary}\n\n是否应用？`
+      const confirmed = confirm(msg)
+      if (confirmed) {
+        saveHistory()
+        el.content = adjusted.adjusted
+      }
+    }
+  } catch (e: any) {
+    console.error('语气调整失败', e)
+    alert('语气调整失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R109: AI 陈词滥调检测
+const detectCliches = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '检测中...'
+  try {
+    const res = await api.ai.clicheDetect(el.content)
+    if (res.data.success) {
+      const detection = res.data.detection
+      if (detection.has_cliches && detection.detected.length > 0) {
+        const clicheList = detection.detected.map((c: any) =>
+          `• "${c.phrase}" → ${c.alternatives.map((a: any) => `"${a.text}" (${a.style})`).join(', ')}`
+        ).join('\n')
+        const msg = `发现 ${detection.detected.length} 处陈词滥调：\n${clicheList}\n\n是否自动替换为第一推荐？`
+        const confirmed = confirm(msg)
+        if (confirmed) {
+          saveHistory()
+          el.content = detection.cleaned_text
+        }
+      } else {
+        alert('✅ 未检测到明显的陈词滥调，表达较新颖！')
+      }
+    }
+  } catch (e: any) {
+    console.error('陈词滥调检测失败', e)
+    alert('陈词滥调检测失败: ' + (e?.message || '未知错误'))
   } finally {
     aiLoading.value = false
     aiLoadingText.value = ''
@@ -1518,44 +1855,51 @@ const sendBackward = () => {
 }
 
 // R20: 布局预设应用
+// R121: Smart layout preset application using smart layout engine
 const applyLayoutPreset = (layout: { id: string }) => {
   saveHistory()
   activeLayout.value = layout.id
+  activeSmartLayout.value = layout.id
   const elements = slides.value[activeSlideIndex.value].elements
-  const canvasW = 800
-  const canvasH = 450
+  if (!elements || elements.length === 0) return
+  applySmartLayoutPreset(elements, layout.id)
+}
 
-  switch (layout.id) {
-    case 'center':
-      elements.forEach((el, i) => {
-        el.x = Math.round((canvasW - el.width) / 2)
-        el.y = Math.round((canvasH - el.height) / (elements.length + 1) * (i + 1))
-      })
-      break
-    case 'left-heavy':
-      elements.forEach((el, i) => {
-        el.x = 60
-        el.y = 60 + i * 100
-      })
-      break
-    case 'right-heavy':
-      elements.forEach((el, i) => {
-        el.x = Math.round(canvasW - el.width - 60)
-        el.y = 60 + i * 100
-      })
-      break
-    case 'grid':
-      const cols = 3
-      const cellW = Math.round(canvasW / cols)
-      elements.forEach((el, i) => {
-        el.x = 60 + (i % cols) * cellW
-        el.y = 60 + Math.floor(i / cols) * 120
-        el.width = Math.min(el.width, cellW - 80)
-      })
-      break
-    default:
-      break
-  }
+// R121: Auto-balance elements evenly
+const handleAutoBalance = () => {
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  if (!elements || elements.length === 0) return
+  autoBalanceElements(elements)
+}
+
+// R121: Reflow text content when elements change
+const handleContentReflow = () => {
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  if (!elements || elements.length === 0) return
+  // Get the changed element (or use first non-text as reference)
+  const changedEl = elements.find(el => el.type !== 'text') || elements[0]
+  reflowTextContent(elements, changedEl)
+}
+
+// R121: Apply smart grid snapping to all elements
+const handleApplySmartGrid = () => {
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  if (!elements || elements.length === 0) return
+  elements.forEach(el => {
+    snapElementToSmartGrid(el, elements, smartGridSize.value)
+  })
+}
+
+// R121: Adapt to new aspect ratio
+const handleAspectRatioChange = (newRatio: string) => {
+  saveHistory()
+  const elements = slides.value[activeSlideIndex.value].elements
+  if (!elements || elements.length === 0) return
+  const oldRatio = activeAspectRatio.value
+  adaptToAspectRatio(elements, oldRatio, newRatio)
 }
 
 // R21: 字体主题应用
@@ -3169,6 +3513,122 @@ onUnmounted(() => {
   color: white;
 }
 
+/* R72: AI 语气调整选择器 */
+.ai-rephrase-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-tone-select {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-width: 80px;
+}
+
+.ai-tone-select:focus {
+  outline: none;
+  border-color: #165DFF;
+}
+
+.ai-tone-select option {
+  background: #333;
+  color: white;
+}
+
+/* R72: AI 扩展/压缩滑动条 */
+.ai-expand-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* R109: AI 语气调整组 */
+.ai-tone-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expand-label {
+  font-size: 12px;
+}
+
+.expand-slider {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: #444;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.expand-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #165DFF;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.ai-btn-apply {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.ai-btn-expand {
+  font-size: 11px;
+  padding: 4px 6px;
+  min-width: 24px;
+}
+
+/* R72: AI 语法检查按钮 */
+.ai-btn-grammar {
+  background: linear-gradient(135deg, #34d399, #059669);
+  color: white;
+}
+
+.ai-btn-grammar:hover:not(.disabled) {
+  background: linear-gradient(135deg, #10b981, #047857);
+}
+
+/* R109: AI 智能脚注按钮 */
+.ai-btn-footnote {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: white;
+}
+
+.ai-btn-footnote:hover:not(.disabled) {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+
+/* R109: AI 语气调整按钮 */
+.ai-btn-tone {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  color: white;
+}
+
+.ai-btn-tone:hover:not(.disabled) {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+}
+
+/* R109: AI 陈词滥调检测按钮 */
+.ai-btn-cliche {
+  background: linear-gradient(135deg, #f472b6, #db2777);
+  color: white;
+}
+
+.ai-btn-cliche:hover:not(.disabled) {
+  background: linear-gradient(135deg, #ec4899, #be185d);
+}
+
 .ai-loading {
   display: flex;
   align-items: center;
@@ -3457,6 +3917,148 @@ onUnmounted(() => {
 
   .ai-modal {
     max-width: 95%;
+  }
+
+  .ai-tone-select {
+    min-width: 60px;
+    font-size: 11px;
+  }
+
+  .expand-slider {
+    width: 60px;
+  }
+}
+
+/* R121: Smart Layout Engine Styles */
+.smart-layout-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.smart-layout-btn {
+  padding: 6px 10px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.smart-layout-btn:hover {
+  background: #f0f5ff;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.smart-grid-section {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.grid-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.toggle-btn {
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #999;
+}
+
+.toggle-btn.active {
+  background: #165DFF;
+  border-color: #165DFF;
+  color: #fff;
+}
+
+.grid-presets-row {
+  margin-top: 8px;
+}
+
+.grid-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+}
+
+.aspect-ratio-section {
+  margin-bottom: 12px;
+}
+
+.aspect-ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.aspect-ratio-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.aspect-ratio-item:hover {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.aspect-ratio-item.active {
+  border-color: #165DFF;
+  background: #e8f0ff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+}
+
+.aspect-icon {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+
+.aspect-name {
+  font-size: 11px;
+  color: #555;
+  font-weight: 500;
+}
+
+.aspect-ratio-item.active .aspect-name {
+  color: #165DFF;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .smart-layout-section {
+    flex-direction: column;
+  }
+
+  .smart-layout-btn {
+    width: 100%;
+  }
+
+  .aspect-ratio-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

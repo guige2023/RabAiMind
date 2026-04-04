@@ -512,6 +512,35 @@ class AdvancedAnalyticsService:
             "message": f"每周汇总邮件已发送！本周：{total_ppts}个PPT，节省{time_saved}分钟，减排{kg_co2}kg CO2",
         }
 
+    # --- Monthly Email Subscription ---
+    def get_monthly_email_status(self, user_id: str) -> Dict[str, Any]:
+        """Get monthly email subscription status for a user."""
+        email = self._user_email.get(user_id, "")
+        subscribed = user_id in getattr(self, '_monthly_subscribers', set())
+        return {
+            "subscribed": subscribed,
+            "email": email,
+            "message": "" if subscribed else "未订阅每月汇总邮件",
+        }
+
+    def set_monthly_email(self, user_id: str, subscribed: bool, email: str = "") -> Dict[str, Any]:
+        """Set monthly email subscription for a user."""
+        if not hasattr(self, '_monthly_subscribers'):
+            self._monthly_subscribers: set = set()
+        if email:
+            self._user_email[user_id] = email
+        if subscribed:
+            self._monthly_subscribers.add(user_id)
+            message = f"已订阅每月汇总邮件，将发送至 {self._user_email.get(user_id, '您的邮箱')}"
+        else:
+            self._monthly_subscribers.discard(user_id)
+            message = "已取消订阅每月汇总邮件"
+        return {
+            "subscribed": subscribed,
+            "email": self._user_email.get(user_id, ""),
+            "message": message,
+        }
+
 
 # Singleton accessor
 _advanced_analytics: Optional[AdvancedAnalyticsService] = None

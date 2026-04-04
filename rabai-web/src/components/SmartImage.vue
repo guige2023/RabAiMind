@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { lazyLoad } from '../utils/performance'
+import { usePerformanceMode } from '../composables/usePerformanceMode'
 
 interface Props {
   src: string
@@ -45,18 +46,30 @@ interface Props {
   errorText?: string
   showMask?: boolean
   retryCount?: number
+  lazy?: boolean // Manual override for lazy loading
 }
 
 const props = withDefaults(defineProps<Props>(), {
   alt: '',
   loadingType: 'skeleton',
   showMask: false,
-  retryCount: 3
+  retryCount: 3,
+  lazy: undefined // undefined = auto-detect based on performance mode
+})
+
+const { thumbnailsLazy, isPerformanceMode } = usePerformanceMode()
+
+const shouldLazyLoad = computed(() => {
+  // Manual override takes precedence
+  if (props.lazy !== undefined) return props.lazy
+  // Auto-detect based on performance mode
+  return thumbnailsLazy.value || isPerformanceMode.value
 })
 
 const isLoaded = ref(false)
 const hasError = ref(false)
 const currentRetry = ref(0)
+const useIntersectionObserver = ref(false)
 
 const finalSrc = computed(() => {
   if (hasError.value && props.errorSrc) {
@@ -73,9 +86,7 @@ const onLoad = () => {
 const onError = () => {
   if (currentRetry.value < props.retryCount) {
     currentRetry.value++
-    // 延迟重试
     setTimeout(() => {
-      // 重新触发加载
       const img = new Image()
       img.onload = onLoad
       img.onerror = onError
@@ -88,13 +99,40 @@ const onError = () => {
 }
 
 onMounted(() => {
-  // 检查图片是否已经在缓存中
-  const img = new Image()
-  img.onload = () => {
-    isLoaded.value = true
+  // Check if IntersectionObserver is available
+  useIntersectionObserver.value = shouldLazyLoad.value && 'IntersectionObserver' in window
+
+  if (useIntersectionObserver.value) {
+    // Lazy load with IntersectionObserver
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = new Image()
+          img.onload = onLoad
+          img.onerror = onError
+          img.src = props.src
+          observer.disconnect()
+        }
+      })
+    }, {
+      rootMargin: '50px',
+      threshold: 0.1
+    })
+
+    // Observe the img element when it's available
+    const imgEl = document.querySelector('.smart-image .image-element') as HTMLImageElement
+    if (imgEl) {
+      observer.observe(imgEl)
+    }
+  } else {
+    // Direct load
+    const img = new Image()
+    img.onload = () => {
+      isLoaded.value = true
+    }
+    img.onerror = onError
+    img.src = props.src
   }
-  img.onerror = onError
-  img.src = props.src
 })
 </script>
 

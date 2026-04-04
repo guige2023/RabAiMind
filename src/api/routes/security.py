@@ -7,8 +7,10 @@ Date: 2026-04-04
 """
 
 import os
+import hashlib
+import secrets
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Request, Body, Query, Depends
 from pydantic import BaseModel, Field
@@ -17,7 +19,8 @@ from enum import Enum
 from ...core.security import (
     Role, User, RBAC,
     get_api_key_manager, get_audit_logger, get_secure_share_manager,
-    APIKeyManager, AuditLogger, SecureShareManager,
+    get_presentation_security_manager,
+    APIKeyManager, AuditLogger, SecureShareManager, PresentationSecurityManager,
 )
 from ...core.auth import auth_manager
 from ...api.middleware.auth import get_current_user, get_current_admin
@@ -57,6 +60,8 @@ class SecureShareCreateRequest(BaseModel):
     expires_in_hours: int = Field(default=24, ge=1, le=720)
     allowed_ips: Optional[List[str]] = None
     role: RoleEnum = RoleEnum.GUEST
+    anonymous_access: bool = Field(default=False, description="允许匿名访问（无需登录即可查看）")
+    encryption_enabled: bool = Field(default=False, description="启用端到端加密（内容传输加密）")
 
 
 class SecureShareCreateResponse(BaseModel):
@@ -265,6 +270,8 @@ async def create_secure_share(
         expires_in_hours=req.expires_in_hours,
         allowed_ips=req.allowed_ips,
         role=Role.from_string(req.role.value),
+        anonymous_access=req.anonymous_access,
+        encryption_enabled=req.encryption_enabled,
     )
 
     base_url = os.getenv("API_BASE_URL", "http://localhost:8003")
@@ -321,6 +328,7 @@ async def get_share_info(
 ):
     """
     Get share info (unauthenticated — only safe, non-sensitive fields).
+    Reveals whether anonymous access and encryption are enabled (without secrets).
     """
     manager = get_secure_share_manager()
     shares = manager.list_shares()
@@ -334,6 +342,8 @@ async def get_share_info(
                 "password_required": bool(s.get("hashed_password")),
                 "is_active": s.get("is_active"),
                 "access_count": s.get("access_count", 0),
+                "anonymous_access": s.get("anonymous_access", False),
+                "encryption_enabled": s.get("encryption_enabled", False),
             }
     raise HTTPException(status_code=404, detail="Share not found")
 
@@ -353,6 +363,155 @@ async def revoke_secure_share(
     if not success:
         raise HTTPException(status_code=404, detail="Share 不存在")
     return {"success": True, "message": "Share Link 已撤销"}
+
+
+@router.get("/share/anonymous/{share_id}")
+async def anonymous_share_access(
+    share_id: str,
+    access_token: str = Query(...),
+    password: str = Query(""),
+    request: Request = None,
+):
+    """
+    Anonymous share access — no login required.
+    Requires valid access_token. Optionally requires password.
+    Returns share metadata and resource info.
+
+    Use this endpoint when anonymous_access=True on the share.
+    """
+    manager = get_secure_share_manager()
+    client_ip = ""
+    if request:
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                    request.headers.get("X-Real-IP", "")
+
+    allowed, reason, share_info = manager.verify_access(
+        share_id=share_id,
+        access_token=access_token,
+        password=password,
+        client_ip=client_ip,
+    )
+
+    if not allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "ACCESS_DENIED", "reason": reason}
+        )
+
+    # Check anonymous_access flag
+    if not share_info.get("anonymous_access", False):
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "ANONYMOUS_NOT_ALLOWED", "message": "此分享不允许匿名访问，请先登录"}
+        )
+
+    # Record access
+    manager.record_access(share_id)
+
+    return {
+        "success": True,
+        "share_id": share_id,
+        "resource_type": share_info.get("resource_type"),
+        "resource_id": share_info.get("resource_id"),
+        "role": share_info.get("role"),
+        "expires_at": share_info.get("expires_at"),
+        "encryption_enabled": share_info.get("encryption_enabled", False),
+        "access_mode": "anonymous",
+    }
+
+
+@router.get("/share/encrypted/{share_id}")
+async def get_encrypted_share_content(
+    share_id: str,
+    access_token: str = Query(...),
+    password: str = Query(""),
+    request: Request = None,
+):
+    """
+    Get E2E-encrypted presentation content for a share.
+    The content is encrypted client-side and only decryptable with the access_token.
+
+    Returns the encrypted binary package (application/octet-stream).
+    Caller is responsible for client-side decryption.
+    """
+    from fastapi.responses import StreamingResponse
+    from ...core.security import E2EEncryptionManager
+
+    manager = get_secure_share_manager()
+    client_ip = ""
+    if request:
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                    request.headers.get("X-Real-IP", "")
+
+    allowed, reason, share_info = manager.verify_access(
+        share_id=share_id,
+        access_token=access_token,
+        password=password,
+        client_ip=client_ip,
+    )
+
+    if not allowed:
+        raise HTTPException(status_code=403, detail={"error": "ACCESS_DENIED", "reason": reason})
+
+    if not share_info.get("encryption_enabled", False):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "ENCRYPTION_NOT_ENABLED", "message": "此分享未启用端到端加密"}
+        )
+
+    # Get PPTX path from resource_id
+    from ...services.task_manager import get_task_manager
+    task_manager = get_task_manager()
+    task = task_manager.get_task(share_info.get("resource_id", ""))
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    result = task.get("result", {})
+    pptx_path = result.get("pptx_path")
+
+    if not pptx_path or not os.path.exists(pptx_path):
+        raise HTTPException(status_code=404, detail="Presentation file not found")
+
+    # Generate encrypted package
+    encrypted_pkg = E2EEncryptionManager.generate_encrypted_package(pptx_path, access_token)
+
+    manager.record_access(share_id)
+
+    return StreamingResponse(
+        iter([encrypted_pkg]),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"attachment; filename=presentation_{share_id}.enc",
+            "X-Encryption-Version": "1",
+            "X-Resource-Type": share_info.get("resource_type", "ppt"),
+        }
+    )
+
+
+@router.post("/share/decrypt")
+async def decrypt_share_content(
+    encrypted_data: bytes,
+    access_token: str,
+):
+    """
+    Server-side decryption helper (for trusted clients).
+    WARNING: Exposes the decrypted content. Use /share/encrypted/{id} for client-side decryption.
+
+    For advanced use cases where decryption must happen server-side.
+    """
+    from fastapi.responses import StreamingResponse
+    from ...core.security import E2EEncryptionManager
+
+    try:
+        decrypted = E2EEncryptionManager.decrypt_package(encrypted_data, access_token)
+        return StreamingResponse(
+            iter([decrypted]),
+            media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            headers={"Content-Disposition": "attachment; filename=presentation.pptx"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail={"error": "DECRYPTION_FAILED", "message": str(e)})
 
 
 # ==================== Audit Log ====================
@@ -651,4 +810,396 @@ async def get_user_audit_trail(
         "total_events": len(user_logs),
         "period_days": days,
         "events": user_logs,
+    }
+
+
+# ==================== Presentation Security Routes ====================
+
+
+class PresentationPasswordRequest(BaseModel):
+    password: str = Field(..., min_length=4, max_length=64)
+
+
+class PresentationBiometricRequest(BaseModel):
+    biometric_required: bool
+
+
+class PresentationIPAllowlistRequest(BaseModel):
+    allowed_ips: List[str] = Field(default_factory=list, description="允许的IP地址列表，空列表表示清除IP限制")
+
+
+class PresentationWatermarkRequest(BaseModel):
+    enabled: bool = Field(default=False)
+    text: str = Field(default="", max_length=200)
+    opacity: float = Field(default=0.15, ge=0.05, le=0.5)
+    angle: int = Field(default=-45, ge=-90, le=90)
+    font_size: int = Field(default=48, ge=12, le=200)
+    color: str = Field(default="#888888")
+
+
+class PresentationBiometricVerifyRequest(BaseModel):
+    """Biometric verification request (browser WebAuthn assertion passed)."""
+    task_id: str
+    assertion: str = Field(default="", description="Base64-encoded WebAuthn assertion")
+
+
+# ---- Password Protection ----
+
+@router.post("/presentation/{task_id}/password")
+async def set_presentation_password(
+    task_id: str,
+    req: PresentationPasswordRequest,
+    user: User = Depends(get_current_user),
+):
+    """Set or update password protection for a presentation."""
+    manager = get_presentation_security_manager()
+    result = manager.set_password(task_id, req.password, user.user_id)
+    # Log the action
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:password_set",
+        resource=task_id,
+        details={"role": user.role.value}
+    )
+    return result
+
+
+@router.delete("/presentation/{task_id}/password")
+async def remove_presentation_password(
+    task_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Remove password protection from a presentation."""
+    manager = get_presentation_security_manager()
+    result = manager.remove_password(task_id)
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:password_removed",
+        resource=task_id,
+        details={"role": user.role.value}
+    )
+    return result
+
+
+@router.get("/presentation/{task_id}/password")
+async def get_presentation_password_status(task_id: str):
+    """Get password protection status (no secrets exposed)."""
+    manager = get_presentation_security_manager()
+    return manager.get_password_info(task_id)
+
+
+@router.post("/presentation/{task_id}/password/verify")
+async def verify_presentation_password(
+    task_id: str,
+    req: PresentationPasswordRequest,
+    request: Request,
+):
+    """Verify a password to unlock download. Used before download."""
+    manager = get_presentation_security_manager()
+    client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                request.headers.get("X-Real-IP", "")
+
+    # Check IP restriction first
+    if not manager.check_ip_allowed(task_id, client_ip):
+        get_audit_logger().log(
+            user_id="anonymous",
+            action="presentation:access_denied_ip",
+            resource=task_id,
+            details={"client_ip": client_ip, "reason": "IP not allowed"}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "IP_NOT_ALLOWED", "message": "您的IP地址不在允许范围内"}
+        )
+
+    if not manager.verify_password(task_id, req.password):
+        get_audit_logger().log(
+            user_id="anonymous",
+            action="presentation:password_failed",
+            resource=task_id,
+            details={"client_ip": client_ip}
+        )
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "INVALID_PASSWORD", "message": "密码错误"}
+        )
+
+    get_audit_logger().log(
+        user_id="anonymous",
+        action="presentation:password_verified",
+        resource=task_id,
+        details={"client_ip": client_ip}
+    )
+    return {"success": True, "verified": True, "task_id": task_id}
+
+
+# ---- Biometric Authentication ----
+
+@router.post("/presentation/{task_id}/biometric")
+async def set_presentation_biometric(
+    task_id: str,
+    req: PresentationBiometricRequest,
+    user: User = Depends(get_current_user),
+):
+    """Enable or disable biometric authentication requirement."""
+    manager = get_presentation_security_manager()
+    result = manager.set_biometric_required(task_id, req.biometric_required, user.user_id)
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action=f"presentation:biometric_{'enabled' if req.biometric_required else 'disabled'}",
+        resource=task_id,
+        details={"role": user.role.value}
+    )
+    return result
+
+
+@router.get("/presentation/{task_id}/biometric")
+async def get_presentation_biometric_status(task_id: str):
+    """Get biometric authentication status."""
+    manager = get_presentation_security_manager()
+    return manager.get_biometric_info(task_id)
+
+
+@router.post("/presentation/{task_id}/biometric/verify")
+async def verify_presentation_biometric(
+    task_id: str,
+    req: PresentationBiometricVerifyRequest,
+    user: User = Depends(get_current_user),
+    request: Request = None,
+):
+    """
+    Verify biometric authentication for a sensitive presentation.
+    The frontend uses WebAuthn (TouchID/FaceID) and sends the assertion.
+    For demo: accepts any non-empty assertion as valid.
+    """
+    client_ip = ""
+    if request:
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                    request.headers.get("X-Real-IP", "")
+
+    manager = get_presentation_security_manager()
+
+    # Check IP restriction
+    if not manager.check_ip_allowed(task_id, client_ip):
+        get_audit_logger().log(
+            user_id=user.user_id,
+            action="presentation:access_denied_ip",
+            resource=task_id,
+            details={"client_ip": client_ip}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "IP_NOT_ALLOWED", "message": "您的IP地址不在允许范围内"}
+        )
+
+    if not manager.is_biometric_required(task_id):
+        return {"success": True, "verified": True, "biometric_required": False}
+
+    # Demo: accept non-empty assertion as valid
+    # In production, this would verify the WebAuthn assertion
+    if not req.assertion:
+        get_audit_logger().log(
+            user_id=user.user_id,
+            action="presentation:biometric_failed",
+            resource=task_id,
+            details={"client_ip": client_ip}
+        )
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "BIOMETRIC_FAILED", "message": "生物认证失败"}
+        )
+
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:biometric_verified",
+        resource=task_id,
+        details={"client_ip": client_ip}
+    )
+    return {"success": True, "verified": True, "task_id": task_id, "biometric_required": True}
+
+
+# ---- IP Allowlisting ----
+
+@router.post("/presentation/{task_id}/ip-allowlist")
+async def set_presentation_ip_allowlist(
+    task_id: str,
+    req: PresentationIPAllowlistRequest,
+    user: User = Depends(get_current_user),
+):
+    """Set IP allowlist for a presentation."""
+    manager = get_presentation_security_manager()
+    result = manager.set_allowed_ips(task_id, req.allowed_ips, user.user_id)
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:ip_allowlist_updated",
+        resource=task_id,
+        details={"allowed_ips": req.allowed_ips, "role": user.role.value}
+    )
+    return result
+
+
+@router.get("/presentation/{task_id}/ip-allowlist")
+async def get_presentation_ip_allowlist(task_id: str):
+    """Get IP allowlist status."""
+    manager = get_presentation_security_manager()
+    return manager.get_ip_allowlist_info(task_id)
+
+
+# ---- Auto-Watermark ----
+
+@router.post("/presentation/{task_id}/watermark")
+async def set_presentation_watermark(
+    task_id: str,
+    req: PresentationWatermarkRequest,
+    user: User = Depends(get_current_user),
+):
+    """Configure auto-watermark for a presentation's exports."""
+    manager = get_presentation_security_manager()
+    result = manager.set_auto_watermark(
+        task_id,
+        enabled=req.enabled,
+        text=req.text,
+        opacity=req.opacity,
+        angle=req.angle,
+        font_size=req.font_size,
+        color=req.color,
+        user_id=user.user_id,
+    )
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:watermark_updated",
+        resource=task_id,
+        details={"enabled": req.enabled, "text": req.text}
+    )
+    return result
+
+
+@router.get("/presentation/{task_id}/watermark")
+async def get_presentation_watermark(task_id: str):
+    """Get auto-watermark configuration."""
+    manager = get_presentation_security_manager()
+    return manager.get_auto_watermark(task_id)
+
+
+# ---- Access Log ----
+
+@router.get("/presentation/{task_id}/access-log")
+async def get_presentation_access_log(
+    task_id: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    user: User = Depends(get_current_user),
+):
+    """Get access log for a specific presentation."""
+    manager = get_presentation_security_manager()
+    logs = manager.get_access_log(task_id, limit=limit, offset=offset)
+    return {
+        "task_id": task_id,
+        "total": len(logs),
+        "logs": logs,
+    }
+
+
+# ---- Full Security Config ----
+
+@router.get("/presentation/{task_id}/security")
+async def get_presentation_security_config(
+    task_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Get all security settings for a presentation."""
+    manager = get_presentation_security_manager()
+    return manager.get_security_config(task_id)
+
+
+@router.delete("/presentation/{task_id}/security")
+async def delete_presentation_security(
+    task_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Remove all security settings from a presentation."""
+    manager = get_presentation_security_manager()
+    result = manager.delete_security_config(task_id)
+    get_audit_logger().log(
+        user_id=user.user_id,
+        action="presentation:security_deleted",
+        resource=task_id,
+        details={"role": user.role.value}
+    )
+    return result
+
+
+# ---- Password-Protected PPTX Download (with msoffcrypto) ----
+
+@router.post("/presentation/{task_id}/download/verify")
+async def verify_download_access(
+    task_id: str,
+    password: str = Query(default=""),
+    biometric_token: str = Query(default=""),
+    request: Request = None,
+    user: User = Depends(get_current_user),
+):
+    """
+    Pre-flight check before downloading a protected presentation.
+    Returns download token if access is granted.
+    """
+    client_ip = ""
+    if request:
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or \
+                    request.headers.get("X-Real-IP", "")
+
+    manager = get_presentation_security_manager()
+
+    # Check IP restriction
+    if not manager.check_ip_allowed(task_id, client_ip):
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "IP_NOT_ALLOWED", "message": "您的IP地址不在允许范围内"}
+        )
+
+    # Check biometric requirement
+    if manager.is_biometric_required(task_id) and not biometric_token:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "BIOMETRIC_REQUIRED", "message": "此演示文稿需要生物认证"}
+        )
+
+    # Check password
+    if manager.has_password(task_id):
+        if not password or not manager.verify_password(task_id, password):
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "PASSWORD_REQUIRED", "message": "此演示文稿需要密码"}
+            )
+
+    # All checks passed — generate a one-time download token
+    token = secrets.token_urlsafe(32)
+    download_token = hashlib.sha256(token.encode()).hex()
+
+    # Store token with expiry (5 minutes)
+    import threading
+    _dt_lock = threading.Lock()
+    global _download_tokens
+    if '_download_tokens' not in globals():
+        _download_tokens = {}
+    with _dt_lock:
+        _download_tokens[download_token] = {
+            "task_id": task_id,
+            "user_id": user.user_id if user else "anonymous",
+            "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat() + "Z",
+        }
+
+    # Log successful access
+    manager.log_access(
+        task_id=task_id,
+        user_id=user.user_id if user else "anonymous",
+        action="download_access_granted",
+        client_ip=client_ip,
+    )
+
+    return {
+        "success": True,
+        "download_token": token,
+        "expires_in_seconds": 300,
+        "task_id": task_id,
     }

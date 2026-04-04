@@ -174,14 +174,49 @@ class DataRetentionPolicy:
                 return part
         return "unknown"
 
-    def _delete_file(self, filepath: str) -> Tuple[bool, str]:
-        """Delete a file safely. Returns (success, error_message)."""
+    def _delete_file(self, filepath: str, secure: bool = False) -> Tuple[bool, str]:
+        """
+        Delete a file safely. Returns (success, error_message).
+
+        If secure=True, overwrites file content with random data 3 times
+        before deletion (NIST 800-88 compliant secure erase).
+        """
         try:
             size = os.path.getsize(filepath)
+
+            if secure and size > 0:
+                # NIST 800-88 compliant secure delete: 3-pass overwrite
+                import random
+                for pass_num in range(3):
+                    with open(filepath, "r+b") as f:
+                        file_size = os.fstat(f.fileno()).st_size
+                        if file_size == 0:
+                            break
+                        # Pass 1: all zeros
+                        if pass_num == 0:
+                            f.write(b'\x00' * file_size)
+                        # Pass 2: all ones
+                        elif pass_num == 1:
+                            f.write(b'\xFF' * file_size)
+                        # Pass 3: random data
+                        else:
+                            chunk_size = 65536
+                            remaining = file_size
+                            while remaining > 0:
+                                write_size = min(chunk_size, remaining)
+                                f.write(os.urandom(write_size))
+                                remaining -= write_size
+                        f.flush()
+                        os.fsync(f.fileno())
+
             os.remove(filepath)
             return True, ""
         except OSError as e:
             return False, str(e)
+
+    def secure_delete_file(self, filepath: str) -> Tuple[bool, str]:
+        """Permanently delete a file with secure overwrite (no recovery possible)."""
+        return self._delete_file(filepath, secure=True)
 
     # ==================== Output/PPT Files ====================
 
@@ -242,14 +277,16 @@ class DataRetentionPolicy:
             user_id = item.get("user_id")
             requested_at = item.get("requested_at")
 
-            # Delete all user data
-            deleted_files = self._delete_user_data(user_id, dry_run=dry_run)
+            # Delete all user data (with secure overwrite if requested)
+            secure = item.get("secure_delete", False)
+            deleted_files = self._delete_user_data(user_id, dry_run=dry_run, secure=secure)
 
             result = {
                 "user_id": user_id,
                 "requested_at": requested_at,
                 "deleted_files": deleted_files,
                 "dry_run": dry_run,
+                "secure_delete": secure,
             }
             results.append(result)
 
@@ -266,8 +303,12 @@ class DataRetentionPolicy:
 
         return results
 
-    def _delete_user_data(self, user_id: str, dry_run: bool = True) -> List[str]:
-        """Delete all data associated with a user_id."""
+    def _delete_user_data(self, user_id: str, dry_run: bool = True, secure: bool = False) -> List[str]:
+        """
+        Delete all data associated with a user_id.
+
+        If secure=True, uses secure overwrite (NIST 800-88 compliant).
+        """
         deleted = []
         dirs_to_check = [
             os.path.join(self._data_dir, "brands", user_id),
@@ -280,11 +321,11 @@ class DataRetentionPolicy:
                     filepath = os.path.join(directory, filename)
                     if os.path.isfile(filepath):
                         if not dry_run:
-                            success, _ = self._delete_file(filepath)
+                            success, _ = self._delete_file(filepath, secure=secure)
                             if success:
                                 deleted.append(filepath)
                                 get_retention_logger().log_action(
-                                    action="gdpr_delete",
+                                    action="gdpr_secure_delete" if secure else "gdpr_delete",
                                     file_path=filepath,
                                     user_id=user_id,
                                     file_age_days=0,

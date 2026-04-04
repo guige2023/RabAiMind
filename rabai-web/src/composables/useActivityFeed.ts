@@ -1,5 +1,6 @@
 // Activity Feed composable - 团队活动动态
 import { ref, computed } from 'vue'
+import api from '../api/client'
 
 export type ActivityType =
   | 'join'
@@ -56,7 +57,7 @@ const ACTIVITY_CONFIG: Record<ActivityType, { icon: string; text: string; color:
   apply_template: { icon: '🎨', text: '应用了模板', color: '#AF52DE' }
 }
 
-export function useActivityFeed(pptId?: string) {
+export function useActivityFeed(pptId?: string, taskIdForApi?: string) {
   const activities = ref<Activity[]>([])
   const isLoading = ref(false)
   const filterType = ref<ActivityType | 'all'>('all')
@@ -64,8 +65,32 @@ export function useActivityFeed(pptId?: string) {
   const autoRefresh = ref(true)
   const refreshInterval = ref<number | null>(null)
 
-  // 加载活动
-  const loadActivities = () => {
+  // 加载活动（优先后端，其次本地）
+  const loadActivities = async () => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        const res = await api.getActivityFeed(taskIdForApi)
+        if (res.data.success && res.data.activities) {
+          activities.value = res.data.activities.map((a: any) => ({
+            id: a.id,
+            type: a.activity_type as ActivityType,
+            userId: a.user_id,
+            userName: a.user_name,
+            userAvatar: a.user_avatar || '',
+            target: a.target || '',
+            details: a.details || '',
+            slideNum: a.slide_num,
+            timestamp: typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime(),
+            read: a.read,
+          }))
+          return
+        }
+      } catch {
+        // Fall through to localStorage
+      }
+    }
+    // Fallback to localStorage
     try {
       const saved = localStorage.getItem(`activities_${pptId || 'default'}`)
       if (saved) {
@@ -86,13 +111,13 @@ export function useActivityFeed(pptId?: string) {
   }
 
   // 添加活动
-  const addActivity = (
+  const addActivity = async (
     type: ActivityType,
     userId: string,
     target?: string,
     details?: string,
     slideNum?: number
-  ): Activity => {
+  ): Promise<Activity> => {
     const userInfo = getUserInfo(userId)
     const activity: Activity = {
       id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -107,19 +132,42 @@ export function useActivityFeed(pptId?: string) {
       read: false
     }
 
-    activities.value.unshift(activity)
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        await api.logActivity(taskIdForApi, {
+          activity_type: type,
+          user_id: userId,
+          user_name: userInfo.name,
+          user_avatar: userInfo.avatar,
+          target: target || '',
+          details: details || '',
+          slide_num: slideNum,
+        })
+      } catch {
+        // Continue with local
+      }
+    }
 
+    activities.value.unshift(activity)
     // 最多保留100条
     if (activities.value.length > 100) {
       activities.value = activities.value.slice(0, 100)
     }
-
     saveActivities()
     return activity
   }
 
   // 标记活动为已读
-  const markAsRead = (activityId: string) => {
+  const markAsRead = async (activityId: string) => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        await api.markActivityRead(taskIdForApi, activityId)
+      } catch {
+        // Continue with local
+      }
+    }
     const activity = activities.value.find(a => a.id === activityId)
     if (activity) {
       activity.read = true
@@ -128,7 +176,15 @@ export function useActivityFeed(pptId?: string) {
   }
 
   // 全部标记为已读
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    // Try backend first
+    if (taskIdForApi) {
+      try {
+        await api.markAllActivitiesRead(taskIdForApi)
+      } catch {
+        // Continue with local
+      }
+    }
     activities.value.forEach(a => a.read = true)
     saveActivities()
   }

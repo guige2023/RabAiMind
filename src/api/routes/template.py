@@ -3,9 +3,9 @@
 模板API路由
 """
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from pathlib import Path
 from dataclasses import asdict
@@ -738,3 +738,383 @@ async def purchase_bundle(bundle_id: str, user_id: str = "anonymous"):
         return {"success": True, "purchase": purchase, "bundle": bundle}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ─── Template of the Day ────────────────────────────────────────────────────
+
+@router.get("/daily")
+async def get_template_of_the_day():
+    """
+    获取今日推荐的模板
+    每天根据日期自动选择，保持一天内一致
+    """
+    from ...services.marketplace_service import get_marketplace_service, get_template_manager
+    import hashlib
+
+    manager = get_template_manager()
+    ms = get_marketplace_service()
+
+    # 获取所有可用模板
+    all_templates = manager.list_templates()
+    if not all_templates:
+        return {"success": True, "template": None, "date": datetime.now().date().isoformat()}
+
+    # 基于今天的日期 hash 选择一个模板（每天不同）
+    today = datetime.now().strftime("%Y-%m-%d")
+    hash_input = f"rabaimind_daily_{today}"
+    hash_val = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
+    idx = hash_val % len(all_templates)
+
+    selected = all_templates[idx]
+    return {
+        "success": True,
+        "template": {
+            "id": selected.id,
+            "name": selected.name,
+            "description": selected.description,
+            "category": selected.category,
+            "style": selected.style,
+            "thumbnail": selected.thumbnail,
+            "colors": selected.colors,
+            "fonts": selected.fonts,
+        },
+        "date": today,
+        "reason": "基于今日日期的自动推荐"
+    }
+
+
+@router.get("/daily/history")
+async def get_daily_history(limit: int = 7):
+    """获取最近N天的每日推荐历史"""
+    import hashlib
+
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    if not all_templates:
+        return {"success": True, "history": []}
+
+    history = []
+    for i in range(limit):
+        d = datetime.now() - timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        hash_input = f"rabaimind_daily_{date_str}"
+        hash_val = int(hashlib.md5(hash_input.encode()).hexdigest(), 16)
+        idx = hash_val % len(all_templates)
+        t = all_templates[idx]
+        history.append({
+            "date": date_str,
+            "template_id": t.id,
+            "name": t.name,
+            "category": t.category,
+        })
+
+    return {"success": True, "history": history}
+
+
+
+# ==================== Advanced Search APIs ====================
+
+class AdvancedSearchRequest(BaseModel):
+    query: str = ""
+    category: Optional[str] = None
+    style: Optional[str] = None
+    author: Optional[str] = None
+    tags: Optional[List[str]] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    template_type: Optional[str] = None
+    sort_by: str = "relevance"
+    page: int = 1
+    limit: int = 20
+    use_semantic: bool = True
+
+
+class AdvancedSearchResponseModel(BaseModel):
+    success: bool
+    results: List[TemplateResponse]
+    total: int
+    page: int
+    total_pages: int
+    query: str
+    applied_filters: Dict[str, Any]
+    highlighted_fields: Dict[str, Any]
+
+
+@router.post("/advanced-search", response_model=AdvancedSearchResponseModel)
+async def advanced_search_templates(request: AdvancedSearchRequest):
+    from ...services.template_manager import get_template_manager
+    from ...services.search_analytics import get_analytics
+
+    manager = get_template_manager()
+    analytics = get_analytics()
+
+    if request.query:
+        analytics.track_search(request.query)
+
+    applied_filters = {
+        "query": request.query,
+        "category": request.category,
+        "style": request.style,
+        "author": request.author,
+        "tags": request.tags or [],
+        "date_from": request.date_from,
+        "date_to": request.date_to,
+        "template_type": request.template_type or "all",
+        "sort_by": request.sort_by,
+        "use_semantic": request.use_semantic,
+    }
+
+    all_templates = list(manager.list_templates())
+
+    for ut in manager.user_templates:
+        if ut.get("visibility") == "public" or ut.get("author") == "current_user":
+            all_templates.append(type('Template', (), {
+                "id": ut["id"],
+                "name": ut["name"],
+                "description": ut.get("description", ""),
+                "category": ut.get("category", ut.get("scene", "business")),
+                "style": ut.get("style", "professional"),
+                "thumbnail": ut.get("thumbnail", ""),
+                "colors": ut.get("colors", ["#165DFF", "#FFFFFF"]),
+                "fonts": ut.get("fonts", ["思源黑体"]),
+                "author": ut.get("author", "current_user"),
+                "created_at": ut.get("created_at", ""),
+                "is_ugc": True,
+            })())
+
+    filtered = []
+    for t in all_templates:
+        if request.category and t.category != request.category:
+            continue
+        if request.style and t.style != request.style:
+            continue
+        if request.author:
+            t_author = getattr(t, "author", "system")
+            if t_author != request.author:
+                continue
+        is_ugc = getattr(t, "is_ugc", False)
+        if request.template_type == "ugc" and not is_ugc:
+            continue
+        if request.template_type == "system" and is_ugc:
+            continue
+
+        created_at = getattr(t, "created_at", "")
+        if created_at and request.date_from:
+            if created_at < request.date_from:
+                continue
+        if created_at and request.date_to:
+            if created_at > request.date_to:
+                continue
+
+        if request.query:
+            q = request.query.lower().strip()
+            name_match = q in t.name.lower()
+            desc_match = q in t.description.lower()
+            relevance = 2 if name_match else (1 if desc_match else 0)
+            if relevance == 0:
+                continue
+            t._relevance = relevance
+        else:
+            t._relevance = 1
+
+        filtered.append(t)
+
+    if request.sort_by == "newest":
+        filtered.sort(key=lambda t: getattr(t, "created_at", ""), reverse=True)
+    elif request.sort_by == "name":
+        filtered.sort(key=lambda t: t.name)
+    elif request.sort_by == "popularity":
+        trending = analytics.get_trending_templates(limit=100)
+        trend_map = {e["template_id"]: e["click_count"] for e in trending}
+        filtered.sort(key=lambda t: trend_map.get(t.id, 0), reverse=True)
+    else:
+        filtered.sort(key=lambda t: getattr(t, "_relevance", 0), reverse=True)
+
+    total = len(filtered)
+    total_pages = max(1, (total + request.limit - 1) // request.limit)
+    page = max(1, min(request.page, total_pages))
+    start = (page - 1) * request.limit
+    end = start + request.limit
+    page_templates = filtered[start:end]
+
+    highlighted: Dict[str, Dict[str, Any]] = {}
+    for t in page_templates:
+        q = (request.query or "").lower().strip()
+        highlights: Dict[str, Any] = {}
+        if q and q in t.name.lower():
+            highlights["name"] = t.name
+        if q and q in t.description.lower():
+            idx = t.description.lower().find(q)
+            start_h = max(0, idx - 20)
+            end_h = min(len(t.description), idx + len(q) + 20)
+            highlights["description"] = f"...{t.description[start_h:end_h]}..."
+        highlighted[t.id] = highlights
+
+    results = []
+    for t in page_templates:
+        results.append(TemplateResponse(
+            id=t.id,
+            name=t.name,
+            description=t.description,
+            category=t.category,
+            style=t.style,
+            thumbnail=t.thumbnail,
+            colors=t.colors,
+            fonts=t.fonts,
+        ))
+
+    return AdvancedSearchResponseModel(
+        success=True,
+        results=results,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+        query=request.query,
+        applied_filters=applied_filters,
+        highlighted_fields=highlighted,
+    )
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str
+    limit: int = 10
+    category: Optional[str] = None
+    style: Optional[str] = None
+
+
+@router.post("/semantic-search")
+async def semantic_search_templates(request: SemanticSearchRequest):
+    from ...services.semantic_search import get_semantic_search
+    from ...services.template_manager import get_template_manager
+
+    if not request.query or not request.query.strip():
+        return {"success": False, "error": "query is required", "results": []}
+
+    ss = get_semantic_search()
+    results = await ss.semantic_search_templates(
+        query=request.query,
+        limit=request.limit,
+        category=request.category,
+        style=request.style
+    )
+
+    manager = get_template_manager()
+    enriched = []
+    for r in results:
+        t = manager.get_template(r["template_id"])
+        if not t:
+            for ut in manager.user_templates:
+                if ut["id"] == r["template_id"]:
+                    t = type('Template', (), {
+                        "id": ut["id"],
+                        "name": ut["name"],
+                        "description": ut.get("description", ""),
+                        "category": ut.get("category", "business"),
+                        "style": ut.get("style", "professional"),
+                        "thumbnail": ut.get("thumbnail", ""),
+                        "colors": ut.get("colors", ["#165DFF"]),
+                        "fonts": ut.get("fonts", ["思源黑体"]),
+                    })()
+                    break
+        if t:
+            enriched.append({
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "category": t.category,
+                "style": t.style,
+                "thumbnail": t.thumbnail,
+                "colors": t.colors,
+                "fonts": t.fonts,
+                "similarity_score": r["similarity_score"],
+            })
+
+    return {
+        "success": True,
+        "query": request.query,
+        "total": len(enriched),
+        "results": enriched,
+        "search_type": "semantic"
+    }
+
+
+@router.get("/search-analytics/dashboard")
+async def get_search_analytics_dashboard(days: int = 30):
+    from ...services.search_analytics import get_analytics
+    from ...services.template_manager import get_template_manager
+    from collections import Counter
+
+    analytics = get_analytics()
+    manager = get_template_manager()
+
+    trending_queries = analytics.get_trending_queries(limit=20, days=days)
+
+    all_searches = analytics.data.get("searches", [])
+    from datetime import datetime, timedelta
+    if days > 0:
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        all_searches = [s for s in all_searches if s["timestamp"] >= cutoff]
+
+    volume_by_day: Dict[str, int] = {}
+    for s in all_searches:
+        day = s["timestamp"].split("T")[0]
+        volume_by_day[day] = volume_by_day.get(day, 0) + 1
+
+    volume_over_time = [
+        {"date": d, "count": c}
+        for d, c in sorted(volume_by_day.items())
+    ]
+
+    no_result_queries = [
+        s["query"] for s in all_searches if s.get("results_count", -1) == 0
+    ]
+    no_result_counter = Counter(no_result_queries)
+    no_result_top = [
+        {"query": q, "count": c}
+        for q, c in no_result_counter.most_common(10)
+    ]
+
+    trending_templates = analytics.get_trending_templates(limit=10, days=days)
+    enriched_templates = []
+    for entry in trending_templates:
+        t = manager.get_template(entry["template_id"])
+        if t:
+            enriched_templates.append({
+                "id": t.id,
+                "name": t.name,
+                "category": t.category,
+                "style": t.style,
+                "thumbnail": t.thumbnail,
+                "click_count": entry["click_count"],
+            })
+
+    popular_filters: List[Dict[str, Any]] = []
+    for s in all_searches:
+        q = s.get("query", "")
+        if not q or len(q) <= 1:
+            continue
+        combos = []
+        if "图表" in q or "chart" in q.lower(): combos.append("图表")
+        if "商务" in q or "business" in q.lower(): combos.append("商务")
+        if "创意" in q or "creative" in q.lower(): combos.append("创意")
+        if "科技" in q or "tech" in q.lower(): combos.append("科技")
+        if combos:
+            popular_filters.append({"filters": "+".join(combos), "count": 1})
+
+    filter_counter = Counter(p["filters"] for p in popular_filters)
+    popular_filter_combinations = [
+        {"filters": f, "count": c}
+        for f, c in filter_counter.most_common(10)
+    ]
+
+    return {
+        "success": True,
+        "period_days": days,
+        "trending_queries": trending_queries,
+        "search_volume_over_time": volume_over_time,
+        "no_result_queries": no_result_top,
+        "top_clicked_templates": enriched_templates,
+        "popular_filter_combinations": popular_filter_combinations,
+        "total_searches": len(all_searches),
+        "unique_queries": len(set(s["query"] for s in all_searches)),
+    }

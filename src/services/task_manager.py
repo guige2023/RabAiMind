@@ -84,8 +84,11 @@ class TaskManager:
             "error": None,
             "params": {},  # BUG修复: 存储完整生成参数，用于单页重生成等场景
             "action_log": [],  # 操作日志（最多100条）
-            "undo_stack": [],  # 撤销栈（无限）
-            "redo_stack": [],  # 重做栈（无限）
+            "undo_stack": [],  # 撤销栈（100+级别）
+            "redo_stack": [],  # 重做栈（100+级别）
+            "action_timeline": [],  # 完整时间线（所有操作，含分支）
+            "checkpoints": [],  # 自动保存检查点（每5分钟）
+            "collaborative_locks": {},  # 协作编辑锁
         }
 
         with self._task_lock:
@@ -423,8 +426,11 @@ class TaskManager:
             if "undo_stack" not in task:
                 task["undo_stack"] = []
             task["undo_stack"].append(rollback_entry)
-            if len(task["undo_stack"]) > 10:
-                task["undo_stack"] = task["undo_stack"][-10:]
+            task["action_timeline"].append(rollback_entry)
+            if len(task["undo_stack"]) > 100:
+                task["undo_stack"] = task["undo_stack"][-100:]
+            if len(task["action_timeline"]) > 200:
+                task["action_timeline"] = task["action_timeline"][-200:]
 
         return {"success": True, "message": f"已回滚到 {v['name']}"}
 
@@ -463,18 +469,24 @@ class TaskManager:
 
     # ========== 操作日志 & 撤销栈 ==========
 
-    def log_action(self, task_id: str, action_type: str, description: str, undo_data: dict = None) -> None:
-        """记录用户操作到操作日志（最多100条），并压入撤销栈（最多10条）"""
+    def log_action(self, task_id: str, action_type: str, description: str, undo_data: dict = None, branch_id: str = None) -> str:
+        """记录用户操作到操作日志（最多100条），并压入撤销栈（100+级别）
+        
+        Returns the action_id of the logged action.
+        """
+        action_id = str(uuid.uuid4())[:8]  # 生成8位唯一ID
         with self._task_lock:
             task = self.tasks.get(task_id)
             if not task:
-                return
+                return action_id
 
             entry = {
+                "action_id": action_id,
                 "action_type": action_type,
                 "description": description,
                 "timestamp": get_timestamp(),
                 "undo_data": undo_data,  # 撤销所需的数据
+                "branch_id": branch_id,  # 分支ID（用于协作分支）
             }
 
             # 写入操作日志（最多100条）
@@ -484,13 +496,23 @@ class TaskManager:
             if len(task["action_log"]) > 100:
                 task["action_log"] = task["action_log"][-100:]
 
-            # 压入撤销栈（最多10条）
+            # 写入完整时间线（200条）
+            if "action_timeline" not in task:
+                task["action_timeline"] = []
+            task["action_timeline"].append(entry)
+            if len(task["action_timeline"]) > 200:
+                task["action_timeline"] = task["action_timeline"][-200:]
+
+            # 压入撤销栈（100+级别）
             if undo_data is not None:
                 if "undo_stack" not in task:
                     task["undo_stack"] = []
                 task["undo_stack"].append(entry)
                 # 清空重做栈（新操作入栈时）
                 task["redo_stack"] = []
+                if len(task["undo_stack"]) > 100:
+                    task["undo_stack"] = task["undo_stack"][-100:]
+        return action_id
 
     def get_action_log(self, task_id: str, limit: int = 20) -> list:
         """获取操作日志（最近limit条，默认20条）"""
@@ -569,8 +591,9 @@ class TaskManager:
                         task["result"]["svg_paths"] = svg_paths
                     task["updated_at"] = get_timestamp()
 
-            # 记录撤销操作本身到日志
+            # 记录撤销操作本身到日志和时间线
             undo_log_entry = {
+                "action_id": str(uuid.uuid4())[:8],
                 "action_type": "undo",
                 "description": f"撤销: {action.get('description', '')}",
                 "timestamp": get_timestamp(),
@@ -579,6 +602,11 @@ class TaskManager:
             if "action_log" not in task:
                 task["action_log"] = []
             task["action_log"].append(undo_log_entry)
+            if "action_timeline" not in task:
+                task["action_timeline"] = []
+            task["action_timeline"].append(undo_log_entry)
+            if len(task["action_timeline"]) > 200:
+                task["action_timeline"] = task["action_timeline"][-200:]
 
             return {
                 "success": True,
@@ -641,8 +669,9 @@ class TaskManager:
                     task["outline"] = rollback_data.get("outline", "")
                     task["updated_at"] = get_timestamp()
 
-            # 记录重做操作到日志
+            # 记录重做操作到日志和时间线
             redo_log_entry = {
+                "action_id": str(uuid.uuid4())[:8],
                 "action_type": "redo",
                 "description": f"重做: {action.get('description', '')}",
                 "timestamp": get_timestamp(),
@@ -651,6 +680,11 @@ class TaskManager:
             if "action_log" not in task:
                 task["action_log"] = []
             task["action_log"].append(redo_log_entry)
+            if "action_timeline" not in task:
+                task["action_timeline"] = []
+            task["action_timeline"].append(redo_log_entry)
+            if len(task["action_timeline"]) > 200:
+                task["action_timeline"] = task["action_timeline"][-200:]
 
             return {
                 "success": True,
@@ -665,6 +699,257 @@ class TaskManager:
             if not task:
                 return []
             return task.get("redo_stack", [])
+
+    def get_action_timeline(self, task_id: str, limit: int = 100) -> list:
+        """获取完整操作时间线（用于可视化撤销时间线）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            timeline = task.get("action_timeline", [])
+            return timeline[-limit:] if limit > 0 else timeline
+
+    def undo_by_action_id(self, task_id: str, action_id: str) -> dict:
+        """撤销指定操作（分支撤销）- 不影响其他操作"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            undo_stack = task.get("undo_stack", [])
+            # 找到指定action_id的操作
+            target_index = None
+            for i, entry in enumerate(undo_stack):
+                if entry.get("action_id") == action_id:
+                    target_index = i
+                    break
+
+            if target_index is None:
+                return {"success": False, "message": f"未找到操作 {action_id}"}
+
+            # 找到该操作后，移除它及其之后的所有操作到重做栈
+            # 注意：这是一种"分支"行为 - 将被撤销的操作及其后续操作移到重做栈
+            entries_to_redo = []
+            for i in range(len(undo_stack) - 1, target_index - 1, -1):
+                entries_to_redo.append(undo_stack.pop())
+
+            # 将被撤销的操作添加到重做栈
+            if "redo_stack" not in task:
+                task["redo_stack"] = []
+            task["redo_stack"].extend(reversed(entries_to_redo))
+
+            # 对每个被撤销的操作执行实际的撤销逻辑
+            for entry in entries_to_redo:
+                self._execute_undo_entry(task, entry)
+
+            # 记录分支撤销操作到时间线
+            branch_undo_entry = {
+                "action_id": str(uuid.uuid4())[:8],
+                "action_type": "branch_undo",
+                "description": f"分支撤销: {entries_to_redo[0].get('description', '')}",
+                "timestamp": get_timestamp(),
+                "undo_data": None,
+                "branch_id": f"branch_undo_{int(time.time() * 1000)}",
+            }
+            if "action_timeline" not in task:
+                task["action_timeline"] = []
+            task["action_timeline"].append(branch_undo_entry)
+
+            return {
+                "success": True,
+                "undone_action": entries_to_redo[0].get("description", ""),
+                "affected_actions": len(entries_to_redo),
+            }
+
+    def _execute_undo_entry(self, task: dict, entry: dict) -> None:
+        """执行单个撤销条目"""
+        action_type = entry.get("action_type")
+        undo_data = entry.get("undo_data", {})
+
+        if action_type == "outline_edit":
+            old_outline = undo_data.get("old_outline")
+            if old_outline:
+                task["outline"] = old_outline
+                task["updated_at"] = get_timestamp()
+        elif action_type == "slide_regenerate":
+            old_svg_content = undo_data.get("old_svg_content")
+            svg_path = undo_data.get("svg_path")
+            if old_svg_content and svg_path:
+                import os as _os
+                _os.makedirs(_os.path.dirname(svg_path), exist_ok=True)
+                with open(svg_path, 'w', encoding='utf-8') as _f:
+                    _f.write(old_svg_content)
+                task["updated_at"] = get_timestamp()
+        elif action_type == "slide_image":
+            old_image_path = undo_data.get("old_image_path")
+            slide_index = undo_data.get("slide_index")
+            if old_image_path and slide_index is not None:
+                if "result" not in task:
+                    task["result"] = {}
+                svg_paths = task["result"].get("svg_paths", [])
+                if slide_index <= len(svg_paths):
+                    svg_paths[slide_index - 1] = old_image_path
+                    task["result"]["svg_paths"] = svg_paths
+                task["updated_at"] = get_timestamp()
+
+    # ========== 检查点系统（自动保存） ==========
+
+    def create_checkpoint(self, task_id: str, name: str = None, checkpoint_type: str = "auto") -> dict:
+        """创建检查点（用于自动保存，每5分钟）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            checkpoint_id = f"cp_{int(time.time() * 1000)}"
+            checkpoint = {
+                "checkpoint_id": checkpoint_id,
+                "name": name or f"自动检查点",
+                "type": checkpoint_type,  # auto, manual
+                "created_at": get_timestamp(),
+                "outline": task.get("outline"),
+                "result": task.get("result"),
+                "params": task.get("params"),
+                "action_count": len(task.get("action_timeline", [])),
+            }
+
+            if "checkpoints" not in task:
+                task["checkpoints"] = []
+            task["checkpoints"].append(checkpoint)
+
+            # 保留最近50个检查点
+            if len(task["checkpoints"]) > 50:
+                task["checkpoints"] = task["checkpoints"][-50:]
+
+            # 记录到时间线
+            self._add_to_timeline(task, {
+                "action_id": str(uuid.uuid4())[:8],
+                "action_type": "checkpoint",
+                "description": f"创建检查点: {checkpoint['name']}",
+                "timestamp": get_timestamp(),
+                "undo_data": None,
+            })
+
+            return {"success": True, "checkpoint_id": checkpoint_id, "checkpoint": checkpoint}
+
+    def get_checkpoints(self, task_id: str, limit: int = 20) -> list:
+        """获取检查点列表"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            checkpoints = task.get("checkpoints", [])
+            return checkpoints[-limit:] if limit > 0 else checkpoints
+
+    def restore_checkpoint(self, task_id: str, checkpoint_id: str) -> dict:
+        """从检查点恢复"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            checkpoints = task.get("checkpoints", [])
+            target_cp = None
+            for cp in checkpoints:
+                if cp.get("checkpoint_id") == checkpoint_id:
+                    target_cp = cp
+                    break
+
+            if not target_cp:
+                return {"success": False, "message": f"检查点 {checkpoint_id} 不存在"}
+
+            # 保存当前状态作为回滚快照
+            snapshot = {
+                "outline": task.get("outline"),
+                "result": task.get("result"),
+                "params": task.get("params"),
+            }
+
+            # 恢复到检查点状态
+            task["outline"] = target_cp.get("outline")
+            task["result"] = target_cp.get("result")
+            task["params"] = target_cp.get("params")
+            task["updated_at"] = get_timestamp()
+
+            # 记录恢复操作
+            restore_entry = {
+                "action_id": str(uuid.uuid4())[:8],
+                "action_type": "checkpoint_restore",
+                "description": f"从检查点恢复: {target_cp.get('name', checkpoint_id)}",
+                "timestamp": get_timestamp(),
+                "undo_data": {"rollback_snapshot": snapshot},
+            }
+            self._add_to_timeline(task, restore_entry)
+            task["undo_stack"].append(restore_entry)
+            task["redo_stack"] = []  # 清空重做栈
+
+            return {"success": True, "message": f"已从 {target_cp.get('name')} 恢复"}
+
+    def _add_to_timeline(self, task: dict, entry: dict) -> None:
+        """添加条目到时间线"""
+        if "action_timeline" not in task:
+            task["action_timeline"] = []
+        task["action_timeline"].append(entry)
+        if len(task["action_timeline"]) > 200:
+            task["action_timeline"] = task["action_timeline"][-200:]
+
+    # ========== 协作编辑锁 ==========
+
+    def acquire_collaborative_lock(self, task_id: str, user_id: str, slide_index: int = None) -> dict:
+        """获取协作编辑锁（防止多用户同时编辑同一幻灯片）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            if "collaborative_locks" not in task:
+                task["collaborative_locks"] = {}
+
+            locks = task["collaborative_locks"]
+            target = f"slide_{slide_index}" if slide_index is not None else "outline"
+
+            if target in locks:
+                existing = locks[target]
+                if existing.get("user_id") != user_id:
+                    return {
+                        "success": False,
+                        "message": f"{target} 已被用户 {existing.get('user_id')} 锁定",
+                        "locked_by": existing.get("user_id"),
+                        "locked_at": existing.get("locked_at"),
+                    }
+
+            locks[target] = {
+                "user_id": user_id,
+                "slide_index": slide_index,
+                "locked_at": get_timestamp(),
+            }
+            return {"success": True, "locked": target, "user_id": user_id}
+
+    def release_collaborative_lock(self, task_id: str, user_id: str, slide_index: int = None) -> dict:
+        """释放协作编辑锁"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            locks = task.get("collaborative_locks", {})
+            target = f"slide_{slide_index}" if slide_index is not None else "outline"
+
+            if target in locks and locks[target].get("user_id") == user_id:
+                del locks[target]
+                return {"success": True, "released": target}
+            return {"success": False, "message": "未找到锁或用户不匹配"}
+
+    def get_collaborative_locks(self, task_id: str) -> dict:
+        """获取当前协作锁状态"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return {"success": False, "message": "Task not found"}
+            return {
+                "success": True,
+                "locks": task.get("collaborative_locks", {}),
+            }
 
     def branch_version(self, task_id: str, version_id: str, branch_name: str = None) -> dict:
         """从指定版本创建分支（版本分支）"""
@@ -708,6 +993,123 @@ class TaskManager:
             task["action_log"].append(branch_entry)
 
             return {"success": True, "version_id": branch_version_id, "branch_id": branch_id}
+
+    def merge_version(self, task_id: str, source_version_id: str, target_version_id: str = None, strategy: str = "branch_wins") -> dict:
+        """
+        合并分支版本到目标版本（默认合并到当前最新版本）
+        strategy: 'branch_wins' | 'main_wins' | 'newest_first'
+        """
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            source = None
+            target = None
+            for v in task.get("versions", []):
+                if v["version_id"] == source_version_id:
+                    source = v
+                if target_version_id and v["version_id"] == target_version_id:
+                    target = v
+
+            if not source:
+                raise ValueError(f"Source version {source_version_id} not found")
+
+            # 如果没有指定目标版本，查找当前分支的最新版本
+            if not target:
+                branch_id = source.get("branch_id")
+                if branch_id:
+                    # 找同一分支的最新版本
+                    branch_versions = [v for v in task.get("versions", []) if v.get("branch_id") == branch_id]
+                    if branch_versions:
+                        target = sorted(branch_versions, key=lambda x: x["created_at"])[-1]
+                # 如果还是没找到target，使用当前task的result作为目标
+
+            # 获取当前任务的当前状态
+            current_result = task.get("result", {})
+            target_svg_paths = target.get("svg_paths", []) if target else current_result.get("svg_paths", [])
+            source_svg_paths = source.get("svg_paths", [])
+
+            # 根据策略决定最终svg_paths
+            if strategy == "branch_wins":
+                # branch的svg_paths覆盖target的
+                merged_svg_paths = list(target_svg_paths)
+                for i, svg_path in enumerate(source_svg_paths):
+                    if svg_path and svg_path.strip():
+                        if i < len(merged_svg_paths):
+                            merged_svg_paths[i] = svg_path
+                        else:
+                            merged_svg_paths.append(svg_path)
+            elif strategy == "main_wins":
+                merged_svg_paths = list(target_svg_paths)
+            else:
+                # newest_first: 时间更新的优先
+                merged_svg_paths = list(target_svg_paths)
+                source_time = source.get("created_at", "")
+                target_time = target.get("created_at", "") if target else ""
+                if source_time >= target_time:
+                    for i, svg_path in enumerate(source_svg_paths):
+                        if svg_path and svg_path.strip():
+                            if i < len(merged_svg_paths):
+                                merged_svg_paths[i] = svg_path
+                            else:
+                                merged_svg_paths.append(svg_path)
+
+            # 创建合并后的新版本
+            merge_version_id = f"v{int(time.time() * 1000)}"
+            merge_branch_id = source.get("branch_id", "merged")
+            merge_name = f"合并: {source.get('name', source_version_id)}"
+            if target:
+                merge_name = f"合并「{target.get('name', target_version_id)}」←「{source.get('name', source_version_id)}」"
+
+            merge_version_data = {
+                "version_id": merge_version_id,
+                "task_id": task_id,
+                "name": merge_name,
+                "created_at": get_timestamp(),
+                "config": source.get("config", {}),
+                "svg_paths": merged_svg_paths,
+                "pptx_path": source.get("pptx_path", "") or (target.get("pptx_path", "") if target else ""),
+                "outline": source.get("outline", "") or (target.get("outline", "") if target else ""),
+                "branched_from": source_version_id,
+                "branch_id": merge_branch_id,
+                "merged_from": {
+                    "source": source_version_id,
+                    "target": target_version_id or "current",
+                    "strategy": strategy
+                }
+            }
+
+            if "versions" not in task:
+                task["versions"] = []
+            task["versions"].append(merge_version_data)
+
+            # 记录操作日志
+            merge_entry = {
+                "action_type": "merge",
+                "description": f"合并分支 {source.get('name', source_version_id)} 到 {'当前版本' if not target else target.get('name', target_version_id)}",
+                "timestamp": get_timestamp(),
+                "undo_data": {
+                    "source_version": source_version_id,
+                    "target_version": target_version_id,
+                    "strategy": strategy
+                },
+                "branch_id": merge_branch_id,
+            }
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(merge_entry)
+            if "action_timeline" not in task:
+                task["action_timeline"] = []
+            task["action_timeline"].append(merge_entry)
+
+            return {
+                "success": True,
+                "version_id": merge_version_id,
+                "merged_from": source_version_id,
+                "merged_to": target_version_id or "current",
+                "strategy": strategy
+            }
 
     def auto_save(self, task_id: str, state: dict) -> dict:
         """保存自动保存状态（用于崩溃恢复）"""
@@ -911,6 +1313,187 @@ class TaskManager:
         except Exception as e:
             logger.warning(f"[TaskManager] 云端恢复失败，使用本地状态: {e}")
 
+    def detect_language(self, task_id: str) -> dict:
+        """检测PPT内容的语言"""
+        import re
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+        # Extract text from outline and slides
+        texts = []
+        outline = task.get("outline", {})
+        if outline:
+            # Extract from outline structure
+            slides = outline.get("slides", [])
+            for slide in slides:
+                title = slide.get("title", "")
+                bullets = slide.get("bullets", [])
+                if title:
+                    texts.append(str(title))
+                if bullets:
+                    for b in bullets:
+                        if isinstance(b, str):
+                            texts.append(b)
+                        elif isinstance(b, dict):
+                            texts.append(str(b.get("text", "")))
+
+        # Also try result slides
+        result = task.get("result", {})
+        if result:
+            slides_summary = result.get("slides_summary", [])
+            for slide in slides_summary:
+                title = slide.get("title", "")
+                content = slide.get("content", "")
+                if title:
+                    texts.append(str(title))
+                if content:
+                    texts.append(str(content))
+
+        full_text = " ".join(texts)[:2000]  # Limit to 2000 chars
+
+        # Character-based language detection
+        detected = self._detect_lang_from_text(full_text)
+        return {
+            "success": True,
+            "detected_locale": detected["locale"],
+            "confidence": detected["confidence"],
+            "text_sample": full_text[:200],
+        }
+
+    def _detect_lang_from_text(self, text: str) -> dict:
+        """Detect language from text using character analysis"""
+        if not text:
+            return {"locale": "en", "confidence": 0.5}
+
+        # Arabic
+        if re.search(r'[\u0600-\u06FF]', text):
+            return {"locale": "ar", "confidence": 0.9}
+        # Hebrew
+        if re.search(r'[\u0590-\u05FF]', text):
+            return {"locale": "he", "confidence": 0.9}
+        # Japanese Hiragana/Katakana
+        if re.search(r'[\u3040-\u309F\u30A0-\u30FF]', text):
+            return {"locale": "ja", "confidence": 0.9}
+        # Korean Hangul
+        if re.search(r'[\uAC00-\uD7AF]', text):
+            return {"locale": "ko", "confidence": 0.9}
+        # Chinese
+        if re.search(r'[\u4E00-\u9FFF]', text):
+            return {"locale": "zh", "confidence": 0.9}
+        # Spanish indicators
+        if re.search(r'\b(el|la|los|las|un|una|de|que|es|en|con|para|por|está|son|tiene)\b', text, re.I) and \
+           re.search(r'[áéíóúñü¿¡]', text):
+            return {"locale": "es", "confidence": 0.7}
+        # French indicators
+        if re.search(r'\b(le|la|les|un|une|de|du|des|que|qui|est|et|en|avec|pour|dans)\b', text, re.I) and \
+           re.search(r'[àâäéèêëïîôùûüÿçœæ]', text, re.I):
+            return {"locale": "fr", "confidence": 0.7}
+        # Default to English
+        return {"locale": "en", "confidence": 0.5}
+
+    def localize(self, task_id: str, target_locale: str, source_locale: str = None, apply_rtl: bool = False) -> dict:
+        """翻译PPT内容到目标语言"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+            if task.get("status") != "completed":
+                raise ValueError(f"Task {task_id} is not completed")
+
+        # Detect source if not provided
+        if not source_locale:
+            detected = self._detect_lang_from_text("")
+            source_locale = detected["locale"]
+
+        # Create new task for localized version
+        new_task_id = self.create_task(
+            user_request=f"[Localized from {task_id}] {task.get('user_request', '')}",
+            slide_count=task.get("slide_count", 10),
+            scene=task.get("scene", "business"),
+            style=task.get("style", "professional"),
+            template=task.get("template", "default"),
+            theme_color=task.get("theme_color", "#165DFF"),
+            layout_mode=task.get("layout_mode", "auto"),
+            color_scheme=task.get("color_scheme", "#165DFF"),
+        )
+
+        with self._task_lock:
+            new_task = self.tasks[new_task_id]
+            # Copy the outline for translation
+            old_outline = task.get("outline", {})
+            if old_outline:
+                new_task["outline"] = self._translate_outline(old_outline, source_locale, target_locale)
+
+            # Store locale metadata
+            new_task["_localized_from"] = task_id
+            new_task["_source_locale"] = source_locale
+            new_task["_target_locale"] = target_locale
+            new_task["_apply_rtl"] = apply_rtl
+
+            # Mark as completed since we translated in-place
+            new_task["status"] = "completed"
+            new_task["progress"] = 100
+            new_task["current_step"] = "已完成"
+            new_task["updated_at"] = get_timestamp()
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "new_task_id": new_task_id,
+            "target_locale": target_locale,
+            "source_locale": source_locale,
+            "slides_localized": len(new_task.get("outline", {}).get("slides", [])),
+            "message": f"Successfully localized to {target_locale}"
+        }
+
+    def _translate_outline(self, outline: dict, source: str, target: str) -> dict:
+        """Translate outline structure to target language using AI"""
+        slides = outline.get("slides", [])
+        translated_slides = []
+        for slide in slides:
+            translated_slide = dict(slide)
+            # Translate title
+            if slide.get("title"):
+                translated_slide["title"] = self._translate_text(slide["title"], source, target)
+            # Translate bullets
+            bullets = slide.get("bullets", [])
+            translated_bullets = []
+            for b in bullets:
+                if isinstance(b, str):
+                    translated_bullets.append(self._translate_text(b, source, target))
+                elif isinstance(b, dict):
+                    translated_bullets.append({
+                        "text": self._translate_text(b.get("text", ""), source, target),
+                        "level": b.get("level", 0),
+                    })
+                else:
+                    translated_bullets.append(b)
+            translated_slide["bullets"] = translated_bullets
+            # Translate notes
+            if slide.get("notes"):
+                translated_slide["notes"] = self._translate_text(slide["notes"], source, target)
+            translated_slides.append(translated_slide)
+        return dict(outline, slides=translated_slides)
+
+    def _translate_text(self, text: str, source: str, target: str) -> str:
+        """Translate a single text using AI API"""
+        if not text or not text.strip():
+            return text
+        try:
+            from .volc_api import VolcEngineAPI
+            api = VolcEngineAPI()
+            system_prompt = f"You are a professional translator. Translate the following text from {source} to {target}. Only output the translated text, nothing else."
+            result = api.chat([{"role": "user", "content": text}], system_prompt=system_prompt)
+            if result and isinstance(result, dict):
+                return result.get("content", text)
+            return text
+        except Exception as e:
+            import logging
+            logging.warning(f"Translation failed: {e}")
+            return text  # Return original on failure
+
     def _lazy_cleanup_unlocked(self) -> None:
         """懒清理：已持有锁时调用，清理超过30分钟的已完成任务"""
         from datetime import datetime
@@ -937,6 +1520,370 @@ class TaskManager:
 
         if tasks_to_remove:
             logger.info(f"自动清理 {len(tasks_to_remove)} 个过期任务")
+
+
+# 全局实例
+    # ========== A/B Testing ==========
+
+    def create_ab_test(self, task_id: str, slide_index: int, variant_count: int = 2) -> dict:
+        """为指定幻灯片创建A/B测试（生成多个变体）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            slides_summary = task.get("result", {}).get("slides_summary", [])
+            if slide_index < 0 or slide_index >= len(slides_summary):
+                raise ValueError(f"Slide {slide_index + 1} not found")
+
+            original_slide = slides_summary[slide_index]
+            test_id = f"ab_{int(time.time() * 1000)}"
+
+            variants = []
+            for i in range(variant_count):
+                variant_slide = self._generate_slide_variant(original_slide, i, slide_index)
+                variants.append({
+                    "variant_id": f"{test_id}_v{i + 1}",
+                    "slide_data": variant_slide,
+                    "view_count": 0,
+                    "click_count": 0,
+                    "time_spent_ms": 0,
+                    "created_at": get_timestamp(),
+                })
+
+            ab_test = {
+                "test_id": test_id,
+                "task_id": task_id,
+                "slide_index": slide_index,
+                "original_slide": original_slide,
+                "variants": variants,
+                "winner": None,
+                "status": "running",
+                "created_at": get_timestamp(),
+                "total_views": 0,
+            }
+
+            if "ab_tests" not in task:
+                task["ab_tests"] = []
+            task["ab_tests"].append(ab_test)
+
+            return {"success": True, "test_id": test_id, "variants": variants}
+
+    def _generate_slide_variant(self, original: dict, variant_num: int, slide_index: int) -> dict:
+        """为A/B测试生成幻灯片变体"""
+        variant = dict(original)
+        variant["variant_num"] = variant_num + 1
+
+        if variant_num == 0:
+            if "content" in variant and len(variant["content"]) > 200:
+                lines = variant["content"].split("\n")
+                variant["content"] = "\n".join(lines[:max(1, len(lines) // 2)])
+                variant["_variant_strategy"] = "simplified"
+        elif variant_num == 1:
+            variant["_variant_strategy"] = "enhanced_visual"
+            if "layout" in variant:
+                layouts = ["left_text_right_image", "center", "two_column", "image_focus"]
+                current = variant.get("layout", "")
+                if current in layouts:
+                    idx = layouts.index(current)
+                    variant["layout"] = layouts[(idx + 1) % len(layouts)]
+
+        return variant
+
+    def list_ab_tests(self, task_id: str) -> list:
+        """列出任务的所有A/B测试"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            tests = task.get("ab_tests", [])
+            return [
+                {
+                    "test_id": t["test_id"],
+                    "slide_index": t["slide_index"],
+                    "variant_count": len(t["variants"]),
+                    "status": t["status"],
+                    "winner": t.get("winner"),
+                    "created_at": t["created_at"],
+                    "total_views": t.get("total_views", 0),
+                }
+                for t in tests
+            ]
+
+    def get_ab_test(self, task_id: str, test_id: str) -> dict:
+        """获取A/B测试详情及性能对比"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for t in task.get("ab_tests", []):
+                if t["test_id"] == test_id:
+                    performance = []
+                    for v in t["variants"]:
+                        time_s = v.get("time_spent_ms", 0) / 1000
+                        views = max(v.get("view_count", 0), 1)
+                        performance.append({
+                            "variant_id": v["variant_id"],
+                            "views": v.get("view_count", 0),
+                            "clicks": v.get("click_count", 0),
+                            "avg_time_seconds": round(time_s / views, 1),
+                            "engagement_rate": round(v.get("click_count", 0) / views * 100, 1) if views > 0 else 0,
+                        })
+
+                    if t["status"] == "completed" and t.get("winner"):
+                        for v in t["variants"]:
+                            v["is_winner"] = v["variant_id"] == t["winner"]
+                    else:
+                        best = max(performance, key=lambda x: x["engagement_rate"]) if performance else None
+                        for p in performance:
+                            p["is_winner"] = (best and p["variant_id"] == best["variant_id"])
+
+                    return {"success": True, "test": {**t, "performance": performance}}
+
+            raise ValueError(f"ABTest {test_id} not found")
+
+    def track_ab_view(self, task_id: str, test_id: str, variant_id: str, time_spent_ms: int = 0) -> dict:
+        """记录A/B测试变体的一次查看"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for t in task.get("ab_tests", []):
+                if t["test_id"] == test_id:
+                    for v in t["variants"]:
+                        if v["variant_id"] == variant_id:
+                            v["view_count"] = v.get("view_count", 0) + 1
+                            v["time_spent_ms"] = v.get("time_spent_ms", 0) + time_spent_ms
+                            t["total_views"] = t.get("total_views", 0) + 1
+                            return {"success": True}
+
+            raise ValueError(f"Variant {variant_id} not found in test {test_id}")
+
+    def track_ab_click(self, task_id: str, test_id: str, variant_id: str) -> dict:
+        """记录A/B测试变体的一次点击"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for t in task.get("ab_tests", []):
+                if t["test_id"] == test_id:
+                    for v in t["variants"]:
+                        if v["variant_id"] == variant_id:
+                            v["click_count"] = v.get("click_count", 0) + 1
+                            return {"success": True}
+
+            raise ValueError(f"Variant {variant_id} not found")
+
+    def select_ab_winner(self, task_id: str, test_id: str, variant_id: str) -> dict:
+        """选择A/B测试的获胜变体并应用"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            for t in task.get("ab_tests", []):
+                if t["test_id"] == test_id:
+                    winner_variant = None
+                    for v in t["variants"]:
+                        if v["variant_id"] == variant_id:
+                            winner_variant = v
+                            break
+
+                    if not winner_variant:
+                        raise ValueError(f"Variant {variant_id} not found")
+
+                    t["winner"] = variant_id
+                    t["status"] = "completed"
+
+                    slide_index = t["slide_index"]
+                    slides_summary = task.get("result", {}).get("slides_summary", [])
+                    if slide_index < len(slides_summary):
+                        winner_data = winner_variant.get("slide_data", {})
+                        slides_summary[slide_index] = {
+                            **slides_summary[slide_index],
+                            "title": winner_data.get("title", slides_summary[slide_index].get("title")),
+                            "content": winner_data.get("content", slides_summary[slide_index].get("content")),
+                            "layout": winner_data.get("layout", slides_summary[slide_index].get("layout")),
+                            "_ab_winner": variant_id,
+                        }
+
+                    self.create_version(task_id, f"A/B获胜应用: {winner_variant['variant_id']}")
+
+                    return {"success": True, "winner": variant_id}
+
+            raise ValueError(f"ABTest {test_id} not found")
+
+    def delete_ab_test(self, task_id: str, test_id: str) -> dict:
+        """删除A/B测试"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            ab_tests = task.get("ab_tests", [])
+            for i, t in enumerate(ab_tests):
+                if t["test_id"] == test_id:
+                    ab_tests.pop(i)
+                    return {"success": True, "message": f"Test {test_id} deleted"}
+
+            raise ValueError(f"ABTest {test_id} not found")
+
+    # ========== 幻灯片级版本历史 ==========
+
+    def get_slide_version_history(self, task_id: str, slide_index: int) -> list:
+        """获取指定幻灯片的版本历史"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+
+            history = []
+            for v in task.get("versions", []):
+                slides = v.get("config", {}).get("slides", [])
+                if slide_index < len(slides):
+                    history.append({
+                        "version_id": v["version_id"],
+                        "version_name": v["name"],
+                        "slide_index": slide_index,
+                        "slide_data": slides[slide_index],
+                        "created_at": v["created_at"],
+                        "branch_id": v.get("branch_id"),
+                    })
+
+            return sorted(history, key=lambda x: x["created_at"])
+
+    def record_slide_change(self, task_id: str, slide_index: int, change_type: str, old_data: dict, new_data: dict) -> None:
+        """记录幻灯片的变更（用于自动版本追踪）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return
+
+            if "slide_changes" not in task:
+                task["slide_changes"] = []
+
+            task["slide_changes"].append({
+                "slide_index": slide_index,
+                "change_type": change_type,
+                "old_data": old_data,
+                "new_data": new_data,
+                "timestamp": get_timestamp(),
+            })
+            if len(task["slide_changes"]) > 200:
+                task["slide_changes"] = task["slide_changes"][-200:]
+
+    # ========== 智能改进建议 ==========
+
+    def suggest_improvements(self, task_id: str) -> dict:
+        """基于分析和设计原则生成幻灯片改进建议"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            suggestions = []
+            slides_summary = task.get("result", {}).get("slides_summary", [])
+            task_scene = task.get("result", {}).get("scene", "business")
+            task_style = task.get("result", {}).get("style", "professional")
+
+            for i, slide in enumerate(slides_summary):
+                slide_suggestions = self._analyze_slide(slide, i, task_scene, task_style)
+                suggestions.extend(slide_suggestions)
+
+            total_slides = len(slides_summary)
+            if total_slides < 5:
+                suggestions.append({
+                    "type": "structure", "priority": "medium", "slide": None,
+                    "title": "内容较少",
+                    "description": f"PPT仅{total_slides}页，建议增加到8-15页以提升完整性",
+                    "action": "建议添加更多内容页，如数据页、案例页等"
+                })
+            elif total_slides > 20:
+                suggestions.append({
+                    "type": "structure", "priority": "low", "slide": None,
+                    "title": "页数偏多",
+                    "description": f"PPT共{total_slides}页，建议精简以提升观看体验",
+                    "action": "考虑合并相近内容或删除次要页面"
+                })
+
+            if suggestions:
+                suggestions.append({
+                    "type": "ab_test", "priority": "medium", "slide": None,
+                    "title": "启用A/B测试",
+                    "description": "对关键页面进行A/B测试可提升整体效果",
+                    "action": "点击'A/B测试'按钮为重要页面创建变体"
+                })
+
+            return {
+                "success": True,
+                "suggestions": suggestions,
+                "total_slides": total_slides,
+                "suggestion_count": len(suggestions),
+            }
+
+    def _analyze_slide(self, slide: dict, index: int, scene: str, style: str) -> list:
+        """分析单个幻灯片并生成建议"""
+        suggestions = []
+        title = slide.get("title", "")
+        content = slide.get("content", "")
+        layout = slide.get("layout", "")
+
+        if len(title) > 40:
+            suggestions.append({
+                "type": "title", "priority": "high", "slide": index + 1,
+                "title": "标题过长",
+                "description": f"第{index + 1}页标题超过40字符，不利于快速阅读",
+                "action": f"建议精简标题，当前：{title[:30]}..."
+            })
+
+        content_len = len(content)
+        if content_len > 500:
+            suggestions.append({
+                "type": "content_density", "priority": "high", "slide": index + 1,
+                "title": "内容过密",
+                "description": f"第{index + 1}页内容超过500字符，信息过载",
+                "action": "建议分段或分页，每页重点突出1-2个核心信息"
+            })
+        elif content_len < 20 and index > 0:
+            suggestions.append({
+                "type": "content_empty", "priority": "medium", "slide": index + 1,
+                "title": "内容过少",
+                "description": f"第{index + 1}页内容不足20字符",
+                "action": "建议补充更多内容或使用视觉元素填充"
+            })
+
+        if layout in ("title", "center") and index > 0 and content_len < 50:
+            suggestions.append({
+                "type": "layout", "priority": "low", "slide": index + 1,
+                "title": "页面利用率低",
+                "description": f"第{index + 1}页使用'{layout}'布局但内容较少",
+                "action": "建议使用更丰富的布局或增加内容"
+            })
+
+        content_lower = content.lower()
+        has_data_keywords = any(kw in content_lower for kw in ["数据", "增长", "比例", "趋势", "分析", "统计", "数字", "百分", "%", "数据来源"])
+        if not has_data_keywords and index > 0:
+            suggestions.append({
+                "type": "visual", "priority": "low", "slide": index + 1,
+                "title": "缺少数据支撑",
+                "description": f"第{index + 1}页未检测到数据内容",
+                "action": "建议添加图表或数据卡片增强说服力"
+            })
+
+        if index == 0:
+            if not title or len(title) < 3:
+                suggestions.append({
+                    "type": "cover", "priority": "high", "slide": 1,
+                    "title": "封面标题缺失",
+                    "description": "封面缺少有效标题",
+                    "action": "建议添加明确的演示标题"
+                })
+
+        return suggestions
+
 
 
 # 全局实例

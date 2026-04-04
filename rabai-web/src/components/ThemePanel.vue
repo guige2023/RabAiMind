@@ -114,6 +114,7 @@
           <div class="color-input-group">
             <input type="color" v-model="customPrimary" @change="emitCustomTheme" />
             <input type="text" v-model="customPrimary" @change="emitCustomTheme" class="hex-input" maxlength="7" />
+            <button class="eyedropper-btn" @click="startEyedropper('primary')" title="屏幕取色器" :class="{ active: eyedropperActive === 'primary' }">💉</button>
           </div>
         </div>
         <div class="color-picker-item">
@@ -121,6 +122,7 @@
           <div class="color-input-group">
             <input type="color" v-model="customSecondary" @change="emitCustomTheme" />
             <input type="text" v-model="customSecondary" @change="emitCustomTheme" class="hex-input" maxlength="7" />
+            <button class="eyedropper-btn" @click="startEyedropper('secondary')" title="屏幕取色器" :class="{ active: eyedropperActive === 'secondary' }">💉</button>
           </div>
         </div>
         <div class="color-picker-item">
@@ -128,6 +130,7 @@
           <div class="color-input-group">
             <input type="color" v-model="customAccent" @change="emitCustomTheme" />
             <input type="text" v-model="customAccent" @change="emitCustomTheme" class="hex-input" maxlength="7" />
+            <button class="eyedropper-btn" @click="startEyedropper('accent')" title="屏幕取色器" :class="{ active: eyedropperActive === 'accent' }">💉</button>
           </div>
         </div>
       </div>
@@ -403,6 +406,90 @@ const activePairing = ref<FontPairing | null>(null)
 const applyPairing = (pair: FontPairing) => {
   activePairing.value = pair
   emit('font-change', { header: pair.header, body: pair.body })
+}
+
+// ===== Eyedropper Tool (ThemePanel) =====
+const eyedropperActive = ref<string | null>(null)
+let eyedropperClickHandler: (() => void) | null = null
+let eyedropperEscHandler: ((e: KeyboardEvent) => void) | null = null
+
+const startEyedropper = async (slot: string) => {
+  if (eyedropperActive.value === slot) {
+    stopEyedropper()
+    return
+  }
+  eyedropperActive.value = slot
+
+  eyedropperClickHandler = async () => {
+    await new Promise(resolve => setTimeout(resolve, 150))
+
+    // Use macOS AppleScript `choose color` which provides native eyedropper
+    const appleScript = `choose color`
+
+    try {
+      const execBridge = (window as any).__execBridge
+      if (execBridge) {
+        const result = await execBridge(`osascript -e '${appleScript}' 2>/dev/null`)
+        if (result) {
+          const rgbMatch = result.match(/\{(\d+),\s*(\d+),\s*(\d+)\}/)
+          if (rgbMatch) {
+            const r = Math.round((parseInt(rgbMatch[1]) / 65535) * 255)
+            const g = Math.round((parseInt(rgbMatch[2]) / 65535) * 255)
+            const b = Math.round((parseInt(rgbMatch[3]) / 65535) * 255)
+            const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`.toUpperCase()
+            applyEyedropperColor(hex, slot)
+          }
+        }
+        stopEyedropper()
+        return
+      }
+
+      // Manual fallback
+      const manualColor = prompt(
+        '💉 屏幕取色器 - 在终端运行:\npython3 /tmp/eyedropper.py\n或直接输入颜色值:',
+        slot === 'primary' ? customPrimary.value : slot === 'secondary' ? customSecondary.value : customAccent.value
+      )
+      if (manualColor) {
+        applyEyedropperColor(manualColor.trim(), slot)
+      }
+    } catch (err) {
+      console.warn('[Eyedropper] Error:', err)
+    }
+    stopEyedropper()
+  }
+
+  eyedropperEscHandler = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') stopEyedropper()
+  }
+
+  document.addEventListener('click', eyedropperClickHandler, { once: true })
+  document.addEventListener('keydown', eyedropperEscHandler)
+}
+
+const applyEyedropperColor = (hex: string, slot: string) => {
+  const clean = (hex || '').trim()
+  if (clean.match(/^#[0-9A-Fa-f]{6}$/)) {
+    if (slot === 'primary') {
+      customPrimary.value = clean
+    } else if (slot === 'secondary') {
+      customSecondary.value = clean
+    } else {
+      customAccent.value = clean
+    }
+    emitCustomTheme()
+  }
+}
+
+const stopEyedropper = () => {
+  if (eyedropperClickHandler) {
+    document.removeEventListener('click', eyedropperClickHandler)
+    eyedropperClickHandler = null
+  }
+  if (eyedropperEscHandler) {
+    document.removeEventListener('keydown', eyedropperEscHandler)
+    eyedropperEscHandler = null
+  }
+  eyedropperActive.value = null
 }
 
 // Load saved settings

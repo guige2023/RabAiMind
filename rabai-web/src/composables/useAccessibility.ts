@@ -203,16 +203,19 @@ export function useAccessibility() {
   }
 
   // Listen for system preference changes
-  onMounted(() => {
-    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const handleMotionChange = (e: MediaQueryListEvent) => {
-      if (localStorage.getItem('reduceMotion') === null) {
-        reduceMotion.value = e.matches
-        applyReduceMotion()
-      }
+  const motionQuery = typeof window !== 'undefined' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
+  const handleMotionChange = (e: MediaQueryListEvent) => {
+    if (localStorage.getItem('reduceMotion') === null) {
+      reduceMotion.value = e.matches
+      applyReduceMotion()
     }
-    motionQuery.addEventListener('change', handleMotionChange)
-    ;(window as any).__reduceMotionMediaQuery = motionQuery
+  }
+
+  onMounted(() => {
+    if (motionQuery) {
+      motionQuery.addEventListener('change', handleMotionChange)
+      ;(window as any).__reduceMotionMediaQuery = motionQuery
+    }
   })
 
   onUnmounted(() => {

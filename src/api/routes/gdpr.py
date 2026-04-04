@@ -10,6 +10,7 @@ Date: 2026-04-04
 """
 
 import os
+from pydantic import BaseModel, Field
 import json
 import zipfile
 import io
@@ -64,6 +65,7 @@ class GDPRExportRequest(BaseModel):
 class GDPRDeleteRequest(BaseModel):
     """Request deletion of all user data (GDPR Article 17 - Right to Erasure)."""
     confirm_username: str
+    secure_delete: bool = Field(default=False, description="启用安全删除（覆写擦除，数据不可恢复）")
 
 
 # ==================== Data Collectors ====================
@@ -423,17 +425,18 @@ async def request_data_deletion(
     )
 
     # Mark user for deletion (set a flag)
-    _mark_user_for_deletion(current_user.user_id)
+    _mark_user_for_deletion(current_user.user_id, secure=req.secure_delete)
 
     return {
         "success": True,
         "message": "数据删除请求已记录，数据将在保留期到期后自动清除",
         "user_id": current_user.user_id,
+        "secure_delete": req.secure_delete,
         "note": "实际删除由数据保留策略执行"
     }
 
 
-def _mark_user_for_deletion(user_id: str):
+def _mark_user_for_deletion(user_id: str, secure: bool = False):
     """Mark user for deletion in the deletion queue."""
     queue_file = os.path.join(_get_data_dir(), "deletion_queue.json")
     os.makedirs(os.path.dirname(queue_file), exist_ok=True)
@@ -452,7 +455,8 @@ def _mark_user_for_deletion(user_id: str):
     queue.append({
         "user_id": user_id,
         "requested_at": datetime.utcnow().isoformat() + "Z",
-        "status": "pending"
+        "status": "pending",
+        "secure_delete": secure,
     })
 
     with open(queue_file, "w", encoding="utf-8") as f:

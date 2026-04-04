@@ -10,8 +10,14 @@
         <button class="btn btn-outline" @click="refresh" :disabled="loading">
           🔄 {{ loading ? '加载中...' : '刷新' }}
         </button>
-        <button class="btn btn-primary" @click="exportCSV">
+        <button class="btn btn-outline" @click="exportCSV">
           📥 导出CSV
+        </button>
+        <button class="btn btn-outline" @click="exportDataStudio">
+          📊 Google Data Studio
+        </button>
+        <button class="btn btn-primary" @click="openCustomReportBuilder">
+          🛠️ 自定义报告
         </button>
       </div>
     </div>
@@ -81,6 +87,245 @@
           <div class="stat-info">
             <div class="stat-value">{{ formatTime(summary.avg_time_seconds) }}</div>
             <div class="stat-label">平均生成耗时</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Presentation Analytics Section -->
+      <div class="presentation-analytics-section">
+        <div class="section-header">
+          <h2 class="section-title">👁 演示浏览分析</h2>
+          <div class="section-actions">
+            <input
+              v-model="presTaskId"
+              placeholder="输入任务ID查看分析"
+              class="task-id-input"
+              @keydown.enter="loadPresAnalytics"
+            />
+            <button class="btn btn-outline" @click="loadPresAnalytics" :disabled="presLoading || !presTaskId.trim()">
+              🔍 查询
+            </button>
+            <button
+              v-if="presAnalytics"
+              class="btn btn-primary"
+              @click="exportPresPDF"
+            >
+              📄 导出PDF报告
+            </button>
+          </div>
+        </div>
+
+        <div v-if="presLoading" class="pres-loading">
+          <div class="loading-spinner small"></div>
+          <span>加载演示分析数据...</span>
+        </div>
+
+        <div v-else-if="presError" class="pres-error">
+          ⚠️ {{ presError }}
+        </div>
+
+        <div v-else-if="!presAnalytics && !presTaskId" class="pres-empty">
+          <div class="pres-empty-icon">👁</div>
+          <p>输入PPT任务ID，查看谁浏览了你的演示、每页停留时长、注意力热力图等</p>
+          <div v-if="recentTasks.length > 0" class="recent-tasks">
+            <span class="recent-label">最近演示：</span>
+            <button
+              v-for="task in recentTasks"
+              :key="task.task_id"
+              class="recent-task-btn"
+              @click="selectPresTask(task.task_id)"
+            >
+              {{ task.task_id.slice(0, 8) }}...
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="presAnalytics" class="pres-content">
+          <!-- Summary row -->
+          <div class="pres-stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">👁</div>
+              <div class="stat-info">
+                <div class="stat-value">{{ presAnalytics.total_views }}</div>
+                <div class="stat-label">浏览次数</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">👤</div>
+              <div class="stat-info">
+                <div class="stat-value">{{ presAnalytics.unique_viewers }}</div>
+                <div class="stat-label">独立访客</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">📜</div>
+              <div class="stat-info">
+                <div class="stat-value">{{ presAnalytics.avg_scroll_depth_percent }}%</div>
+                <div class="stat-label">平均滚动深度</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-info">
+                <div class="stat-value">{{ presAnalytics.scroll_depth_reached_end_count }}</div>
+                <div class="stat-label">完整阅读人数</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Two column: viewers + slide time -->
+          <div class="two-col-grid">
+            <!-- Viewer list -->
+            <div class="panel">
+              <div class="panel-header"><h3>👥 访客列表</h3></div>
+              <div v-if="presAnalytics.viewer_list.length === 0" class="no-data-hint">暂无数据</div>
+              <div v-else class="viewer-list">
+                <div v-for="viewer in presAnalytics.viewer_list" :key="viewer.viewer_id" class="viewer-item">
+                  <div class="viewer-avatar">{{ (viewer.viewer_name || 'A')[0].toUpperCase() }}</div>
+                  <div class="viewer-info">
+                    <div class="viewer-name">{{ viewer.viewer_name || 'Anonymous' }}</div>
+                    <div class="viewer-meta">{{ viewer.session_count }} 次会话 | {{ formatDuration(viewer.total_duration_seconds) }}</div>
+                  </div>
+                  <div class="viewer-time">{{ formatDate(viewer.last_view) }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Slide time chart -->
+            <div class="panel">
+              <div class="panel-header"><h3>⏱ 每页停留时长</h3></div>
+              <div v-if="presAnalytics.slide_stats.length === 0" class="no-data-hint">暂无数据</div>
+              <div v-else class="slide-time-chart">
+                <svg :viewBox="`0 0 ${slideChartW} ${slideChartH}`" class="slide-bar-chart">
+                  <!-- Y axis -->
+                  <line :x1="slidePad.left" :x2="slidePad.left" :y1="slidePad.top" :y2="slideChartH - slidePad.bottom" stroke="#e8e8e8" stroke-width="1"/>
+                  <!-- X axis -->
+                  <line :x1="slidePad.left" :x2="slideChartW - slidePad.right" :y1="slideChartH - slidePad.bottom" :y2="slideChartH - slidePad.bottom" stroke="#e8e8e8" stroke-width="1"/>
+                  <!-- Bars -->
+                  <rect
+                    v-for="(stat, i) in presAnalytics.slide_stats"
+                    :key="'sb-' + i"
+                    :x="slideBarX(i)"
+                    :y="slideBarY(stat.avg_time_seconds)"
+                    :width="slideBarW"
+                    :height="slideBarH(stat.avg_time_seconds)"
+                    :fill="chartColors_list[i % chartColors_list.length]"
+                    rx="3"
+                    class="slide-bar"
+                  >
+                    <title>{{ (stat.slide_index + 1) }}页: {{ stat.avg_time_seconds }}秒</title>
+                  </rect>
+                  <!-- X labels -->
+                  <text
+                    v-for="(stat, i) in presAnalytics.slide_stats"
+                    :key="'sl-' + i"
+                    :x="slideBarX(i) + slideBarW / 2"
+                    :y="slideChartH - slidePad.bottom + 14"
+                    text-anchor="middle"
+                    font-size="10"
+                    fill="#8c8c8c"
+                  >{{ stat.slide_index + 1 }}</text>
+                  <!-- Y labels -->
+                  <text
+                    v-for="tick in slideYTicks"
+                    :key="'sy-' + tick"
+                    :x="slidePad.left - 4"
+                    :y="slideBarY(tick) + 4"
+                    text-anchor="end"
+                    font-size="10"
+                    fill="#8c8c8c"
+                  >{{ tick }}s</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Heatmap Section -->
+          <div class="panel">
+            <div class="panel-header">
+              <h3>🔥 注意力热力图</h3>
+              <span class="heatmap-label">颜色越深 = 关注度越高</span>
+            </div>
+            <div v-if="Object.keys(presAnalytics.overview_heatmap || {}).length === 0" class="no-data-hint">暂无数据</div>
+            <div v-else class="heatmap-grid" :style="{ '--grid-size': presAnalytics.heatmap_grid_size }">
+              <div
+                v-for="cell in heatmapCells"
+                :key="cell.key"
+                class="heatmap-cell"
+                :style="{ background: heatmapColor(cell.weight) }"
+                :title="`区域 ${cell.key}: ${(cell.weight * 100).toFixed(0)}%`"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Scroll Depth Distribution -->
+          <div class="panel">
+            <div class="panel-header"><h3>📜 滚动深度分布</h3></div>
+            <div v-if="presAnalytics.scroll_depth_samples === 0" class="no-data-hint">暂无数据</div>
+            <div v-else class="scroll-info">
+              <div class="scroll-stat-row">
+                <span class="scroll-stat-label">平均滚动深度</span>
+                <div class="scroll-bar-bg">
+                  <div class="scroll-bar-fill" :style="{ width: presAnalytics.avg_scroll_depth_percent + '%' }"></div>
+                </div>
+                <span class="scroll-stat-value">{{ presAnalytics.avg_scroll_depth_percent }}%</span>
+              </div>
+              <div class="scroll-stat-row">
+                <span class="scroll-stat-label">完整阅读（≥90%）</span>
+                <div class="scroll-bar-bg">
+                  <div class="scroll-bar-fill complete" :style="{ width: scrollCompletePercent + '%' }"></div>
+                </div>
+                <span class="scroll-stat-value">{{ presAnalytics.scroll_depth_reached_end_count }} / {{ presAnalytics.scroll_depth_samples }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Effectiveness Score Panel -->
+          <div class="panel" v-if="presAnalytics?.effectiveness_score">
+            <div class="panel-header">
+              <h3>🎯 演示效果评分</h3>
+              <span class="score-badge" :style="{ color: effectivenessLabel.color }">
+                {{ effectivenessLabel.label }}
+              </span>
+            </div>
+            <div class="effectiveness-content">
+              <!-- Big score ring -->
+              <div class="eff-score-ring-wrapper">
+                <svg viewBox="0 0 120 120" class="score-ring">
+                  <circle cx="60" cy="60" r="52" fill="none" stroke="#f0f0f0" stroke-width="10"/>
+                  <circle
+                    cx="60" cy="60" r="52"
+                    fill="none"
+                    :stroke="effectivenessLabel.color"
+                    stroke-width="10"
+                    stroke-linecap="round"
+                    :stroke-dasharray="`${effCircumference}`"
+                    :stroke-dashoffset="`${effScoreOffset}`"
+                    transform="rotate(-90 60 60)"
+                    style="transition: stroke-dashoffset 1s ease"
+                  />
+                </svg>
+                <div class="eff-score-number">
+                  <span class="big-eff-score">{{ presAnalytics.effectiveness_score.total }}</span>
+                  <span class="score-max">/100</span>
+                </div>
+              </div>
+              <!-- Breakdown bars -->
+              <div class="eff-breakdown">
+                <div class="eff-breakdown-item" v-for="comp in effectivenessComponents" :key="comp.key">
+                  <div class="eff-breakdown-header">
+                    <span class="eff-breakdown-label">{{ comp.icon }} {{ comp.label }}</span>
+                    <span class="eff-breakdown-value">{{ comp.value }}<span class="eff-max">/{{ comp.max }}</span></span>
+                  </div>
+                  <div class="eff-bar-bg">
+                    <div
+                      class="eff-bar-fill"
+                      :style="{ width: (comp.value / comp.max * 100) + '%', background: comp.color }"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -436,6 +681,71 @@
         </div>
       </div>
 
+      <!-- Row 9: Monthly Email Summary Subscription -->
+      <div class="panel email-panel">
+        <div class="panel-header">
+          <h3>📆 每月汇总邮件</h3>
+        </div>
+        <div class="email-content">
+          <div class="email-toggle-row">
+            <div class="email-desc">
+              <div class="email-title">订阅每月数据报告</div>
+              <div class="email-subtitle">每月1日发送上月使用统计、趋势分析和月环比变化</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="monthlySubscribed" @change="toggleMonthlyEmail">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div v-if="monthlySubscribed" class="email-status success">
+            ✅ 已订阅 | 将发送至：{{ monthlyEmail }}
+          </div>
+          <div v-else class="email-status">
+            📬 开启后每月1日自动收到您的月度数据报告
+          </div>
+          <div v-if="monthlyMessage" class="email-message" :class="{ error: monthlyEmailError }">
+            {{ monthlyMessage }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Report Builder Modal -->
+      <div v-if="showCustomReport" class="modal-mask" @click.self="showCustomReport = false">
+        <div class="embed-modal" style="max-width:600px;">
+          <div class="modal-header">
+            <h3>🛠️ 自定义报告生成器</h3>
+            <button class="close-btn" @click="showCustomReport = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="report-desc">选择要包含在报告中的指标，生成定制化数据分析报告。</p>
+            <div class="metrics-grid">
+              <label v-for="m in availableMetrics" :key="m.key" class="metric-check-item">
+                <input type="checkbox" v-model="selectedMetrics" :value="m.key">
+                <span class="metric-check-label">{{ m.icon }} {{ m.label }}</span>
+              </label>
+            </div>
+            <div class="report-format-row">
+              <span class="format-label">导出格式：</span>
+              <label class="format-radio">
+                <input type="radio" v-model="reportFormat" value="json"> JSON
+              </label>
+              <label class="format-radio">
+                <input type="radio" v-model="reportFormat" value="csv"> CSV
+              </label>
+            </div>
+            <div v-if="customReportData" class="report-preview">
+              <h4>📋 报告预览</h4>
+              <pre class="report-pre">{{ JSON.stringify(customReportData, null, 2).slice(0, 2000) }}</pre>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" @click="showCustomReport = false">关闭</button>
+            <button class="btn btn-outline" @click="buildCustomReport">🔍 生成预览</button>
+            <button class="btn btn-primary" @click="downloadCustomReport">📥 下载报告</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -443,8 +753,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useAnalytics } from '../composables/useAnalytics'
+import { usePresentationAnalytics } from '../composables/usePresentationAnalytics'
 
 const { analyticsData, loading, error, fetchAnalytics, exportCSV, formatTime, productivityLabel, chartColors } = useAnalytics()
+const { analytics: presAnalytics, loading: presLoading, error: presError, loadAnalytics, exportPDF } = usePresentationAnalytics()
 
 const padding = { top: 20, right: 20, bottom: 36, left: 48 }
 const lineChartWidth = 800
@@ -580,6 +892,148 @@ const sceneLabel = (scene: string) => {
 
 const refresh = () => fetchAnalytics(true)
 
+// Presentation Analytics
+const presTaskId = ref('')
+
+// Recent tasks from generation analytics (for quick selection)
+const recentTasks = computed(() => {
+  // Use task history from analyticsData if available
+  const history = analyticsData.value?.history ?? []
+  return history.slice(0, 5).map((t: any) => ({ task_id: t.task_id || t.id || '' }))
+})
+
+const loadPresAnalytics = async () => {
+  if (!presTaskId.value.trim()) return
+  await loadAnalytics(presTaskId.value.trim())
+}
+
+const selectPresTask = (taskId: string) => {
+  presTaskId.value = taskId
+  loadPresAnalytics()
+}
+
+const exportPresPDF = async () => {
+  if (!presTaskId.value.trim()) return
+  try {
+    await exportPDF(presTaskId.value.trim())
+  } catch (e: any) {
+    alert('导出失败: ' + (e.message || '未知错误'))
+  }
+}
+
+const formatDuration = (seconds: number) => {
+  if (!seconds || seconds <= 0) return '0秒'
+  if (seconds < 60) return Math.round(seconds) + '秒'
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return s > 0 ? `${m}分${s}秒` : `${m}分钟`
+}
+
+const formatDate = (isoStr: string) => {
+  if (!isoStr) return '-'
+  try {
+    const d = new Date(isoStr)
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return '-'
+  }
+}
+
+// Slide time chart helpers
+const slideChartW = 500
+const slideChartH = 160
+const slidePad = { top: 10, right: 20, bottom: 30, left: 40 }
+
+const slideMaxTime = computed(() => {
+  const stats = presAnalytics.value?.slide_stats ?? []
+  return Math.max(...stats.map((s: any) => s.avg_time_seconds), 10)
+})
+
+const slideYTicks = computed(() => {
+  const m = slideMaxTime.value
+  if (m <= 10) return [0, 5, 10]
+  const step = Math.ceil(m / 4)
+  return [0, step, step * 2, step * 3, m]
+})
+
+const slideBarW = computed(() => {
+  const stats = presAnalytics.value?.slide_stats ?? []
+  if (stats.length === 0) return 20
+  const available = slideChartW - slidePad.left - slidePad.right
+  return Math.max(8, Math.min(40, available / stats.length - 4))
+})
+
+const slideBarX = (i: number) => slidePad.left + i * (slideBarW.value + 4)
+
+const slideBarY = (value: number) => {
+  const innerH = slideChartH - slidePad.top - slidePad.bottom
+  return slidePad.top + innerH - (value / slideMaxTime.value) * innerH
+}
+
+const slideBarH = (value: number) => {
+  const innerH = slideChartH - slidePad.top - slidePad.bottom
+  return (value / slideMaxTime.value) * innerH
+}
+
+// Heatmap helpers
+const heatmapCells = computed(() => {
+  const grid = presAnalytics.value?.heatmap_grid_size ?? 8
+  const data = presAnalytics.value?.overview_heatmap ?? {}
+  const cells = []
+  for (let y = 0; y < grid; y++) {
+    for (let x = 0; x < grid; x++) {
+      const key = `${x},${y}`
+      cells.push({ key, weight: data[key] ?? 0 })
+    }
+  }
+  return cells
+})
+
+const heatmapColor = (weight: number) => {
+  if (weight <= 0) return '#f5f5f5'
+  if (weight < 0.2) return '#d9f0ff'
+  if (weight < 0.4) return '#91d5ff'
+  if (weight < 0.6) return '#40a9ff'
+  if (weight < 0.8) return '#1890ff'
+  return '#003eb3'
+}
+
+const scrollCompletePercent = computed(() => {
+  const samples = presAnalytics.value?.scroll_depth_samples ?? 0
+  const complete = presAnalytics.value?.scroll_depth_reached_end_count ?? 0
+  if (samples === 0) return 0
+  return Math.round((complete / samples) * 100)
+})
+
+// Effectiveness score computed
+const effCircumference = 2 * Math.PI * 52
+
+const effScoreOffset = computed(() => {
+  const score = presAnalytics.value?.effectiveness_score?.total ?? 0
+  return effCircumference - (effCircumference * score / 100)
+})
+
+const effectivenessLabel = computed(() => {
+  const score = presAnalytics.value?.effectiveness_score?.total ?? 0
+  if (score >= 80) return { label: '卓越', color: '#00B42A' }
+  if (score >= 60) return { label: '优秀', color: '#165DFF' }
+  if (score >= 40) return { label: '良好', color: '#FF7D00' }
+  if (score >= 20) return { label: '一般', color: '#F53FAD' }
+  return { label: '待提升', color: '#8c8c8c' }
+})
+
+const effectivenessComponents = computed(() => {
+  const es = presAnalytics.value?.effectiveness_score
+  if (!es) return []
+  return [
+    { key: 'reach', icon: '👥', label: '触达力', value: es.reach_score, max: 20, color: '#165DFF' },
+    { key: 'depth', icon: '📜', label: '阅读深度', value: es.depth_score, max: 25, color: '#00B42A' },
+    { key: 'engagement', icon: '⚡', label: '互动度', value: es.engagement_score, max: 20, color: '#FF7D00' },
+    { key: 'hotspot', icon: '🔥', label: '热点覆盖', value: es.hotspot_score, max: 15, color: '#F53FAD' },
+    { key: 'completion', icon: '✅', label: '完成率', value: es.completion_score, max: 20, color: '#722ED1' },
+  ]
+})
+
 // Weekly email subscription
 const emailSubscribed = ref(false)
 const weeklyEmail = ref('')
@@ -619,9 +1073,119 @@ const loadWeeklyEmailStatus = async () => {
   }
 }
 
+// Monthly email subscription
+const monthlySubscribed = ref(false)
+const monthlyEmail = ref('')
+const monthlyMessage = ref('')
+const monthlyEmailError = ref(false)
+
+const toggleMonthlyEmail = async () => {
+  monthlyEmailError.value = false
+  monthlyMessage.value = ''
+  try {
+    const resp = await fetch('/api/v1/analytics/monthly-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscribed: monthlySubscribed.value, email: monthlyEmail.value })
+    })
+    const data = await resp.json()
+    monthlyMessage.value = data.message || (monthlySubscribed.value ? '已订阅每月汇总邮件' : '已取消订阅')
+    if (!resp.ok) monthlyEmailError.value = true
+  } catch (e: any) {
+    monthlyMessage.value = '设置失败: ' + (e.message || '网络错误')
+    monthlyEmailError.value = true
+    monthlySubscribed.value = !monthlySubscribed.value
+  }
+}
+
+const loadMonthlyEmailStatus = async () => {
+  try {
+    const resp = await fetch('/api/v1/analytics/monthly-email')
+    if (resp.ok) {
+      const data = await resp.json()
+      monthlySubscribed.value = data.subscribed
+      monthlyEmail.value = data.email || ''
+    }
+  } catch (e) {
+    // Silently fail
+  }
+}
+
+// Google Data Studio export
+const exportDataStudio = () => {
+  window.open('/api/v1/analytics/export/datastudio', '_blank')
+}
+
+// Custom report builder
+const showCustomReport = ref(false)
+const reportFormat = ref('json')
+const customReportData = ref<Record<string, any> | null>(null)
+
+const availableMetrics = [
+  { key: 'summary', label: '总体概览', icon: '📊' },
+  { key: 'popular_templates', label: '热门模板', icon: '📐' },
+  { key: 'popular_styles', label: '热门风格', icon: '🎨' },
+  { key: 'popular_scenes', label: '热门场景', icon: '🏷' },
+  { key: 'daily_stats', label: '每日统计', icon: '📅' },
+  { key: 'weekly_activity', label: '周活跃度', icon: '🔥' },
+  { key: 'productivity_score', label: '生产力分数', icon: '⚡' },
+  { key: 'carbon_footprint', label: '碳排放节省', icon: '🌱' },
+  { key: 'most_used_features', label: '功能使用排行', icon: '✨' },
+  { key: 'realtime', label: '实时统计', icon: '⏱' },
+  { key: 'cohort', label: '用户留存', icon: '👥' },
+]
+
+const selectedMetrics = ref([
+  'summary', 'popular_templates', 'popular_styles',
+  'popular_scenes', 'daily_stats', 'productivity_score'
+])
+
+const openCustomReportBuilder = () => {
+  showCustomReport.value = true
+  customReportData.value = null
+}
+
+const buildCustomReport = async () => {
+  try {
+    const resp = await fetch('/api/v1/analytics/report/custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ metrics: selectedMetrics.value, format: reportFormat.value })
+    })
+    if (resp.ok) {
+      customReportData.value = await resp.json()
+    }
+  } catch (e) {
+    console.warn('Custom report build failed:', e)
+  }
+}
+
+const downloadCustomReport = async () => {
+  try {
+    const resp = await fetch('/api/v1/analytics/report/custom', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ metrics: selectedMetrics.value, format: reportFormat.value })
+    })
+    if (resp.ok) {
+      const data = await resp.json()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `rabai_custom_report_${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  } catch (e) {
+    console.warn('Download failed:', e)
+  }
+}
+
 onMounted(() => {
   fetchAnalytics()
   loadWeeklyEmailStatus()
+  loadMonthlyEmailStatus()
 })
 </script>
 
@@ -1269,5 +1833,495 @@ onMounted(() => {
   color: #ff4d4f;
   background: #fff2f0;
   border-color: #ffccc7;
+}
+
+/* Effectiveness Score Panel */
+.effectiveness-content {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.eff-score-ring-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+.eff-score-number {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.big-eff-score {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f1f1f;
+  line-height: 1;
+}
+
+.eff-breakdown {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eff-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eff-breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eff-breakdown-label {
+  font-size: 13px;
+  color: #595959;
+}
+
+.eff-breakdown-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.eff-max {
+  font-size: 11px;
+  color: #bfbfbf;
+  font-weight: 400;
+}
+
+.eff-bar-bg {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.eff-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+/* Presentation loading / empty */
+.pres-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
+.pres-error {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.pres-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8c8c8c;
+}
+
+.pres-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.pres-empty p {
+  font-size: 14px;
+  margin: 0 0 16px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.recent-tasks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.recent-label {
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.recent-task-btn {
+  background: #f5f7fa;
+  border: 1px solid #e8e8e8;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #595959;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.recent-task-btn:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+  background: #f0f7ff;
+}
+
+/* Slide bar chart hover */
+.slide-bar {
+  transition: opacity 0.2s;
+}
+
+.slide-bar:hover {
+  opacity: 0.8;
+}
+
+/* Heatmap label */
+.heatmap-label {
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+/* Presentation analytics section header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-id-input {
+  padding: 6px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 200px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.task-id-input:focus {
+  border-color: #165DFF;
+}
+
+/* Viewer list */
+.viewer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.viewer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fafafa;
+  transition: background 0.2s;
+}
+
+.viewer-item:hover {
+  background: #f0f7ff;
+}
+
+.viewer-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #165DFF 0%, #722ED1 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.viewer-info {
+  flex: 1;
+}
+
+.viewer-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f1f1f;
+}
+
+.viewer-meta {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 2px;
+}
+
+.viewer-time {
+  font-size: 12px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+/* Scroll info */
+.scroll-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scroll-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scroll-stat-label {
+  font-size: 13px;
+  color: #595959;
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.scroll-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scroll-bar-fill {
+  height: 100%;
+  background: #165DFF;
+  border-radius: 4px;
+  transition: width 0.8s ease;
+}
+
+.scroll-bar-fill.complete {
+  background: linear-gradient(90deg, #00B42A, #52c41a);
+}
+
+.scroll-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f1f1f;
+  width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Heatmap grid */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-size), 1fr);
+  gap: 2px;
+  max-width: 400px;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  cursor: default;
+  transition: transform 0.15s;
+}
+
+.heatmap-cell:hover {
+  transform: scale(1.15);
+  z-index: 1;
+}
+
+/* Slide time chart */
+.slide-time-chart {
+  overflow-x: auto;
+}
+
+.slide-bar-chart {
+  width: 100%;
+  min-width: 300px;
+  height: 160px;
+}
+
+.loading-spinner.small {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+}
+
+/* Presentation stats grid */
+.pres-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .pres-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .effectiveness-content { flex-direction: column; }
+  .eff-score-ring-wrapper { align-self: center; }
+  .task-id-input { width: 140px; }
+}
+
+/* Custom Report Builder Modal */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.embed-modal {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #8c8c8c;
+  padding: 4px 8px;
+}
+
+.close-btn:hover { color: #1f1f1f; }
+
+.modal-body {
+  padding: 20px 24px;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.report-desc {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.metric-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.metric-check-item:hover { background: #e8f0fe; }
+
+.metric-check-item input { cursor: pointer; }
+
+.metric-check-label { flex: 1; }
+
+.report-format-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.format-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.format-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.report-preview {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.report-preview h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.report-pre {
+  background: #1f1f1f;
+  color: #a5d6a7;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  overflow-x: auto;
+  max-height: 300px;
+  margin: 0;
 }
 </style>

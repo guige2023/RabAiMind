@@ -11,6 +11,9 @@ from typing import Dict, Any, Optional
 
 import httpx
 
+# Use shared HTTP client with connection pooling
+from src.core.http_client import http_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,25 +72,25 @@ class ExportService:
                 "style": "MINIMALIST"
             }
             
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # Create presentation
-                resp = await client.post(
-                    self.google_slides_api,
-                    headers=headers,
-                    json=create_payload
-                )
-                
-                if resp.status_code == 401:
-                    return {
-                        "success": False,
-                        "error": "Google token expired or invalid",
-                        "guide": "请重新授权 Google 账号",
-                        "method": "manual",
-                        "download_url": f"/api/v1/ppt/download/{task_id}"
-                    }
-                
-                resp.raise_for_status()
-                presentation = resp.json()
+            # 使用共享连接池
+            resp = await http_client.post(
+                self.google_slides_api,
+                headers=headers,
+                json=create_payload,
+                timeout=httpx.Timeout(60.0)
+            )
+
+            if resp.status_code == 401:
+                return {
+                    "success": False,
+                    "error": "Google token expired or invalid",
+                    "guide": "请重新授权 Google 账号",
+                    "method": "manual",
+                    "download_url": f"/api/v1/ppt/download/{task_id}"
+                }
+
+            resp.raise_for_status()
+            presentation = resp.json()
                 presentation_id = presentation.get("presentationId")
                 
                 return {
@@ -203,31 +206,31 @@ class ExportService:
                     }
                 })
             
-            # Create page in database or root
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                if notion_database_id:
-                    # Create page in database
-                    page_payload = {
-                        "parent": {"database_id": notion_database_id},
-                        "properties": {
-                            "title": {
-                                "title": [{"text": {"content": title}}]
-                            }
-                        },
-                        "children": children
-                    }
-                else:
-                    # Create page in root (requires sharing)
-                    return {
-                        "success": False,
-                        "error": "Notion Database ID not configured",
-                        "guide": "请设置 NOTION_DATABASE_ID 环境变量，指定要创建页面的数据库",
-                        "download_url": f"/api/v1/ppt/download/{task_id}",
-                        "method": "manual"
-                    }
-                
-                resp = await client.post(
-                    f"{self.notion_api}/pages",
+            # Create page in database or root（使用共享连接池）
+            if notion_database_id:
+                # Create page in database
+                page_payload = {
+                    "parent": {"database_id": notion_database_id},
+                    "properties": {
+                        "title": {
+                            "title": [{"text": {"content": title}}]
+                        }
+                    },
+                    "children": children
+                }
+            else:
+                # Create page in root (requires sharing)
+                return {
+                    "success": False,
+                    "error": "Notion Database ID not configured",
+                    "guide": "请设置 NOTION_DATABASE_ID 环境变量，指定要创建页面的数据库",
+                    "download_url": f"/api/v1/ppt/download/{task_id}",
+                    "method": "manual"
+                }
+
+            resp = await http_client.post(
+                f"{self.notion_api}/pages",
+                timeout=httpx.Timeout(30.0)
                     headers=headers,
                     json=page_payload
                 )

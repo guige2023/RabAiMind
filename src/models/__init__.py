@@ -390,3 +390,251 @@ class EngagementStats(BaseModel):
     hearts: int = 0
     comment_count: int = 0
     share_count: int = 0
+
+
+# ==================== Data Source Models (R75) ====================
+
+class DataSourceType(str, Enum):
+    """数据源类型"""
+    EXCEL = "excel"           # .xlsx / .xls 文件
+    CSV = "csv"               # CSV 文件
+    GOOGLE_SHEETS = "google_sheets"  # Google Sheets
+
+
+class DataSourceStatus(str, Enum):
+    """数据源状态"""
+    ACTIVE = "active"
+    SYNCING = "syncing"
+    ERROR = "error"
+    DISABLED = "disabled"
+
+
+class DataSource(BaseModel):
+    """数据源"""
+    id: str = Field(..., description="数据源唯一ID")
+    name: str = Field(..., max_length=200, description="数据源名称")
+    source_type: DataSourceType = Field(..., description="数据源类型")
+    status: DataSourceStatus = Field(default=DataSourceStatus.ACTIVE, description="状态")
+    # Excel/CSV fields
+    file_path: Optional[str] = Field(default=None, description="本地文件路径")
+    file_name: Optional[str] = Field(default=None, description="原始文件名")
+    # Google Sheets fields
+    spreadsheet_url: Optional[str] = Field(default=None, description="Google Sheets URL")
+    spreadsheet_id: Optional[str] = Field(default=None, description="Google Sheets ID")
+    sheet_name: Optional[str] = Field(default=None, description="工作表名称")
+    access_token: Optional[str] = Field(default=None, description="Google OAuth access token")
+    refresh_token: Optional[str] = Field(default=None, description="Google OAuth refresh token")
+    # Sync settings
+    auto_update: bool = Field(default=False, description="自动更新开关")
+    last_synced_at: Optional[str] = Field(default=None, description="最后同步时间 ISO8601")
+    sync_interval_minutes: int = Field(default=60, ge=5, le=1440, description="同步间隔(分钟)")
+    # Extracted data
+    extracted_data: Optional[Dict[str, Any]] = Field(default=None, description="提取的数据内容")
+    table_preview: Optional[List[List[Any]]] = Field(default=None, description="表格预览(前20行)")
+    column_info: Optional[List[Dict[str, Any]]] = Field(default=None, description="列信息")
+    # Metadata
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="创建时间")
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="更新时间")
+    user_id: Optional[str] = Field(default=None, description="用户ID")
+
+
+class DataSourceCreateRequest(BaseModel):
+    """创建数据源请求"""
+    name: str = Field(..., max_length=200, description="数据源名称")
+    source_type: DataSourceType = Field(..., description="数据源类型")
+    spreadsheet_url: Optional[str] = Field(default=None, description="Google Sheets URL")
+    auto_update: bool = Field(default=False, description="自动更新")
+
+
+class DataSourceUpdateRequest(BaseModel):
+    """更新数据源请求"""
+    name: Optional[str] = Field(default=None, max_length=200, description="数据源名称")
+    auto_update: Optional[bool] = Field(default=None, description="自动更新")
+    sync_interval_minutes: Optional[int] = Field(default=None, ge=5, le=1440, description="同步间隔")
+    status: Optional[DataSourceStatus] = Field(default=None, description="状态")
+
+
+class DataSourceListResponse(BaseModel):
+    """数据源列表响应"""
+    success: bool
+    data_sources: List[DataSource] = []
+
+
+class DataSourceSyncResponse(BaseModel):
+    """数据源同步响应"""
+    success: bool
+    data_source_id: str
+    synced_rows: int = 0
+    synced_at: str
+    message: str = ""
+
+
+class ExcelImportRequest(BaseModel):
+    """Excel导入请求"""
+    sheet_index: int = Field(default=0, ge=0, description="工作表索引")
+    has_header: bool = Field(default=True, description="是否有表头行")
+    max_rows: int = Field(default=1000, ge=1, le=10000, description="最大导入行数")
+
+
+class TableToSlidesOptions(BaseModel):
+    """表格转幻灯片选项"""
+    title_col: Optional[int] = Field(default=None, description="标题列索引")
+    value_cols: Optional[List[int]] = Field(default=None, description="数值列索引列表")
+    chart_type: str = Field(default="auto", description="图表类型: auto/bar/line/pie/table")
+    include_summary: bool = Field(default=True, description="包含汇总页")
+    max_slides: int = Field(default=10, ge=1, le=20, description="最大幻灯片数")
+
+
+# ==================== R81: Folders & Organization Models ====================
+
+class LabelColor(str, Enum):
+    """标签颜色枚举"""
+    RED = "#FF3B30"
+    ORANGE = "#FF9500"
+    YELLOW = "#FFCC00"
+    GREEN = "#34C759"
+    TEAL = "#5AC8FA"
+    BLUE = "#165DFF"
+    PURPLE = "#AF52DE"
+    GRAY = "#8E8E93"
+
+
+class FolderModel(BaseModel):
+    """文件夹模型 - 支持层级结构"""
+    id: str = Field(..., description="文件夹唯一ID")
+    name: str = Field(..., max_length=100, description="文件夹名称")
+    parent_id: Optional[str] = Field(default=None, description="父文件夹ID，null表示根目录")
+    color: Optional[str] = Field(default=None, description="文件夹颜色 hex")
+    icon: str = Field(default="📁", description="文件夹图标 emoji")
+    sort_order: int = Field(default=0, description="排序顺序")
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="创建时间")
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="更新时间")
+
+
+class FolderCreateRequest(BaseModel):
+    """创建文件夹请求"""
+    name: str = Field(..., max_length=100, description="文件夹名称")
+    parent_id: Optional[str] = Field(default=None, description="父文件夹ID")
+    color: Optional[str] = Field(default=None, description="文件夹颜色")
+    icon: str = Field(default="📁", description="文件夹图标")
+
+
+class FolderUpdateRequest(BaseModel):
+    """更新文件夹请求"""
+    name: Optional[str] = Field(default=None, max_length=100, description="文件夹名称")
+    parent_id: Optional[str] = Field(default=None, description="父文件夹ID")
+    color: Optional[str] = Field(default=None, description="文件夹颜色")
+    icon: Optional[str] = Field(default=None, description="文件夹图标")
+    sort_order: Optional[int] = Field(default=None, description="排序顺序")
+
+
+class FolderListResponse(BaseModel):
+    """文件夹列表响应"""
+    success: bool
+    folders: List[FolderModel]
+
+
+class LabelUpdateRequest(BaseModel):
+    """更新标签颜色请求"""
+    label_color: Optional[str] = Field(default=None, description="标签颜色 hex，null表示清除")
+
+
+class SmartTagResponse(BaseModel):
+    """智能标签响应"""
+    success: bool
+    task_id: str
+    auto_tags: List[str] = Field(default_factory=list, description="AI自动生成的标签")
+
+
+class RecentlyViewedItem(BaseModel):
+    """最近浏览项目"""
+    task_id: str
+    title: str
+    thumbnail_url: Optional[str] = None
+    viewed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    folder_id: Optional[str] = None
+    label_color: Optional[str] = None
+
+
+class RecentlyViewedResponse(BaseModel):
+    """最近浏览响应"""
+    success: bool
+    items: List[RecentlyViewedItem]
+    limit: int = 10
+
+
+class OrganizationUpdateRequest(BaseModel):
+    """组织更新请求 - 移动到文件夹/更新标签"""
+    folder_id: Optional[str] = Field(default=None, description="目标文件夹ID，null表示移到根目录")
+    label_color: Optional[str] = Field(default=None, description="标签颜色 hex")
+    tags: Optional[List[str]] = Field(default=None, description="标签列表（手动+AI标签）")
+
+
+# ==================== R108: Custom Widgets & Embeddable Components ====================
+
+class PollWidgetConfig(BaseModel):
+    """投票组件配置"""
+    poll_id: Optional[str] = Field(default=None, description="投票ID")
+    question: str = Field(default="", description="投票问题")
+    options: List[str] = Field(default_factory=list, description="投票选项列表")
+    is_active: bool = Field(default=True, description="投票是否激活")
+    show_results: bool = Field(default=False, description="是否显示实时结果")
+
+
+class QAWidgetConfig(BaseModel):
+    """问答组件配置"""
+    qa_id: Optional[str] = Field(default=None, description="问答ID")
+    question: str = Field(default="", description="问题内容")
+    asker: str = Field(default="匿名用户", description="提问者")
+    is_answered: bool = Field(default=False, description="是否已回答")
+    created_at: Optional[str] = Field(default=None, description="创建时间")
+
+
+class PollVoteRequest(BaseModel):
+    """投票请求"""
+    poll_id: str = Field(..., description="投票ID")
+    option_index: int = Field(..., ge=0, description="选择的选项索引")
+
+
+class PollVoteResponse(BaseModel):
+    """投票响应"""
+    success: bool
+    poll_id: str
+    total_votes: int
+    option_results: Dict[str, int]  # option_index -> vote_count
+    user_voted_option: Optional[int] = None
+
+
+class QASubmitRequest(BaseModel):
+    """Q&A提交请求"""
+    question: str = Field(..., min_length=1, max_length=500, description="问题内容")
+    asker_name: Optional[str] = Field(default="匿名用户", description="提问者名称")
+
+
+class QASubmitResponse(BaseModel):
+    """Q&A提交响应"""
+    success: bool
+    qa_id: str
+    question: str
+    asker: str
+    created_at: str
+
+
+class LivePollResult(BaseModel):
+    """实时投票结果"""
+    poll_id: str
+    question: str
+    options: List[str]
+    option_votes: Dict[str, int]  # option_index -> vote_count
+    total_votes: int
+    percentage: Dict[str, float]  # option_index -> percentage
+    is_active: bool
+
+
+class EmbedSlideConfigRequest(BaseModel):
+    """单页嵌入配置"""
+    slide_index: int = Field(default=1, ge=1, description="幻灯片索引（1-based）")
+    width: Optional[str] = "100%"
+    height: Optional[str] = "600px"
+    theme: Optional[str] = "light"
+    interactive: Optional[bool] = True

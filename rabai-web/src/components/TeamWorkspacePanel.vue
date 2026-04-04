@@ -146,7 +146,8 @@ const {
   cancelInvitation,
   removeMember,
   updateMemberRole,
-  togglePublic
+  togglePublic,
+  shareViaEmail
 } = useTeamWorkspace(props.pptId)
 
 const showInvite = ref(false)
@@ -188,10 +189,11 @@ const handleTogglePublic = () => {
   togglePublic()
 }
 
-const handleShareEmail = () => {
-  const subject = encodeURIComponent('来看看我的演示文稿')
-  const body = encodeURIComponent(`邀请你查看我的演示文稿:\n${window.location.href}`)
-  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank')
+const handleShareEmail = async () => {
+  const email = prompt('请输入收件人邮箱地址:')
+  if (!email || !email.trim()) return
+  const title = workspace.value?.name || '我的演示文稿'
+  await shareViaEmail(email.trim(), title)
 }
 </script>
 

@@ -364,8 +364,90 @@ export const api: APIClient = {
       return apiClient.get(`/ppt/redo_stack/${taskId}`)
     },
 
+    // 高级撤销/重做
+    getActionTimeline: (taskId: string, limit = 100): Promise<AxiosResponse<{ success: boolean; timeline: Array<{ action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any; branch_id?: string }> }>> => {
+      return apiClient.get(`/ppt/timeline/${taskId}`, { params: { limit } })
+    },
+
+    undoByActionId: (taskId: string, actionId: string): Promise<AxiosResponse<{ success: boolean; undone_action?: string; affected_actions?: number }>> => {
+      return apiClient.post(`/ppt/undo/${taskId}/${actionId}`)
+    },
+
+    // 检查点系统
+    createCheckpoint: (taskId: string, name?: string, checkpointType = 'auto'): Promise<AxiosResponse<{ success: boolean; checkpoint_id: string; checkpoint?: any }>> => {
+      return apiClient.post(`/ppt/checkpoints/${taskId}`, null, { params: { name, checkpoint_type: checkpointType } })
+    },
+
+    getCheckpoints: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; checkpoints: Array<any> }>> => {
+      return apiClient.get(`/ppt/checkpoints/${taskId}`, { params: { limit } })
+    },
+
+    restoreCheckpoint: (taskId: string, checkpointId: string): Promise<AxiosResponse<{ success: boolean; message?: string }>> => {
+      return apiClient.post(`/ppt/checkpoints/${taskId}/${checkpointId}/restore`)
+    },
+
+    // 协作编辑锁
+    acquireCollaborativeLock: (taskId: string, userId: string, slideIndex?: number): Promise<AxiosResponse<{ success: boolean; locked?: string; locked_by?: string }>> => {
+      return apiClient.post(`/ppt/collaborative-lock/${taskId}`, null, { params: { user_id: userId, slide_index: slideIndex } })
+    },
+
+    releaseCollaborativeLock: (taskId: string, userId: string, slideIndex?: number): Promise<AxiosResponse<{ success: boolean; released?: string }>> => {
+      return apiClient.delete(`/ppt/collaborative-lock/${taskId}`, { params: { user_id: userId, slide_index: slideIndex } })
+    },
+
+    getCollaborativeLocks: (taskId: string): Promise<AxiosResponse<{ success: boolean; locks: Record<string, any> }>> => {
+      return apiClient.get(`/ppt/collaborative-locks/${taskId}`)
+    },
+
     branchVersion: (taskId: string, versionId: string, name?: string): Promise<AxiosResponse<{ success: boolean; version_id: string; branch_id: string }>> => {
       return apiClient.post(`/ppt/versions/${taskId}/${versionId}/branch`, null, { params: { name } })
+    },
+
+    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy = 'branch_wins'): Promise<AxiosResponse<{ success: boolean; version_id: string; merged_from: string; merged_to: string; strategy: string }>> => {
+      return apiClient.post(`/ppt/versions/${taskId}/merge`, {
+        source_version_id: sourceVersionId,
+        target_version_id: targetVersionId,
+        strategy,
+      })
+    },
+
+    // ========== A/B Testing ==========
+    createABTest: (taskId: string, slideIndex: number, variantCount = 2): Promise<AxiosResponse<{ success: boolean; test_id: string; variants: any[] }>> => {
+      return apiClient.post(`/ppt/ab_test/${taskId}`, null, { params: { slide_index: slideIndex, variant_count: variantCount } })
+    },
+
+    listABTests: (taskId: string): Promise<AxiosResponse<{ success: boolean; tests: any[] }>> => {
+      return apiClient.get(`/ppt/ab_test/${taskId}`)
+    },
+
+    getABTest: (taskId: string, testId: string): Promise<AxiosResponse<{ success: boolean; test: any }>> => {
+      return apiClient.get(`/ppt/ab_test/${taskId}/${testId}`)
+    },
+
+    trackABView: (taskId: string, testId: string, variantId: string, timeSpentMs = 0): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post(`/ppt/ab_test/${taskId}/${testId}/view`, null, { params: { variant_id: variantId, time_spent_ms: timeSpentMs } })
+    },
+
+    trackABClick: (taskId: string, testId: string, variantId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post(`/ppt/ab_test/${taskId}/${testId}/click`, null, { params: { variant_id: variantId } })
+    },
+
+    selectABWinner: (taskId: string, testId: string, variantId: string): Promise<AxiosResponse<{ success: boolean; winner: string }>> => {
+      return apiClient.post(`/ppt/ab_test/${taskId}/${testId}/select`, null, { params: { variant_id: variantId } })
+    },
+
+    deleteABTest: (taskId: string, testId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/ab_test/${taskId}/${testId}`)
+    },
+
+    // ========== Slide Version History ==========
+    getSlideHistory: (taskId: string, slideIndex: number): Promise<AxiosResponse<{ success: boolean; history: any[] }>> => {
+      return apiClient.get(`/ppt/slide_history/${taskId}/${slideIndex}`)
+    },
+
+    // ========== Suggest Improvements ==========
+    suggestImprovements: (taskId: string): Promise<AxiosResponse<{ success: boolean; suggestions: any[]; total_slides: number; suggestion_count: number }>> => {
+      return apiClient.get(`/ppt/suggest_improve/${taskId}`)
     },
 
     autoSave: (taskId: string, state: any): Promise<AxiosResponse<{ success: boolean; saved_at: string }>> => {
@@ -374,6 +456,33 @@ export const api: APIClient = {
 
     getAutoSave: (taskId: string): Promise<AxiosResponse<{ success: boolean; state?: any; saved_at?: string; message?: string }>> => {
       return apiClient.get(`/ppt/autosave/${taskId}`)
+    },
+
+    // ========== Localize / Translate Presentation ==========
+    localize: (taskId: string, params: {
+      target_locale: string;
+      source_locale?: string;
+      translate_content?: boolean;
+      apply_rtl?: boolean;
+    }): Promise<AxiosResponse<{
+      success: boolean;
+      task_id: string;
+      new_task_id?: string;
+      target_locale: string;
+      source_locale: string;
+      slides_localized: number;
+      message?: string;
+    }>> => {
+      return apiClient.post(`/ppt/localize/${taskId}`, null, { params })
+    },
+
+    detectContentLanguage: (taskId: string): Promise<AxiosResponse<{
+      success: boolean;
+      detected_locale: string;
+      confidence: number;
+      text_sample: string;
+    }>> => {
+      return apiClient.get(`/ppt/detect_language/${taskId}`)
     }
   },
 
@@ -500,6 +609,14 @@ export const api: APIClient = {
       return apiClient.post(`/templates/featured/${templateId}`)
     },
 
+    // Template of the day
+    getTemplateOfTheDay: (): Promise<AxiosResponse<{ success: boolean; template: any; date: string; reason: string }>> => {
+      return apiClient.get('/templates/daily')
+    },
+    getDailyHistory: (limit = 7): Promise<AxiosResponse<{ success: boolean; history: any[] }>> => {
+      return apiClient.get('/templates/daily/history', { params: { limit } })
+    },
+
     // Subscriptions
     subscribe: (category: string, userId = 'anonymous'): Promise<AxiosResponse<{ success: boolean }>> => {
       return apiClient.post(`/templates/subscribe/${category}`, null, { params: { user_id: userId } })
@@ -557,6 +674,64 @@ export const api: APIClient = {
       user_id?: string; content_type?: string; limit?: number
     }): Promise<AxiosResponse<{ success: boolean; preferences: any[]; user_id: string }>> => {
       return apiClient.get('/templates/preferences', { params })
+    },
+
+    // R111: Advanced Search - Multi-filter + AI semantic + highlighting
+    advancedSearch: (params: {
+      query?: string
+      category?: string
+      style?: string
+      author?: string
+      tags?: string[]
+      date_from?: string
+      date_to?: string
+      template_type?: 'all' | 'ugc' | 'system'
+      sort_by?: 'relevance' | 'newest' | 'popularity' | 'name'
+      page?: number
+      limit?: number
+      use_semantic?: boolean
+    }): Promise<AxiosResponse<{
+      success: boolean
+      results: any[]
+      total: number
+      page: number
+      total_pages: number
+      query: string
+      applied_filters: Record<string, any>
+      highlighted_fields: Record<string, any>
+    }>> => {
+      return apiClient.post('/templates/advanced-search', params)
+    },
+
+    // R111: AI Semantic Search
+    semanticSearch: (params: {
+      query: string
+      limit?: number
+      category?: string
+      style?: string
+    }): Promise<AxiosResponse<{
+      success: boolean
+      query: string
+      total: number
+      results: any[]
+      search_type: string
+    }>> => {
+      return apiClient.post('/templates/semantic-search', params)
+    },
+
+    // R111: Search Analytics Dashboard
+    getSearchAnalyticsDashboard: (days = 30): Promise<AxiosResponse<{
+      success: boolean
+      period_days: number
+      trending_queries: Array<{ query: string; count: number }>
+      search_volume_over_time: Array<{ date: string; count: number }>
+      no_result_queries: Array<{ query: string; count: number }>
+      top_clicked_templates: Array<{ id: string; name: string; category: string; style: string; thumbnail: string; click_count: number }>
+      popular_filter_combinations: Array<{ filters: string; count: number }>
+      total_searches: number
+      unique_queries: number
+    }>> => {
+      return apiClient.get('/templates/search-analytics/dashboard', { params: { days } })
     }
   },
 
@@ -620,6 +795,27 @@ export const api: APIClient = {
         elements: params.elements,
         slide_content: params.slideContent
       })
+    },
+
+    expandShorten: (text: string, ratio: number = 1.5): Promise<AxiosResponse<{ success: boolean; result: string; ratio: number }>> => {
+      return apiClient.post('/ai/expand-shorten', { text, ratio })
+    },
+
+    grammarCheck: (text: string): Promise<AxiosResponse<{ success: boolean; check: { corrected: string; errors: any[]; has_errors: boolean } }>> => {
+      return apiClient.post('/ai/grammar-check', { text })
+    },
+
+    // R109: AI Content Enhancement
+    smartFootnotes: (text: string, topic?: string, count?: number): Promise<AxiosResponse<{ success: boolean; footnotes: { footnotes: Array<{ source: string; source_type: string; description: string; in_text_mark: string }>; formatted_footnotes: string } }>> => {
+      return apiClient.post('/ai/smart-footnotes', { text, topic, count })
+    },
+
+    toneAdjust: (text: string, tone: string): Promise<AxiosResponse<{ success: boolean; adjusted: { adjusted: string; tone: string; tone_description: string; changes_summary: string } }>> => {
+      return apiClient.post('/ai/tone-adjust', { text, tone })
+    },
+
+    clicheDetect: (text: string): Promise<AxiosResponse<{ success: boolean; detection: { detected: Array<{ phrase: string; reason: string; alternatives: Array<{ text: string; style: string }> }>; has_cliches: boolean; cleaned_text: string; summary: string } }>> => {
+      return apiClient.post('/ai/cliche-detect', { text })
     }
   },
 
@@ -885,7 +1081,386 @@ export const api: APIClient = {
     }>> => {
       return apiClient.post('/voice/tts-batch', params)
     }
-  }
+  },
+
+  // --- Collaboration: Share via Email ---------------------------------------
+
+  shareViaEmail: (params: {
+    to_email: string
+    from_name?: string
+    ppt_title?: string
+    share_url?: string
+    message?: string
+  }): Promise<AxiosResponse<{
+    success: boolean
+    message?: string
+    fallback?: string
+    mailto_url?: string
+  }>> => {
+    return apiClient.post('/collaboration/share/email', params)
+  },
+
+  // --- Collaboration: Suggest Edits ------------------------------------------
+
+  getSuggestEdits: (taskId: string, slideNum?: number): Promise<AxiosResponse<{
+    success: boolean
+    edits: Array<{
+      id: string
+      slide_num: number
+      author_id: string
+      author_name: string
+      edit_type: string
+      original_content: any
+      suggested_content: any
+      reason: string
+      status: 'pending' | 'accepted' | 'rejected'
+      created_at: string
+    }>
+  }>> => {
+    const params = slideNum ? { slide_num: slideNum } : {}
+    return apiClient.get(`/collaboration/suggest-edits/${taskId}`, { params })
+  },
+
+  addSuggestEdit: (taskId: string, params: {
+    slide_num: number
+    author_id: string
+    author_name: string
+    author_avatar?: string
+    edit_type: 'text' | 'image' | 'layout' | 'style'
+    original_content: any
+    suggested_content: any
+    reason: string
+  }): Promise<AxiosResponse<{ success: boolean; edit: any }>> => {
+    return apiClient.post(`/collaboration/suggest-edits/${taskId}`, params)
+  },
+
+  resolveSuggestEdit: (taskId: string, editId: string, params: {
+    status: 'pending' | 'accepted' | 'rejected'
+    resolved_by: string
+  }): Promise<AxiosResponse<{ success: boolean }>> => {
+    return apiClient.put(`/collaboration/suggest-edits/${taskId}/${editId}`, params)
+  },
+
+  // --- Collaboration: Activity Feed -------------------------------------------
+
+  getActivityFeed: (taskId: string, params?: {
+    activity_type?: string
+    user_id?: string
+    limit?: number
+  }): Promise<AxiosResponse<{
+    success: boolean
+    activities: Array<{
+      id: string
+      activity_type: string
+      user_id: string
+      user_name: string
+      target: string
+      details: string
+      slide_num?: number
+      timestamp: number
+      read: boolean
+    }>
+  }>> => {
+    return apiClient.get(`/collaboration/activity-feed/${taskId}`, { params })
+  },
+
+  logActivity: (taskId: string, params: {
+    activity_type: string
+    user_id: string
+    user_name: string
+    user_avatar?: string
+    target?: string
+    details?: string
+    slide_num?: number
+  }): Promise<AxiosResponse<{ success: boolean; activity: any }>> => {
+    return apiClient.post(`/collaboration/activity-feed/${taskId}`, params)
+  },
+
+  markActivityRead: (taskId: string, activityId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+    return apiClient.post(`/collaboration/activity-feed/${taskId}/mark-read/${activityId}`)
+  },
+
+  markAllActivitiesRead: (taskId: string): Promise<AxiosResponse<{ success: boolean; count: number }>> => {
+    return apiClient.post(`/collaboration/activity-feed/${taskId}/mark-all-read`)
+  },
+
+  // --- Data Sources (R113) -------------------------------------------
+  listDataSources: (): Promise<AxiosResponse<{
+    success: boolean
+    data_sources: Array<{
+      id: string
+      name: string
+      source_type: string
+      status: string
+      auto_update: boolean
+      last_synced_at: string | null
+      sync_interval_minutes: number
+      created_at: string
+      updated_at: string
+      total_rows: number
+      total_columns: number
+      headers: string[]
+      table_type: string
+      threshold_alerts?: any[]
+    }>
+  }>> => {
+    return apiClient.get('/data-sources')
+  },
+
+  getDataSource: (sourceId: string): Promise<AxiosResponse<{
+    success: boolean
+    data_source: any
+  }>> => {
+    return apiClient.get(`/data-sources/${sourceId}`)
+  },
+
+  updateDataSource: (sourceId: string, params: {
+    name?: string
+    auto_update?: boolean
+    sync_interval_minutes?: number
+    status?: string
+  }): Promise<AxiosResponse<{ success: boolean; data_source: any }>> => {
+    return apiClient.put(`/data-sources/${sourceId}`, params)
+  },
+
+  deleteDataSource: (sourceId: string): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+    return apiClient.delete(`/data-sources/${sourceId}`)
+  },
+
+  importExcel: (params: {
+    file: File
+    sheet_index?: number
+    has_header?: boolean
+    max_rows?: number
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    source_name: string
+    sheet_names: string[]
+    current_sheet: string
+    total_rows: number
+    total_columns: number
+    headers: string[]
+    column_info: Array<{ index: number; name: string; type: string; sample: any }>
+    table_type: string
+    table_preview: any[][]
+    outline: any
+  }>> => {
+    const formData = new FormData()
+    formData.append('file', params.file)
+    if (params.sheet_index !== undefined) formData.append('sheet_index', String(params.sheet_index))
+    if (params.has_header !== undefined) formData.append('has_header', String(params.has_header))
+    if (params.max_rows !== undefined) formData.append('max_rows', String(params.max_rows))
+    return apiClient.post('/data-sources/import/excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  importCSV: (params: {
+    file: File
+    has_header?: boolean
+    max_rows?: number
+    delimiter?: string
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    source_name: string
+    total_rows: number
+    total_columns: number
+    headers: string[]
+    column_info: any[]
+    table_type: string
+    table_preview: any[][]
+    outline: any
+  }>> => {
+    const formData = new FormData()
+    formData.append('file', params.file)
+    if (params.has_header !== undefined) formData.append('has_header', String(params.has_header))
+    if (params.max_rows !== undefined) formData.append('max_rows', String(params.max_rows))
+    if (params.delimiter) formData.append('delimiter', params.delimiter)
+    return apiClient.post('/data-sources/import/csv', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  importGoogleSheets: (params: {
+    spreadsheet_url: string
+    sheet_name?: string
+    access_token: string
+    has_header?: boolean
+    max_rows?: number
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    source_name: string
+    spreadsheet_title: string
+    total_rows: number
+    total_columns: number
+    headers: string[]
+    column_info: any[]
+    table_type: string
+    outline: any
+  }>> => {
+    return apiClient.post('/data-sources/import/google-sheets', params)
+  },
+
+  syncDataSource: (sourceId: string, accessToken: string): Promise<AxiosResponse<{
+    success: boolean
+    data_source_id: string
+    synced_rows: number
+    synced_at: string
+    message: string
+    outline?: any
+  }>> => {
+    return apiClient.post(`/data-sources/${sourceId}/sync`, { access_token: accessToken })
+  },
+
+  getDataSourcePreview: (sourceId: string): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    headers: string[]
+    column_info: any[]
+    total_rows: number
+    total_columns: number
+    table_preview: any[][]
+    table_type: string
+  }>> => {
+    return apiClient.get(`/data-sources/${sourceId}/preview`)
+  },
+
+  // Threshold Alerts (R113)
+  setThresholdAlerts: (sourceId: string, alerts: Array<{
+    column: string
+    condition: string
+    value: number
+    label: string
+    enabled?: boolean
+  }>): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    alerts: any[]
+    triggered: any[]
+  }>> => {
+    return apiClient.post(`/data-sources/${sourceId}/threshold-alerts`, { alerts })
+  },
+
+  getThresholdAlerts: (sourceId: string): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    alerts: any[]
+    triggered: any[]
+  }>> => {
+    return apiClient.get(`/data-sources/${sourceId}/threshold-alerts`)
+  },
+
+  // Data Analysis (R113)
+  analyzeData: (sourceId: string, params: {
+    compare_column: string
+    group_by_column?: string
+    periods?: string[]
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    compare_column: string
+    total_rows: number
+    stats: { sum: number; avg: number; max: number; min: number; max_label: string; min_label: string }
+    trend: { direction: string; change_pct: number; first_half_avg: number; second_half_avg: number }
+    group_stats?: any
+    period_comparison?: any
+    chart_data: { labels: string[]; values: number[] }
+  }>> => {
+    return apiClient.post(`/data-sources/${sourceId}/analyze`, params)
+  },
+
+  // Forecast (R113)
+  getForecast: (sourceId: string, params: {
+    value_column: string
+    label_column?: string
+    forecast_periods?: number
+    chart_type?: string
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    value_column: string
+    regression: { slope: number; intercept: number; r_squared: number }
+    trend_direction: string
+    trendline: number[]
+    forecast: { periods: number; labels: string[]; values: number[] }
+    chart_data: {
+      type: string
+      labels: string[]
+      actual: (number | null)[]
+      forecast: (number | null)[]
+      trendline: number[]
+    }
+  }>> => {
+    return apiClient.post(`/data-sources/${sourceId}/forecast`, params)
+  },
+
+  // Generate PPT from Data Source (R113)
+  generateFromDataSource: (params: {
+    source_id: string
+    title?: string
+    include_charts?: boolean
+    include_threshold_alerts?: boolean
+    include_forecast?: boolean
+    forecast_periods?: number
+    slide_count?: number
+  }): Promise<AxiosResponse<{
+    success: boolean
+    source_id: string
+    outline: { title: string; slides: any[] }
+  }>> => {
+    return apiClient.post('/data-sources/generate-ppt', params)
+  },
+
+  // === Presentation Security (R122) ===
+  security: {
+    getConfig(taskId: string) {
+      return apiClient.get(`/security/presentation/${taskId}/security`)
+    },
+    setPassword(taskId: string, password: string) {
+      return apiClient.post(`/security/presentation/${taskId}/password`, { password })
+    },
+    removePassword(taskId: string) {
+      return apiClient.delete(`/security/presentation/${taskId}/password`)
+    },
+    getPasswordStatus(taskId: string) {
+      return apiClient.get(`/security/presentation/${taskId}/password`)
+    },
+    verifyPassword(taskId: string, password: string) {
+      return apiClient.post(`/security/presentation/${taskId}/password/verify`, { password })
+    },
+    setBiometric(taskId: string, required: boolean) {
+      return apiClient.post(`/security/presentation/${taskId}/biometric`, { biometric_required: required })
+    },
+    getBiometricStatus(taskId: string) {
+      return apiClient.get(`/security/presentation/${taskId}/biometric`)
+    },
+    verifyBiometric(taskId: string, assertion: string) {
+      return apiClient.post(`/security/presentation/${taskId}/biometric/verify`, { task_id: taskId, assertion })
+    },
+    setIPAllowlist(taskId: string, allowed_ips: string[]) {
+      return apiClient.post(`/security/presentation/${taskId}/ip-allowlist`, { allowed_ips })
+    },
+    getIPAllowlist(taskId: string) {
+      return apiClient.get(`/security/presentation/${taskId}/ip-allowlist`)
+    },
+    setWatermark(taskId: string, opts: {
+      enabled: boolean; text: string; opacity: number; angle: number; font_size: number; color: string
+    }) {
+      return apiClient.post(`/security/presentation/${taskId}/watermark`, opts)
+    },
+    getWatermark(taskId: string) {
+      return apiClient.get(`/security/presentation/${taskId}/watermark`)
+    },
+    getAccessLog(taskId: string, limit = 100, offset = 0) {
+      return apiClient.get(`/security/presentation/${taskId}/access-log`, { params: { limit, offset } })
+    },
+    deleteSecurity(taskId: string) {
+      return apiClient.delete(`/security/presentation/${taskId}/security`)
+    },
+  },
 }
 
 export default api
