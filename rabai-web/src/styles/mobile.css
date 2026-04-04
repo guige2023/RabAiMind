@@ -208,3 +208,94 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============ Tablet Breakpoint (768px - 1024px) ============ */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .container {
+    padding: 0 20px;
+  }
+
+  /* Tablet-specific show/hide */
+  .hide-tablet {
+    display: none !important;
+  }
+
+  .show-tablet {
+    display: block !important;
+  }
+
+  /* Tablet typography */
+  h1 { font-size: 32px; }
+  h2 { font-size: 26px; }
+  h3 { font-size: 22px; }
+  h4 { font-size: 18px; }
+
+  /* Cards */
+  .card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+
+  .btn-lg {
+    padding: 12px 24px;
+    font-size: 15px;
+  }
+
+  /* Header */
+  .header-content {
+    padding: 0 20px;
+  }
+
+  /* Footer */
+  .footer {
+    padding: 20px;
+  }
+}
+
+/* ============ View Mode CSS Classes (applied by useDeviceMode) ============ */
+/* Force mobile view (used with Desktop/Mobile toggle) */
+html.view-mobile {
+  overflow-x: hidden;
+}
+
+html.view-mobile .header {
+  position: sticky;
+}
+
+html.view-mobile .nav {
+  display: none !important;
+}
+
+html.view-mobile .mobile-menu-btn {
+  display: flex !important;
+}
+
+/* Force desktop view */
+html.view-desktop .header-content,
+html.view-desktop .container {
+  max-width: 1200px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Force tablet view */
+html.view-tablet .container {
+  max-width: 100% !important;
+}
+
+/* View mode: modal panels on mobile */
+@media (max-width: 767px) {
+  html.view-mobile .version-panel,
+  html.view-mobile .layout-panel,
+  html.view-mobile .transition-panel {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 90vh !important;
+  }
+}

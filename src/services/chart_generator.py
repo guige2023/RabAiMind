@@ -7,6 +7,34 @@ import base64
 from pathlib import Path
 from typing import Optional, List, Union
 
+# R24优化: matplotlib 在模块级只导入一次，避免每次调用都重新初始化
+_matplotlib_initialized = False
+_mpl_pyplot = None
+_chinese_font = None
+
+def _init_matplotlib():
+    """延迟初始化 matplotlib（只在首次调用时）"""
+    global _matplotlib_initialized, _mpl_pyplot, _chinese_font
+    if _matplotlib_initialized:
+        return
+    import matplotlib
+    matplotlib.use('Agg')  # 无头模式，不弹出窗口
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as fm
+    _mpl_pyplot = plt
+    _matplotlib_initialized = True
+    
+    # 设置中文字体（只查一次）
+    font_paths = [
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeati Light.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ]
+    for fp in font_paths:
+        if Path(fp).exists():
+            _chinese_font = fm.FontProperties(fname=fp)
+            break
+
 
 class ChartGenerator:
     """解析 CSV/Excel 并生成图表 SVG"""
@@ -44,24 +72,11 @@ class ChartGenerator:
     def generate_chart_svg(self, df: pd.DataFrame, chart_type: str,
                            label_col: str, value_col: Union[str, List[str]],
                            task_id: str, chart_index: int) -> str:
-        """使用 matplotlib 生成图表 SVG"""
-        import matplotlib
-        matplotlib.use('Agg')  # 无头模式，不弹出窗口
-        import matplotlib.pyplot as plt
-        import matplotlib.font_manager as fm
-        
-        # 设置中文字体
-        font_paths = [
-            "/System/Library/Fonts/PingFang.ttc",
-            "/System/Library/Fonts/STHeiti Light.ttc",
-            "/Library/Fonts/Arial Unicode.ttf",
-        ]
-        chinese_font = None
-        for fp in font_paths:
-            if Path(fp).exists():
-                chinese_font = fm.FontProperties(fname=fp)
-                break
-        
+        """使用 matplotlib 生成图表 SVG（已优化: matplotlib 在模块级只初始化一次）"""
+        _init_matplotlib()  # R24优化: 延迟初始化，只在首次调用时导入
+        plt = _mpl_pyplot
+        chinese_font = _chinese_font
+
         fig, ax = plt.subplots(figsize=(8, 5), dpi=150)
         
         labels = df[label_col].astype(str).tolist()

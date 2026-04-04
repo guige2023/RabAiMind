@@ -83,6 +83,7 @@
                         type="text" 
                         v-model="row[col]" 
                         @input="onDataChange"
+                        @dblclick="($event.target as HTMLInputElement).select()"
                         class="data-input" />
                     </td>
                     <td class="action-col">
@@ -177,9 +178,16 @@
           </div>
 
           <!-- 预览 -->
-          <div v-if="chartSvgUrl" class="chart-preview">
-            <div class="preview-title">图表预览</div>
-            <img :src="chartSvgUrl" alt="图表预览" class="preview-img" />
+          <div v-if="chartSvgUrl" class="chart-preview" :class="{ transitioning: isTransitioning }">
+            <div class="preview-title">图表预览 <span class="theme-badge">{{ colorThemes.find(t => t.id === selectedTheme)?.name }}</span></div>
+            <div class="preview-image-wrapper">
+              <img 
+                :src="chartSvgUrl" 
+                alt="图表预览" 
+                class="preview-img"
+                :style="{ filter: themeFilters[selectedTheme] + ' drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }"
+              />
+            </div>
           </div>
 
           <!-- 生成按钮 -->
@@ -248,6 +256,16 @@ const showDataLabels = ref(true)
 
 // 图表预览
 const chartSvgUrl = ref('')
+// 过渡动画状态
+const isTransitioning = ref(false)
+// 主题颜色映射（用于CSS滤镜）
+const themeFilters: Record<string, string> = {
+  blue: 'hue-rotate(0deg) saturate(1)',
+  green: 'hue-rotate(80deg) saturate(0.8)',
+  sunset: 'hue-rotate(-30deg) saturate(1.2)',
+  purple: 'hue-rotate(250deg) saturate(1)',
+  red: 'hue-rotate(330deg) saturate(1.3)'
+}
 
 // 可编辑数据（R19）
 const editableData = ref<Record<string, any>[]>([])
@@ -358,9 +376,15 @@ const onDataChange = () => {
   }, 800)
 }
 
-// 生成图表预览
+// 生成图表预览（带过渡动画）
 const generateChartPreview = async () => {
   if (!uploadedFile.value || !labelCol.value || !valueCol.value) return
+  
+  // 触发过渡动画
+  if (chartSvgUrl.value) {
+    isTransitioning.value = true
+    await new Promise(r => setTimeout(r, 150))
+  }
   
   try {
     const response = await api.ppt.uploadChart({
@@ -376,6 +400,8 @@ const generateChartPreview = async () => {
     }
   } catch (err) {
     console.error('生成图表失败:', err)
+  } finally {
+    isTransitioning.value = false
   }
 }
 
@@ -878,12 +904,52 @@ const close = () => {
   font-size: 12px;
   color: #666;
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.theme-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 10px;
+  font-weight: normal;
+}
+
+.preview-image-wrapper {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 8px;
 }
 
 .preview-img {
   max-width: 100%;
   max-height: 200px;
   border-radius: 8px;
+  transition: transform 0.3s ease, opacity 0.2s ease, filter 0.3s ease;
+}
+
+.chart-preview.transitioning .preview-img {
+  opacity: 0.6;
+  transform: scale(0.98);
+}
+
+.chart-preview:not(.transitioning) .preview-img {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 图表类型按钮过渡 */
+.chart-type-btn {
+  transition: all 0.2s ease;
+}
+
+.chart-type-btn:active {
+  transform: scale(0.95);
 }
 
 /* 操作按钮 */
@@ -934,5 +1000,55 @@ const close = () => {
 
 .btn-success:hover:not(:disabled) {
   background: #2da94e;
+}
+
+/* ChartEditor Mobile - Full screen on mobile */
+@media (max-width: 767px) {
+  .chart-editor-overlay {
+    align-items: flex-end;
+  }
+
+  .chart-editor-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 90vh;
+    border-radius: 20px 20px 0 0;
+    overflow-y: auto;
+  }
+
+  .editor-content {
+    flex-direction: column;
+  }
+
+  .data-section {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .preview-section {
+    width: 100%;
+    flex: 1;
+    min-height: 200px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .chart-editor-panel {
+    width: 95%;
+    height: 90vh;
+  }
+
+  .editor-content {
+    overflow-y: auto;
+  }
+
+  .data-section {
+    width: 50%;
+  }
+
+  .preview-section {
+    width: 50%;
+  }
 }
 </style>

@@ -85,7 +85,6 @@ class ContentGenerator:
         # 调用API生成
         response = self.volc_api.text_generation(
             prompt=prompt,
-            model="doubao-pro-32k",
             temperature=0.7,
             max_tokens=4096
         )
@@ -170,14 +169,14 @@ class ContentGenerator:
     def generate_image(
         self,
         prompt: str,
-        model: str = "stable-diffusion-xl-2600"
+        model: Optional[str] = None
     ) -> Optional[str]:
         """
         生成图片
 
         Args:
             prompt: 提示词
-            model: 模型
+            model: 模型（默认为 VOLCANO_IMAGE_MODEL）
 
         Returns:
             图片URL

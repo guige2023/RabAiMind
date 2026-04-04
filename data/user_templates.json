@@ -1,0 +1,23 @@
+[
+  {
+    "id": "user_1775183840",
+    "name": "TestTemplate",
+    "description": "TestDescription",
+    "scene": "business",
+    "style": "professional",
+    "visibility": "private",
+    "author": "current_user",
+    "thumbnail": "",
+    "applicable_scenes": [
+      "business"
+    ],
+    "example": "TestDescription",
+    "colors": [
+      "#165DFF",
+      "#FFFFFF",
+      "#F5F5F5"
+    ],
+    "is_ugc": true,
+    "created_at": "2026-04-03T10:37:20.455220"
+  }
+]

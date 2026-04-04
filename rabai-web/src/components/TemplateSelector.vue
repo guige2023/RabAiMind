@@ -1,5 +1,39 @@
 <template>
   <div class="template-selector">
+    <!-- R35: 内容匹配推荐 -->
+    <div v-if="contentMatchedTemplates.length > 0" class="content-matched-section">
+      <div class="matched-header">
+        <span class="matched-icon">✨</span>
+        <span class="matched-title">AI 智能匹配</span>
+        <span class="matched-tags" v-if="detectedScene || detectedStyle">
+          <span v-if="detectedScene" class="matched-tag scene-tag">{{ detectedScene }}</span>
+          <span v-if="detectedStyle" class="matched-tag style-tag">{{ detectedStyle }}</span>
+        </span>
+      </div>
+      <div class="matched-grid">
+        <div
+          v-for="tpl in contentMatchedTemplates"
+          :key="tpl.id"
+          class="template-card"
+          :class="{ selected: selectedTemplate?.id === tpl.id }"
+          @click="selectTemplateById(tpl)"
+        >
+          <div class="card-preview" :style="{ background: getMatchedBackground(tpl) }">
+            <div class="preview-content">
+              <span class="preview-title">{{ tpl.name }}</span>
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="info-header">
+              <h4 class="card-title">{{ tpl.name }}</h4>
+            </div>
+            <p class="card-scene">{{ tpl.description || tpl.category }}</p>
+          </div>
+          <div v-if="selectedTemplate?.id === tpl.id" class="check-mark">✓</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 分类标签 -->
     <div class="category-tabs">
       <button
@@ -14,7 +48,37 @@
     </div>
 
     <!-- 模板网格 -->
-    <div class="template-grid">
+    <!-- 空状态 -->
+    <div v-if="filteredTemplates.length === 0" class="empty-state">
+      <div class="empty-illustration">
+        <svg viewBox="0 0 240 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 背景圆 -->
+          <circle cx="120" cy="100" r="80" fill="#F0F5FF" />
+          <circle cx="120" cy="100" r="60" fill="#E8EEFF" />
+          <!-- 空白文档 -->
+          <rect x="90" y="60" width="60" height="80" rx="6" fill="white" stroke="#D0D7E8" stroke-width="2"/>
+          <rect x="98" y="75" width="44" height="4" rx="2" fill="#E0E7FF"/>
+          <rect x="98" y="85" width="30" height="4" rx="2" fill="#E0E7FF"/>
+          <rect x="98" y="95" width="38" height="4" rx="2" fill="#E0E7FF"/>
+          <rect x="98" y="105" width="25" height="4" rx="2" fill="#E0E7FF"/>
+          <!-- 放大镜 -->
+          <circle cx="140" cy="130" r="20" fill="#165DFF" opacity="0.15"/>
+          <circle cx="140" cy="130" r="14" fill="white" stroke="#165DFF" stroke-width="2"/>
+          <line x1="150" y1="140" x2="160" y2="150" stroke="#165DFF" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- 装饰点 -->
+          <circle cx="70" cy="70" r="4" fill="#165DFF" opacity="0.3"/>
+          <circle cx="170" cy="85" r="3" fill="#52C41A" opacity="0.4"/>
+          <circle cx="60" cy="120" r="3" fill="#FAAD14" opacity="0.4"/>
+        </svg>
+      </div>
+      <h3 class="empty-title">暂无模板</h3>
+      <p class="empty-desc">该分类下还没有模板，试试其他分类吧</p>
+      <button class="btn btn-outline empty-action" @click="activeCategory = 'all'">
+        查看全部模板
+      </button>
+    </div>
+
+    <!-- 模板网格 -->
       <div
         v-for="template in filteredTemplates"
         :key="template.id"
@@ -104,6 +168,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { api } from '../api/client'
 
 interface FontConfig {
   h1: { family: string; size: number; color: string }
@@ -129,9 +194,58 @@ interface Template {
   layout?: string
 }
 
+const props = defineProps<{
+  userRequest?: string
+  scene?: string
+  style?: string
+}>()
+
 const emit = defineEmits(['select'])
 
 const activeCategory = ref('all')
+
+// R35: Content-based matched templates
+const contentMatchedTemplates = ref<any[]>([])
+const detectedScene = ref<string | null>(null)
+const detectedStyle = ref<string | null>(null)
+const isMatchingContent = ref(false)
+
+// Watch for userRequest changes and match templates
+const matchTemplatesFromContent = async () => {
+  if (!props.userRequest || props.userRequest.length < 5) {
+    contentMatchedTemplates.value = []
+    return
+  }
+  isMatchingContent.value = true
+  try {
+    const res = await api.template.matchTemplates({
+      q: props.userRequest,
+      scene: props.scene,
+      style: props.style,
+      limit: 4,
+    })
+    if (res.data?.success) {
+      contentMatchedTemplates.value = res.data.templates || []
+      detectedScene.value = res.data.detected_scene || null
+      detectedStyle.value = res.data.detected_style || null
+    }
+  } catch (e) {
+    console.warn('[TemplateSelector] 内容匹配失败:', e)
+    contentMatchedTemplates.value = []
+  } finally {
+    isMatchingContent.value = false
+  }
+}
+
+// Watch for changes in userRequest, scene, or style
+import { watch } from 'vue'
+watch(() => [props.userRequest, props.scene, props.style], () => {
+  if (props.userRequest && props.userRequest.length >= 5) {
+    matchTemplatesFromContent()
+  } else {
+    contentMatchedTemplates.value = []
+  }
+}, { immediate: true })
 const selectedTemplate = ref<Template | null>(null)
 const previewTemplate = ref<Template | null>(null)
 
@@ -259,6 +373,41 @@ const getPreviewStyle = (template: Template) => ({
   background: template.background
 })
 
+// R35: Select a template from content-matched results
+const selectTemplateById = (tpl: any) => {
+  const matchedTemplate: Template = {
+    id: tpl.id,
+    name: tpl.name,
+    description: tpl.description || '',
+    scene: tpl.category || 'business',
+    pageCount: 8,
+    styles: [tpl.style || 'professional'],
+    thumbnail: tpl.thumbnail || '',
+    background: getMatchedBackground(tpl),
+    category: tpl.category || 'business',
+    isPremium: false,
+    fontConfig: undefined,
+  }
+  selectedTemplate.value = matchedTemplate
+  emit('select', matchedTemplate)
+}
+
+// R35: Get background for content-matched template
+const getMatchedBackground = (tpl: any): string => {
+  // Map category to gradient
+  const gradients: Record<string, string> = {
+    business: 'linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%)',
+    education: 'linear-gradient(135deg, #e0f7fa 0%, #80deea 100%)',
+    tech: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
+    creative: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+    marketing: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    data: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+    social: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    government: 'linear-gradient(135deg, #003366 0%, #006699 100%)',
+  }
+  return gradients[tpl.category] || gradients.business
+}
+
 const getFontNames = (fontConfig: FontConfig) => {
   return `${fontConfig.h1.family} / ${fontConfig.body.family}`
 }
@@ -285,6 +434,96 @@ const confirmSelect = () => {
 </script>
 
 <style scoped>
+/* R35: Content Matched Section */
+.content-matched-section {
+  background: linear-gradient(135deg, #f0f5ff 0%, #e8f0fe 100%);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border: 1px solid #d0e0ff;
+}
+
+.matched-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.matched-icon {
+  font-size: 16px;
+}
+
+.matched-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #165DFF;
+}
+
+.matched-tags {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.matched-tag {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.scene-tag {
+  background: #e6f0ff;
+  color: #165DFF;
+}
+
+.style-tag {
+  background: #fff3e0;
+  color: #ff9800;
+}
+
+.matched-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.matched-grid .template-card {
+  border: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.matched-grid .template-card:hover {
+  border-color: #165DFF;
+}
+
+.matched-grid .template-card.selected {
+  border-color: #165DFF;
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
+}
+
+.matched-grid .card-preview {
+  height: 80px;
+}
+
+.matched-grid .card-info {
+  padding: 8px;
+}
+
+.matched-grid .card-title {
+  font-size: 13px;
+  margin: 0;
+}
+
+.matched-grid .card-scene {
+  font-size: 11px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .template-selector {
   padding: 20px;
 }
@@ -613,5 +852,44 @@ const confirmSelect = () => {
     flex-direction: column;
     gap: 12px;
   }
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-illustration {
+  width: 240px;
+  height: 200px;
+  margin-bottom: 24px;
+}
+
+.empty-illustration svg {
+  width: 100%;
+  height: 100%;
+}
+
+.empty-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px;
+}
+
+.empty-desc {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 24px;
+}
+
+.empty-action {
+  padding: 10px 24px;
+  font-size: 14px;
 }
 </style>

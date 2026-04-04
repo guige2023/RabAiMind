@@ -1,7 +1,7 @@
 <template>
   <div class="app">
     <!-- Skip to main content link for accessibility -->
-    <a href="#main-content" class="skip-link">跳转到主要内容</a>
+    <a href="#main-content" class="skip-link">{{ t('a11y.skipToContent') }}</a>
 
     <!-- Global Search -->
     <GlobalSearch ref="globalSearchRef" />
@@ -13,7 +13,7 @@
     <HelpCenter ref="helpRef" />
 
     <!-- Initial Loading -->
-    <div v-if="isLoading" class="app-loading">
+    <div v-if="isLoading" class="app-loading" role="status" :aria-label="t('loading')">
       <div class="loading-logo">✨</div>
       <div class="loading-bar">
         <div class="loading-progress"></div>
@@ -21,65 +21,89 @@
     </div>
 
     <template v-else>
-      <header class="header">
+      <header class="header" role="banner">
         <div class="header-content">
-          <router-link to="/" class="logo">
-            <span class="logo-icon">✨</span>
+          <router-link to="/" class="logo" aria-label="RabAi Mind - {{ t('nav.home') }}">
+            <span class="logo-icon" aria-hidden="true">✨</span>
             <span class="logo-text">RabAi Mind</span>
           </router-link>
           <!-- Mobile Menu Button -->
-          <button class="mobile-menu-btn" @click="openMobileNav">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <button
+            class="mobile-menu-btn"
+            @click="openMobileNav"
+            :aria-label="t('a11y.menu')"
+            aria-controls="mobile-nav"
+            :aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <line x1="3" y1="12" x2="21" y2="12"/>
               <line x1="3" y1="6" x2="21" y2="6"/>
               <line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
-          <nav class="nav">
-            <router-link to="/" class="nav-link">首页</router-link>
-            <router-link to="/create" class="nav-link">创建PPT</router-link>
-            <router-link to="/templates" class="nav-link">模板市场</router-link>
-            <router-link to="/media" class="nav-link">素材库</router-link>
-            <router-link to="/favorites" class="nav-link">
-              <span>收藏</span>
-              <span class="nav-badge" v-if="favoritesCount > 0">{{ favoritesCount }}</span>
+          <nav class="nav" :aria-label="t('nav.home') + ' ' + t('nav.create')">
+            <router-link to="/" class="nav-link" :aria-label="t('nav.home')">{{ t('nav.home') }}</router-link>
+            <router-link to="/create" class="nav-link" :aria-label="t('nav.create')">{{ t('nav.create') }}</router-link>
+            <router-link to="/templates" class="nav-link" :aria-label="t('nav.templates')">{{ t('nav.templates') }}</router-link>
+            <router-link to="/media" class="nav-link" :aria-label="t('nav.media')">{{ t('nav.media') }}</router-link>
+            <router-link to="/favorites" class="nav-link" :aria-label="t('nav.favorites')">
+              <span>{{ t('nav.favorites') }}</span>
+              <span class="nav-badge" v-if="favoritesCount > 0" :aria-label="`${favoritesCount}`">{{ favoritesCount }}</span>
             </router-link>
-            <router-link to="/history" class="nav-link">历史</router-link>
+            <router-link to="/history" class="nav-link" :aria-label="t('nav.history')">{{ t('nav.history') }}</router-link>
           </nav>
-          <button class="search-trigger" @click="openGlobalSearch" title="搜索 (Ctrl+K)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <button
+            class="search-trigger"
+            @click="openGlobalSearch"
+            :aria-label="`${t('a11y.search')} (${t('a11y.searchHint')})`"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <circle cx="11" cy="11" r="8"/>
               <path d="M21 21l-4.35-4.35"/>
             </svg>
-            <span class="search-hint">Ctrl+K</span>
+            <span class="search-hint" aria-hidden="true">{{ t('a11y.searchHint') }}</span>
           </button>
           <LangSwitch />
+          <ReduceMotionToggle />
           <ThemeSwitch />
           <Feedback />
-          <button class="help-btn" @click="openHelp" title="帮助">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <button
+            class="help-btn hide-mobile"
+            @click="openHelp"
+            :aria-label="t('a11y.help')"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <circle cx="12" cy="12" r="10"/>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
               <path d="M12 17h.01"/>
             </svg>
           </button>
+          <!-- View Mode Toggle -->
+          <button
+            class="view-mode-toggle"
+            @click="cycleViewMode"
+            :aria-label="`{{ t('a11y.viewMode') }}: ${viewModeLabel}`"
+          >
+            <span class="view-mode-label" aria-hidden="true">{{ viewModeOptions.find(o => o.value === viewMode.value)?.label }}</span>
+          </button>
         </div>
       </header>
-      <main class="main" id="main-content" tabindex="-1">
+      <main class="main" id="main-content" tabindex="-1" role="main">
         <router-view />
       </main>
-      <footer class="footer">
-        <p>© 2026 RabAi Mind · AI PPT 生成平台</p>
+      <footer class="footer" role="contentinfo">
+        <p>{{ t('footer.copyright') }}</p>
       </footer>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import Feedback from './components/Feedback.vue'
+import ReduceMotionToggle from './components/ReduceMotionToggle.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
 import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
@@ -88,12 +112,40 @@ import UserExperience from './components/UserExperience.vue'
 import HelpCenter from './components/HelpCenter.vue'
 import ToastNotifications from './components/ToastNotifications.vue'
 import { useTemplateStore } from './composables/useTemplateStore'
+import { useDeviceMode, initDeviceMode, getDeviceMode } from './composables/useDeviceMode'
+import { useI18n } from './composables/useI18n'
+import { useAccessibility } from './composables/useAccessibility'
 
 const isLoading = ref(true)
+const { t } = useI18n()
+const { isReduceMotion, toggleReduceMotion } = useAccessibility()
 const globalSearchRef = ref<InstanceType<typeof GlobalSearch> | null>(null)
 const mobileNavRef = ref<InstanceType<typeof MobileNavDrawer> | null>(null)
 const uxRef = ref<InstanceType<typeof UserExperience> | null>(null)
 const helpRef = ref<InstanceType<typeof HelpCenter> | null>(null)
+
+// Device mode
+const deviceMode = getDeviceMode()
+const { viewMode, effectiveMode } = deviceMode
+
+// View mode toggle options
+const viewModeOptions = [
+  { value: 'auto' as const, label: 'A', title: '自动' },
+  { value: 'desktop' as const, label: '🖥', title: '桌面视图' },
+  { value: 'mobile' as const, label: '📱', title: '移动视图' }
+]
+
+const viewModeLabel = computed(() => {
+  const opt = viewModeOptions.find(o => o.value === viewMode.value)
+  return opt?.title || ''
+})
+
+const cycleViewMode = () => {
+  const modes: Array<'auto' | 'desktop' | 'mobile'> = ['auto', 'desktop', 'mobile']
+  const idx = modes.indexOf(viewMode.value)
+  const next = modes[(idx + 1) % modes.length]
+  deviceMode.setViewMode(next)
+}
 
 // Template store for favorites count
 const templateStore = useTemplateStore()
@@ -107,11 +159,24 @@ const openMobileNav = () => {
   mobileNavRef.value?.open()
 }
 
-const openHelp = () => {
-  helpRef.value?.open()
+const openHelp = (tab?: string) => {
+  helpRef.value?.open(tab)
+}
+
+// Global keyboard shortcuts
+const handleGlobalKeydown = (e: KeyboardEvent) => {
+  // Ctrl/Cmd + ? or Ctrl/Cmd + / → open shortcuts tab in help
+  if ((e.ctrlKey || e.metaKey) && (e.key === '?' || e.key === '/')) {
+    e.preventDefault()
+    openHelp('shortcuts')
+  }
 }
 
 onMounted(() => {
+  // Initialize device mode detection
+  initDeviceMode()
+  window.addEventListener('keydown', handleGlobalKeydown)
+
   // Load favorites
   templateStore.loadFavorites()
 
@@ -119,6 +184,10 @@ onMounted(() => {
   setTimeout(() => {
     isLoading.value = false
   }, 500)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
 
@@ -337,6 +406,11 @@ onMounted(() => {
   color: #165DFF;
 }
 
+.search-trigger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .search-trigger svg {
   width: 18px;
   height: 18px;
@@ -379,6 +453,11 @@ onMounted(() => {
   background: #f0f0f0;
 }
 
+.help-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .help-btn svg {
   width: 22px;
   height: 22px;
@@ -396,6 +475,59 @@ onMounted(() => {
 @media (max-width: 768px) {
   .help-btn {
     display: none;
+  }
+}
+
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 16px;
+}
+
+.view-mode-toggle:hover {
+  background: #fff;
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.view-mode-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+:global(.dark) .view-mode-toggle {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+:global(.dark) .view-mode-toggle:hover {
+  background: #333;
+}
+
+.view-mode-label {
+  font-size: 16px;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .view-mode-toggle {
+    display: none;
+  }
+}
+
+/* Hide on mobile but show in tablet+ */
+@media (min-width: 769px) {
+  .view-mode-toggle {
+    display: flex;
   }
 }
 

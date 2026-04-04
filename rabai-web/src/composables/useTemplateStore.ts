@@ -18,6 +18,8 @@ export interface Template {
   // 额外字段（来自真实API）
   colors?: string[]
   fonts?: string[]
+  // 用户生成模板
+  is_ugc?: boolean
 }
 
 // 真实API模板 → 前端模板的映射
@@ -512,6 +514,96 @@ export function useTemplateStore() {
     ).slice(0, 6)
   )
 
+  // ── R35: 推荐相关状态 ────────────────────────────────────────────────
+  const trendingTemplates = ref<Template[]>([])
+  const recommendedTemplates = ref<Template[]>([])
+  const similarTemplates = ref<Record<string, Template[]>>({})  // templateId → similar templates
+  const contentMatchedTemplates = ref<Template[]>([])
+  const trendingQueries = ref<Array<{ query: string; count: number }>>([])
+  const detectedScene = ref<string | null>(null)
+  const detectedStyle = ref<string | null>(null)
+
+  // 从API加载热门模板（基于使用频率）
+  const loadTrendingTemplates = async (limit = 6, days = 7) => {
+    try {
+      const res = await apiClient.get('/templates/trending', { params: { limit, days } })
+      if (res.data?.success && res.data.templates?.length > 0) {
+        trendingTemplates.value = res.data.templates.map((t: any) => mapApiTemplate(t))
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载热门模板失败:', e)
+    }
+  }
+
+  // 从API加载为你推荐
+  const loadRecommendedTemplates = async (userId = 'anonymous', scene?: string, style?: string, limit = 6) => {
+    try {
+      const res = await apiClient.get('/templates/recommend', {
+        params: { user_id: userId, scene, style, limit }
+      })
+      if (res.data?.success && res.data.templates?.length > 0) {
+        recommendedTemplates.value = res.data.templates.map((t: any) => mapApiTemplate(t))
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载推荐模板失败:', e)
+    }
+  }
+
+  // 加载相似模板
+  const loadSimilarTemplates = async (templateId: string, limit = 5) => {
+    try {
+      const res = await apiClient.get(`/templates/similar/${templateId}`, { params: { limit } })
+      if (res.data?.success && res.data.templates?.length > 0) {
+        similarTemplates.value[templateId] = res.data.templates.map((t: any) => mapApiTemplate(t))
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载相似模板失败:', e)
+    }
+  }
+
+  // 内容匹配：根据用户需求文本推荐模板
+  const loadContentMatchedTemplates = async (q: string, scene?: string, style?: string, limit = 6) => {
+    try {
+      const res = await apiClient.get('/templates/match', {
+        params: { q, scene, style, limit }
+      })
+      if (res.data?.success) {
+        contentMatchedTemplates.value = (res.data.templates || []).map((t: any) => mapApiTemplate(t))
+        detectedScene.value = res.data.detected_scene || null
+        detectedStyle.value = res.data.detected_style || null
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 内容匹配模板失败:', e)
+    }
+  }
+
+  // 加载热门搜索词
+  const loadTrendingQueries = async (limit = 10, days = 7) => {
+    try {
+      const res = await apiClient.get('/templates/search-analytics/trending-queries', { params: { limit, days } })
+      if (res.data?.success) {
+        trendingQueries.value = res.data.queries || []
+      }
+    } catch (e) {
+      console.warn('[TemplateStore] 加载热门搜索词失败:', e)
+    }
+  }
+
+  // 跟踪事件
+  const trackTemplateEvent = async (
+    eventType: 'search' | 'click' | 'use',
+    templateId?: string,
+    extra: Record<string, string> = {}
+  ) => {
+    try {
+      await apiClient.post('/templates/track', null, {
+        params: { event_type: eventType, template_id: templateId, ...extra }
+      })
+    } catch (e) {
+      // 静默失败，不影响主流程
+    }
+  }
+
   // 获取分类统计
   const categoryStats = computed((): Record<string, number> => {
     const stats: Record<string, number> = {}
@@ -538,9 +630,22 @@ export function useTemplateStore() {
     favoriteTemplates,
     popularTemplates,
     newTemplates,
+    trendingTemplates,
+    recommendedTemplates,
+    similarTemplates,
+    contentMatchedTemplates,
+    trendingQueries,
+    detectedScene,
+    detectedStyle,
     categoryStats,
     isLoading,
     loadTemplates,
+    loadTrendingTemplates,
+    loadRecommendedTemplates,
+    loadSimilarTemplates,
+    loadContentMatchedTemplates,
+    loadTrendingQueries,
+    trackTemplateEvent,
     loadCategoriesAndStyles,
     loadFavorites,
     toggleFavorite,

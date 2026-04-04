@@ -208,6 +208,13 @@ class PPTGenerator:
             logger.info("开始生成AI图片...")
 
             for i, slide in enumerate(slides_content):
+                # R24优化: 频繁检查任务是否已取消，避免无效计算
+                task = task_manager.get_task(task_id)
+                if task and task.get("status") == "cancelled":
+                    logger.info(f"任务 {task_id} 已取消，停止图片生成")
+                    task_manager.update_progress(task_id, 45, "任务已取消", "cancelled")
+                    return {"success": False, "error": "任务已被用户取消"}
+
                 slide_num = i + 1
                 progress = 22 + int((i / actual_slide_count) * 23)
                 task_manager.update_progress(
@@ -272,6 +279,16 @@ class PPTGenerator:
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
+                    # R24优化: 每次完成一个SVG后检查取消状态
+                    task = task_manager.get_task(task_id)
+                    if task and task.get("status") == "cancelled":
+                        logger.info(f"任务 {task_id} 已取消，停止SVG生成")
+                        # 取消所有待完成的future
+                        for f in futures:
+                            f.cancel()
+                        task_manager.update_progress(task_id, 80, "任务已取消", "cancelled")
+                        return {"success": False, "error": "任务已被用户取消"}
+
                     slide_num, svg_code = future.result()
                     svg_path = os.path.join(task_output_dir, f"slide_{slide_num}.svg")
                     with open(svg_path, 'w', encoding='utf-8') as f:
@@ -470,8 +487,7 @@ class PPTGenerator:
         # 尝试生成图片 (使用16:9比例)
         try:
             image_url = content_gen.generate_image(
-                prompt=prompt,
-                model="stable-diffusion-xl-2600"
+                prompt=prompt
             )
             if image_url:
                 logger.info(f"AI生成图片成功: {image_url[:50]}...")

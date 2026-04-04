@@ -112,6 +112,181 @@
         </div>
       </div>
 
+      <!-- ===== R32: AI 智能工具栏 ===== -->
+      <div class="ai-toolbar">
+        <div class="ai-toolbar-title">🤖 AI 智能工具</div>
+        <div class="ai-toolbar-buttons">
+          <!-- AI 改写（仅文本元素） -->
+          <button
+            class="ai-btn ai-btn-rephrase"
+            :class="{ disabled: selectedElement?.type !== 'text' || aiLoading }"
+            @click="rephraseText"
+            :disabled="selectedElement?.type !== 'text' || aiLoading"
+            title="AI 改写选中文字"
+          >
+            ✨ 改写
+          </button>
+
+          <!-- AI 翻译（仅文本元素） -->
+          <div class="ai-translate-group" v-if="selectedElement?.type === 'text'">
+            <select v-model="translateTarget" class="ai-translate-select">
+              <option v-for="opt in translateOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <button
+              class="ai-btn ai-btn-translate"
+              :class="{ disabled: aiLoading }"
+              @click="translateText"
+              :disabled="aiLoading"
+              title="AI 翻译"
+            >
+              🌐 翻译
+            </button>
+          </div>
+
+          <div class="ai-toolbar-sep"></div>
+
+          <!-- 智能布局建议 -->
+          <button
+            class="ai-btn ai-btn-layout"
+            :class="{ disabled: aiLoading }"
+            @click="requestLayoutSuggestion"
+            :disabled="aiLoading"
+            title="智能布局建议"
+          >
+            📐 布局建议
+          </button>
+
+          <!-- 一键美化 -->
+          <button
+            class="ai-btn ai-btn-enhance"
+            :class="{ disabled: aiLoading }"
+            @click="requestAutoEnhance"
+            :disabled="aiLoading"
+            title="一键美化设计"
+          >
+            🎨 美化
+          </button>
+
+          <!-- 内容质量评分 -->
+          <button
+            class="ai-btn ai-btn-score"
+            :class="{ disabled: aiLoading }"
+            @click="requestContentScore"
+            :disabled="aiLoading"
+            title="内容质量评分"
+          >
+            📊 评分
+          </button>
+        </div>
+
+        <!-- Loading 状态 -->
+        <div v-if="aiLoading" class="ai-loading">
+          <span class="ai-spinner">⏳</span> {{ aiLoadingText }}
+        </div>
+      </div>
+
+      <!-- R32: 评分弹窗 -->
+      <div v-if="showScoreModal" class="ai-modal-overlay" @click.self="showScoreModal = false">
+        <div class="ai-modal">
+          <div class="ai-modal-header">
+            <h3>📊 内容质量评分</h3>
+            <button class="ai-modal-close" @click="showScoreModal = false">✕</button>
+          </div>
+          <div v-if="contentScore" class="ai-modal-content">
+            <div class="score-overall">
+              <span class="score-label">综合评分</span>
+              <span class="score-value">{{ contentScore.overall_score?.toFixed(1) || 'N/A' }}</span>
+              <span class="score-max">/ 10</span>
+            </div>
+            <div class="score-bars">
+              <div v-for="(val, key) in contentScore.scores" :key="key" class="score-bar-item">
+                <span class="score-bar-label">{{ key }}</span>
+                <div class="score-bar-track">
+                  <div class="score-bar-fill" :style="{ width: ((val as number) * 10) + '%' }"></div>
+                </div>
+                <span class="score-bar-value">{{ val }}/10</span>
+              </div>
+            </div>
+            <div v-if="contentScore.strengths?.length" class="score-section">
+              <div class="score-section-title">✅ 优点</div>
+              <div v-for="s in contentScore.strengths" :key="s" class="score-item">• {{ s }}</div>
+            </div>
+            <div v-if="contentScore.improvements?.length" class="score-section">
+              <div class="score-section-title">💡 改进建议</div>
+              <div v-for="imp in contentScore.improvements" :key="imp" class="score-item">• {{ imp }}</div>
+            </div>
+            <div v-if="contentScore.summary" class="score-summary">"{{ contentScore.summary }}"</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- R32: 布局建议弹窗 -->
+      <div v-if="showLayoutModal" class="ai-modal-overlay" @click.self="showLayoutModal = false">
+        <div class="ai-modal">
+          <div class="ai-modal-header">
+            <h3>📐 智能布局建议</h3>
+            <button class="ai-modal-close" @click="showLayoutModal = false">✕</button>
+          </div>
+          <div v-if="layoutSuggestion" class="ai-modal-content">
+            <div class="layout-type">
+              <span class="layout-type-icon">🎯</span>
+              <span class="layout-type-name">{{ layoutSuggestion.layout_type }}</span>
+            </div>
+            <div class="layout-reason">{{ layoutSuggestion.reason }}</div>
+            <div class="layout-actions">
+              <button class="ai-modal-btn ai-modal-btn-primary" @click="applyLayoutSuggestion">
+                ✅ 应用建议
+              </button>
+              <button class="ai-modal-btn" @click="showLayoutModal = false">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- R32: 美化结果弹窗 -->
+      <div v-if="showEnhanceModal" class="ai-modal-overlay" @click.self="showEnhanceModal = false">
+        <div class="ai-modal">
+          <div class="ai-modal-header">
+            <h3>🎨 美化方案</h3>
+            <button class="ai-modal-close" @click="showEnhanceModal = false">✕</button>
+          </div>
+          <div v-if="enhancementResult" class="ai-modal-content">
+            <div class="enhance-colors">
+              <span class="enhance-label">配色方案</span>
+              <div class="enhance-swatches">
+                <span
+                  v-for="(c, i) in enhancementResult.improved_color_scheme"
+                  :key="i"
+                  class="enhance-swatch"
+                  :style="{ background: c }"
+                  :title="c"
+                ></span>
+              </div>
+            </div>
+            <div v-if="enhancementResult.suggested_font" class="enhance-item">
+              <span class="enhance-label">字体</span>
+              <span>{{ enhancementResult.suggested_font }}</span>
+            </div>
+            <div v-if="enhancementResult.suggested_spacing" class="enhance-item">
+              <span class="enhance-label">间距</span>
+              <span>{{ enhancementResult.suggested_spacing }}</span>
+            </div>
+            <div v-if="enhancementResult.design_tips?.length" class="score-section">
+              <div class="score-section-title">💡 设计建议</div>
+              <div v-for="tip in enhancementResult.design_tips" :key="tip" class="score-item">• {{ tip }}</div>
+            </div>
+            <div class="layout-actions">
+              <button class="ai-modal-btn ai-modal-btn-primary" @click="applyEnhancement">
+                ✅ 应用美化
+              </button>
+              <button class="ai-modal-btn" @click="showEnhanceModal = false">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="editor-content">
         <!-- 幻灯片缩略图列表 -->
         <div class="slides-list">
@@ -604,6 +779,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import api from '../api/client'
 
 interface SlideElement {
   id: string
@@ -689,6 +865,179 @@ const spacingOptions = [
 
 // R21: 幻灯片背景色
 const slideBackground = ref('#ffffff')
+
+// R32: AI 增强功能状态
+const aiLoading = ref(false)
+const aiLoadingText = ref('')
+const contentScore = ref<any>(null)
+const showScoreModal = ref(false)
+const layoutSuggestion = ref<any>(null)
+const showLayoutModal = ref(false)
+const enhancementResult = ref<any>(null)
+const showEnhanceModal = ref(false)
+const translateTarget = ref('en')
+const translateOptions = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+]
+
+// R32: AI 改写
+const rephraseText = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '改写中...'
+  try {
+    const res = await api.ai.rephrase(el.content, 'natural')
+    if (res.data.success) {
+      saveHistory()
+      el.content = res.data.rephrased
+    }
+  } catch (e: any) {
+    console.error('改写失败', e)
+    alert('改写失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R32: AI 翻译
+const translateText = async () => {
+  if (selectedElementIndex.value === null) return
+  const el = slides.value[activeSlideIndex.value].elements[selectedElementIndex.value]
+  if (!el.content) return
+  aiLoading.value = true
+  aiLoadingText.value = '翻译中...'
+  try {
+    const res = await api.ai.translate(el.content, translateTarget.value)
+    if (res.data.success) {
+      saveHistory()
+      el.content = res.data.translated
+    }
+  } catch (e: any) {
+    console.error('翻译失败', e)
+    alert('翻译失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R32: 智能布局建议
+const requestLayoutSuggestion = async () => {
+  const elements = slides.value[activeSlideIndex.value].elements
+  const content = elements.map((e: any) => e.content || '').join(' ')
+  aiLoading.value = true
+  aiLoadingText.value = '分析布局...'
+  try {
+    const res = await api.ai.layoutSuggestion({
+      slideIndex: activeSlideIndex.value,
+      elements,
+      slideContent: content
+    })
+    if (res.data.success) {
+      layoutSuggestion.value = res.data.suggestion
+      showLayoutModal.value = true
+    }
+  } catch (e: any) {
+    console.error('布局建议失败', e)
+    alert('布局建议失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R32: 应用布局建议
+const applyLayoutSuggestion = () => {
+  if (!layoutSuggestion.value) return
+  const suggestions = layoutSuggestion.value.suggested_alignments || []
+  saveHistory()
+  suggestions.forEach((sug: any) => {
+    const idx = sug.element_index
+    if (idx >= 0 && idx < slides.value[activeSlideIndex.value].elements.length) {
+      const el = slides.value[activeSlideIndex.value].elements[idx]
+      el.x = sug.x
+      el.y = sug.y
+      el.width = sug.width
+      el.height = sug.height
+    }
+  })
+  showLayoutModal.value = false
+  layoutSuggestion.value = null
+}
+
+// R32: 一键美化
+const requestAutoEnhance = async () => {
+  const elements = slides.value[activeSlideIndex.value].elements
+  aiLoading.value = true
+  aiLoadingText.value = '美化中...'
+  try {
+    const res = await api.ai.autoEnhance({
+      slideIndex: activeSlideIndex.value,
+      elements,
+      colorScheme: '#165DFF'
+    })
+    if (res.data.success) {
+      enhancementResult.value = res.data.enhancement
+      showEnhanceModal.value = true
+    }
+  } catch (e: any) {
+    console.error('美化失败', e)
+    alert('美化失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
+
+// R32: 应用美化结果
+const applyEnhancement = () => {
+  if (!enhancementResult.value) return
+  const enh = enhancementResult.value
+  saveHistory()
+  const scheme = enh.improved_color_scheme || []
+  slides.value[activeSlideIndex.value].elements.forEach((el: any, i: number) => {
+    if (el.type === 'text') {
+      el.color = scheme[3] || scheme[0] || el.color
+      if (scheme[2]) el.textBgColor = scheme[2]
+    } else if (el.type === 'shape') {
+      el.fill = scheme[0] || el.fill
+    }
+  })
+  if (enh.suggested_font) {
+    slides.value[activeSlideIndex.value].elements.forEach((el: any) => {
+      if (el.type === 'text') el.fontFamily = enh.suggested_font
+    })
+  }
+  showEnhanceModal.value = false
+  enhancementResult.value = null
+}
+
+// R32: 内容质量评分
+const requestContentScore = async () => {
+  const elements = slides.value[activeSlideIndex.value].elements
+  const content = elements.map((e: any) => e.content || '').join(' ')
+  aiLoading.value = true
+  aiLoadingText.value = '评分中...'
+  try {
+    const res = await api.ai.contentScore({ elements, slideContent: content })
+    if (res.data.success) {
+      contentScore.value = res.data.score
+      showScoreModal.value = true
+    }
+  } catch (e: any) {
+    console.error('评分失败', e)
+    alert('评分失败: ' + (e?.message || '未知错误'))
+  } finally {
+    aiLoading.value = false
+    aiLoadingText.value = ''
+  }
+}
 
 const emit = defineEmits(['close', 'apply'])
 
@@ -2296,6 +2645,379 @@ onUnmounted(() => {
   .btn {
     padding: 10px 16px;
     font-size: 13px;
+  }
+}
+
+/* ===== R32: AI 智能工具栏 ===== */
+.ai-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  flex-wrap: wrap;
+}
+
+.ai-toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+}
+
+.ai-toolbar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ai-toolbar-sep {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,0.3);
+  margin: 0 4px;
+}
+
+.ai-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ai-btn:hover:not(.disabled):not(:disabled) {
+  background: rgba(255,255,255,0.3);
+  border-color: rgba(255,255,255,0.7);
+  transform: translateY(-1px);
+}
+
+.ai-btn.disabled,
+.ai-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ai-btn-rephrase:hover:not(.disabled) {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+}
+
+.ai-translate-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-translate-select {
+  padding: 5px 8px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ai-translate-select option {
+  background: #333;
+  color: white;
+}
+
+.ai-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.9);
+  margin-left: auto;
+}
+
+.ai-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== R32: AI 弹窗 ===== */
+.ai-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.ai-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #f9fafb;
+}
+
+.ai-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.ai-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #666;
+}
+
+.ai-modal-close:hover {
+  background: #e5e5e5;
+}
+
+.ai-modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.ai-modal-btn {
+  padding: 8px 20px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.ai-modal-btn:hover {
+  background: #f5f5f5;
+}
+
+.ai-modal-btn-primary {
+  background: #165DFF;
+  color: white;
+  border-color: #165DFF;
+}
+
+.ai-modal-btn-primary:hover {
+  background: #0e42d2;
+}
+
+.layout-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+/* R32: 评分样式 */
+.score-overall {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.score-label {
+  font-size: 14px;
+  color: #666;
+}
+
+.score-value {
+  font-size: 48px;
+  font-weight: 700;
+  color: #165DFF;
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 18px;
+  color: #999;
+}
+
+.score-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.score-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.score-bar-label {
+  font-size: 12px;
+  color: #666;
+  width: 90px;
+  text-transform: capitalize;
+}
+
+.score-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #e5e5e5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #165DFF, #764ba2);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.score-bar-value {
+  font-size: 12px;
+  color: #333;
+  width: 32px;
+  text-align: right;
+}
+
+.score-section {
+  margin-bottom: 12px;
+}
+
+.score-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.score-item {
+  font-size: 13px;
+  color: #555;
+  padding: 2px 0;
+}
+
+.score-summary {
+  font-size: 14px;
+  color: #333;
+  font-style: italic;
+  padding: 10px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+/* R32: 布局建议样式 */
+.layout-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.layout-type-icon {
+  font-size: 28px;
+}
+
+.layout-type-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: #165DFF;
+}
+
+.layout-reason {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+/* R32: 美化结果样式 */
+.enhance-colors {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.enhance-label {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.enhance-swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.enhance-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #e5e5e5;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.enhance-swatch:hover {
+  transform: scale(1.1);
+}
+
+.enhance-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+/* 移动端 AI 工具栏 */
+@media (max-width: 768px) {
+  .ai-toolbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .ai-toolbar-title {
+    font-size: 11px;
+  }
+
+  .ai-btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .ai-translate-select {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .ai-modal {
+    max-width: 95%;
   }
 }
 </style>

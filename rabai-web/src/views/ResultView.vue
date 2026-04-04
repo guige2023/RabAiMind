@@ -25,7 +25,11 @@
           </div>
 
           <!-- PPT预览 -->
-          <div class="ppt-preview-section">
+          <div class="ppt-preview-section" ref="slidesContainerRef">
+            <!-- Swipe hint (mobile only) -->
+            <div class="swipe-hint" v-if="isMobile && previewSlides.length > 1">
+              <span>👆 左右滑动查看更多</span>
+            </div>
             <h3 class="preview-title">PPT 预览</h3>
             <div class="preview-loading" v-if="!previewLoaded">
               <div class="loading-spinner"></div>
@@ -86,33 +90,47 @@
             <button class="btn btn-lg btn-presentation" @click="showPresentation = true">
               <span>🎬</span> 演示模式
             </button>
-            <button
-              class="btn btn-lg"
-              :class="isFavorite ? 'btn-favorite-active' : 'btn-favorite'"
-              @click="toggleFavorite"
-            >
-              <span>{{ isFavorite ? '⭐' : '☆' }}</span> {{ isFavorite ? '已收藏' : '收藏' }}
+            <!-- 更多操作下拉菜单 -->
+            <div class="more-actions-dropdown">
+              <button class="btn btn-lg" @click="showMoreMenu = !showMoreMenu">
+                <span>⋯</span> 更多
+              </button>
+              <div v-if="showMoreMenu" class="more-menu">
+                <button @click="toggleFavorite">
+                  <span>{{ isFavorite ? '⭐' : '☆' }}</span> {{ isFavorite ? '已收藏' : '收藏' }}
+                </button>
+                <button @click="showExportMenu = !showMoreMenu; showMoreMenu = false">
+                  <span>📄</span> 导出其他格式
+                </button>
+                <button @click="showShareMenu = !showMoreMenu; showMoreMenu = false">
+                  <span>📤</span> 分享
+                </button>
+                <button @click="showSaveTemplateModal = true; showMoreMenu = false">
+                  <span>📁</span> 存为模板
+                </button>
+                <button @click="showVersionPanel = true; showMoreMenu = false; loadVersionHistory()">
+                  <span>📜</span> 版本历史
+                </button>
+                <button @click="handleNew">
+                  <span>✨</span> 创建新的
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 浮动工具栏 -->
+          <div class="function-toolbar">
+            <button class="toolbar-btn" @click="showLayoutPanel = true" title="快速调优">
+              🎨
             </button>
-            <button class="btn btn-export btn-lg" @click="showExportMenu = !showExportMenu">
-              <span>📄</span> 导出其他格式
+            <button class="toolbar-btn" @click="showChartEditor = true" title="图表编辑">
+              📊
             </button>
-            <button class="btn btn-share btn-lg" @click="showShareMenu = !showShareMenu">
-              <span>📤</span> 分享
+            <button class="toolbar-btn" @click="showElementEditor = true" title="元素微调">
+              🛠️
             </button>
-            <button class="btn btn-tune btn-lg" @click="showLayoutPanel = true">
-              <span>🎨</span> 快速调优
-            </button>
-            <button class="btn btn-chart-editor btn-lg" @click="showChartEditor = true">
-              <span>📊</span> 图表编辑
-            </button>
-            <button class="btn btn-secondary btn-lg" @click="handleNew">
-              <span>✨</span> 创建新的
-            </button>
-            <button class="btn btn-version btn-lg" @click="showVersionPanel = true">
-              <span>📜</span> 版本历史
-            </button>
-            <button class="btn btn-secondary btn-lg" @click="showSaveTemplateModal = true">
-              <span>📁</span> 存为模板
+            <button class="toolbar-btn" @click="showTransitionPanel = true" title="幻灯片过渡">
+              🔀
             </button>
           </div>
 
@@ -154,6 +172,39 @@
                   <label class="radio-item">
                     <input type="radio" v-model="newTemplate.visibility" value="public" /> 公开（其他用户可用）
                   </label>
+                </div>
+              </div>
+
+              <!-- 自定义主题色 -->
+              <div class="form-item theme-colors-item">
+                <text class="form-label">应用主题色</text>
+                <div class="theme-color-pickers">
+                  <div class="theme-color-field">
+                    <label>主色</label>
+                    <div class="theme-color-input">
+                      <input type="color" v-model="newTemplate.themePrimary" />
+                      <input type="text" v-model="newTemplate.themePrimary" maxlength="7" />
+                    </div>
+                  </div>
+                  <div class="theme-color-field">
+                    <label>辅色</label>
+                    <div class="theme-color-input">
+                      <input type="color" v-model="newTemplate.themeSecondary" />
+                      <input type="text" v-model="newTemplate.themeSecondary" maxlength="7" />
+                    </div>
+                  </div>
+                  <div class="theme-color-field">
+                    <label>强调色</label>
+                    <div class="theme-color-input">
+                      <input type="color" v-model="newTemplate.themeAccent" />
+                      <input type="text" v-model="newTemplate.themeAccent" maxlength="7" />
+                    </div>
+                  </div>
+                </div>
+                <div class="theme-preview-strip">
+                  <div class="strip-primary" :style="{ background: newTemplate.themePrimary }"></div>
+                  <div class="strip-secondary" :style="{ background: newTemplate.themeSecondary }"></div>
+                  <div class="strip-accent" :style="{ background: newTemplate.themeAccent }"></div>
                 </div>
               </div>
 
@@ -210,6 +261,33 @@
                 <button class="btn btn-sm btn-preview" @click="previewSlide(index)">
                   👁️ 预览此页
                 </button>
+                <!-- 图片操作按钮 -->
+                <div class="slide-image-controls">
+                  <button class="btn btn-sm btn-image-upload" @click="triggerImageUpload(index)">
+                    📷 上传图片
+                  </button>
+                  <button class="btn btn-sm btn-image-regenerate" @click="regenerateSlideImage(index)">
+                    🎨 AI生成
+                  </button>
+                  <button
+                    class="btn btn-sm btn-image-remove"
+                    @click="removeSlideImage(index)"
+                    v-if="slide.imageUrl"
+                  >
+                    🗑️ 移除图片
+                  </button>
+                  <input
+                    type="file"
+                    :ref="el => imageUploadRefs[index] = el"
+                    accept="image/*"
+                    style="display: none"
+                    @change="handleImageUpload(index, $event)"
+                  />
+                  <!-- 当前图片预览 -->
+                  <div v-if="slide.imageUrl" class="slide-image-preview">
+                    <img :src="slide.imageUrl" alt="当前图片" />
+                  </div>
+                </div>
               </div>
             </div>
             <div class="edit-actions">
@@ -334,6 +412,17 @@
               </div>
             </div>
 
+            <!-- 导出进度指示器 -->
+            <div v-if="isExporting" class="export-progress-section">
+              <div class="export-progress-bar">
+                <div class="export-progress-fill" :style="{ width: exportProgress + '%' }"></div>
+              </div>
+              <div class="export-progress-text">
+                <span>{{ exportStatusText }}</span>
+                <span>{{ exportProgress }}%</span>
+              </div>
+            </div>
+
             <!-- 导出按钮 -->
             <button
               class="export-confirm-btn"
@@ -342,6 +431,16 @@
             >
               <span v-if="isExporting">导出中...</span>
               <span v-else>📥 导出 {{ exportFormats.find(f => f.id === selectedFormat)?.name }}</span>
+            </button>
+
+            <!-- PNG序列ZIP导出按钮 -->
+            <button
+              v-if="selectedFormat === 'png'"
+              class="export-confirm-btn export-png-zip-btn"
+              @click="handleExportPngZip"
+              :disabled="isExporting"
+            >
+              📦 导出PNG序列(ZIP)
             </button>
 
             <!-- 其他选项 -->
@@ -354,6 +453,32 @@
                 <span class="export-icon">🖨️</span>
                 <span>打印</span>
               </button>
+            </div>
+
+            <!-- 导出历史记录 -->
+            <div class="export-history-section">
+              <div class="export-section-title">导出历史</div>
+              <div v-if="exportHistory.length === 0" class="export-history-empty">
+                暂无导出记录
+              </div>
+              <div v-else class="export-history-list">
+                <div
+                  v-for="item in exportHistory.slice(0, 10)"
+                  :key="item.id"
+                  class="export-history-item"
+                  @click="downloadExportHistoryItem(item)"
+                >
+                  <div class="export-history-info">
+                    <span class="export-history-format">{{ item.format }}</span>
+                    <span class="export-history-quality">{{ item.quality }}</span>
+                    <span class="export-history-slides">{{ item.slideCount }}页</span>
+                  </div>
+                  <div class="export-history-meta">
+                    <span class="export-history-time">{{ formatExportTime(item.timestamp) }}</span>
+                    <span class="export-history-size">{{ item.fileSize }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -431,6 +556,7 @@
     <PresentationMode
       v-model:active="showPresentation"
       :slides="presentationSlides"
+      :transition-settings="transitionSettings"
     />
 
     <!-- 版本历史侧边面板 -->
@@ -444,7 +570,18 @@
           </view>
         </view>
         
-        <view class="version-list">
+        <!-- 标签页切换: 版本历史 / 操作日志 -->
+        <view class="panel-tabs">
+          <view :class="['tab-btn', !showActionLog ? 'active' : '']" @click="showActionLog = false; loadVersionHistory()">
+            <text>📜 版本</text>
+          </view>
+          <view :class="['tab-btn', showActionLog ? 'active' : '']" @click="showActionLog = true; loadActionLog(); loadUndoStack()">
+            <text>📝 操作日志</text>
+          </view>
+        </view>
+        
+        <!-- 版本历史列表 -->
+        <view v-if="!showActionLog" class="version-list">
           <view v-for="v in versionList" 
                 :key="v.version_id"
                 :class="['version-item', v.version_id === currentVersionId ? 'current' : '']">
@@ -457,6 +594,29 @@
               <button class="btn btn-mini" @click="compareVersion(v.version_id)">对比</button>
               <button class="btn btn-mini btn-rollback" @click="rollbackToVersion(v.version_id)">回滚</button>
             </view>
+          </view>
+          <view v-if="versionList.length === 0" class="empty-tip">暂无版本记录</view>
+        </view>
+        
+        <!-- 操作日志列表 -->
+        <view v-if="showActionLog" class="action-log-container">
+          <!-- 撤销按钮 -->
+          <view class="undo-bar" v-if="undoStack.length > 0">
+            <button class="btn btn-sm btn-undo" @click="undoLastAction">
+              ↩️ 撤销 ({{ undoStack.length }})
+            </button>
+          </view>
+          <view class="action-log-list">
+            <view v-for="(log, idx) in actionLog" 
+                  :key="idx"
+                  :class="['action-item', log.action_type === 'undo' ? 'undo-entry' : '']">
+              <view class="action-icon">{{ getActionIcon(log.action_type) }}</view>
+              <view class="action-content">
+                <text class="action-desc">{{ log.description }}</text>
+                <text class="action-time">{{ formatTime(log.timestamp) }}</text>
+              </view>
+            </view>
+            <view v-if="actionLog.length === 0" class="empty-tip">暂无操作记录</view>
           </view>
         </view>
         
@@ -579,19 +739,153 @@
         </div>
       </div>
     </div>
+
+    <!-- 幻灯片过渡设置面板 -->
+    <div v-if="showTransitionPanel" class="transition-panel-overlay" @click="showTransitionPanel = false">
+      <div class="transition-panel" @click.stop>
+        <div class="panel-header">
+          <h3>🔀 幻灯片过渡</h3>
+          <button class="panel-close" @click="showTransitionPanel = false">✕</button>
+        </div>
+        <div class="panel-content">
+          <!-- 过渡效果 -->
+          <div class="panel-section">
+            <h4 class="section-title">过渡效果</h4>
+            <div class="transition-options">
+              <div
+                v-for="t in transitionTypes"
+                :key="t.value"
+                class="transition-item"
+                :class="{ active: transitionSettings.type === t.value }"
+                @click="transitionSettings.type = t.value"
+              >
+                <span class="transition-icon">{{ t.icon }}</span>
+                <span class="transition-name">{{ t.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 过渡速度 -->
+          <div class="panel-section">
+            <h4 class="section-title">过渡速度</h4>
+            <div class="duration-options">
+              <button
+                v-for="d in durationOptions"
+                :key="d.value"
+                class="duration-item"
+                :class="{ active: transitionSettings.duration === d.value }"
+                @click="transitionSettings.duration = d.value"
+              >
+                {{ d.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 应用于全部 -->
+          <div class="panel-section">
+            <h4 class="section-title">应用到</h4>
+            <div class="apply-options">
+              <label class="apply-label">
+                <input type="radio" v-model="transitionApplyScope" value="current" />
+                当前页
+              </label>
+              <label class="apply-label">
+                <input type="radio" v-model="transitionApplyScope" value="all" />
+                全部页面
+              </label>
+            </div>
+          </div>
+
+          <!-- 自动播放 -->
+          <div class="panel-section">
+            <h4 class="section-title">自动播放</h4>
+            <div class="auto-advance-option">
+              <label class="toggle-label">
+                <input type="checkbox" v-model="transitionSettings.autoAdvance" />
+                启用自动播放
+              </label>
+              <select
+                v-if="transitionSettings.autoAdvance"
+                v-model.number="transitionSettings.autoDelay"
+                class="auto-delay-select"
+              >
+                <option :value="3000">每 3 秒</option>
+                <option :value="5000">每 5 秒</option>
+                <option :value="8000">每 8 秒</option>
+                <option :value="10000">每 10 秒</option>
+                <option :value="15000">每 15 秒</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 预览效果 -->
+          <div class="panel-section">
+            <h4 class="section-title">效果预览</h4>
+            <div class="transition-preview" :class="'preview-' + transitionSettings.type">
+              <div class="preview-box"></div>
+              <span class="preview-label">{{ getTransitionLabel(transitionSettings.type) }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel-footer">
+          <button class="btn btn-outline" @click="showTransitionPanel = false">关闭</button>
+          <button class="btn btn-primary" @click="applyTransitionToSlides">应用</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
 import ChartEditor from '../components/ChartEditor.vue'
+import { useSwipeGesture } from '../composables/useSwipeGesture'
+import { getDeviceMode } from '../composables/useDeviceMode'
+import { useInteractionFeedback } from '../composables/useInteractionFeedback'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
+import { useImageCompressor } from '../composables/useImageCompressor'
+import { usePerformanceMode } from '../composables/usePerformanceMode'
 
 const router = useRouter()
 const route = useRoute()
+
+// Device mode detection
+const deviceMode = getDeviceMode()
+const isMobile = deviceMode.isMobile
+
+// Toast notifications
+const { showSuccess, showError, showWarning, showInfo } = useInteractionFeedback()
+
+// Image compression
+const { compressImage } = useImageCompressor()
+const { isPerformanceMode: isPerfMode } = usePerformanceMode()
+
+// Swipe navigation for preview slides
+const currentVisibleSlide = ref(0)
+const slidesContainerRef = ref<HTMLElement | null>(null)
+
+const swipeNextSlide = () => {
+  if (currentVisibleSlide.value < previewSlides.value.length - 1) {
+    currentVisibleSlide.value++
+  }
+}
+
+const swipePrevSlide = () => {
+  if (currentVisibleSlide.value > 0) {
+    currentVisibleSlide.value--
+  }
+}
+
+useSwipeGesture({
+  element: slidesContainerRef,
+  onSwipeLeft: swipeNextSlide,
+  onSwipeRight: swipePrevSlide,
+  threshold: 60
+})
 
 const taskId = ref((route.query.taskId as string) || '')
 const status = ref('loading')
@@ -623,11 +917,51 @@ const showLayoutPanel = ref(false)
 // 图表编辑器
 const showChartEditor = ref(false)
 
+// 幻灯片过渡设置
+const showTransitionPanel = ref(false)
+const transitionApplyScope = ref<'current' | 'all'>('all')
+
+const transitionTypes = [
+  { value: 'slide', name: '滑动', icon: '→' },
+  { value: 'fade', name: '淡入淡出', icon: '◐' },
+  { value: 'zoom', name: '缩放', icon: '⊕' },
+  { value: 'flip', name: '翻转', icon: '↺' }
+]
+
+const durationOptions = [
+  { value: 'fast', label: '快 (0.3s)' },
+  { value: 'normal', label: '中 (0.5s)' },
+  { value: 'slow', label: '慢 (0.8s)' }
+]
+
+const transitionSettings = reactive({
+  type: 'slide' as 'slide' | 'fade' | 'zoom' | 'flip',
+  duration: 'normal' as 'fast' | 'normal' | 'slow',
+  autoAdvance: false,
+  autoDelay: 5000
+})
+
+const getTransitionLabel = (type: string) => {
+  return transitionTypes.find(t => t.value === type)?.name || type
+}
+
+const applyTransitionToSlides = () => {
+  // Transition is applied via the transitionSettings prop passed to PresentationMode
+  // For per-slide transitions, we would need to modify the slides data
+  showTransitionPanel.value = false
+  // Open presentation mode to preview
+  showPresentation.value = true
+}
+
 // 版本历史相关
 const showVersionPanel = ref(false)
 const versionList = ref<Array<{version_id: string; name: string; created_at: string; slide_count: number}>>([])
 const currentVersionId = ref('')
 const showDiffView = ref(false)
+// 操作日志 & 撤销相关
+const actionLog = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const undoStack = ref<Array<{action_type: string; description: string; timestamp: string; undo_data?: any}>>([])
+const showActionLog = ref(false)  // 是否显示操作日志tab
 const diffData = ref<{
   version_a: string
   version_b: string
@@ -655,7 +989,11 @@ const newTemplate = ref({
   description: '',
   sceneIndex: 0,
   styleIndex: 0,
-  visibility: 'private'
+  visibility: 'private',
+  // Custom theme colors
+  themePrimary: '#165DFF',
+  themeSecondary: '#0E42D2',
+  themeAccent: '#64D2FF'
 })
 // BUG修复: 从后端API加载场景/风格，不再硬编码
 const scenes = ref<Array<{id: string; name: string}>>([
@@ -693,7 +1031,7 @@ const loadScenesAndStyles = async () => {
 
 async function saveAsTemplate() {
   if (!newTemplate.value.name.trim()) {
-    alert('请填写模板名称')
+    showWarning('请填写模板名称', '模板名称不能为空')
     return
   }
   try {
@@ -702,14 +1040,19 @@ async function saveAsTemplate() {
       description: newTemplate.value.description,
       scene: scenes.value[newTemplate.value.sceneIndex]?.id || 'business',
       style: styles.value[newTemplate.value.styleIndex]?.id || 'professional',
-      visibility: newTemplate.value.visibility
+      visibility: newTemplate.value.visibility,
+      theme: {
+        primary: newTemplate.value.themePrimary,
+        secondary: newTemplate.value.themeSecondary,
+        accent: newTemplate.value.themeAccent
+      }
     })
     if (res.data.success) {
-      alert('模板已保存')
+      showSuccess('模板已保存', `「${newTemplate.value.name}」已添加到我的模板`)
       showSaveTemplateModal.value = false
     }
   } catch (e) {
-    alert('保存失败')
+    showError('保存失败', '请稍后重试')
   }
 }
 
@@ -903,9 +1246,9 @@ const applyTuning = async () => {
   }
   
   if (failedCount === 0) {
-    alert(`✅ 布局已更新为「${newLayout}」，共更新${updatedCount}页`)
+    showSuccess('布局更新成功', `已更新为「${newLayout}」，共${updatedCount}页`)
   } else {
-    alert(`⚠️ 布局更新完成：成功${updatedCount}页，失败${failedCount}页`)
+    showWarning('布局部分更新', `成功${updatedCount}页，失败${failedCount}页`)
   }
 }
 
@@ -913,6 +1256,7 @@ const editableSlides = ref<{
   title: string
   content: string
   layout: string
+  imageUrl?: string
 }[]>([])
 
 // 切换编辑模式
@@ -963,6 +1307,22 @@ const initEditableSlides = async () => {
           ...s,
           layout: normalizeLayout(s.layout)
         }))
+        // BUG修复: 验证并同步数量
+        if (editableSlides.value.length !== slideCount.value) {
+          console.warn(`[initEditableSlides] localStorage count mismatch: editableSlides=${editableSlides.value.length}, slideCount=${slideCount.value}. Syncing...`)
+          if (editableSlides.value.length > slideCount.value) {
+            editableSlides.value = editableSlides.value.slice(0, slideCount.value)
+          } else {
+            while (editableSlides.value.length < slideCount.value) {
+              const idx = editableSlides.value.length
+              editableSlides.value.push({
+                title: `第 ${idx + 1} 页标题`,
+                content: '内容要点1\n内容要点2\n内容要点3',
+                layout: idx === 0 ? 'title' : 'content'
+              })
+            }
+          }
+        }
         return
       }
     } catch (e) {
@@ -981,6 +1341,22 @@ const initEditableSlides = async () => {
         }))
         // 缓存到localStorage
         localStorage.setItem(taskBasedKey, JSON.stringify(res.data))
+        // BUG修复: 验证并同步数量
+        if (editableSlides.value.length !== slideCount.value) {
+          console.warn(`[initEditableSlides] API loaded count mismatch: editableSlides=${editableSlides.value.length}, slideCount=${slideCount.value}. Syncing...`)
+          if (editableSlides.value.length > slideCount.value) {
+            editableSlides.value = editableSlides.value.slice(0, slideCount.value)
+          } else {
+            while (editableSlides.value.length < slideCount.value) {
+              const idx = editableSlides.value.length
+              editableSlides.value.push({
+                title: `第 ${idx + 1} 页标题`,
+                content: '内容要点1\n内容要点2\n内容要点3',
+                layout: idx === 0 ? 'title' : 'content'
+              })
+            }
+          }
+        }
         return
       }
     } catch (e) {
@@ -1081,6 +1457,119 @@ const previewSlide = async (index: number) => {
   }
 }
 
+// 图片上传 refs
+const imageUploadRefs = ref<HTMLElement[]>([])
+
+// 触发图片上传
+const triggerImageUpload = (index: number) => {
+  const refs = imageUploadRefs.value
+  if (refs && refs[index]) {
+    (refs[index] as HTMLInputElement).click()
+  }
+}
+
+// 处理图片上传
+const handleImageUpload = async (index: number, event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    // Compress image if performance mode is on or file > 1MB
+    const fileToUpload = (isPerfMode.value || file.size > 1024 * 1024)
+      ? await compressImage(file)
+      : file
+
+    if (fileToUpload !== file) {
+      console.log(`图片压缩: ${(file.size / 1024).toFixed(0)}KB → ${(fileToUpload.size / 1024).toFixed(0)}KB`)
+    }
+
+    const formData = new FormData()
+    formData.append('file', fileToUpload)
+
+    const res = await fetch(`/api/v1/ppt/image/${taskId.value}/${index + 1}/upload`, {
+      method: 'POST',
+      body: formData
+    })
+
+    const data = await res.json()
+    if (data.success) {
+      // 更新 editableSlides 中的图片
+      if (editableSlides.value[index]) {
+        editableSlides.value[index].imageUrl = data.image_url
+      }
+      showSuccess('图片上传成功', '图片已更新到幻灯片')
+      // 刷新预览
+      await previewSlide(index)
+    } else {
+      showError('图片上传失败', data.detail || '请重试')
+    }
+  } catch (e) {
+    console.error('图片上传失败:', e)
+    showError('图片上传失败', '请检查网络后重试')
+  }
+
+  // 清空 input
+  input.value = ''
+}
+
+// 重新生成单页AI图片
+const regenerateSlideImage = async (index: number) => {
+  const slide = editableSlides.value[index]
+  if (!slide) return
+
+  try {
+    const res = await api.ppt.updateSlideImage({
+      taskId: taskId.value,
+      slideIndex: index + 1,
+      action: 'regenerate'
+    })
+
+    if (res.data.success) {
+      // 更新 editableSlides 中的图片
+      if (editableSlides.value[index]) {
+        editableSlides.value[index].imageUrl = res.data.image_url
+      }
+      showSuccess('图片生成成功', '幻灯片图片已更新')
+      // 刷新预览
+      await previewSlide(index)
+    } else {
+      showError('图片生成失败', res.data.message || '请重试')
+    }
+  } catch (e) {
+    console.error('图片生成失败:', e)
+    showError('图片生成失败', '请稍后重试')
+  }
+}
+
+// 移除单页图片
+const removeSlideImage = async (index: number) => {
+  if (!confirm('确定要移除这张图片吗？')) return
+
+  try {
+    const res = await api.ppt.updateSlideImage({
+      taskId: taskId.value,
+      slideIndex: index + 1,
+      action: 'remove'
+    })
+
+    if (res.data.success) {
+      // 清除 editableSlides 中的图片
+      if (editableSlides.value[index]) {
+        editableSlides.value[index].imageUrl = undefined
+      }
+      alert('图片已移除')
+      // 刷新预览
+      await previewSlide(index)
+    } else {
+      alert(res.data.message || '移除失败')
+    }
+  } catch (e) {
+    console.error('移除图片失败:', e)
+    alert('移除图片失败')
+  }
+}
+
 // 使用编辑的内容重新生成PPT
 const regenerateWithEdits = async () => {
   isRegenerating.value = true
@@ -1156,19 +1645,103 @@ const regenerateWithEdits = async () => {
     })
   } catch (error) {
     console.error('重新生成失败:', error)
-    alert('重新生成失败，请重试')
+    showError('重新生成失败', '请稍后重试')
     isRegenerating.value = false
   }
 }
 
 // 导出格式选项
-type ExportFormat = 'pptx' | 'pdf' | 'images' | 'html'
+type ExportFormat = 'pptx' | 'pdf' | 'png' | 'jpg'
 const selectedFormat = ref<ExportFormat>('pptx')
 const isExporting = ref(false)
 
 // 导出质量设置
 type ExportQuality = 'standard' | 'high' | 'ultra'
 const selectedQuality = ref<ExportQuality>('high')
+
+// 导出进度
+const exportProgress = ref(0)
+const exportStatusText = ref('')
+
+// 导出历史记录（最近10条）
+interface ExportHistoryItem {
+  id: string
+  taskId: string
+  format: string
+  quality: string
+  fileName: string
+  fileSize: string
+  timestamp: string
+  slideCount: number
+}
+const exportHistory = ref<ExportHistoryItem[]>([])
+
+const loadExportHistory = () => {
+  try {
+    const saved = localStorage.getItem(`export_history_${taskId.value}`)
+    if (saved) {
+      exportHistory.value = JSON.parse(saved)
+    }
+  } catch (e) {
+    console.warn('加载导出历史失败:', e)
+  }
+}
+
+const addExportHistory = (format: string, quality: string, fileName: string, fileSize: string) => {
+  const item: ExportHistoryItem = {
+    id: Date.now().toString(),
+    taskId: taskId.value,
+    format,
+    quality,
+    fileName,
+    fileSize,
+    timestamp: new Date().toISOString(),
+    slideCount: slideCount.value
+  }
+  exportHistory.value.unshift(item)
+  // 只保留最近10条
+  if (exportHistory.value.length > 10) {
+    exportHistory.value = exportHistory.value.slice(0, 10)
+  }
+  try {
+    localStorage.setItem(`export_history_${taskId.value}`, JSON.stringify(exportHistory.value))
+  } catch (e) {
+    console.warn('保存导出历史失败:', e)
+  }
+}
+
+const formatExportTime = (isoString: string): string => {
+  if (!isoString) return ''
+  try {
+    const date = new Date(isoString)
+    return date.toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return isoString
+  }
+}
+
+const downloadExportHistoryItem = (item: ExportHistoryItem) => {
+  // 根据历史记录重新触发导出
+  const formatMap: Record<string, ExportFormat> = {
+    'PPTX': 'pptx',
+    'PDF': 'pdf',
+    'PNG': 'png',
+    'JPG': 'jpg'
+  }
+  selectedFormat.value = formatMap[item.format] || 'pptx'
+  const qualityMap: Record<string, ExportQuality> = {
+    '720p': 'standard',
+    '1080p': 'high',
+    '4K': 'ultra'
+  }
+  selectedQuality.value = qualityMap[item.quality] || 'high'
+  showExportMenu.value = true
+}
 
 const exportFormats = [
   { id: 'pptx', name: 'PPTX', icon: '📊', desc: 'PowerPoint演示文稿', ext: '.pptx', quality: true },
@@ -1246,6 +1819,11 @@ const toggleFavorite = () => {
       historyList[index].favorite = !historyList[index].favorite
       isFavorite.value = historyList[index].favorite
       localStorage.setItem('ppt_history', JSON.stringify(historyList))
+      if (isFavorite.value) {
+        showSuccess('已收藏', 'PPT已添加到收藏列表')
+      } else {
+        showInfo('已取消收藏', 'PPT已从收藏列表移除')
+      }
     }
   }
 }
@@ -1356,6 +1934,8 @@ const handleDownload = async () => {
   if (!taskId.value || isExporting.value) return
 
   isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在准备...'
   showExportMenu.value = false
 
   try {
@@ -1365,24 +1945,43 @@ const handleDownload = async () => {
       dpi: selectedQuality.value === 'ultra' ? 300 : (selectedQuality.value === 'high' ? 150 : 96)
     }
 
+    exportStatusText.value = '正在下载...'
+    exportProgress.value = 30
+
     const response = await api.ppt.downloadPpt(taskId.value, qualityParams)
 
     // 根据质量添加后缀
     const qualitySuffix = selectedQuality.value === 'standard' ? '' : `_${selectedQuality.value}`
+    const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
 
+    exportStatusText.value = '正在保存...'
+    exportProgress.value = 70
+
+    const fileName = `presentation_${taskId.value}${qualitySuffix}.pptx`
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.download = `presentation_${taskId.value}${qualitySuffix}.pptx`
+    link.download = fileName
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
+
+    // 记录到导出历史
+    addExportHistory('PPTX', qualityName, fileName, formatSize(response.data.size || 0))
+
+    exportProgress.value = 100
+    exportStatusText.value = '导出完成!'
+    showSuccess('下载成功', `PPT已保存为 ${fileName}`)
   } catch (error) {
     console.error('下载失败:', error)
-    alert('下载失败，请重试')
+    showError('下载失败', '请检查网络后重试')
   } finally {
-    isExporting.value = false
+    setTimeout(() => {
+      isExporting.value = false
+      exportProgress.value = 0
+      exportStatusText.value = ''
+    }, 1500)
   }
 }
 
@@ -1401,22 +2000,37 @@ const handleExportPDF = async () => {
   if (isExporting.value) return
 
   isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在准备...'
   showExportMenu.value = false
 
   try {
+    exportStatusText.value = '正在转换PDF...'
+    exportProgress.value = 20
+
     // 尝试调用后端API
     const response = await api.ppt.exportPdf(taskId.value).catch(() => null)
 
     if (response) {
-      // 后端可用，下载返回的PDF
+      exportStatusText.value = '正在下载...'
+      exportProgress.value = 70
+
+      const fileName = `presentation_${taskId.value}.pdf`
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.download = `presentation_${taskId.value}.pdf`
+      link.download = fileName
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
+
+      // 记录到导出历史
+      const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
+      addExportHistory('PDF', qualityName, fileName, formatSize(response.data.size || 0))
+
+      exportProgress.value = 100
+      exportStatusText.value = '导出完成!'
     } else {
       // 后端不可用，使用浏览器打印功能
       exportViaPrint()
@@ -1426,7 +2040,11 @@ const handleExportPDF = async () => {
     // 降级到打印
     exportViaPrint()
   } finally {
-    isExporting.value = false
+    setTimeout(() => {
+      isExporting.value = false
+      exportProgress.value = 0
+      exportStatusText.value = ''
+    }, 1500)
   }
 }
 
@@ -1489,6 +2107,8 @@ const handleExportImages = async () => {
   }
 
   isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在准备...'
   showExportMenu.value = false
 
   try {
@@ -1501,6 +2121,9 @@ const handleExportImages = async () => {
     // 为每张幻灯片生成图片并下载
     for (let i = 0; i < slides.length; i++) {
       const slideUrl = slides[i].url
+
+      exportStatusText.value = `正在导出第 ${i + 1}/${slides.length} 页...`
+      exportProgress.value = Math.round(((i + 1) / slides.length) * 80)
 
       // 创建图片元素
       const img = new Image()
@@ -1533,7 +2156,7 @@ const handleExportImages = async () => {
           link.click()
 
           // 避免同时触发多个下载
-          setTimeout(resolve, 500)
+          setTimeout(resolve, 200)
         }
         img.onerror = () => {
           console.error(`幻灯片 ${i + 1} 图片加载失败`)
@@ -1543,12 +2166,78 @@ const handleExportImages = async () => {
       })
     }
 
+    exportStatusText.value = '正在保存...'
+    exportProgress.value = 90
+
+    // 记录到导出历史
+    const fileName = `slides_${qualityName}_${taskId.value}.zip`
+    addExportHistory(ext.toUpperCase(), qualityName, `${slides.length}张图片`, '~')
+
+    exportProgress.value = 100
+    exportStatusText.value = '导出完成!'
     alert(`已成功导出 ${slides.length} 张 ${qualityName} 图片！`)
   } catch (error) {
     console.error('图片导出失败:', error)
     alert('图片导出失败，请重试')
   } finally {
-    isExporting.value = false
+    setTimeout(() => {
+      isExporting.value = false
+      exportProgress.value = 0
+      exportStatusText.value = ''
+    }, 1500)
+  }
+}
+
+// 导出PNG序列（ZIP格式）- 调用后端API
+const handleExportPngZip = async () => {
+  if (isExporting.value) return
+
+  isExporting.value = true
+  exportProgress.value = 0
+  exportStatusText.value = '正在准备PNG序列...'
+  showExportMenu.value = false
+
+  try {
+    const qualityName = selectedQuality.value === 'ultra' ? '4K' : selectedQuality.value === 'high' ? '1080p' : '720p'
+    const resolutionMap: Record<string, string> = {
+      'standard': '720p',
+      'high': '1080p',
+      'ultra': '4K'
+    }
+
+    exportStatusText.value = '正在生成PNG序列...'
+    exportProgress.value = 20
+
+    const response = await api.ppt.exportPngSequence(taskId.value, resolutionMap[selectedQuality.value])
+
+    exportStatusText.value = '正在打包ZIP...'
+    exportProgress.value = 70
+
+    const fileName = `slides_${resolutionMap[selectedQuality.value]}_${taskId.value}.zip`
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+
+    // 记录到导出历史
+    addExportHistory('PNG', qualityName, fileName, formatSize(response.data.size || 0))
+
+    exportProgress.value = 100
+    exportStatusText.value = '导出完成!'
+    alert('PNG序列ZIP导出成功！')
+  } catch (error) {
+    console.error('PNG ZIP导出失败:', error)
+    alert('PNG序列导出失败，请重试')
+  } finally {
+    setTimeout(() => {
+      isExporting.value = false
+      exportProgress.value = 0
+      exportStatusText.value = ''
+    }, 1500)
   }
 }
 
@@ -1560,6 +2249,7 @@ const handlePrint = () => {
 
 // 分享
 const showShareMenu = ref(false)
+const showMoreMenu = ref(false)
 const showQRCode = ref(false)
 const shareTitle = ref('RabAi Mind PPT')
 
@@ -1658,6 +2348,23 @@ const handleShare = async (type: string) => {
   }
 }
 
+// 获取操作类型的图标
+const getActionIcon = (actionType: string): string => {
+  const iconMap: Record<string, string> = {
+    'outline_edit': '📝',
+    'slide_regenerate': '🔄',
+    'rollback': '⏪',
+    'undo': '↩️',
+    'slide_image': '🖼️',
+    'chart_edit': '📊',
+    'element_edit': '✏️',
+    'template_save': '💾',
+    'create': '✨',
+    'delete': '🗑️',
+  }
+  return iconMap[actionType] || '📋'
+}
+
 // 格式化时间
 const formatTime = (isoString: string): string => {
   if (!isoString) return ''
@@ -1688,6 +2395,59 @@ const loadVersionHistory = async () => {
     }
   } catch (e) {
     console.warn('加载版本历史失败:', e)
+  }
+}
+
+// 加载操作日志
+const loadActionLog = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getActionLog(taskId.value, 20)
+    if (res.data && res.data.success) {
+      actionLog.value = res.data.action_log || []
+    }
+  } catch (e) {
+    console.warn('加载操作日志失败:', e)
+  }
+}
+
+// 加载撤销栈
+const loadUndoStack = async () => {
+  if (!taskId.value) return
+  try {
+    const res = await api.ppt.getUndoStack(taskId.value)
+    if (res.data && res.data.success) {
+      undoStack.value = res.data.undo_stack || []
+    }
+  } catch (e) {
+    console.warn('加载撤销栈失败:', e)
+  }
+}
+
+// 撤销上一操作
+const undoLastAction = async () => {
+  if (!taskId.value) return
+  if (undoStack.value.length === 0) {
+    showWarning('无可撤销的操作', '撤销栈为空')
+    return
+  }
+  if (!confirm(`确认撤销「${undoStack.value[undoStack.value.length - 1]?.description}」？`)) return
+  
+  try {
+    const res = await api.ppt.undo(taskId.value)
+    if (res.data && res.data.success) {
+      showSuccess('撤销成功', `已撤销: ${res.data.undone_action}`)
+      // 刷新状态
+      await loadStatus()
+      await loadActionLog()
+      await loadUndoStack()
+      await loadVersionHistory()
+    } else {
+      showError('撤销失败', res.data?.message || '未知错误')
+    }
+  } catch (e: any) {
+    console.error('撤销失败:', e)
+    showError('撤销失败', e?.response?.data?.detail || '网络错误')
   }
 }
 
@@ -1722,7 +2482,7 @@ const rollbackToVersion = async (versionId: string) => {
   try {
     const res = await api.ppt.rollbackVersion(taskId.value, versionId)
     if (res.data && res.data.success) {
-      alert(res.data.message || '回滚成功')
+      showSuccess('回滚成功', res.data.message || '已恢复到指定版本')
       // 重新加载版本历史和当前版本
       await loadVersionHistory()
       await loadVersion(versionId)
@@ -1731,7 +2491,7 @@ const rollbackToVersion = async (versionId: string) => {
     }
   } catch (e) {
     console.error('回滚失败:', e)
-    alert('回滚失败，请稍后重试')
+    showError('回滚失败', '请稍后重试')
   }
 }
 
@@ -1761,14 +2521,59 @@ const createSnapshot = async () => {
   try {
     const res = await api.ppt.createSnapshot(taskId.value)
     if (res.data && res.data.success) {
-      alert('快照已创建')
+      showSuccess('快照已创建', '可随时从版本历史中恢复')
       await loadVersionHistory()
     }
   } catch (e) {
     console.error('创建快照失败:', e)
-    alert('创建快照失败，请稍后重试')
+    showError('创建快照失败', '请稍后重试')
   }
 }
+
+// Global keyboard shortcuts
+useKeyboardShortcuts([
+  {
+    key: 's',
+    ctrl: true,
+    handler: () => {
+      if (!isExporting.value) {
+        handleDownload()
+        showSuccess('下载已触发', 'PPT正在生成下载中...')
+      }
+    },
+    description: '保存/下载PPT (Ctrl+S)'
+  },
+  {
+    key: 'z',
+    ctrl: true,
+    handler: () => {
+      if (isEditMode.value) {
+        // Undo last edit - move slide back to previous position (simplified undo)
+        showWarning('撤销', '编辑模式下的撤销功能')
+      }
+    },
+    description: '撤销 (Ctrl+Z)'
+  },
+  {
+    key: 'Escape',
+    handler: () => {
+      if (showSaveTemplateModal.value) {
+        showSaveTemplateModal.value = false
+      } else if (showMoreMenu.value) {
+        showMoreMenu.value = false
+      } else if (showShareMenu.value) {
+        showShareMenu.value = false
+      } else if (showLayoutPanel.value) {
+        showLayoutPanel.value = false
+      } else if (showVersionPanel.value) {
+        showVersionPanel.value = false
+      } else if (isEditMode.value) {
+        isEditMode.value = false
+      }
+    },
+    description: '关闭/取消 (Esc)'
+  }
+])
 
 onMounted(() => {
   loadStatus()
@@ -1777,6 +2582,8 @@ onMounted(() => {
   loadVersionHistory()
   // BUG修复: 从API加载场景/风格配置
   loadScenesAndStyles()
+  // 加载导出历史
+  loadExportHistory()
 })
 </script>
 
@@ -2173,6 +2980,97 @@ onMounted(() => {
   background: linear-gradient(135deg, #0f8a7f 0%, #30d66e 100%);
 }
 
+/* 更多操作下拉菜单 */
+.more-actions-dropdown {
+  position: relative;
+}
+
+.more-actions-dropdown .btn {
+  background: white;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+.more-actions-dropdown .btn:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.more-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  z-index: 100;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+  transition: background 0.2s;
+}
+
+.more-menu button:hover {
+  background: #f5f5f5;
+}
+
+.more-menu button span {
+  font-size: 16px;
+}
+
+/* 浮动工具栏 */
+.function-toolbar {
+  position: fixed;
+  right: 24px;
+  bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 50;
+}
+
+.toolbar-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.toolbar-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.toolbar-btn:active {
+  transform: scale(0.95);
+}
+
 /* 内容编辑面板 */
 .content-edit-panel {
   background: white;
@@ -2315,6 +3213,79 @@ onMounted(() => {
 .btn-preview:hover {
   background: #e0edff;
   border-color: #165DFF;
+}
+
+/* 图片操作按钮 */
+.slide-image-controls {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.slide-image-controls .btn-sm {
+  flex: 1;
+  min-width: 80px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.2s;
+}
+
+.btn-image-upload {
+  background: #f0f9ff;
+  color: #165DFF;
+  border-color: #d0e0ff;
+}
+
+.btn-image-upload:hover {
+  background: #e0edff;
+  border-color: #165DFF;
+}
+
+.btn-image-regenerate {
+  background: #f5f0ff;
+  color: #7c3aed;
+  border-color: #e0d0ff;
+}
+
+.btn-image-regenerate:hover {
+  background: #ede0ff;
+  border-color: #7c3aed;
+}
+
+.btn-image-remove {
+  background: #fff5f5;
+  color: #dc3545;
+  border-color: #ffd0d0;
+}
+
+.btn-image-remove:hover {
+  background: #ffe0e0;
+  border-color: #dc3545;
+}
+
+/* 图片预览 */
+.slide-image-preview {
+  width: 100%;
+  margin-top: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.slide-image-preview img {
+  width: 100%;
+  height: auto;
+  max-height: 120px;
+  object-fit: cover;
+  display: block;
 }
 
 .btn-sm {
@@ -2565,6 +3536,123 @@ onMounted(() => {
 
 .export-icon {
   font-size: 24px;
+}
+
+/* 导出进度指示器 */
+.export-progress-section {
+  margin: 12px 0;
+  padding: 12px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d0e0ff;
+}
+
+.export-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.export-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #165DFF, #34C759);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.export-progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+}
+
+/* PNG ZIP 导出按钮 */
+.export-png-zip-btn {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+  color: white !important;
+  margin-top: 8px;
+}
+
+.export-png-zip-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* 导出历史记录 */
+.export-history-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.export-history-empty {
+  text-align: center;
+  padding: 16px;
+  color: #999;
+  font-size: 13px;
+}
+
+.export-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.export-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.export-history-item:hover {
+  background: #f0f7ff;
+  border-color: #d0e0ff;
+}
+
+.export-history-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.export-history-format {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  background: #e6f0ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.export-history-quality {
+  font-size: 12px;
+  color: #666;
+}
+
+.export-history-slides {
+  font-size: 11px;
+  color: #999;
+  margin-left: auto;
+}
+
+.export-history-meta {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #999;
 }
 
 /* 分享菜单 */
@@ -2923,6 +4011,117 @@ onMounted(() => {
   color: #e65100;
 }
 
+/* 标签页 */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+
+.panel-tabs .tab-btn {
+  flex: 1;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.panel-tabs .tab-btn:hover {
+  color: #165DFF;
+  background: #f0f7ff;
+}
+
+.panel-tabs .tab-btn.active {
+  color: #165DFF;
+  border-bottom-color: #165DFF;
+  font-weight: 600;
+}
+
+/* 操作日志 */
+.action-log-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.undo-bar {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+.btn-undo {
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  font-weight: 600;
+}
+
+.btn-undo:hover {
+  background: #e65100;
+}
+
+.action-log-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.action-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.action-item.undo-entry {
+  background: #fff3e0;
+  border: 1px solid #ffe0b2;
+}
+
+.action-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.action-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.action-desc {
+  font-size: 13px;
+  color: #333;
+}
+
+.action-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.empty-tip {
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  padding: 20px;
+}
+
 /* 版本对比视图 */
 .diff-view {
   border-top: 1px solid #eee;
@@ -3226,5 +4425,437 @@ onMounted(() => {
   .style-options {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Transition Panel */
+.transition-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.transition-panel {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  background: #fff;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease;
+}
+
+.transition-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.transition-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 8px;
+  border: 2px solid #e5e5e5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fafafa;
+}
+
+.transition-item:hover {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.transition-item.active {
+  border-color: #165DFF;
+  background: #e8f0ff;
+}
+
+.transition-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.transition-name {
+  font-size: 12px;
+  color: #333;
+}
+
+.duration-options {
+  display: flex;
+  gap: 8px;
+}
+
+.duration-item {
+  flex: 1;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #333;
+}
+
+.duration-item:hover {
+  border-color: #165DFF;
+}
+
+.duration-item.active {
+  border-color: #165DFF;
+  background: #e8f0ff;
+  color: #165DFF;
+  font-weight: 600;
+}
+
+.apply-options {
+  display: flex;
+  gap: 16px;
+}
+
+.apply-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #333;
+}
+
+.auto-advance-option {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #333;
+}
+
+.auto-delay-select {
+  padding: 8px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #333;
+}
+
+.transition-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.preview-box {
+  width: 80px;
+  height: 50px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 4px;
+  transition: all 0.5s ease;
+}
+
+.preview-label {
+  font-size: 12px;
+  color: #666;
+}
+
+.preview-slide .preview-box {
+  animation: previewSlide 0.5s ease infinite alternate;
+}
+
+.preview-fade .preview-box {
+  animation: previewFade 0.5s ease infinite alternate;
+}
+
+.preview-zoom .preview-box {
+  animation: previewZoom 0.5s ease infinite alternate;
+}
+
+.preview-flip .preview-box {
+  animation: previewFlip 0.5s ease infinite alternate;
+}
+
+@keyframes previewSlide {
+  0% { transform: translateX(-20px); opacity: 0.5; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes previewFade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes previewZoom {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes previewFlip {
+  0% { transform: rotateY(-30deg); opacity: 0; }
+  100% { transform: rotateY(0deg); opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  .transition-panel {
+    width: 100%;
+  }
+
+  .transition-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============ Mobile Touch & Responsive Enhancements ============ */
+
+/* Swipe hint indicator */
+.swipe-hint {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 12px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@media (min-width: 769px) {
+  .swipe-hint {
+    display: none;
+  }
+}
+
+/* Mobile: Make side panels full-screen */
+@media (max-width: 767px) {
+  .version-panel-overlay,
+  .layout-panel-overlay,
+  .transition-panel-overlay {
+    align-items: flex-end !important;
+    justify-content: stretch !important;
+  }
+
+  .version-panel,
+  .layout-panel,
+  .transition-panel {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 90vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    animation: slideInUp 0.3s ease !important;
+  }
+
+  .layout-panel-overlay .layout-panel {
+    height: 95vh !important;
+  }
+}
+
+/* Mobile: result card adjustments */
+@media (max-width: 767px) {
+  .result-card {
+    border-radius: 20px 20px 0 0 !important;
+    margin: 0 !important;
+    padding: 20px 12px !important;
+    min-height: 100vh;
+  }
+
+  .result {
+    padding: 0 !important;
+    align-items: flex-start !important;
+  }
+
+  .file-info {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .ppt-preview-section {
+    padding: 12px;
+  }
+
+  .preview-grid {
+    display: flex !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    gap: 12px !important;
+    padding-bottom: 8px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .preview-slide {
+    flex: 0 0 85% !important;
+    scroll-snap-align: center !important;
+    aspect-ratio: 16/9 !important;
+  }
+
+  .result-actions {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: white !important;
+    padding: 12px 0 !important;
+    margin: 0 -12px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1) !important;
+    z-index: 10;
+  }
+
+  /* Mobile: floating toolbar repositions */
+  .function-toolbar {
+    right: 12px !important;
+    bottom: 160px !important;
+  }
+
+  .toolbar-btn {
+    width: 48px !important;
+    height: 48px !important;
+    font-size: 20px !important;
+  }
+
+  /* Mobile: more menu full-width */
+  .more-menu {
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 12px 12px 0 0 !important;
+    bottom: 60px !important;
+    top: auto !important;
+  }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .result-card {
+    max-width: 90%;
+    padding: 32px 24px;
+  }
+
+  .preview-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .function-toolbar {
+    right: 16px;
+    bottom: 60px;
+  }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Mobile: ensure all dialogs/modals are mobile-friendly */
+@media (max-width: 767px) {
+  .modal-mask .save-template-modal {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+    padding: 24px 16px !important;
+  }
+
+  .share-menu {
+    flex-wrap: wrap;
+  }
+
+  .share-option {
+    flex: 1 1 40%;
+    padding: 10px 12px;
+  }
+
+  .export-menu {
+    padding: 12px;
+  }
+
+  .export-confirm-btn {
+    width: 100% !important;
+    padding: 14px !important;
+  }
+}
+
+/* 模板保存 - 主题色 */
+.theme-colors-item .form-label {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.theme-color-pickers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.theme-color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-color-field label {
+  font-size: 12px;
+  color: #666;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.theme-color-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.theme-color-input input[type="color"] {
+  width: 36px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 1px;
+}
+
+.theme-color-input input[type="text"] {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.theme-preview-strip {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.strip-primary,
+.strip-secondary,
+.strip-accent {
+  height: 20px;
+  border-radius: 4px;
+  flex: 1;
+  border: 1px solid rgba(0,0,0,0.08);
 }
 </style>

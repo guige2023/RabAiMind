@@ -132,6 +132,22 @@
               </div>
             </div>
 
+            <!-- What's New -->
+            <div v-if="activeTab === 'whatsnew'" class="help-section">
+              <h3>新功能</h3>
+              <div class="changelog-list">
+                <div class="changelog-item" v-for="item in changelog" :key="item.version">
+                  <div class="changelog-header">
+                    <span class="changelog-version">v{{ item.version }}</span>
+                    <span class="changelog-date">{{ item.date }}</span>
+                  </div>
+                  <ul class="changelog-features">
+                    <li v-for="(feature, idx) in item.features" :key="idx">{{ feature }}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <!-- Contact -->
             <div v-if="activeTab === 'contact'" class="help-section">
               <h3>联系我们</h3>
@@ -171,6 +187,7 @@ const tabs = [
   { id: 'shortcuts', name: '快捷键' },
   { id: 'faq', name: '常见问题' },
   { id: 'tips', name: '使用技巧' },
+  { id: 'whatsnew', name: '新功能' },
   { id: 'contact', name: '联系我们' }
 ]
 
@@ -232,11 +249,53 @@ const faqs = [
   }
 ]
 
+const changelog = [
+  {
+    version: '1.5.0',
+    date: '2026-04-03',
+    features: [
+      '📊 新增图表编辑功能：支持柱状图、折线图、饼图',
+      '📦 新增导出增强：支持PNG序列导出和质量选择',
+      '📋 新增版本历史：支持快照、回滚和差异对比',
+      '⭐ 新增我的模板：收藏喜欢的模板随时使用',
+      '🔧 修复429限流误判为失败的问题',
+      '🐛 修复ResultView TDZ渲染错误'
+    ]
+  },
+  {
+    version: '1.4.0',
+    date: '2026-04-01',
+    features: [
+      '🎨 新增富文本编辑：支持字体、颜色、加粗、斜体',
+      '🖼️ 新增图片上传：支持base64上传、对齐和缩放',
+      '📐 新增布局可视化：缩略图网格、拖拽、对齐线',
+      '🎯 新增排版系统：字体主题、配色、间距设置',
+      '🔄 新增单页重生成：可单独重新生成某一页幻灯片',
+      '❌ 新增取消任务：支持取消正在生成的任务'
+    ]
+  },
+  {
+    version: '1.3.0',
+    date: '2026-03-28',
+    features: [
+      '✨ 首次发布 RabAi Mind AI PPT 生成平台',
+      '🤖 AI智能生成PPT内容和结构',
+      '🎨 海量精美模板供选择',
+      '✏️ 灵活的编辑调整功能',
+      '📥 支持PPTX、PDF、图片等多种导出格式',
+      '🔍 全局搜索功能快速定位内容'
+    ]
+  }
+]
+
 const toggleFaq = (id: string) => {
   expandedFaq.value = expandedFaq.value === id ? null : id
 }
 
-const open = () => { isOpen.value = true }
+const open = (tab?: string) => {
+  isOpen.value = true
+  if (tab) activeTab.value = tab
+}
 const close = () => { isOpen.value = false }
 
 defineExpose({ open, close })
@@ -582,6 +641,72 @@ kbd {
   font-size: 12px;
   color: #888;
   text-align: center;
+}
+
+/* What's New / Changelog */
+.changelog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.changelog-item {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+:global(.dark) .changelog-item {
+  background: #2a2a2a;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.changelog-version {
+  font-size: 16px;
+  font-weight: 700;
+  color: #165DFF;
+  background: rgba(22, 93, 255, 0.1);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.changelog-date {
+  font-size: 12px;
+  color: #888;
+}
+
+.changelog-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.changelog-features li {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+  padding-left: 16px;
+  position: relative;
+}
+
+:global(.dark) .changelog-features li {
+  color: #aaa;
+}
+
+.changelog-features li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: #165DFF;
 }
 
 /* Transition */

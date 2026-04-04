@@ -17,6 +17,24 @@
             class="search-input"
           />
         </div>
+        <!-- R34: 日期范围筛选 -->
+        <div class="date-range-filter">
+          <span class="date-label">📅</span>
+          <input
+            v-model="dateFrom"
+            type="date"
+            class="date-input"
+          />
+          <span class="date-sep">至</span>
+          <input
+            v-model="dateTo"
+            type="date"
+            class="date-input"
+          />
+          <button v-if="dateFrom || dateTo" class="clear-date-btn" @click="clearDateFilter">
+            ✕
+          </button>
+        </div>
         <div class="filter-tabs">
           <button
             class="tab-btn"
@@ -331,6 +349,15 @@ const handleImport = async (e: Event) => {
   target.value = ''
 }
 
+// R34: 日期范围筛选
+const dateFrom = ref<string>('')
+const dateTo = ref<string>('')
+
+const clearDateFilter = () => {
+  dateFrom.value = ''
+  dateTo.value = ''
+}
+
 const filteredList = computed(() => {
   // 使用增强搜索结果
   let list = searchResults.value.length > 0 || searchQuery.value.trim()
@@ -345,6 +372,18 @@ const filteredList = computed(() => {
   // Filter by tag
   if (filterType.value === 'tags' && activeTag.value) {
     list = list.filter(item => item.tags?.includes(activeTag.value!))
+  }
+
+  // R34: Filter by date range
+  if (dateFrom.value || dateTo.value) {
+    const from = dateFrom.value ? new Date(dateFrom.value) : null
+    const to = dateTo.value ? new Date(dateTo.value + 'T23:59:59') : null
+    list = list.filter(item => {
+      const itemDate = new Date(item.createdAt)
+      if (from && itemDate < from) return false
+      if (to && itemDate > to) return false
+      return true
+    })
   }
 
   return list
@@ -500,6 +539,51 @@ onMounted(() => {
 
 .btn-danger:hover {
   background: #FFEBEE;
+}
+
+/* R34: Date Range Filter */
+.date-range-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.date-label {
+  font-size: 14px;
+}
+
+.date-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--gray-700);
+  cursor: pointer;
+  width: 110px;
+}
+
+.date-sep {
+  color: var(--gray-300);
+}
+
+.clear-date-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #999;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.clear-date-btn:hover {
+  background: #f0f0f0;
+  color: #666;
 }
 
 /* Search Box */

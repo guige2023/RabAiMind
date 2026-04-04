@@ -33,6 +33,10 @@
             <span class="entry-icon">📑</span>
             <span class="entry-text">模板市场</span>
           </router-link>
+          <router-link to="/analytics" class="quick-entry-btn">
+            <span class="entry-icon">📊</span>
+            <span class="entry-text">数据分析</span>
+          </router-link>
         </div>
         <!-- 统计数据 -->
         <div class="hero-stats animate-fadeIn" style="animation-delay: 0.3s" v-if="statistics.totalGenerations > 0">

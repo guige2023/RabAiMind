@@ -38,44 +38,28 @@ from ...services.history_sync_service import get_history_sync_service
 from ...services.template_manager import get_template_manager
 from ...config import settings
 
+from ...api.middleware.rate_limit import (
+    get_user_id_from_request,
+    get_rate_limiter,
+    check_quota,
+    quota_exceeded_response,
+    rate_limit_exceeded_response,
+    add_rate_limit_headers,
+    get_quota_status,
+)
+
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
 
-# ==================== 安全警告 ====================
-# ⚠️ 安全警告：
-# 1. 当前API无认证保护，建议生产环境添加JWT/API Key认证
-# 2. 建议添加速率限制防止滥用（如 @router.middleware 添加限流）
-# 3. 用户输入已做基本过滤，建议根据业务需求加强
 
-# 简单速率限制（内存中）
-_rate_limit_storage: Dict[str, List[float]] = {}
-_RATE_LIMIT_MAX = 20  # 每分钟最大请求数
-_RATE_LIMIT_WINDOW = 60  # 时间窗口秒
-_rate_limit_lock = threading.Lock()  # 线程安全锁
-
-
-def _check_rate_limit(client_id: str = "default") -> bool:
-    """简单速率限制检查（线程安全）"""
-    import time
-    now = time.time()
-
-    with _rate_limit_lock:
-        if client_id not in _rate_limit_storage:
-            _rate_limit_storage[client_id] = []
-
-        # 清理过期记录
-        _rate_limit_storage[client_id] = [
-            t for t in _rate_limit_storage[client_id]
-            if now - t < _RATE_LIMIT_WINDOW
-        ]
-
-        # 检查限制
-        if len(_rate_limit_storage[client_id]) >= _RATE_LIMIT_MAX:
-            return False
-
-        # 记录请求
-        _rate_limit_storage[client_id].append(now)
-        return True
+def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:
+    """Check rate limit, return error response if exceeded, else None."""
+    user_id = get_user_id_from_request(request)
+    rate_limiter = get_rate_limiter()
+    rate_info, allowed = rate_limiter.check(user_id)
+    if not allowed:
+        return rate_limit_exceeded_response(rate_info)
+    return None
 
 
 # ==================== 图表上传与生成 ====================
@@ -272,13 +256,29 @@ async def force_sync_history():
 # ==================== PPT 生成 ====================
 
 @router.post("/generate", response_model=GenerateResponse)
-async def generate_ppt(request: GenerateRequest):
+async def generate_ppt(http_request: Request, request: GenerateRequest):
     """提交 PPT 生成任务"""
-    # 速率限制检查
-    if not _check_rate_limit():
+    # 速率限制检查（基于用户/IP）
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请求过于频繁，请稍后再试"
+            detail=rate_error.body.decode() if hasattr(rate_error, 'body') else "请求过于频繁，请稍后再试"
+        )
+
+    # 获取用户ID
+    user_id = get_user_id_from_request(http_request)
+
+    # 配额检查（每日生成次数限制）
+    quota_info, quota_allowed = check_quota(user_id)
+    if not quota_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "QUOTA_EXCEEDED",
+                "message": f"每日生成配额已用完（{quota_info.daily_limit}次/天）",
+                "reset_at": quota_info.reset_at()
+            }
         )
 
     try:
@@ -421,7 +421,8 @@ async def get_task_status(task_id: str):
 async def get_task_preview(request: Request, task_id: str):
     """获取任务预览图列表 - 用于实时预览"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -472,10 +473,11 @@ async def get_task_preview(request: Request, task_id: str):
 
 
 @router.get("/svg/{task_id}/{slide_num}")
-async def get_svg_file(task_id: str, slide_num: int):
+async def get_svg_file(request: Request, task_id: str, slide_num: int):
     """获取单个SVG文件"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -514,6 +516,45 @@ async def get_svg_file(task_id: str, slide_num: int):
     )
 
 
+@router.get("/image/file/{task_id}/{filename}")
+async def get_task_image_file(task_id: str, filename: str):
+    """获取任务目录下的图片文件"""
+    import os
+    from ...config import settings
+
+    # 防止路径遍历攻击
+    if not re.match(r'^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|gif|webp)$', filename, re.IGNORECASE):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的文件名"
+        )
+
+    filepath = os.path.join(settings.OUTPUT_DIR, task_id, filename)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="图片文件不存在"
+        )
+
+    # 根据扩展名确定 media_type
+    ext = filename.lower().split(".")[-1]
+    media_types = {
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "webp": "image/webp"
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        filepath,
+        media_type=media_type,
+        headers={"Cache-Control": "no-cache"}
+    )
+
+
 @router.delete("/task/{task_id}")
 async def cancel_task(task_id: str):
     """取消任务"""
@@ -548,10 +589,11 @@ async def cancel_task(task_id: str):
 # ==================== 文件下载 ====================
 
 @router.get("/download/{task_id}")
-async def download_ppt(task_id: str):
+async def download_ppt(request: Request, task_id: str):
     """下载 PPT 文件"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -609,10 +651,11 @@ async def download_ppt(task_id: str):
 
 
 @router.get("/export/pdf/{task_id}")
-async def export_pdf(task_id: str):
+async def export_pdf(request: Request, task_id: str):
     """导出PDF"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -725,11 +768,13 @@ async def export_pdf(task_id: str):
 
 @router.get("/export/png/{task_id}")
 async def export_png_sequence(
+    request: Request,
     task_id: str,
     resolution: str = Query("1080p", description="分辨率: 720p, 1080p, 4K")
 ):
     """导出PNG图片序列（每页一张）"""
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -852,6 +897,180 @@ async def get_templates():
     ]
 
 
+@router.post("/templates")
+async def create_template(request: dict):
+    """保存用户模板"""
+    import uuid
+    from datetime import datetime
+    
+    manager = get_template_manager()
+    
+    # 生成模板ID
+    template_id = f"user_{uuid.uuid4().hex[:12]}"
+    
+    # 构建模板数据
+    template_data = {
+        "id": template_id,
+        "name": request.get("name", "未命名模板"),
+        "description": request.get("description", ""),
+        "category": request.get("scene", "business"),
+        "style": request.get("style", "professional"),
+        "thumbnail": request.get("thumbnail", ""),
+        "colors": request.get("colors", ["#165DFF", "#FFFFFF"]),
+        "fonts": request.get("fonts", ["思源黑体", "Arial"]),
+        "is_ugc": True,
+        "author": "current_user",
+        "visibility": request.get("visibility", "private"),
+        "created_at": datetime.now().isoformat(),
+        "layout": request.get("layout", {}),
+        "applicable_scenes": request.get("applicable_scenes", []),
+        "example": request.get("description", ""),
+    }
+    
+    manager.add_user_template(template_data)
+    
+    return {"success": True, "template_id": template_id, "template": template_data}
+
+
+@router.get("/templates/my")
+async def get_my_templates():
+    """获取当前用户的模板列表"""
+    manager = get_template_manager()
+    templates = manager.get_user_templates("current_user")
+    return {
+        "success": True,
+        "templates": templates
+    }
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(template_id: str):
+    """删除用户模板"""
+    manager = get_template_manager()
+    
+    # 检查是否是用户模板
+    user_templates = manager.get_user_templates("current_user")
+    if not any(t.get("id") == template_id for t in user_templates):
+        return {"success": False, "error": "模板不存在或无权删除"}
+    
+    manager.remove_user_template(template_id)
+    return {"success": True}
+
+
+@router.patch("/templates/{template_id}")
+async def update_template(template_id: str, request: dict):
+    """更新/重命名用户模板"""
+    manager = get_template_manager()
+    
+    # 检查是否是用户模板
+    user_templates = manager.get_user_templates("current_user")
+    if not any(t.get("id") == template_id for t in user_templates):
+        return {"success": False, "error": "模板不存在或无权修改"}
+    
+    # 更新用户模板
+    for i, t in enumerate(manager.user_templates):
+        if t.get("id") == template_id:
+            if "name" in request:
+                manager.user_templates[i]["name"] = request["name"]
+            if "description" in request:
+                manager.user_templates[i]["description"] = request["description"]
+            manager._save_user_templates()
+            return {"success": True, "template": manager.user_templates[i]}
+    
+    return {"success": False, "error": "模板不存在"}
+
+
+# ==================== PPT 内容搜索 ====================
+
+class PPTSearchResult(BaseModel):
+    task_id: str
+    title: str
+    slide_num: int
+    matched_text: str
+    context: str  # 前后文
+
+class PPTSearchResponse(BaseModel):
+    success: bool
+    query: str
+    total: int
+    results: List[PPTSearchResult]
+
+
+@router.post("/search", response_model=PPTSearchResponse)
+async def search_ppt_content(
+    http_request: Request,
+    query: str = Body(..., embed=True),
+    limit: int = Body(20, embed=True)
+):
+    """
+    搜索 PPT 内容（在所有历史任务的幻灯片文本中搜索）
+    
+    Args:
+        query: 搜索关键词
+        limit: 最大返回结果数
+    """
+    if not query or len(query.strip()) < 2:
+        return PPTSearchResponse(success=False, query=query, total=0, results=[])
+    
+    manager = get_task_manager()
+    all_tasks = manager.get_history()
+    
+    results: List[PPTSearchResult] = []
+    query_lower = query.lower().strip()
+    
+    for task_id, task in all_tasks.items():
+        # 只搜索已完成的任务
+        if task.get("status") != "completed":
+            continue
+        
+        # 获取大纲中的幻灯片内容
+        outline = task.get("outline")
+        if not outline:
+            continue
+        
+        slides = outline.get("slides", [])
+        
+        # 也检查 slides_summary
+        if not slides:
+            slides = task.get("result", {}).get("slides_summary", [])
+        
+        for idx, slide in enumerate(slides):
+            title = slide.get("title", "") or ""
+            content = slide.get("content", "") or ""
+            combined = f"{title} {content}".lower()
+            
+            if query_lower in combined:
+                # 提取匹配上下文
+                idx_in_content = combined.find(query_lower)
+                start = max(0, idx_in_content - 20)
+                end = min(len(combined), idx_in_content + len(query) + 20)
+                context = combined[start:end].strip()
+                
+                # 获取任务标题
+                task_title = task.get("title", "") or task.get("request", "未命名PPT")[:50]
+                
+                results.append(PPTSearchResult(
+                    task_id=task_id,
+                    title=task_title,
+                    slide_num=idx + 1,
+                    matched_text=query,
+                    context=f"...{context}..."
+                ))
+                
+                if len(results) >= limit:
+                    break
+        
+        if len(results) >= limit:
+            break
+    
+    return PPTSearchResponse(
+        success=True,
+        query=query,
+        total=len(results),
+        results=results
+    )
+
+
 # ==================== 场景和风格 ====================
 
 @router.get("/scenes")
@@ -915,10 +1134,11 @@ class ImageGenerationResponse(BaseModel):
 
 
 @router.post("/ai-image", response_model=ImageGenerationResponse)
-async def generate_image(request: ImageGenerationRequest):
+async def generate_image(http_request: Request, request: ImageGenerationRequest):
     """AI生成图片"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -977,10 +1197,11 @@ class PlanResponse(BaseModel):
 
 
 @router.post("/plan", response_model=PlanResponse)
-async def plan_ppt(request: PlanRequest):
+async def plan_ppt(http_request: Request, request: PlanRequest):
     """生成PPT大纲"""
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(http_request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -1158,6 +1379,39 @@ async def create_task_snapshot(task_id: str, name: str = None):
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/action_log/{task_id}")
+async def get_action_log(task_id: str, limit: int = Query(20, ge=1, le=100)):
+    """获取操作日志"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    log = tm.get_action_log(task_id, limit)
+    return {"success": True, "action_log": log}
+
+
+@router.get("/undo_stack/{task_id}")
+async def get_undo_stack(task_id: str):
+    """获取撤销栈"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    stack = tm.get_undo_stack(task_id)
+    return {"success": True, "undo_stack": stack}
+
+
+@router.post("/undo/{task_id}")
+async def undo_last_action(task_id: str):
+    """撤销上一个操作"""
+    from ...services.task_manager import get_task_manager
+
+    tm = get_task_manager()
+    try:
+        result = tm.undo(task_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/regenerate/{task_id}/{slide_index}")
 async def regenerate_single_slide(task_id: str, slide_index: int, request: Request):
     """重新生成某一页幻灯片
@@ -1173,7 +1427,8 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
     import os
 
     # 速率限制检查
-    if not _check_rate_limit():
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="请求过于频繁，请稍后再试"
@@ -1238,6 +1493,11 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
     if unified_layout_override is not None:
         unified_layout = unified_layout_override
 
+    # 关键修复: 当 layout_mode='manual' 时，必须启用 smart_layout 才能使布局参数生效
+    if layout_mode == 'manual' and not use_smart_layout:
+        use_smart_layout = True
+        logger.info(f"[regenerateSlide] layout_mode=manual, 强制启用 use_smart_layout")
+
     # 重置首页布局状态（applyTuning 时需要）
     if reset_first_layout:
         gen._first_page_layout = None
@@ -1267,8 +1527,20 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
         os.makedirs(task_output_dir, exist_ok=True)
         svg_path = os.path.join(task_output_dir, f"slide_{slide_index}.svg")
+        # 读取旧SVG内容用于撤销
+        old_svg_content = None
+        if os.path.exists(svg_path):
+            with open(svg_path, 'r', encoding='utf-8') as f:
+                old_svg_content = f.read()
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_code)
+        # 记录操作日志
+        tm.log_action(
+            task_id,
+            action_type="slide_regenerate",
+            description=f"重生成第{slide_index}页",
+            undo_data={"old_svg_content": old_svg_content, "slide_index": slide_index, "svg_path": svg_path}
+        )
         
         # 重建PPTX（布局变化后需要更新）
         try:
@@ -1305,4 +1577,248 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"重生成失败: {str(e)}"
+        )
+
+
+# ==================== 单页图片操作 ====================
+
+class SlideImageRequest(BaseModel):
+    """单页图片请求"""
+    image_url: Optional[str] = Field(None, description="图片URL（用户上传或外部链接）")
+    action: str = Field("set", description="操作类型: set=设置图片, remove=移除图片, regenerate=重新生成")
+
+
+class SlideImageResponse(BaseModel):
+    """单页图片响应"""
+    success: bool
+    image_url: Optional[str] = None
+    message: str = ""
+
+
+@router.put("/image/{task_id}/{slide_index}", response_model=SlideImageResponse)
+async def update_slide_image(task_id: str, slide_index: int, request: SlideImageRequest):
+    """更新单页幻灯片的图片
+
+    Args:
+        task_id: 任务ID
+        slide_index: 页码（1-based）
+        request: 包含 image_url 和 action
+    """
+    from ...services.task_manager import get_task_manager
+    from ...services.ppt_generator import PPTGenerator
+    from ...config import settings
+    import os
+    import shutil
+
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
+
+    tm = get_task_manager()
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    # 获取任务输出目录
+    task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
+    os.makedirs(task_output_dir, exist_ok=True)
+
+    # 处理不同操作
+    if request.action == "remove":
+        # 移除图片：设置为空，使用SVG占位图
+        new_image_url = None
+        message = "图片已移除"
+
+    elif request.action == "regenerate":
+        # 重新生成AI图片
+        try:
+            from ...services.content_generator import get_content_generator
+            content_gen = get_content_generator()
+
+            # 从任务参数获取提示词或使用默认提示词
+            params = task.get("params", {})
+            slides_content = params.get("slides_content", [])
+
+            # 尝试找到该页的内容用于生成提示词
+            slide_content = None
+            if slides_content and slide_index <= len(slides_content):
+                slide_content = slides_content[slide_index - 1]
+
+            if slide_content:
+                title = slide_content.get("title", "")
+                content = slide_content.get("content", [])
+                slide_type = slide_content.get("slide_type", "content")
+                prompt = content_gen._build_image_prompt(title, content, slide_type)
+            else:
+                prompt = "Professional business presentation background, modern corporate style"
+
+            image_url = content_gen.generate_image(prompt=prompt)
+            if image_url:
+                new_image_url = image_url
+                message = "图片重新生成成功"
+            else:
+                raise Exception("AI图片生成失败")
+        except Exception as e:
+            logger.error(f"重新生成图片失败: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"重新生成图片失败: {str(e)}"
+            )
+
+    elif request.image_url:
+        # 设置指定图片URL
+        new_image_url = request.image_url
+        message = "图片已更新"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的操作或图片URL"
+        )
+
+    # 更新slides_content中的图片（如果任务有该数据）
+    try:
+        params = task.get("params", {})
+        slides_content = params.get("slides_content", [])
+        if slides_content and slide_index <= len(slides_content):
+            slides_content[slide_index - 1]["image_url"] = new_image_url
+            params["slides_content"] = slides_content
+            task["params"] = params
+            tm.update_task(task_id, **task)
+    except Exception as e:
+        logger.warning(f"更新任务图片数据失败: {e}")
+
+    # 重新生成该页SVG
+    try:
+        gen = PPTGenerator()
+        if slides_content and slide_index <= len(slides_content):
+            slide_data = slides_content[slide_index - 1]
+            slide_data["image_url"] = new_image_url
+        else:
+            slide_data = {"title": f"第 {slide_index} 页", "content": [], "image_url": new_image_url}
+
+        # 使用智能布局生成
+        svg_code = gen._generate_svg_smart_layout(
+            slide_data,
+            slide_index,
+            theme_color=params.get("theme_color", "#165DFF"),
+            style=params.get("style", "professional"),
+            user_layout=slide_data.get("layout"),
+            text_style=params.get("text_style", "transparent_overlay"),
+            layout_mode="auto",
+            unified_layout=False
+        )
+
+        # 保存SVG
+        svg_path = os.path.join(task_output_dir, f"slide_{slide_index}.svg")
+        with open(svg_path, 'w', encoding='utf-8') as f:
+            f.write(svg_code)
+
+        # 重建PPTX
+        import glob
+        svg_files = sorted(glob.glob(os.path.join(task_output_dir, "slide_*.svg")))
+        if svg_files:
+            pptx_path = os.path.join(task_output_dir, f"presentation_{task_id}.pptx")
+            gen._svg_to_ppt(
+                svg_files, pptx_path,
+                text_style=params.get("text_style", "transparent_overlay"),
+                use_smart_layout=True,
+                font_title=params.get("font_title", "微软雅黑"),
+                font_subtitle=params.get("font_subtitle", "微软雅黑"),
+                font_content=params.get("font_content", "微软雅黑"),
+                font_caption=params.get("font_caption", "微软雅黑")
+            )
+
+        return SlideImageResponse(
+            success=True,
+            image_url=new_image_url,
+            message=message
+        )
+    except Exception as e:
+        logger.error(f"更新幻灯片图片失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"更新图片失败: {str(e)}"
+        )
+
+
+@router.post("/image/{task_id}/{slide_index}/upload", response_model=SlideImageResponse)
+async def upload_slide_image(task_id: str, slide_index: int, request: Request):
+    """上传单页幻灯片的图片
+
+    Args:
+        task_id: 任务ID
+        slide_index: 页码（1-based）
+    """
+    from ...services.task_manager import get_task_manager
+    from ...config import settings
+    import uuid
+
+    # 验证task_id格式
+    if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的任务ID格式"
+        )
+
+    tm = get_task_manager()
+    task = tm.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"任务 {task_id} 不存在"
+        )
+
+    try:
+        # 解析 multipart form data
+        form = await request.form()
+        file = form.get("file")
+
+        if not file:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="未找到上传文件"
+            )
+
+        # 验证文件类型
+        allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"不支持的文件类型: {file.content_type}"
+            )
+
+        # 保存文件
+        task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
+        os.makedirs(task_output_dir, exist_ok=True)
+
+        ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        filename = f"slide_{slide_index}_image_{uuid.uuid4().hex[:8]}.{ext}"
+        file_path = os.path.join(task_output_dir, filename)
+
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+
+        # 构建访问URL（相对路径）
+        image_url = f"/api/v1/ppt/image/file/{task_id}/{filename}"
+
+        # 递归调用 update_slide_image
+        return await update_slide_image(
+            task_id, slide_index,
+            SlideImageRequest(image_url=image_url, action="set")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"上传图片失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"上传图片失败: {str(e)}"
         )

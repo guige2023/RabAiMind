@@ -173,6 +173,19 @@ export const api: APIClient = {
       })
     },
 
+    // 更新单页图片（设置/移除/重新生成）
+    updateSlideImage: (params: {
+      taskId: string;
+      slideIndex: number;
+      image_url?: string;
+      action: 'set' | 'remove' | 'regenerate';
+    }): Promise<AxiosResponse<{ success: boolean; image_url?: string; message: string }>> => {
+      return apiClient.put(`/ppt/image/${params.taskId}/${params.slideIndex}`, {
+        image_url: params.image_url,
+        action: params.action,
+      })
+    },
+
     // 上传 CSV/Excel 生成图表
     uploadChart: (params: {
       taskId: string
@@ -231,6 +244,23 @@ export const api: APIClient = {
       return apiClient.post(`/ppt/versions/${taskId}/snapshot`, null, {
         params: name ? { name } : {}
       })
+    },
+
+    // 操作日志
+    getActionLog: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; action_log: Array<{ action_type: string; description: string; timestamp: string; undo_data?: any }> }>> => {
+      return apiClient.get(`/ppt/action_log/${taskId}`, {
+        params: { limit }
+      })
+    },
+
+    // 撤销栈
+    getUndoStack: (taskId: string): Promise<AxiosResponse<{ success: boolean; undo_stack: Array<{ action_type: string; description: string; timestamp: string; undo_data?: any }> }>> => {
+      return apiClient.get(`/ppt/undo_stack/${taskId}`)
+    },
+
+    // 撤销上一操作
+    undo: (taskId: string): Promise<AxiosResponse<{ success: boolean; message?: string; undone_action?: string; action_type?: string }>> => {
+      return apiClient.post(`/ppt/undo/${taskId}`)
     }
   },
 
@@ -275,8 +305,11 @@ export const api: APIClient = {
       scene: string;
       style: string;
       visibility: string;
+      thumbnail?: string;
+      colors?: string[];
+      fonts?: string[];
     }): Promise<AxiosResponse<{ success: boolean; template_id: string; template: any }>> => {
-      return apiClient.post('/templates/upload', data)
+      return apiClient.post('/templates', data)
     },
 
     listMyTemplates: (): Promise<AxiosResponse<{ success: boolean; templates: any[] }>> => {
@@ -285,6 +318,112 @@ export const api: APIClient = {
 
     deleteTemplate: (id: string): Promise<AxiosResponse<{ success: boolean }>> => {
       return apiClient.delete(`/templates/${id}`)
+    },
+
+    renameTemplate: (id: string, data: { name: string; description?: string }): Promise<AxiosResponse<{ success: boolean; template: any }>> => {
+      return apiClient.patch(`/templates/${id}`, data)
+    },
+
+    // R35: 推荐引擎
+    getTrending: (limit = 6, days = 7): Promise<AxiosResponse<{ success: boolean; templates: any[]; period_days: number }>> => {
+      return apiClient.get('/templates/trending', { params: { limit, days } })
+    },
+
+    getSimilar: (templateId: string, limit = 5): Promise<AxiosResponse<{ success: boolean; templates: any[]; template_id: string }>> => {
+      return apiClient.get(`/templates/similar/${templateId}`, { params: { limit } })
+    },
+
+    getRecommended: (params: { user_id?: string; scene?: string; style?: string; limit?: number }): Promise<AxiosResponse<{ success: boolean; templates: any[]; user_id: string }>> => {
+      return apiClient.get('/templates/recommend', { params: params })
+    },
+
+    matchTemplates: (params: { q?: string; scene?: string; style?: string; limit?: number }): Promise<AxiosResponse<{
+      success: boolean
+      templates: any[]
+      query: string
+      detected_scene: string | null
+      detected_style: string | null
+    }>> => {
+      return apiClient.get('/templates/match', { params: params })
+    },
+
+    trackEvent: (params: {
+      event_type: 'search' | 'click' | 'use'
+      template_id?: string
+      user_id?: string
+      query?: string
+      scene?: string
+      style?: string
+      request_text?: string
+    }): Promise<AxiosResponse<{ success: boolean; event_type: string }>> => {
+      return apiClient.post('/templates/track', null, { params: params })
+    },
+
+    getTrendingQueries: (limit = 10, days = 7): Promise<AxiosResponse<{ success: boolean; queries: Array<{ query: string; count: number }>; period_days: number }>> => {
+      return apiClient.get('/templates/search-analytics/trending-queries', { params: { limit, days } })
+    }
+  },
+
+  // R34: PPT内容搜索
+  search: {
+    inPPT: (query: string, limit = 20): Promise<AxiosResponse<{
+      success: boolean
+      query: string
+      total: number
+      results: Array<{
+        task_id: string
+        title: string
+        slide_num: number
+        matched_text: string
+        context: string
+      }>
+    }>> => {
+      return apiClient.post('/ppt/search', { query, limit })
+    }
+  },
+
+  // R32: AI 增强功能
+  ai: {
+    rephrase: (text: string, style: string = 'natural'): Promise<AxiosResponse<{ success: boolean; rephrased: string }>> => {
+      return apiClient.post('/ai/rephrase', { text, style })
+    },
+
+    translate: (text: string, targetLang: string): Promise<AxiosResponse<{ success: boolean; translated: string; lang: string }>> => {
+      return apiClient.post('/ai/translate', { text, target_lang: targetLang })
+    },
+
+    layoutSuggestion: (params: {
+      slideIndex: number
+      elements: any[]
+      slideContent: string
+    }): Promise<AxiosResponse<{ success: boolean; suggestion: any }>> => {
+      return apiClient.post('/ai/layout-suggestion', {
+        slide_index: params.slideIndex,
+        elements: params.elements,
+        slide_content: params.slideContent
+      })
+    },
+
+    autoEnhance: (params: {
+      slideIndex: number
+      elements: any[]
+      colorScheme?: string
+    }): Promise<AxiosResponse<{ success: boolean; enhancement: any }>> => {
+      return apiClient.post('/ai/auto-enhance', {
+        slide_index: params.slideIndex,
+        elements: params.elements,
+        color_scheme: params.colorScheme || '#165DFF'
+      })
+    },
+
+    contentScore: (params: {
+      elements: any[]
+      slideContent: string
+    }): Promise<AxiosResponse<{ success: boolean; score: any }>> => {
+      return apiClient.post('/ai/content-score', {
+        elements: params.elements,
+        slide_content: params.slideContent
+      })
     }
   }
 }

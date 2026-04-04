@@ -9,6 +9,10 @@
           <h1 class="page-title">编辑 PPT 大纲</h1>
           <p class="page-subtitle">调整每页标题和内容，确认后生成演示文稿</p>
         </div>
+        <div class="auto-save-indicator" v-if="autoSaveLabel">
+          <span class="save-dot" :class="{ saving: isSaving }"></span>
+          <span class="save-label">{{ isSaving ? '保存中...' : autoSaveLabel }}</span>
+        </div>
       </div>
       <div class="header-actions">
         <button class="btn btn-outline" @click="showConfigPanel = !showConfigPanel">
@@ -336,11 +340,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useInteractionFeedback } from '../composables/useInteractionFeedback'
+import { useAutoSave } from '../composables/useAutoSave'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 
 const router = useRouter()
 const route = useRoute()
+const { showSuccess, showError, showWarning } = useInteractionFeedback()
 
 interface Slide {
   id: string
@@ -378,6 +386,72 @@ const selectedLabelColIndex = ref(0)
 const selectedValueColIndex = ref(0)
 const chartSvgUrls = ref<string[]>([])
 const chartSelectedFile = ref<File | null>(null)
+
+// Undo history for Ctrl+Z
+const undoStack = ref<string[]>([])
+const MAX_UNDO = 20
+
+// Auto-save indicator
+const autoSaveKey = ref(`outline_${route.query.taskId || 'new'}`)
+const { saveDraft, lastSavedTime, isSaving } = useAutoSave({
+  key: autoSaveKey.value,
+  data: outline,
+  debounceMs: 3000,
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+})
+const autoSaveLabel = ref('')
+
+// Update auto-save label
+const updateAutoSaveLabel = () => {
+  if (!lastSavedTime.value) {
+    autoSaveLabel.value = ''
+    return
+  }
+  const diff = Date.now() - lastSavedTime.value
+  if (diff < 60000) {
+    autoSaveLabel.value = '刚刚保存'
+  } else if (diff < 3600000) {
+    autoSaveLabel.value = `${Math.floor(diff / 60000)}分钟前保存`
+  } else {
+    autoSaveLabel.value = `${Math.floor(diff / 3600000)}小时前保存`
+  }
+}
+
+// Save snapshot for undo
+const saveUndoSnapshot = () => {
+  const snapshot = JSON.stringify(outline.slides)
+  undoStack.value.push(snapshot)
+  if (undoStack.value.length > MAX_UNDO) {
+    undoStack.value.shift()
+  }
+}
+
+// Perform undo
+const performUndo = () => {
+  if (undoStack.value.length === 0) {
+    showWarning('无法撤销', '没有可撤销的操作')
+    return
+  }
+  const snapshot = undoStack.value.pop()!
+  try {
+    const parsed = JSON.parse(snapshot)
+    outline.slides = parsed
+    showSuccess('已撤销', '大纲已恢复到上一步')
+  } catch {
+    showError('撤销失败', '无法解析撤销数据')
+  }
+}
+
+// Save outline (Ctrl+S)
+const performSave = async () => {
+  try {
+    await saveOutline()
+    saveDraft()
+    showSuccess('已保存', '大纲已保存到服务器和本地')
+  } catch {
+    showError('保存失败', '请稍后重试')
+  }
+}
 
 const outline = reactive<OutlineData>({
   slides: [],
@@ -471,6 +545,7 @@ const goBack = () => {
 
 // 添加页面
 const addSlide = () => {
+  saveUndoSnapshot()
   outline.slides.push({
     id: generateId(),
     title: '',
@@ -486,6 +561,7 @@ const deleteSlide = (index: number) => {
     alert('至少保留一页')
     return
   }
+  saveUndoSnapshot()
   outline.slides.splice(index, 1)
   if (activeSlide.value >= outline.slides.length) {
     activeSlide.value = outline.slides.length - 1
@@ -669,6 +745,7 @@ const generateOutline = async () => {
           content: Array.isArray(s.content) ? s.content.join('\n') : (s.content || ''),
           layout: mapLayoutType(s.layout || s.slide_type || 'content')
         }))
+        showSuccess('大纲已生成', `共 ${outline.slides.length} 页内容`)
         isLoading.value = false
         return
       } else {
@@ -705,7 +782,7 @@ const generatePPT = async () => {
   // 验证
   const emptySlides = outline.slides.filter(s => !s.title.trim())
   if (emptySlides.length > 0) {
-    alert('请填写所有页面的标题')
+    showWarning('请填写标题', '所有页面都需要填写标题才能生成PPT')
     return
   }
 
@@ -759,6 +836,7 @@ const generatePPT = async () => {
     localStorage.setItem('ppt_outline', JSON.stringify(outline))
 
     // Step 2: 跳转到生成页面（显示"排版中"，内容阶段已跳过）
+    showSuccess('开始生成', '正在跳转到大纲生成页面...')
     router.push({
       path: '/generating',
       query: { taskId }
@@ -766,7 +844,7 @@ const generatePPT = async () => {
   } catch (e: any) {
     console.error('生成PPT失败详情:', e?.response?.data || e)
     const msg = e?.response?.data?.detail || e?.message || '请重试'
-    alert(`生成失败: ${typeof msg === 'object' ? JSON.stringify(msg) : msg}`)
+    showError('生成失败', typeof msg === 'object' ? JSON.stringify(msg) : msg)
     isGenerating.value = false
   }
 }
@@ -876,7 +954,26 @@ onMounted(async () => {
     debugSrc.value = 'onMounted'
     await testAPI()
   }
+
+  // 更新自动保存标签
+  setInterval(updateAutoSaveLabel, 30000)
 })
+
+// 注册键盘快捷键
+useKeyboardShortcuts([
+  {
+    key: 's',
+    ctrl: true,
+    handler: () => performSave(),
+    description: '保存大纲 (Ctrl+S)'
+  },
+  {
+    key: 'z',
+    ctrl: true,
+    handler: () => performUndo(),
+    description: '撤销 (Ctrl+Z)'
+  }
+])
 </script>
 
 <style scoped>
@@ -899,6 +996,47 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+/* Auto-save indicator */
+.auto-save-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #52c41a;
+  background: #f6ffed;
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid #b7eb8f;
+  animation: fadeIn 0.3s ease;
+}
+
+.save-dot {
+  width: 6px;
+  height: 6px;
+  background: #52c41a;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.save-dot.saving {
+  background: #faad14;
+  animation: pulse 0.5s ease-in-out infinite;
+}
+
+.save-label {
+  font-weight: 500;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .btn-back {
@@ -1621,5 +1759,61 @@ onMounted(async () => {
 .font-label {
   font-size: 12px;
   color: #666;
+}
+
+/* ============ Mobile Responsive Enhancements ============ */
+@media (max-width: 767px) {
+  .config-panel {
+    border-radius: 20px 20px 0 0;
+    margin-bottom: 0;
+    padding: 20px 16px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .config-panel-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .chart-upload-panel {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: 80vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    overflow-y: auto;
+  }
+
+  .slides-container {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .slide-card {
+    padding: 12px !important;
+  }
+
+  .outline-header {
+    padding: 12px !important;
+  }
+
+  .header-actions .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .config-panel-body {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .slides-container {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
 }
 </style>

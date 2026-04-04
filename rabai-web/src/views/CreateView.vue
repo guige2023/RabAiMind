@@ -145,6 +145,15 @@
           </div>
         </div>
 
+        <!-- 主题定制 -->
+        <div class="form-section theme-panel-section">
+          <ThemePanel
+            @theme-change="onThemeChange"
+            @dark-mode-change="onDarkModeChange"
+            @font-change="onFontChange"
+          />
+        </div>
+
         <!-- 数据图表设置 -->
         <div class="form-section">
           <label class="form-label">
@@ -654,11 +663,16 @@ import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 import { useStatistics } from '../composables/useStatistics'
 import { useAutoSave } from '../composables/useAutoSave'
 import { useSmartRecommendation } from '../composables/useSmartRecommendation'
+import { useInteractionFeedback } from '../composables/useInteractionFeedback'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
+import ThemePanel from '../components/ThemePanel.vue'
 
 const router = useRouter()
 const route = useRoute()
+
+// Toast notifications
+const { showSuccess, showError, showInfo } = useInteractionFeedback()
 
 // 表单数据
 const formData = ref<{
@@ -818,6 +832,31 @@ const getRecValueName = (rec: any) => {
     return names[rec.value] || rec.value
   }
   return rec.value
+}
+
+// 主题定制事件处理
+const onThemeChange = (colors: { primary: string; secondary: string; accent: string }) => {
+  formData.value.themeColor = colors.primary
+  // Also update background if unified
+  if (formData.value.backgroundMode === '统一') {
+    formData.value.unifiedBackground = colors.primary
+  }
+  // Save to localStorage
+  localStorage.setItem('customTheme', JSON.stringify(colors))
+}
+
+const onDarkModeChange = (mode: string) => {
+  // ThemePanel handles DOM updates, just log for tracking
+  console.log('[CreateView] Dark mode changed to:', mode)
+}
+
+const onFontChange = (fonts: { header: string; body: string }) => {
+  // Apply header font to title
+  formData.value.fontTitle = fonts.header
+  // Apply body font to content
+  formData.value.fontContent = fonts.body
+  // Save pairing
+  localStorage.setItem('activePairing', JSON.stringify(fonts))
 }
 
 // 获取当前字体级别对应的字体
@@ -1314,6 +1353,7 @@ const handleSubmit = async () => {
     errorMessage.value = friendlyError.message
     errorType.value = friendlyError.type
     showErrorModal.value = true
+    showError('生成失败', friendlyError.message)
   } finally {
     isSubmitting.value = false
   }
@@ -1394,6 +1434,17 @@ useKeyboardShortcuts([
       }
     },
     description: '提交表单'
+  },
+  {
+    key: 's',
+    ctrl: true,
+    handler: () => {
+      doSaveDraft()
+      draftSaved.value = true
+      showInfo('草稿已保存', 'Ctrl+S 快速保存')
+      setTimeout(() => { draftSaved.value = false }, 3000)
+    },
+    description: '保存草稿 (Ctrl+S)'
   },
   {
     key: 'Escape',
@@ -2484,5 +2535,13 @@ useKeyboardShortcuts([
   .quality-toggle {
     flex-direction: column;
   }
+}
+
+/* 主题定制面板 */
+.theme-panel-section {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: none;
 }
 </style>

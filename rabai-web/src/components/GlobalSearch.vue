@@ -13,9 +13,10 @@
               ref="searchInputRef"
               v-model="searchQuery"
               type="text"
-              placeholder="搜索模板、页面..."
+              :placeholder="searchInPPT ? '在PPT内容中搜索...' : '搜索模板、页面...'"
               class="search-input"
               @keydown="handleKeyNavigation"
+              @input="onInputChange"
             />
             <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -25,93 +26,162 @@
             <kbd class="esc-hint">ESC</kbd>
           </div>
 
+          <!-- R34: Search Mode Toggle -->
+          <div class="search-mode-bar">
+            <button
+              class="mode-btn"
+              :class="{ active: !searchInPPT }"
+              @click="searchInPPT = false"
+            >
+              🔍 全局搜索
+            </button>
+            <button
+              class="mode-btn"
+              :class="{ active: searchInPPT }"
+              @click="searchInPPT = true; searchQuery && performSearch()"
+            >
+              📄 搜索PPT内容
+            </button>
+          </div>
+
           <!-- Search Content -->
           <div class="search-content">
-            <!-- No Input - Show Suggestions -->
-            <template v-if="!searchQuery">
-              <!-- Recent Searches -->
-              <div v-if="searchHistory.length > 0" class="search-section">
-                <div class="section-header">
-                  <h3>最近搜索</h3>
-                  <button class="clear-history-btn" @click="clearSearchHistory">清除</button>
+            <!-- PPT搜索模式 -->
+            <template v-if="searchInPPT">
+              <template v-if="pptSearchLoading">
+                <div class="ppt-search-loading">
+                  <div class="loading-spinner"></div>
+                  <span>搜索中...</span>
                 </div>
-                <div class="search-items">
+              </template>
+              <template v-else-if="pptSearchResults.length > 0">
+                <div class="ppt-results-header">
+                  <span class="ppt-results-count">找到 {{ pptSearchResults.length }} 条结果</span>
+                </div>
+                <div class="ppt-search-results">
                   <button
-                    v-for="(item, index) in searchHistory.slice(0, 5)"
-                    :key="item"
-                    class="search-item"
+                    v-for="(result, index) in pptSearchResults"
+                    :key="`${result.task_id}-${result.slide_num}`"
+                    class="ppt-result-item"
                     :class="{ active: selectedIndex === index }"
-                    @click="performSearch(item)"
+                    @click="selectPPTSearchResult(result)"
                   >
-                    <span class="item-icon">🕐</span>
-                    <span class="item-text">{{ item }}</span>
+                    <div class="ppt-result-icon">📄</div>
+                    <div class="ppt-result-content">
+                      <div class="ppt-result-title">
+                        <strong>{{ result.title }}</strong>
+                        <span class="slide-badge">第{{ result.slide_num }}页</span>
+                      </div>
+                      <div class="ppt-result-context" v-html="highlightPPTMatch(result.context, searchQuery)"></div>
+                    </div>
                   </button>
                 </div>
-              </div>
-
-              <!-- Suggestions -->
-              <div class="search-section">
-                <h3>推荐搜索</h3>
-                <div class="search-items">
-                  <button
-                    v-for="(item, index) in suggestions"
-                    :key="item.text"
-                    class="search-item"
-                    :class="{ active: selectedIndex === searchHistory.length + index }"
-                    @click="performSearch(item.text)"
-                  >
-                    <span class="item-icon">{{ item.icon }}</span>
-                    <span class="item-text">{{ item.text }}</span>
-                  </button>
+              </template>
+              <template v-else-if="searchQuery && !pptSearchLoading">
+                <div class="no-results">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                  </svg>
+                  <p>在PPT内容中未找到 "{{ searchQuery }}"</p>
                 </div>
-              </div>
-
-              <!-- Quick Links -->
-              <div class="search-section">
-                <h3>快速访问</h3>
-                <div class="quick-links">
-                  <router-link
-                    v-for="link in quickLinks"
-                    :key="link.url"
-                    :to="link.url"
-                    class="quick-link"
-                    @click="closeSearch"
-                  >
-                    <span class="link-icon">{{ link.icon }}</span>
-                    <span class="link-text">{{ link.title }}</span>
-                  </router-link>
+              </template>
+              <template v-else>
+                <div class="ppt-search-hint">
+                  <p>📄 在所有已生成的PPT内容中搜索关键词</p>
+                  <p class="hint-sub">输入至少2个字符开始搜索</p>
                 </div>
-              </div>
+              </template>
             </template>
 
-            <!-- Has Input - Show Results -->
+            <!-- 普通搜索模式 -->
             <template v-else>
-              <div v-if="searchResults.length > 0" class="search-results">
-                <button
-                  v-for="(result, index) in searchResults"
-                  :key="result.id"
-                  class="result-item"
-                  :class="{ active: selectedIndex === index }"
-                  @click="selectResult(result)"
-                >
-                  <span class="result-icon">{{ result.icon }}</span>
-                  <div class="result-content">
-                    <span class="result-title">{{ result.title }}</span>
-                    <span v-if="result.description" class="result-desc">{{ result.description }}</span>
+              <!-- No Input - Show Suggestions -->
+              <template v-if="!searchQuery">
+                <!-- Recent Searches -->
+                <div v-if="searchHistory.length > 0" class="search-section">
+                  <div class="section-header">
+                    <h3>最近搜索</h3>
+                    <button class="clear-history-btn" @click="clearSearchHistory">清除</button>
                   </div>
-                  <span v-if="result.meta" class="result-meta">{{ result.meta }}</span>
-                </button>
-              </div>
-              <div v-else class="no-results">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <circle cx="11" cy="11" r="8"/>
-                  <path d="M21 21l-4.35-4.35"/>
-                </svg>
-                <p>没有找到 "{{ searchQuery }}" 相关内容</p>
-                <button class="search-btn" @click="performSearch()">
-                  搜索模板市场
-                </button>
-              </div>
+                  <div class="search-items">
+                    <button
+                      v-for="(item, index) in searchHistory.slice(0, 10)"
+                      :key="item"
+                      class="search-item"
+                      :class="{ active: selectedIndex === index }"
+                      @click="performSearch(item)"
+                    >
+                      <span class="item-icon">🕐</span>
+                      <span class="item-text">{{ item }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Suggestions -->
+                <div class="search-section">
+                  <h3>推荐搜索</h3>
+                  <div class="search-items">
+                    <button
+                      v-for="(item, index) in suggestions"
+                      :key="item.text"
+                      class="search-item"
+                      :class="{ active: selectedIndex === searchHistory.length + index }"
+                      @click="performSearch(item.text)"
+                    >
+                      <span class="item-icon">{{ item.icon }}</span>
+                      <span class="item-text">{{ item.text }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Quick Links -->
+                <div class="search-section">
+                  <h3>快速访问</h3>
+                  <div class="quick-links">
+                    <router-link
+                      v-for="link in quickLinks"
+                      :key="link.url"
+                      :to="link.url"
+                      class="quick-link"
+                      @click="closeSearch"
+                    >
+                      <span class="link-icon">{{ link.icon }}</span>
+                      <span class="link-text">{{ link.title }}</span>
+                    </router-link>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Has Input - Show Results -->
+              <template v-else>
+                <div v-if="searchResults.length > 0" class="search-results">
+                  <button
+                    v-for="(result, index) in searchResults"
+                    :key="result.id"
+                    class="result-item"
+                    :class="{ active: selectedIndex === index }"
+                    @click="selectResult(result)"
+                  >
+                    <span class="result-icon">{{ result.icon }}</span>
+                    <div class="result-content">
+                      <span class="result-title">{{ result.title }}</span>
+                      <span v-if="result.description" class="result-desc">{{ result.description }}</span>
+                    </div>
+                    <span v-if="result.meta" class="result-meta">{{ result.meta }}</span>
+                  </button>
+                </div>
+                <div v-else class="no-results">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                  </svg>
+                  <p>没有找到 "{{ searchQuery }}" 相关内容</p>
+                  <button class="search-btn" @click="performSearch()">
+                    搜索模板市场
+                  </button>
+                </div>
+              </template>
             </template>
           </div>
 
@@ -145,14 +215,36 @@ const {
   searchHistory,
   searchResults,
   suggestions,
+  searchInPPT,
+  pptSearchResults,
+  pptSearchLoading,
   openSearch,
   closeSearch,
   performSearch,
   selectResult,
+  selectPPTSearchResult,
   clearSearchHistory,
-  handleKeyNavigation,
-  quickLinks
+  handleKeyNavigation
 } = useGlobalSearch()
+
+// 输入时触发PPT内容搜索
+const onInputChange = () => {
+  if (searchInPPT.value && searchQuery.value.trim().length >= 2) {
+    // 防抖
+    clearTimeout((window as any).__searchDebounce)
+    ;(window as any).__searchDebounce = setTimeout(() => {
+      performSearch()
+    }, 400)
+  }
+}
+
+// 高亮PPT搜索匹配文本
+const highlightPPTMatch = (context: string, query: string): string => {
+  if (!query || !context) return context
+  const escaped = context.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escaped})`, 'gi')
+  return context.replace(regex, '<mark>$1</mark>')
+}
 
 // 键盘快捷键打开搜索
 const handleGlobalKeydown = (e: KeyboardEvent) => {
@@ -283,11 +375,186 @@ defineExpose({
   color: #888;
 }
 
+/* R34: Search Mode Bar */
+.search-mode-bar {
+  display: flex;
+  padding: 8px 20px;
+  gap: 8px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+:global(.dark) .search-mode-bar {
+  border-color: #333;
+  background: #161616;
+}
+
+.mode-btn {
+  padding: 6px 14px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+:global(.dark) .mode-btn {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #aaa;
+}
+
+.mode-btn:hover {
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+.mode-btn.active {
+  background: #165DFF;
+  border-color: #165DFF;
+  color: white;
+}
+
+:global(.dark) .mode-btn.active {
+  background: #165DFF;
+  border-color: #165DFF;
+}
+
 /* Search Content */
 .search-content {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+}
+
+/* PPT Search Loading */
+.ppt-search-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #888;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e0e0e0;
+  border-top-color: #165DFF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.ppt-results-header {
+  margin-bottom: 12px;
+}
+
+.ppt-results-count {
+  font-size: 13px;
+  color: #888;
+}
+
+/* PPT Search Results */
+.ppt-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ppt-result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.ppt-result-item:hover,
+.ppt-result-item.active {
+  background: #f5f5f5;
+}
+
+:global(.dark) .ppt-result-item:hover,
+:global(.dark) .ppt-result-item.active {
+  background: #2a2a2a;
+}
+
+.ppt-result-icon {
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.ppt-result-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.ppt-result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ppt-result-title strong {
+  font-size: 14px;
+  color: #333;
+}
+
+:global(.dark) .ppt-result-title strong {
+  color: #fff;
+}
+
+.slide-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #EEF2FF;
+  color: #4F46E5;
+  border-radius: 10px;
+}
+
+.ppt-result-context {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:deep(mark) {
+  background: #fff3cd;
+  color: #856404;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* PPT Search Hint */
+.ppt-search-hint {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.ppt-search-hint p {
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.hint-sub {
+  font-size: 13px;
+  color: #999;
 }
 
 .search-section {
@@ -340,6 +607,7 @@ defineExpose({
   cursor: pointer;
   text-align: left;
   transition: background 0.2s;
+  width: 100%;
 }
 
 .search-item:hover,
@@ -428,6 +696,7 @@ defineExpose({
   cursor: pointer;
   text-align: left;
   transition: background 0.2s;
+  width: 100%;
 }
 
 .result-item:hover,

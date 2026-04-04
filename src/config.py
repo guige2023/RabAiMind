@@ -16,6 +16,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
+# 加载 .env 文件
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def _get_okppt_server_path_default() -> str:
     """Get the default okppt server path based on OS.

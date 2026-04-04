@@ -433,10 +433,14 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
         }
     ])
 
-    for i in range(1, slide_count - 1):
-        content_idx = (i - 1) % len(content_pages)
+    # 内容页数量 = slide_count - 2 (封面 + 尾页), 如果有目录还要减1
+    has_toc = slide_count > 2
+    content_count = slide_count - 2 - (1 if has_toc else 0)
+
+    for i in range(content_count):
+        content_idx = i % len(content_pages)
         page_content = content_pages[content_idx]
-        layout = layouts[(i - 1) % len(layouts)]
+        layout = layouts[i % len(layouts)]
 
         slides.append({
             "slide_type": "content",
@@ -457,7 +461,7 @@ def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
         "design_notes": "居中简洁布局"
     })
 
-    return slides[:slide_count]
+    return slides
 
 
 def _get_topic_context(user_request: str) -> str:

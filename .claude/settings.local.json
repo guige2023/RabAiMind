@@ -27,7 +27,29 @@
       "Bash(brew install:*)",
       "Bash(pip list:*)",
       "Bash(python -c \"from src.main import app; print\\(''Import OK''\\)\")",
-      "Bash(du -h /Users/guige/my_project/RabAiMind/output/277c79d0-6ea3-47b9-922f-b2703f15610a/*.pptx)"
+      "Bash(du -h /Users/guige/my_project/RabAiMind/output/277c79d0-6ea3-47b9-922f-b2703f15610a/*.pptx)",
+      "Bash(echo 'Charts dir not found' echo -e '\\\\n=== 图表文件列表 ===' find /Users/guige/my_project/RabAiMind/static -name *.svg -newer /tmp/test_sales.csv)",
+      "Bash(head -30 echo -e \"\\\\n=== 24. 测试图片搜索 ===\" curl -s \"http://localhost:8003/api/v1/images/search?q=business&page=1\")",
+      "Bash(TASK_ID=\"c3b34b51-b03e-4ef3-9a6f-8526e30c7d58\" echo \"=== 26. 创建版本快照 ===\" curl -s -X POST \"http://localhost:8003/api/v1/ppt/versions/$TASK_ID/snapshot\" -H \"Content-Type: application/json\")",
+      "Bash(/dev/null echo:*)",
+      "Bash(TASK_ID=\"c3b34b51-b03e-4ef3-9a6f-8526e30c7d58\" echo \"=== 28. 版本对比 ===\" curl -s \"http://localhost:8003/api/v1/ppt/versions/$TASK_ID/diff?version_a=v1775182048880&version_b=v1775183715881\")",
+      "Bash(TASK_ID=\"c3b34b51-b03e-4ef3-9a6f-8526e30c7d58\" echo \"=== 30. 测试回滚 ===\" curl -s -X POST \"http://localhost:8003/api/v1/ppt/versions/$TASK_ID/v1775182048880/rollback\")",
+      "Bash(echo \"=== 32. 测试单页重生成 ===\" TASK_ID=\"c3b34b51-b03e-4ef3-9a6f-8526e30c7d58\" curl -s -X POST \"http://localhost:8003/api/v1/ppt/regenerate/$TASK_ID/1\" -H \"Content-Type: application/json\" -d '{\"\"\"\"scene\"\"\"\": \"\"\"\"business\"\"\"\", \"\"\"\"style\"\"\"\": \"\"\"\"professional\"\"\"\", \"\"\"\"content\"\"\"\": \"\"\"\"测试内容\"\"\"\", \"\"\"\"layout\"\"\"\": \"\"\"\"title\"\"\"\", \"\"\"\"title\"\"\"\": \"\"\"\"测试标题\"\"\"\"}' --max-time 60)",
+      "Bash(echo '=== 33. 验证SVG文件 ===' ls -la /Users/guige/my_project/RabAiMind/output/c3b34b51-b03e-4ef3-9a6f-8526e30c7d58/*.svg)",
+      "Bash(echo \"=== 37. 测试PDF导出 ===\" FINISHED_TASK=\"c3b34b51-b03e-4ef3-9a6f-8526e30c7d58\" curl -s -X GET \"http://localhost:8003/api/v1/ppt/export/pdf/$FINISHED_TASK\")",
+      "Bash(/opt/homebrew/bin/npm --version)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(source ~/.zshrc)",
+      "Read(//usr/local/bin/**)",
+      "Bash(/dev/null __NEW_LINE_8c174ed4db667e24__ echo -e '\\\\n=== 3. 测试场景和风格 ===' curl -s http://localhost:8003/api/v1/ppt/scenes)",
+      "Bash(pip3 install:*)",
+      "Bash(pip3 --version)",
+      "Bash(pip3 list:*)",
+      "Bash(python -c \"import pandas; print\\(''pandas OK''\\)\")",
+      "Bash(/Users/guige/bin/node --version)",
+      "Bash(export PATH=\"$PATH:/Users/guige/.nvm/.cache/src/node-v22.22.2/files/deps/npm/bin\")",
+      "Bash(/opt/homebrew/bin/pnpm run:*)",
+      "Bash(kill -9 47986 56735)"
     ]
   }
 }

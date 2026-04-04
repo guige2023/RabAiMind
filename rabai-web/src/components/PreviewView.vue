@@ -10,6 +10,14 @@
         <span class="slide-count">共 {{ slides.length }} 页</span>
       </div>
       <div class="toolbar-right">
+        <button
+          class="toolbar-btn"
+          :class="{ 'btn-active': isPerformanceMode }"
+          @click="togglePerformanceMode"
+          :title="isPerformanceMode ? '关闭性能模式' : '开启性能模式（禁用动画，提升大PPT性能）'"
+        >
+          ⚡ {{ isPerformanceMode ? '性能模式' : '极速' }}
+        </button>
         <button class="toolbar-btn" @click="undo" :disabled="!canUndo">↩ 撤销</button>
         <button class="toolbar-btn" @click="redo" :disabled="!canRedo">↪ 重做</button>
         <button class="toolbar-btn" @click="savePPT">💾 保存</button>
@@ -24,30 +32,74 @@
           <h3>页面列表</h3>
           <button class="add-slide-btn" @click="addSlide">+ 添加</button>
         </div>
-        <div class="slides-list">
-          <div
-            v-for="(slide, index) in slides"
-            :key="index"
-            class="slide-thumbnail"
-            :class="{ active: activeSlideIndex === index }"
-            @click="selectSlide(index)"
-          >
-            <div class="thumb-num">{{ index + 1 }}</div>
-            <div class="thumb-preview" :style="getSlideStyle(slide)">
-              <div
-                v-for="(el, elIdx) in slide.elements"
-                :key="elIdx"
-                class="thumb-element"
-                :style="getThumbElementStyle(el)"
-              >
-                {{ el.type === 'text' ? 'T' : (el.type === 'image' ? '🖼' : '■') }}
+        <div class="slides-list" ref="thumbnailsListRef">
+          <!-- Virtualized list for large PPTs (100+ slides) or performance mode -->
+          <template v-if="shouldUseVirtualList">
+            <div
+              v-for="(slide, index) in slides"
+              :key="index"
+              class="slide-thumbnail"
+              :class="{ active: activeSlideIndex === index }"
+              @click="selectSlide(index)"
+            >
+              <div class="thumb-num">{{ index + 1 }}</div>
+              <div class="thumb-preview" :style="getSlideStyle(slide)">
+                <div
+                  v-for="(el, elIdx) in slide.elements"
+                  :key="elIdx"
+                  class="thumb-element"
+                  :style="getThumbElementStyle(el)"
+                >
+                  {{ el.type === 'text' ? 'T' : (el.type === 'image' ? '🖼' : '■') }}
+                </div>
+                <div
+                  class="thumb-transition-badge"
+                  :class="'badge-' + (slide.transition || 'slide')"
+                  :title="'过渡: ' + (slide.transition || 'slide')"
+                >
+                  {{ getTransitionIcon(slide.transition || 'slide') }}
+                </div>
+              </div>
+              <div class="thumb-actions">
+                <button @click.stop="duplicateSlide(index)" title="复制">📋</button>
+                <button @click.stop="deleteSlide(index)" title="删除">🗑</button>
               </div>
             </div>
-            <div class="thumb-actions">
-              <button @click.stop="duplicateSlide(index)" title="复制">📋</button>
-              <button @click.stop="deleteSlide(index)" title="删除">🗑</button>
+          </template>
+          <!-- Lazy-loaded list for normal PPTs -->
+          <template v-else>
+            <div
+              v-for="(slide, index) in slides"
+              :key="index"
+              class="slide-thumbnail"
+              :class="{ active: activeSlideIndex === index }"
+              :data-slide-index="index"
+              @click="selectSlide(index)"
+            >
+              <div class="thumb-num">{{ index + 1 }}</div>
+              <div class="thumb-preview" :style="getSlideStyle(slide)">
+                <div
+                  v-for="(el, elIdx) in slide.elements"
+                  :key="elIdx"
+                  class="thumb-element"
+                  :style="getThumbElementStyle(el)"
+                >
+                  {{ el.type === 'text' ? 'T' : (el.type === 'image' ? '🖼' : '■') }}
+                </div>
+                <div
+                  class="thumb-transition-badge"
+                  :class="'badge-' + (slide.transition || 'slide')"
+                  :title="'过渡: ' + (slide.transition || 'slide')"
+                >
+                  {{ getTransitionIcon(slide.transition || 'slide') }}
+                </div>
+              </div>
+              <div class="thumb-actions">
+                <button @click.stop="duplicateSlide(index)" title="复制">📋</button>
+                <button @click.stop="deleteSlide(index)" title="删除">🗑</button>
+              </div>
             </div>
-          </div>
+          </template>
         </div>
       </div>
 
@@ -174,6 +226,27 @@
                 {{ layout.name }}
               </option>
             </select>
+          </div>
+        </div>
+
+        <!-- 过渡效果设置 -->
+        <div class="panel-section">
+          <h4>🔀 过渡效果</h4>
+          <div class="prop-group">
+            <label>效果类型</label>
+            <div class="transition-btns">
+              <button
+                v-for="t in transitionTypes"
+                :key="t.value"
+                class="transition-btn"
+                :class="{ active: currentSlide.transition === t.value }"
+                @click="setSlideTransition(t.value)"
+                :title="t.name"
+              >
+                <span class="t-icon">{{ t.icon }}</span>
+                <span class="t-label">{{ t.name }}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -345,7 +418,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { usePerformanceMode, applyPerformanceModeCSS } from '@/composables/usePerformanceMode'
 
 interface SlideElement {
   id: string
@@ -372,6 +446,7 @@ interface Slide {
   background: string
   layout: string
   elements: SlideElement[]
+  transition?: 'slide' | 'fade' | 'zoom' | 'flip'
 }
 
 const emit = defineEmits(['back', 'save', 'export'])
@@ -383,6 +458,61 @@ const props = defineProps<{
 // 幻灯片数据
 const slides = ref<Slide[]>([])
 const activeSlideIndex = ref(0)
+
+// Performance mode
+const { isPerformanceMode, togglePerformanceMode } = usePerformanceMode()
+const VIRTUAL_LIST_THRESHOLD = 100  // use virtualized list when slides >= 100
+const shouldUseVirtualList = computed(() =>
+  slides.value.length >= VIRTUAL_LIST_THRESHOLD || isPerformanceMode.value
+)
+
+// Lazy loading for thumbnails (IntersectionObserver)
+const thumbnailsListRef = ref<HTMLElement | null>(null)
+const visibleThumbnails = ref<Set<number>>(new Set())
+let thumbnailObserver: IntersectionObserver | null = null
+
+const setupLazyLoading = () => {
+  if (!thumbnailsListRef.value || shouldUseVirtualList.value) return
+  if (thumbnailObserver) thumbnailObserver.disconnect()
+
+  // Show first 10 slides initially (above the fold)
+  for (let i = 0; i < Math.min(10, slides.value.length); i++) {
+    visibleThumbnails.value.add(i)
+  }
+
+  thumbnailObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const index = parseInt(entry.target.getAttribute('data-slide-index') || '0', 10)
+        if (entry.isIntersecting) {
+          visibleThumbnails.value.add(index)
+        }
+      })
+    },
+    {
+      root: thumbnailsListRef.value,
+      rootMargin: '100px',  // preload 100px ahead
+      threshold: 0
+    }
+  )
+
+  // Observe all slide thumbnail elements
+  nextTick(() => {
+    const items = thumbnailsListRef.value?.querySelectorAll('.slide-thumbnail[data-slide-index]')
+    items?.forEach((el) => {
+      thumbnailObserver?.observe(el)
+    })
+  })
+}
+
+const isThumbnailVisible = (index: number) => {
+  // In performance mode, always show (no lazy loading)
+  if (isPerformanceMode.value) return true
+  // Virtual list handles its own rendering
+  if (shouldUseVirtualList.value) return true
+  // Default: all visible (IntersectionObserver handles lazy loading)
+  return true
+}
 const selectedElementIndex = ref<number | null>(null)
 
 // 拖拽状态
@@ -424,6 +554,13 @@ const backgroundPresets = [
 ]
 
 // 阴影预设
+const transitionTypes = [
+  { value: 'slide', name: '滑动', icon: '→' },
+  { value: 'fade', name: '淡入', icon: '◐' },
+  { value: 'zoom', name: '缩放', icon: '⊕' },
+  { value: 'flip', name: '翻转', icon: '↺' }
+]
+
 const shadowPresets = [
   { name: '无', value: '', preview: 'none' },
   { name: '轻微', value: '0 1px 2px rgba(0,0,0,0.1)', preview: '0 1px 2px rgba(0,0,0,0.1)' },
@@ -616,9 +753,24 @@ const setSlideLayout = (layout: string) => {
   saveHistory()
 }
 
+const setSlideTransition = (transition: string) => {
+  slides.value[activeSlideIndex.value].transition = transition as any
+  saveHistory()
+}
+
 const getBgColor = (bg: string) => {
   if (bg.startsWith('#')) return bg
   return '#ffffff'
+}
+
+const getTransitionIcon = (transition: string) => {
+  const icons: Record<string, string> = {
+    slide: '→',
+    fade: '◐',
+    zoom: '⊕',
+    flip: '↺'
+  }
+  return icons[transition] || '→'
 }
 
 const deleteElement = () => {
@@ -838,6 +990,15 @@ const handleKeydown = (e: KeyboardEvent) => {
 onMounted(() => {
   initSlides()
   window.addEventListener('keydown', handleKeydown)
+  // Setup lazy loading for thumbnails
+  nextTick(() => {
+    setupLazyLoading()
+  })
+})
+
+// Re-setup lazy loading when slides change
+watch(() => slides.value.length, () => {
+  nextTick(() => setupLazyLoading())
 })
 
 onUnmounted(() => {
@@ -846,6 +1007,7 @@ onUnmounted(() => {
   document.removeEventListener('mousemove', onResize)
   document.removeEventListener('mouseup', stopResize)
   window.removeEventListener('keydown', handleKeydown)
+  thumbnailObserver?.disconnect()
 })
 </script>
 
@@ -921,6 +1083,12 @@ onUnmounted(() => {
 
 .toolbar-btn.primary:hover {
   background: #0e42d2;
+}
+
+.toolbar-btn.btn-active {
+  background: #fff3cd;
+  border-color: #ffc107;
+  color: #856404;
 }
 
 .main-content {
@@ -1008,6 +1176,29 @@ onUnmounted(() => {
   justify-content: center;
   font-size: 6px;
 }
+
+/* 过渡效果缩略图标识 */
+.thumb-transition-badge {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.thumb-transition-badge.badge-fade { background: rgba(100, 100, 100, 0.8); }
+.thumb-transition-badge.badge-zoom { background: rgba(22, 93, 255, 0.8); }
+.thumb-transition-badge.badge-flip { background: rgba(118, 75, 162, 0.8); }
+.thumb-transition-badge.badge-slide { background: rgba(22, 160, 100, 0.8); }
 
 .thumb-actions {
   display: flex;
@@ -1288,6 +1479,47 @@ onUnmounted(() => {
 
 .shadow-btn.active {
   border-color: #165DFF;
+}
+
+/* 过渡效果按钮组 */
+.transition-btns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.transition-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: #f5f5f5;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  color: #333;
+}
+
+.transition-btn:hover {
+  border-color: #165DFF;
+  background: #f0f5ff;
+}
+
+.transition-btn.active {
+  border-color: #165DFF;
+  background: #e8f0ff;
+  color: #165DFF;
+}
+
+.transition-btn .t-icon {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.transition-btn .t-label {
+  font-size: 10px;
 }
 
 .btn-delete {

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTemplateStore } from './useTemplateStore'
+import { api } from '../api/client'
 
 interface SearchResult {
   type: 'template' | 'history' | 'page'
@@ -11,6 +12,14 @@ interface SearchResult {
   icon: string
   url: string
   meta?: string
+}
+
+interface PPTSearchResult {
+  task_id: string
+  title: string
+  slide_num: number
+  matched_text: string
+  context: string
 }
 
 interface SearchSuggestion {
@@ -55,6 +64,11 @@ export function useGlobalSearch() {
   const isSearchOpen = ref(false)
   const searchInputRef = ref<HTMLInputElement | null>(null)
   const selectedIndex = ref(0)
+
+  // R34: 搜索模式 - 是否在PPT内容中搜索
+  const searchInPPT = ref(false)
+  const pptSearchResults = ref<PPTSearchResult[]>([])
+  const pptSearchLoading = ref(false)
 
   // 搜索历史
   const searchHistory = ref<string[]>([])
@@ -110,6 +124,29 @@ export function useGlobalSearch() {
       // 忽略错误
     }
     return []
+  }
+
+  // R34: 搜索PPT内容
+  const searchPPTContent = async (query: string) => {
+    if (!query || query.trim().length < 2) {
+      pptSearchResults.value = []
+      return
+    }
+
+    pptSearchLoading.value = true
+    try {
+      const res = await api.search.inPPT(query.trim(), 20)
+      if (res.data.success) {
+        pptSearchResults.value = res.data.results
+      } else {
+        pptSearchResults.value = []
+      }
+    } catch (e) {
+      console.error('PPT内容搜索失败:', e)
+      pptSearchResults.value = []
+    } finally {
+      pptSearchLoading.value = false
+    }
   }
 
   // 搜索结果
@@ -213,6 +250,8 @@ export function useGlobalSearch() {
     isSearchOpen.value = false
     searchQuery.value = ''
     selectedIndex.value = 0
+    pptSearchResults.value = []
+    searchInPPT.value = false
   }
 
   // 执行搜索
@@ -221,12 +260,29 @@ export function useGlobalSearch() {
     if (!q.trim()) return
 
     saveSearchHistory(q)
+
+    if (searchInPPT.value) {
+      // 在PPT内容中搜索
+      searchPPTContent(q)
+      return
+    }
+
     closeSearch()
 
     // 导航到模板市场并搜索
     router.push({
       path: '/templates',
       query: { search: q }
+    })
+  }
+
+  // R34: 选择PPT搜索结果，跳转到对应PPT的第N页
+  const selectPPTSearchResult = (result: PPTSearchResult) => {
+    saveSearchHistory(result.title)
+    closeSearch()
+    router.push({
+      path: '/result',
+      query: { taskId: result.task_id, slide: String(result.slide_num) }
     })
   }
 
@@ -239,6 +295,33 @@ export function useGlobalSearch() {
 
   // 键盘导航
   const handleKeyNavigation = (e: KeyboardEvent) => {
+    if (searchInPPT.value) {
+      // PPT搜索模式下的键盘导航
+      const total = pptSearchResults.value.length
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          selectedIndex.value = (selectedIndex.value + 1) % Math.max(total, 1)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          selectedIndex.value = (selectedIndex.value - 1 + Math.max(total, 1)) % Math.max(total, 1)
+          break
+        case 'Enter':
+          e.preventDefault()
+          if (pptSearchResults.value.length > 0) {
+            selectPPTSearchResult(pptSearchResults.value[selectedIndex.value])
+          } else if (searchQuery.value) {
+            performSearch()
+          }
+          break
+        case 'Escape':
+          closeSearch()
+          break
+      }
+      return
+    }
+
     const totalItems = searchResults.value.length > 0
       ? searchResults.value.length
       : suggestions.value.length
@@ -278,6 +361,10 @@ export function useGlobalSearch() {
     searchInputRef,
     selectedIndex,
     searchHistory,
+    // R34: PPT内容搜索
+    searchInPPT,
+    pptSearchResults,
+    pptSearchLoading,
     // 计算属性
     searchResults,
     suggestions,
@@ -286,8 +373,10 @@ export function useGlobalSearch() {
     closeSearch,
     performSearch,
     selectResult,
+    selectPPTSearchResult,
     clearSearchHistory,
     handleKeyNavigation,
+    searchPPTContent,
     // 快速链接
     quickLinks
   }

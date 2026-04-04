@@ -82,7 +82,9 @@ class TaskManager:
             "updated_at": get_timestamp(),
             "result": None,
             "error": None,
-            "params": {}  # BUG修复: 存储完整生成参数，用于单页重生成等场景
+            "params": {},  # BUG修复: 存储完整生成参数，用于单页重生成等场景
+            "action_log": [],  # 操作日志（最多100条）
+            "undo_stack": [],  # 撤销栈（最多10条）
         }
 
         with self._task_lock:
@@ -102,8 +104,28 @@ class TaskManager:
         """保存大纲到任务（支持跨设备继续编辑）"""
         with self._task_lock:
             if task_id in self.tasks:
+                old_outline = self.tasks[task_id].get("outline")
                 self.tasks[task_id]["outline"] = outline
                 self.tasks[task_id]["updated_at"] = get_timestamp()
+                # 记录操作日志和撤销数据（在锁内直接添加，避免死锁）
+                if old_outline != outline:
+                    slide_count = len(outline.get("slides", [])) if outline else 0
+                    entry = {
+                        "action_type": "outline_edit",
+                        "description": f"编辑大纲 ({slide_count}页)",
+                        "timestamp": get_timestamp(),
+                        "undo_data": {"old_outline": old_outline},
+                    }
+                    if "action_log" not in self.tasks[task_id]:
+                        self.tasks[task_id]["action_log"] = []
+                    self.tasks[task_id]["action_log"].append(entry)
+                    if len(self.tasks[task_id]["action_log"]) > 100:
+                        self.tasks[task_id]["action_log"] = self.tasks[task_id]["action_log"][-100:]
+                    if "undo_stack" not in self.tasks[task_id]:
+                        self.tasks[task_id]["undo_stack"] = []
+                    self.tasks[task_id]["undo_stack"].append(entry)
+                    if len(self.tasks[task_id]["undo_stack"]) > 10:
+                        self.tasks[task_id]["undo_stack"] = self.tasks[task_id]["undo_stack"][-10:]
 
     def get_outline(self, task_id: str) -> Optional[Dict]:
         """获取大纲"""
@@ -371,6 +393,22 @@ class TaskManager:
             }
             task["versions"].append(post_rollback_version)
 
+            # 记录操作日志和撤销数据（在锁内直接添加，避免死锁）
+            rollback_entry = {
+                "action_type": "rollback",
+                "description": f"回滚到: {v['name']}",
+                "timestamp": get_timestamp(),
+                "undo_data": {"rollback_snapshot": rollback_snapshot},
+            }
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(rollback_entry)
+            if "undo_stack" not in task:
+                task["undo_stack"] = []
+            task["undo_stack"].append(rollback_entry)
+            if len(task["undo_stack"]) > 10:
+                task["undo_stack"] = task["undo_stack"][-10:]
+
         return {"success": True, "message": f"已回滚到 {v['name']}"}
 
     def diff_versions(self, task_id: str, version_id_a: str, version_id_b: str) -> dict:
@@ -405,6 +443,131 @@ class TaskManager:
             "diff": diff,
             "total_changes": len(diff)
         }
+
+    # ========== 操作日志 & 撤销栈 ==========
+
+    def log_action(self, task_id: str, action_type: str, description: str, undo_data: dict = None) -> None:
+        """记录用户操作到操作日志（最多100条），并压入撤销栈（最多10条）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return
+
+            entry = {
+                "action_type": action_type,
+                "description": description,
+                "timestamp": get_timestamp(),
+                "undo_data": undo_data,  # 撤销所需的数据
+            }
+
+            # 写入操作日志（最多100条）
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(entry)
+            if len(task["action_log"]) > 100:
+                task["action_log"] = task["action_log"][-100:]
+
+            # 压入撤销栈（最多10条）
+            if undo_data is not None:
+                if "undo_stack" not in task:
+                    task["undo_stack"] = []
+                task["undo_stack"].append(entry)
+                if len(task["undo_stack"]) > 10:
+                    task["undo_stack"] = task["undo_stack"][-10:]
+
+    def get_action_log(self, task_id: str, limit: int = 20) -> list:
+        """获取操作日志（最近limit条，默认20条）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            log = task.get("action_log", [])
+            return log[-limit:] if limit > 0 else log
+
+    def get_undo_stack(self, task_id: str) -> list:
+        """获取撤销栈（最近10条）"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return []
+            return task.get("undo_stack", [])
+
+    def undo(self, task_id: str) -> dict:
+        """撤销上一个操作，返回被撤销的操作信息"""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            undo_stack = task.get("undo_stack", [])
+            if not undo_stack:
+                return {"success": False, "message": "无可撤销的操作"}
+
+            # 弹出最后一个操作
+            action = undo_stack.pop()
+
+            # 根据操作类型执行撤销
+            action_type = action.get("action_type")
+            undo_data = action.get("undo_data", {})
+
+            if action_type == "outline_edit":
+                # 撤销大纲编辑：恢复之前的大纲
+                old_outline = undo_data.get("old_outline")
+                if old_outline:
+                    task["outline"] = old_outline
+                    task["updated_at"] = get_timestamp()
+
+            elif action_type == "slide_regenerate":
+                # 撤销幻灯片重生成：恢复之前的SVG内容到文件
+                old_svg_content = undo_data.get("old_svg_content")
+                svg_path = undo_data.get("svg_path")
+                slide_index = undo_data.get("slide_index")
+                if old_svg_content and svg_path:
+                    import os as _os
+                    _os.makedirs(_os.path.dirname(svg_path), exist_ok=True)
+                    with open(svg_path, 'w', encoding='utf-8') as _f:
+                        _f.write(old_svg_content)
+                    logger.info(f"[undo] 已恢复第{slide_index}页SVG到旧版本")
+                    task["updated_at"] = get_timestamp()
+
+            elif action_type == "rollback":
+                # 撤销回滚：恢复到回滚前的状态（需要特殊处理）
+                # 回滚操作本身已经有快照，所以撤销回滚就是恢复到快照
+                rollback_data = undo_data.get("rollback_snapshot")
+                if rollback_data:
+                    task["result"] = rollback_data.get("result", {})
+                    task["outline"] = rollback_data.get("outline", "")
+                    task["updated_at"] = get_timestamp()
+
+            elif action_type == "slide_image":
+                # 撤销图片更新
+                old_image_path = undo_data.get("old_image_path")
+                slide_index = undo_data.get("slide_index")
+                if old_image_path and slide_index is not None:
+                    if "result" not in task:
+                        task["result"] = {}
+                    svg_paths = task["result"].get("svg_paths", [])
+                    if slide_index <= len(svg_paths):
+                        svg_paths[slide_index - 1] = old_image_path
+                        task["result"]["svg_paths"] = svg_paths
+                    task["updated_at"] = get_timestamp()
+
+            # 记录撤销操作本身到日志
+            undo_log_entry = {
+                "action_type": "undo",
+                "description": f"撤销: {action.get('description', '')}",
+                "timestamp": get_timestamp(),
+                "undo_data": None,
+            }
+            if "action_log" not in task:
+                task["action_log"] = []
+            task["action_log"].append(undo_log_entry)
+
+            return {
+                "success": True,
+                "undone_action": action.get("description", ""),
+                "action_type": action_type,
+            }
 
     def register_async_task(self, task_id: str, async_task: asyncio.Task) -> None:
         """注册异步任务引用（线程安全）"""

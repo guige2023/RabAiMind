@@ -383,7 +383,7 @@ select {
   will-change: opacity, transform;
 }
 
-/* 动画性能优化 */
+/* 动画性能优化 - 系统偏好 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -392,6 +392,56 @@ select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 用户启用的减少动画 - .reduce-motion 类 */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.reduce-motion .animate-fadeIn,
+.reduce-motion .animate-fadeInUp,
+.reduce-motion .animate-fadeInDown,
+.reduce-motion .animate-fadeInScale,
+.reduce-motion .animate-slideInLeft,
+.reduce-motion .animate-slideInRight,
+.reduce-motion .animate-bounce,
+.reduce-motion .animate-pulse,
+.reduce-motion .animate-spin,
+.reduce-motion .animate-glow,
+.reduce-motion .animate-shimmer,
+.reduce-motion .animate-wobble {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Focus visible - improved for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Screen-reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* 打印样式 */
@@ -1026,4 +1076,65 @@ button:focus-visible {
   .animate-flip {
     display: none;
   }
+}
+
+/* ============ View Mode Classes (applied by useDeviceMode) ============ */
+/* These classes are added to <html> by the device mode composable */
+
+/* Force desktop layout when in desktop view mode */
+.view-desktop .header-content,
+.view-desktop .container {
+  max-width: 1200px !important;
+}
+
+/* Force mobile layout when in mobile view mode */
+.view-mobile {
+  overflow-x: hidden;
+}
+
+.view-mobile .header {
+  position: relative;
+}
+
+.view-mobile .header-content {
+  padding: 0 16px;
+}
+
+.view-mobile .main {
+  padding: 0;
+}
+
+/* Side panels full-screen on mobile */
+@media (max-width: 767px) {
+  .version-panel,
+  .layout-panel,
+  .transition-panel {
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+}
+
+/* Force tablet layout */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .view-tablet .container {
+    max-width: 100%;
+    padding: 0 20px;
+  }
+}
+
+/* =============================================
+   Performance Mode - Disable Animations
+   Activated by toggle or for 100+ slide PPTs
+   ============================================= */
+.perf-mode,
+.perf-mode * {
+  animation-duration: 0.001ms !important;
+  animation-transition-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+  /* Disable expensive transform/animation properties */
+  animation-delay: 0s !important;
+  transition-delay: 0s !important;
+  /* Disable backdrop-filter which is GPU intensive */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
