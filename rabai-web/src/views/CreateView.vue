@@ -673,20 +673,24 @@
           >
             📝 编辑大纲
           </button>
-          <button
-            class="btn btn-primary btn-lg"
-            :disabled="!isValid || isSubmitting"
-            @click="handleSubmit"
-          >
-            <span v-if="isSubmitting" class="spinner"></span>
-            <span v-else>✨ 开始生成</span>
-          </button>
           <!-- R92: Parallel generation toggle -->
           <button
             class="btn btn-outline btn-lg"
             @click="showParallelMode = !showParallelMode"
           >
             🚀 {{ showParallelMode ? '收起并行生成' : '🚀 并行生成多个' }}
+          </button>
+        </div>
+
+        <!-- Primary CTA - full width, visually dominant -->
+        <div class="form-actions form-actions-primary">
+          <button
+            class="btn btn-primary btn-lg btn-generate"
+            :disabled="!isValid || isSubmitting"
+            @click="handleSubmit"
+          >
+            <span v-if="isSubmitting" class="spinner"></span>
+            <span v-else>✨ 开始生成 PPT</span>
           </button>
         </div>
 
@@ -2890,6 +2894,27 @@ useKeyboardShortcuts([
   gap: 16px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.form-actions-primary {
+  margin-top: 16px;
+}
+
+.btn-generate {
+  width: 100%;
+  max-width: 480px;
+  padding: 18px 48px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #165DFF 0%, #4285F4 100%);
+  box-shadow: 0 6px 24px rgba(22, 93, 255, 0.45);
+  border: none;
+}
+
+.btn-generate:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(22, 93, 255, 0.55);
 }
 
 .btn-lg {
