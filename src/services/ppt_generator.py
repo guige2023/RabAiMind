@@ -1375,33 +1375,33 @@ class PPTGenerator:
                             if img_bytes:
                                 # 使用 get_or_add_image_part 添加图片（返回 ImagePart 和 rId）
                                 _img_io = BytesIO(img_bytes)
-                                _img_ext = 'png'
-                                if bg_image.startswith('data:'):
-                                    _mime = bg_image.split(';')[0].split('/')[-1]
-                                    if _mime in ('jpeg', 'jpg', 'png', 'gif', 'webp'):
-                                        _img_ext = _mime
-                                _img_part, _rId = slide.part.get_or_add_image_part(_img_io)
+                                _img_result = slide.part.get_or_add_image_part(_img_io)
+                                if _img_result is None:
+                                    logger.warning(f"图片背景: get_or_add_image_part返回None")
+                                    set_bg_done = False
+                                else:
+                                    _img_part, _rId = _img_result
 
-                                # 构建 blipFill XML
-                                _xPr = slide.background.fill._xPr  # bgPr 元素
-                                _blipFill = etree.SubElement(_xPr, qn('a:blipFill'))
-                                _blipFill.set('dpi', '131072')
-                                _blip = etree.SubElement(_blipFill, qn('a:blip'))
-                                _blip.set(qn('r:embed'), _rId)
-                                _stretch = etree.SubElement(_blipFill, qn('a:stretch'))
-                                _fillRect = etree.SubElement(_stretch, qn('a:fillRect'))
-                                _fillRect.set('extentX', '0')
-                                _fillRect.set('extentY', '0')
+                                    # 构建 blipFill XML
+                                    _xPr = slide.background.fill._xPr  # bgPr 元素
+                                    _blipFill = etree.SubElement(_xPr, qn('a:blipFill'))
+                                    _blipFill.set('dpi', '131072')
+                                    _blip = etree.SubElement(_blipFill, qn('a:blip'))
+                                    _blip.set(qn('r:embed'), _rId)
+                                    _stretch = etree.SubElement(_blipFill, qn('a:stretch'))
+                                    _fillRect = etree.SubElement(_stretch, qn('a:fillRect'))
+                                    _fillRect.set('extentX', '0')
+                                    _fillRect.set('extentY', '0')
 
-                                # 更新 fill._fill 为 _BlipFill（保持 python-pptx 内部状态同步）
-                                slide.background.fill._fill = _BlipFill(_blipFill)
+                                    # 更新 fill._fill 为 _BlipFill（保持 python-pptx 内部状态同步）
+                                    slide.background.fill._fill = _BlipFill(_blipFill)
 
-                                # 删除 noFill 元素（如果存在）
-                                _noFill = _xPr.find(qn('a:noFill'))
-                                if _noFill is not None:
-                                    _xPr.remove(_noFill)
+                                    # 删除 noFill 元素（如果存在）
+                                    _noFill = _xPr.find(qn('a:noFill'))
+                                    if _noFill is not None:
+                                        _xPr.remove(_noFill)
 
-                                text_color = RGBColor(255, 255, 255)
+                                    text_color = RGBColor(255, 255, 255)
                                 logger.info(f"已设置图片背景: {bg_image[:50]}")
                                 set_bg_done = True
                             else:
