@@ -1403,10 +1403,11 @@ class PPTGenerator:
                                     # 更新 fill._fill 为 _BlipFill（保持 python-pptx 内部状态同步）
                                     slide.background.fill._fill = _BlipFill(_blipFill)
 
-                                    # 删除 noFill 元素（如果存在），并设置文字颜色
+                                    # 删除 noFill 元素（如果存在）
                                     _noFill = _xPr.find(qn('a:noFill'))
                                     if _noFill is not None:
                                         _xPr.remove(_noFill)
+                                    # 无论 noFill 是否存在，都标记图片背景设置成功
                                     text_color = RGBColor(255, 255, 255)
                                     logger.info(f"已设置图片背景: {bg_image[:50]}")
                                     set_bg_done = True
