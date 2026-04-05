@@ -839,9 +839,10 @@ class PresentationSecurityManager:
         audit = get_audit_logger()
         audit.log(
             user_id=user_id,
+            role="user",
             action=f"presentation:{action}",
             resource=task_id,
-            details={
+            extra={
                 "client_ip": client_ip,
                 "user_agent": user_agent,
                 **(metadata or {})

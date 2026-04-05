@@ -758,9 +758,10 @@ async def download_ppt(
     if not security_mgr.check_ip_allowed(task_id, client_ip):
         audit_logger.log(
             user_id="anonymous",
+            role="anonymous",
             action="presentation:download_denied_ip",
             resource=task_id,
-            details={"client_ip": client_ip}
+            extra={"client_ip": client_ip}
         )
         raise HTTPException(
             status_code=403,
@@ -780,9 +781,10 @@ async def download_ppt(
         if not password or not security_mgr.verify_password(task_id, password):
             audit_logger.log(
                 user_id="anonymous",
+                role="anonymous",
                 action="presentation:download_denied_password",
                 resource=task_id,
-                details={"client_ip": client_ip}
+                extra={"client_ip": client_ip}
             )
             raise HTTPException(
                 status_code=401,

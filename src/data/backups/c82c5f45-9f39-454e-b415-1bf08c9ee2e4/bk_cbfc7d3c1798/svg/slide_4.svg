@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <!-- 渐变背景 -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="50%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#3b82f6"/>
+    </linearGradient>
+    <!-- 标题渐变 -->
+    <linearGradient id="titleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#bfdbfe"/>
+    </linearGradient>
+    <!-- 背景遮罩 -->
+    <linearGradient id="overlayGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(15,23,42,0.3)"/>
+      <stop offset="100%" style="stop-color:rgba(15,23,42,0.8)"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="1600" height="900" fill="url(#bgGradient)"/>
+  
+  <!-- 背景图片（如果有） -->
+  
+<image href="https://images.unsplash.com/photo-1551434678-e076c223a692?w=1600&amp;q=80" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" opacity="0.4"/>
+  
+  <!-- 遮罩层 -->
+  <rect width="1600" height="900" fill="url(#overlayGradient)"/>
+  
+  <!-- 装饰线条 -->
+  <line x1="0" y1="200" x2="1600" y2="200" stroke="rgba(59,130,246,0.3)" stroke-width="2"/>
+  <circle cx="100" cy="100" r="150" fill="rgba(59,130,246,0.1)"/>
+  <circle cx="1500" cy="800" r="200" fill="rgba(59,130,246,0.08)"/>
+  
+  <!-- 页码 -->
+  <text x="1550" y="870" text-anchor="end" fill="rgba(255,255,255,0.4)" font-size="18" font-family="Arial, sans-serif">
+    4
+  </text>
+  
+  <!-- 标题 -->
+  <text x="800" y="120" text-anchor="middle" fill="url(#titleGradient)" font-size="52" font-weight="bold" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+    竞争格局：中美双极主导，欧洲寻求差异化突破
+  </text>
+  
+  <!-- 副标题 -->
+  
+  
+  <!-- 内容要点 -->
+  
+<g id="content">
+<text x="150" y="380" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+              <tspan x="150">1. </tspan><tspan>美国在基础研究与顶尖人才上保持领先，拥有OpenAI、Anthropic等明星公司。</tspan>
+            </text><text x="150" y="450" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+              <tspan x="150">2. </tspan><tspan>中国在应用落地与数据规模上优势明显，百度文心、阿里通义等大模型快速迭代。</tspan>
+            </text><text x="150" y="520" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+              <tspan x="150">3. </tspan><tspan>欧洲聚焦伦理AI与工业AI，通过《人工智能法案》试图建立规则话语权。</tspan>
+            </text><text x="150" y="590" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+              <tspan x="150">4. </tspan><tspan>竞争已从单一技术点延伸至芯片（英伟达 vs. 华为昇腾）、云计算、开源社区的全栈竞争。</tspan>
+            </text>
+</g>
+  
+  <!-- 底部装饰 -->
+  <rect x="0" y="850" width="1600" height="50" fill="rgba(59,130,246,0.2)"/>
+  <text x="50" y="880" fill="rgba(255,255,255,0.5)" font-size="14" font-family="Arial, sans-serif">
+    RabAi Mind - AI Generated
+  </text>
+</svg>
