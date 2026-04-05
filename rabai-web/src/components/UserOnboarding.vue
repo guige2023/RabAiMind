@@ -272,6 +272,13 @@ onMounted(() => {
       canShowTrigger.value = true
     }
   }, 1500)
+
+  // Auto-dismiss after 10 seconds to avoid blocking UI
+  setTimeout(() => {
+    if (showOnboarding.value) {
+      showOnboarding.value = false
+    }
+  }, 10000)
 })
 
 defineExpose({

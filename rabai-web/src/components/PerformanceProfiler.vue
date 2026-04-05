@@ -123,7 +123,7 @@ const {
 
 const { state: syncState } = useBackgroundSync()
 
-const isExpanded = ref(true)
+const isExpanded = ref(false)
 const timelineExpanded = ref(false)
 const panelX = ref(panelPosition.value.x)
 const panelY = ref(panelPosition.value.y)

@@ -460,7 +460,8 @@ const loadHistory = () => {
   }
 
   // Then: fetch from API to supplement/verify
-  apiClient.get('/api/v1/dashboard').then(resp => {
+  // Note: apiClient already has baseURL='/api/v1', so use '/dashboard' not '/api/v1/dashboard'
+  apiClient.get('/dashboard').then(resp => {
     const data = resp.data
     const apiItems: HistoryItem[] = (data.recent_presentations || [])
       .filter((p: any) => p.status === 'completed')
