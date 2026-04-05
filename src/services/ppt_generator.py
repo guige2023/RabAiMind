@@ -1407,10 +1407,10 @@ class PPTGenerator:
                                     _noFill = _xPr.find(qn('a:noFill'))
                                     if _noFill is not None:
                                         _xPr.remove(_noFill)
-                                    # 无论 noFill 是否存在，都标记图片背景设置成功
-                                    text_color = RGBColor(255, 255, 255)
-                                    logger.info(f"已设置图片背景: {bg_image[:50]}")
-                                    set_bg_done = True
+                                # 无论 noFill 是否存在，图片背景都已通过 blipFill 设置成功
+                                text_color = RGBColor(255, 255, 255)
+                                logger.info(f"已设置图片背景: {bg_image[:50]}")
+                                set_bg_done = True
                             else:
                                 set_bg_done = False
                         except Exception as _e:
