@@ -369,7 +369,14 @@
           </div>
           <div class="daily-template-card" @click="selectTemplate(templateOfTheDay.template)">
             <div class="daily-thumbnail">
-              <div class="thumbnail-placeholder daily-thumb-placeholder">
+              <img
+                v-if="templateOfTheDay.template.thumbnail"
+                :src="templateOfTheDay.template.thumbnail"
+                :alt="templateOfTheDay.template.name"
+                class="template-thumb-img"
+                @error="$event.target.style.display='none'"
+              />
+              <div v-else class="thumbnail-placeholder daily-thumb-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -410,7 +417,14 @@
               @click="selectTemplate(template)"
             >
               <div class="template-thumbnail">
-                <div class="thumbnail-placeholder">
+                <img
+                  v-if="template.thumbnail"
+                  :src="template.thumbnail"
+                  :alt="template.name"
+                  class="template-thumb-img"
+                  @error="$event.target.style.display='none'"
+                />
+                <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -454,7 +468,14 @@
               @click="selectTemplate(template)"
             >
               <div class="template-thumbnail">
-                <div class="thumbnail-placeholder">
+                <img
+                  v-if="template.thumbnail"
+                  :src="template.thumbnail"
+                  :alt="template.name"
+                  class="template-thumb-img"
+                  @error="$event.target.style.display='none'"
+                />
+                <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -498,7 +519,14 @@
               @click="selectTemplate(template)"
             >
               <div class="template-thumbnail">
-                <div class="thumbnail-placeholder">
+                <img
+                  v-if="template.thumbnail"
+                  :src="template.thumbnail"
+                  :alt="template.name"
+                  class="template-thumb-img"
+                  @error="$event.target.style.display='none'"
+                />
+                <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -553,7 +581,8 @@
                   class="bundle-template-thumb"
                   @click="selectTemplate({ id: tpl.id, name: tpl.name, description: '', category: tpl.category, style: tpl.style, thumbnail: tpl.thumbnail, tags: [tpl.category], slides: 8, popularity: 80, isPremium: false, isFavorite: false, is_ugc: false, author: '', createdAt: '' } as Template)"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <img v-if="tpl.thumbnail" :src="tpl.thumbnail" :alt="tpl.name" class="bundle-thumb-img" @error="$event.target.style.display='none'" />
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
                   </svg>
@@ -601,7 +630,14 @@
               @click="selectTemplate(template)"
             >
               <div class="template-thumbnail">
-                <div class="thumbnail-placeholder">
+                <img
+                  v-if="template.thumbnail"
+                  :src="template.thumbnail"
+                  :alt="template.name"
+                  class="template-thumb-img"
+                  @error="$event.target.style.display='none'"
+                />
+                <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -634,7 +670,14 @@
           >
             <!-- Thumbnail with Hover Animation -->
             <div class="template-thumbnail">
-              <div class="thumbnail-placeholder">
+              <img
+                v-if="template.thumbnail"
+                :src="template.thumbnail"
+                :alt="template.name"
+                class="template-thumb-img"
+                @error="$event.target.style.display='none'"
+              />
+              <div v-else class="thumbnail-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <rect x="3" y="3" width="18" height="18" rx="2"/>
                   <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -1148,7 +1191,8 @@
                     @click="selectTemplate(sim); loadSelectedTemplateSimilar()"
                   >
                     <div class="similar-thumbnail">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <img v-if="sim.thumbnail" :src="sim.thumbnail" :alt="sim.name" class="similar-thumb-img" @error="$event.target.style.display='none'" />
+                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <rect x="3" y="3" width="18" height="18" rx="2"/>
                         <path d="M9 9h6M9 12h6M9 15h4"/>
                       </svg>
@@ -2668,6 +2712,14 @@ const executeDelete = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.template-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .thumbnail-placeholder {
@@ -3291,6 +3343,13 @@ const executeDelete = async () => {
   align-items: center;
   justify-content: center;
   margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.similar-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .similar-thumbnail svg {
@@ -3647,6 +3706,15 @@ const executeDelete = async () => {
   flex-shrink: 0;
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.daily-thumbnail .template-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .daily-thumb-placeholder {
@@ -4135,6 +4203,15 @@ const executeDelete = async () => {
   gap: 4px;
   cursor: pointer;
   transition: background 0.2s;
+  overflow: hidden;
+  min-height: 60px;
+}
+
+.bundle-thumb-img {
+  width: 100%;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
 }
 
 .bundle-template-thumb:hover {

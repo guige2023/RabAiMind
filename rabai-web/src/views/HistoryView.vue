@@ -226,7 +226,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { exportBackup, importBackup } from '../composables/useCloudBackup'
 import { useSearch } from '../composables/useSearch'
-import { api } from '../api/client'
+import { api, apiClient } from '../api/client'
 
 const router = useRouter()
 
@@ -448,14 +448,51 @@ const filteredList = computed(() => {
 const loadHistory = () => {
   isLoading.value = true
 
-  // Simulate loading delay
-  setTimeout(() => {
-    const saved = localStorage.getItem('ppt_history')
-    if (saved) {
+  // First: load from localStorage (fast, synchronous)
+  const saved = localStorage.getItem('ppt_history')
+  if (saved) {
+    try {
       historyList.value = JSON.parse(saved)
+    } catch (e) {
+      console.warn('Failed to parse localStorage history:', e)
+      historyList.value = []
     }
+  }
+
+  // Then: fetch from API to supplement/verify
+  apiClient.get('/api/v1/dashboard').then(resp => {
+    const data = resp.data
+    const apiItems: HistoryItem[] = (data.recent_presentations || [])
+      .filter((p: any) => p.status === 'completed')
+      .map((p: any) => ({
+        taskId: p.task_id,
+        title: p.title || '未命名PPT',
+        request: p.title || '',
+        slideCount: p.slide_count || 0,
+        style: p.style || 'professional',
+        createdAt: p.created_at || new Date().toISOString(),
+        favorite: false,
+        tags: []
+      }))
+
+    // Merge API data with localStorage
+    // localStorage wins if item exists there (preserves favorites/tags)
+    if (apiItems.length > 0) {
+      const localIds = new Set(historyList.value.map((h: HistoryItem) => h.taskId))
+      const newFromApi = apiItems.filter(p => !localIds.has(p.taskId))
+      if (newFromApi.length > 0) {
+        historyList.value = [...historyList.value, ...newFromApi]
+        // Sort by createdAt descending
+        historyList.value.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      }
+    }
+  }).catch(err => {
+    console.warn('Failed to fetch history from API:', err)
+  }).finally(() => {
     isLoading.value = false
-  }, 300)
+  })
 }
 
 const formatTime = (time: string) => {

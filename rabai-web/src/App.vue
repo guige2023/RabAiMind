@@ -13,7 +13,7 @@
     <UserExperience ref="uxRef" />
     <HelpCenter ref="helpRef" />
     <PWAInstallPrompt />
-    <PerformanceProfiler />
+    <PerformanceProfiler v-if="isDevelopment" />
     <NotificationsPanel
       v-if="showNotifications"
       @close="showNotifications = false"
@@ -184,6 +184,7 @@ const notifUnreadCount = computed(() =>
 )
 
 // Device mode
+const isDevelopment = import.meta.env.DEV
 const deviceMode = getDeviceMode()
 const { viewMode, effectiveMode } = deviceMode
 
