@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0891B2"/>
-      <stop offset="100%" style="stop-color:#22D3EE"/>
+      <stop offset="0%" style="stop-color:#6D28D9"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
     </linearGradient>
   </defs>
   <rect width="240" height="160" fill="url(#bg)" rx="8"/>
   <circle cx="200" cy="30" r="60" fill="rgba(255,255,255,0.1)"/>
   <circle cx="40" cy="140" r="40" fill="rgba(255,255,255,0.08)"/>
-  <text x="120" y="75" text-anchor="middle" font-size="36">🎓</text>
+  <text x="120" y="75" text-anchor="middle" font-size="36">🤖</text>
   <rect x="0" y="115" width="240" height="45" fill="rgba(0,0,0,0.25)"/>
-  <text x="120" y="142" text-anchor="middle" font-size="12" fill="white" font-family="sans-serif" opacity="0.9">Training</text>
+  <text x="120" y="142" text-anchor="middle" font-size="12" fill="white" font-family="sans-serif" opacity="0.9">AI Future</text>
 </svg>
