@@ -1332,7 +1332,14 @@ class PPTGenerator:
                     if slide_backgrounds and idx < len(slide_backgrounds):
                         # 使用用户设置的背景
                         bg = slide_backgrounds[idx]
-                        bg_color = bg.background_color if hasattr(bg, 'background_color') and bg.background_color else None
+                        bg_color_raw = bg.background_color if hasattr(bg, 'background_color') and bg.background_color else None
+                        # 去除#前缀，规范化颜色值
+                        if bg_color_raw and bg_color_raw.startswith('#'):
+                            bg_color = bg_color_raw[1:]
+                        elif bg_color_raw:
+                            bg_color = bg_color_raw
+                        else:
+                            bg_color = None
                         bg_image = bg.background_image if hasattr(bg, 'background_image') else None
                         bg_type = bg.background_type if hasattr(bg, 'background_type') else 'color'
                         logger.info(f"使用用户设置的背景: type={bg_type}, color={bg_color}, image={bool(bg_image)}")
@@ -1396,15 +1403,13 @@ class PPTGenerator:
                                     # 更新 fill._fill 为 _BlipFill（保持 python-pptx 内部状态同步）
                                     slide.background.fill._fill = _BlipFill(_blipFill)
 
-                                    # 删除 noFill 元素（如果存在）
+                                    # 删除 noFill 元素（如果存在），并设置文字颜色
                                     _noFill = _xPr.find(qn('a:noFill'))
                                     if _noFill is not None:
                                         _xPr.remove(_noFill)
-                                        text_color = RGBColor(255, 255, 255)
-                                        logger.info(f"已设置图片背景: {bg_image[:50]}")
-                                        set_bg_done = True
-                                    else:
-                                        set_bg_done = False
+                                    text_color = RGBColor(255, 255, 255)
+                                    logger.info(f"已设置图片背景: {bg_image[:50]}")
+                                    set_bg_done = True
                             else:
                                 set_bg_done = False
                         except Exception as _e:
