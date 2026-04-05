@@ -6,7 +6,6 @@
     <!-- Global Search -->
     <GlobalSearch ref="globalSearchRef" />
     <ToastNotifications />
-    <UserOnboarding />
     <TipsPanel ref="tipsRef" />
     <AIChatPanel />
     <MobileNavDrawer ref="mobileNavRef" />
@@ -148,7 +147,6 @@ import { useNotifications } from './composables/useNotifications'
 import ReduceMotionToggle from './components/ReduceMotionToggle.vue'
 import HighContrastToggle from './components/HighContrastToggle.vue'
 import GlobalSearch from './components/GlobalSearch.vue'
-import UserOnboarding from './components/UserOnboarding.vue'
 import AIChatPanel from './components/AIChatPanel.vue'
 import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import UserExperience from './components/UserExperience.vue'
