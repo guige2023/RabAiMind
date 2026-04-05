@@ -1472,7 +1472,7 @@ class PPTGenerator:
                                     slide.background.fill.solid()
                                     slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
                                     text_color = RGBColor(255, 255, 255)
-                    elif bg_color and len(bg_color) == 6:
+                    elif bg_color and len(bg_color) == 6 and not set_bg_done:
                         # 纯色（无渐变时回退）
                         r = int(bg_color[0:2], 16)
                         g = int(bg_color[2:4], 16)
