@@ -10,7 +10,7 @@
  */
 
 import { ref, computed, watch } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 export interface BrandProfile {
   brand_name: string

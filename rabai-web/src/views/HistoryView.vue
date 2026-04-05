@@ -485,11 +485,11 @@ const getStyleName = (style: string) => {
 }
 
 const viewResult = (item: HistoryItem) => {
-  router.push({ path: '/result', query: { taskId: item.taskId } })
+  router.push(`/result/${item.taskId}`)
 }
 
 const downloadAgain = (item: HistoryItem) => {
-  router.push({ path: '/result', query: { taskId: item.taskId } })
+  router.push(`/result/${item.taskId}`)
 }
 
 const deleteItem = (taskId: string) => {

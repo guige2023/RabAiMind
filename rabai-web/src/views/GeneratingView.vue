@@ -192,7 +192,7 @@ const pollStatus = async () => {
       // 发送完成通知
       notifyComplete()
       // 跳转到结果页
-      router.push({ path: '/result', query: { taskId: taskId.value } })
+      router.push(`/result/${taskId.value}`)
     } else if (data.status === 'failed') {
       notifyFailed(data.error?.message)
       showError.value = data.error?.message || '生成失败，请重试'

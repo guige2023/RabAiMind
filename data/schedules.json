@@ -15,14 +15,16 @@
         "user_request": "test"
       }
     },
-    "status": "active",
+    "status": "completed",
     "created_at": 1775314738.851646,
     "updated_at": 1775314738.851646,
-    "last_run_at": null,
+    "last_run_at": 1775354400.074614,
     "next_run_at": null,
-    "run_count": 0,
+    "run_count": 1,
     "user_id": null,
-    "task_ids": [],
+    "task_ids": [
+      "fd3ba971-a6a6-4a74-94dc-5b70909216d5"
+    ],
     "webhook_event": null
   },
   {
@@ -50,11 +52,13 @@
     "status": "active",
     "created_at": 1775314744.55679,
     "updated_at": 1775314744.55679,
-    "last_run_at": null,
+    "last_run_at": 1775350800.0467489,
     "next_run_at": 1775350800.0,
-    "run_count": 0,
+    "run_count": 1,
     "user_id": null,
-    "task_ids": [],
+    "task_ids": [
+      "b2a67edc-61d6-484d-b5b4-19d5fe0072d5"
+    ],
     "webhook_event": null
   }
 ]

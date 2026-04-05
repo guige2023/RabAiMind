@@ -1422,6 +1422,7 @@
 
     <!-- 演示模式 -->
     <PresentationMode
+      v-if="status === 'completed'"
       v-model:active="showPresentation"
       :slides="presentationSlides"
       :transition-settings="transitionSettings"
@@ -1435,7 +1436,8 @@
 
     <!-- AR/VR Presentation Modes -->
     <ARVRMode
-      v-model:active="showARVR"
+      v-if="status === 'completed'"
+      v-model:isActive="showARVR"
       :slides="presentationSlides"
     />
 
@@ -1638,7 +1640,7 @@
               <text class="timeline-title">📊 操作时间线（可选择撤销任意操作）</text>
               <text class="timeline-count">{{ actionTimeline.length }} 个操作</text>
             </view>
-            <scroll-view class="timeline-scroll" scroll-y>
+            <div class="timeline-scroll" style="overflow-y: auto; max-height: 300px;">
               <view class="timeline-list">
                 <view v-for="(item, idx) in actionTimeline" 
                       :key="item.action_id || idx"
@@ -1662,7 +1664,7 @@
                 </view>
                 <view v-if="actionTimeline.length === 0" class="empty-tip">暂无时间线记录</view>
               </view>
-            </scroll-view>
+            </div>
           </view>
           
           <!-- 检查点列表 -->
@@ -2466,9 +2468,10 @@
 
     <!-- Embed Widget 代码生成 -->
     <EmbedWidget
+      v-if="status === 'completed'"
       :show="showEmbedCode"
       :task-id="taskId"
-      :slide-count="slides.length || taskResult?.slides?.length || 1"
+      :slide-count="editableSlides.length || previewSlides.length || 1"
       @close="showEmbedCode = false"
     />
 
@@ -2503,7 +2506,7 @@
     <CollaborationOverlay
       v-if="showCollaborationOverlay && _collaborationInstance"
       :show="showCollaborationOverlay"
-      :cursors="_collaborationInstance.cursors"
+      :cursors="_collaborationInstance.cursors.value"
       :presence-list="_collaborationInstance.presenceList.value"
       :current-user="currentUser"
       :connected="_collaborationInstance.connected.value"
@@ -2841,11 +2844,14 @@ useSwipeGesture({
   threshold: 60
 })
 
-const taskId = ref((route.query.taskId as string) || '')
+// Support both /result/:taskId (params) and /result?taskId=xxx (query for backwards compat)
+const taskId = ref((route.params.taskId as string) || (route.query.taskId as string) || '')
 const status = ref('loading')
 const slideCount = ref(0)
 const fileSize = ref('0 KB')
 const errorMessage = ref('')
+const outline = ref<any>(null)
+const taskName = ref('')
 const showExportMenu = ref(false)
 const showChartConfig = ref(false)
 const previewLoaded = ref(false)
@@ -3298,6 +3304,20 @@ const handleCoachApplyTiming = (timingResult: any) => {
   showPresentationCoach.value = false
   showPresentation.value = true
   showSuccess('⏱', '已应用AI节奏建议，自动播放已开启')
+}
+
+// SmartDesignPanel handlers (stub implementations)
+const handleSmartDesignApply = (result: any) => {
+  console.log('[SmartDesign] apply:', result)
+  showSmartDesignPanel.value = false
+}
+
+const handleToggleGuides = (enabled: boolean) => {
+  console.log('[SmartDesign] toggle guides:', enabled)
+}
+
+const handleSpacingChange = (data: any) => {
+  console.log('[SmartDesign] spacing change:', data)
 }
 
 const applyMasterToSlide = (slideIndex: number, masterId: string) => {
@@ -4279,7 +4299,7 @@ const handleLocalize = async () => {
       showLocalizeModal.value = false
       // Reload the page with new task or notify success
       if (res.data.new_task_id) {
-        router.push(`/result?taskId=${res.data.new_task_id}`)
+        router.push(`/result/${res.data.new_task_id}`)
       } else {
         window.location.reload()
       }
@@ -5556,6 +5576,7 @@ const loadStatus = async () => {
       includeCharts.value = data.result.include_charts || false
       // 保留原始用户需求（用于重新生成）
       originalRequest.value = data.user_request || ''
+      taskName.value = data.user_request || ''
       // 同步到图表配置
       chartConfig.value.include_charts = includeCharts.value
 

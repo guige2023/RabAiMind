@@ -225,7 +225,7 @@ const openHelp = (tab?: string) => {
 // Notifications
 const handleNotificationViewTask = (taskId: string) => {
   if (taskId) {
-    window.location.href = `/result?taskId=${taskId}`
+    window.location.href = `/result/${taskId}`
   }
 }
 
