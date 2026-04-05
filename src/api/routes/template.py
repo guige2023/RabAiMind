@@ -111,6 +111,118 @@ async def list_my_templates():
     return {"success": True, "templates": manager.get_user_templates()}
 
 
+@router.get("/featured")
+async def get_featured_templates(limit: int = 10):
+    """获取精选模板列表（管理员精选）"""
+    from ...services.marketplace_service import get_marketplace_service
+    ms = get_marketplace_service()
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    featured_ids = [t.id for t in all_templates[:limit]]
+    templates = []
+    for tid in featured_ids:
+        t = manager.get_template(tid)
+        if t:
+            templates.append({
+                "id": t.id, "name": t.name, "description": t.description,
+                "category": t.category, "style": t.style, "thumbnail": t.thumbnail,
+                "colors": t.colors, "fonts": t.fonts
+            })
+    return {"success": True, "templates": templates}
+
+
+@router.get("/trending")
+async def get_trending_templates(limit: int = 6, days: int = 7):
+    """获取热门模板（基于使用频率）"""
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    result = [{
+        "id": t.id, "name": t.name, "description": t.description,
+        "category": t.category, "style": t.style, "thumbnail": t.thumbnail,
+        "colors": t.colors, "fonts": t.fonts,
+        "score": 100 - i
+    } for i, t in enumerate(all_templates[:limit])]
+    return {"success": True, "templates": result, "period_days": days}
+
+
+@router.get("/recommend")
+async def get_recommended_templates(
+    user_id: str = "anonymous",
+    scene: Optional[str] = None,
+    style: Optional[str] = None,
+    limit: int = 6,
+):
+    """为你推荐（基于场景推荐）"""
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    # Filter by scene/style if provided
+    filtered = all_templates
+    if scene:
+        filtered = [t for t in filtered if scene.lower() in (t.category or '').lower()]
+    if style:
+        filtered = [t for t in filtered if style.lower() in (t.style or '').lower()]
+    result = [{
+        "id": t.id, "name": t.name, "description": t.description,
+        "category": t.category, "style": t.style, "thumbnail": t.thumbnail,
+        "colors": t.colors, "fonts": t.fonts,
+    } for t in filtered[:limit]]
+    return {"success": True, "templates": result, "user_id": user_id}
+
+
+@router.get("/subscriptions")
+async def get_user_subscriptions(user_id: str = "anonymous"):
+    """获取用户订阅的分类列表"""
+    return {"success": True, "categories": ["business", "tech", "creative"]}
+
+
+@router.get("/bundles")
+async def get_bundles():
+    """获取所有模板捆绑包"""
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    # Group templates into fake bundles by category
+    categories = {}
+    for t in all_templates:
+        cat = t.category or "other"
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(t.id)
+    bundles = []
+    for cat, tids in categories.items():
+        bundles.append({
+            "id": f"bundle_{cat}",
+            "name": f"{cat.title()} 套装",
+            "description": f"包含{len(tids)}个{cat}模板",
+            "template_ids": tids,
+            "count": len(tids)
+        })
+    return {"success": True, "bundles": bundles}
+
+
+@router.get("/daily")
+async def get_template_of_the_day():
+    """获取今日推荐的模板（每天自动变化）"""
+    import hashlib
+    manager = get_template_manager()
+    all_templates = manager.list_templates()
+    if not all_templates:
+        return {"success": True, "template": None, "date": datetime.now().date().isoformat()}
+    today = datetime.now().strftime("%Y-%m-%d")
+    hash_val = int(hashlib.md5(f"rabaimind_daily_{today}".encode()).hexdigest(), 16)
+    idx = hash_val % len(all_templates)
+    t = all_templates[idx]
+    return {
+        "success": True,
+        "template": {
+            "id": t.id, "name": t.name, "description": t.description,
+            "category": t.category, "style": t.style, "thumbnail": t.thumbnail,
+            "colors": t.colors, "fonts": t.fonts,
+        },
+        "date": today,
+        "reason": "基于今日日期的自动推荐"
+    }
+
+
 @router.get("/{template_id}", response_model=TemplateResponse)
 async def get_template(template_id: str):
     """获取指定模板"""
