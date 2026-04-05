@@ -1413,38 +1413,58 @@ class PPTGenerator:
                     # ========== 渐变/颜色背景 ==========
                     if not set_bg_done:
                         gradient_info = self._extract_svg_gradient(svg_content)
-                        from_color_hex, to_color_hex, angle = gradient_info
-                        try:
-                            from_r = int(from_color_hex[0:2], 16)
-                            from_g = int(from_color_hex[2:4], 16)
-                            from_b = int(from_color_hex[4:6], 16)
-                            to_r = int(to_color_hex[0:2], 16)
-                            to_g = int(to_color_hex[2:4], 16)
-                            to_b = int(to_color_hex[4:6], 16)
-                            # 使用渐变填充
-                            fill = slide.background.fill
-                            fill.gradient()
-                            fill.gradient_angle = angle
-                            fill.gradient_from_color.rgb = RGBColor(from_r, from_g, from_b)
-                            fill.gradient_to_color.rgb = RGBColor(to_r, to_g, to_b)
-                            # 计算文字颜色（基于渐变终点的亮度）
-                            brightness_to = (to_r * 299 + to_g * 587 + to_b * 114) / 1000
-                            text_color = RGBColor(255, 255, 255) if brightness_to < 128 else RGBColor(0, 0, 0)
-                            logger.info(f"已设置渐变背景: {from_color_hex} → {to_color_hex} (angle={angle})")
-                        except Exception as e:
-                            logger.warning(f"渐变设置失败，使用纯色: {e}")
+                        if gradient_info is None:
+                            # 无渐变信息，使用用户设置的颜色或默认
                             if bg_color and len(bg_color) == 6:
-                                r = int(bg_color[0:2], 16)
-                                g = int(bg_color[2:4], 16)
-                                b = int(bg_color[4:6], 16)
-                                slide.background.fill.solid()
-                                slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
-                                brightness = (r * 299 + g * 587 + b * 114) / 1000
-                                text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                                try:
+                                    r = int(bg_color[0:2], 16)
+                                    g = int(bg_color[2:4], 16)
+                                    b = int(bg_color[4:6], 16)
+                                    slide.background.fill.solid()
+                                    slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
+                                    brightness = (r * 299 + g * 587 + b * 114) / 1000
+                                    text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                                except Exception:
+                                    slide.background.fill.solid()
+                                    slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
+                                    text_color = RGBColor(255, 255, 255)
                             else:
                                 slide.background.fill.solid()
                                 slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
                                 text_color = RGBColor(255, 255, 255)
+                        else:
+                            from_color_hex, to_color_hex, angle = gradient_info
+                            try:
+                                from_r = int(from_color_hex[0:2], 16)
+                                from_g = int(from_color_hex[2:4], 16)
+                                from_b = int(from_color_hex[4:6], 16)
+                                to_r = int(to_color_hex[0:2], 16)
+                                to_g = int(to_color_hex[2:4], 16)
+                                to_b = int(to_color_hex[4:6], 16)
+                                # 使用渐变填充
+                                fill = slide.background.fill
+                                fill.gradient()
+                                fill.gradient_angle = angle
+                                fill.gradient_from_color.rgb = RGBColor(from_r, from_g, from_b)
+                                fill.gradient_to_color.rgb = RGBColor(to_r, to_g, to_b)
+                                # 计算文字颜色（基于渐变终点的亮度）
+                                brightness_to = (to_r * 299 + to_g * 587 + to_b * 114) / 1000
+                                text_color = RGBColor(255, 255, 255) if brightness_to < 128 else RGBColor(0, 0, 0)
+                                logger.info(f"已设置渐变背景: {from_color_hex} → {to_color_hex} (angle={angle})")
+                            except Exception as e:
+                                logger.warning(f"渐变设置失败，使用纯色: {e}")
+                                if bg_color and len(bg_color) == 6:
+                                    r = int(bg_color[0:2], 16)
+                                    g = int(bg_color[2:4], 16)
+                                    b = int(bg_color[4:6], 16)
+                                    slide.background.fill.solid()
+                                    slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
+                                    brightness = (r * 299 + g * 587 + b * 114) / 1000
+                                    text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                                else:
+                                    slide.background.fill.solid()
+                                    slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
+                                    text_color = RGBColor(255, 255, 255)
                     elif bg_color and len(bg_color) == 6:
                         # 纯色（无渐变时回退）
                         r = int(bg_color[0:2], 16)
