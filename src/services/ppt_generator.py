@@ -1328,19 +1328,74 @@ class PPTGenerator:
                 if use_smart_layout:
                     # 确定背景颜色：优先使用用户设置，否则使用SVG中的颜色
                     bg_color = None
+                    bg_image = None  # 用户设置的图片背景URL
                     if slide_backgrounds and idx < len(slide_backgrounds):
-                        # 使用用户设置的背景颜色
+                        # 使用用户设置的背景
                         bg = slide_backgrounds[idx]
-                        bg_color = bg.background_color if hasattr(bg, 'background_color') else None
-                        logger.info(f"使用用户设置的背景颜色: {bg_color}")
+                        bg_color = bg.background_color if hasattr(bg, 'background_color') and bg.background_color else None
+                        bg_image = bg.background_image if hasattr(bg, 'background_image') else None
+                        bg_type = bg.background_type if hasattr(bg, 'background_type') else 'color'
+                        logger.info(f"使用用户设置的背景: type={bg_type}, color={bg_color}, image={bool(bg_image)}")
                     if not bg_color:
                         # 从SVG提取背景颜色
                         bg_color = self._extract_svg_background_color(svg_content)
                         logger.info(f"使用SVG背景颜色: {bg_color}")
 
-                    # 尝试从SVG提取渐变背景（多stop → 转PPT渐变）
-                    gradient_info = self._extract_svg_gradient(svg_content)
-                    if gradient_info:
+                    # ========== 图片背景 ==========
+                    set_bg_done = False
+                    set_image_bg = bg_image and (bg.background_type == 'image' if hasattr(bg, 'background_type') else False)
+                    if set_image_bg:
+                        try:
+                            import base64
+                            from pathlib import Path
+                            from pptx.parts.image import Image as _PptxImage
+                            from lxml import etree
+
+                            img_bytes = None
+                            if bg_image.startswith('data:'):
+                                _header, _b64 = bg_image.split(',', 1)
+                                img_bytes = base64.b64decode(_b64)
+                                logger.info(f"图片背景: 使用base64数据")
+                            elif bg_image.startswith('http'):
+                                import requests as _req
+                                _r = _req.get(bg_image, timeout=15)
+                                if _r.status_code == 200:
+                                    img_bytes = _r.content
+                                    logger.info(f"图片背景: 下载成功 {len(img_bytes)} bytes")
+                                else:
+                                    raise Exception(f"HTTP {_r.status_code}")
+                            else:
+                                _p = Path(bg_image)
+                                if _p.exists():
+                                    img_bytes = _p.read_bytes()
+                                    logger.info(f"图片背景: 本地文件")
+
+                            if img_bytes:
+                                _slide_part = slide.part
+                                _img_obj = _PptxImage(img_bytes)
+                                _rId = _slide_part.relate_to(_img_obj, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image')
+                                _blip = slide.background.fill._blipFill()
+                                _blip_elem = _blip._element
+                                _blip_elem.set('dpi', '131072')
+                                _stretch = _blip_elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}stretch')
+                                if _stretch is None:
+                                    _stretch = etree.SubElement(_blip_elem, '{http://schemas.openxmlformats.org/drawingml/2006/main}stretch')
+                                    _stretch_f = etree.SubElement(_stretch, '{http://schemas.openxmlformats.org/drawingml/2006/main}fillRect')
+                                    _stretch_f.set('extentX', '0')
+                                    _stretch_f.set('extentY', '0')
+                                _blip_elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip').set('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed', _rId)
+                                text_color = RGBColor(255, 255, 255)
+                                logger.info(f"已设置图片背景: {bg_image[:50]}")
+                                set_bg_done = True
+                            else:
+                                set_bg_done = False
+                        except Exception as _e:
+                            logger.warning(f"图片背景失败: {_e}")
+                            set_bg_done = False
+
+                    # ========== 渐变/颜色背景 ==========
+                    if not set_bg_done:
+                        gradient_info = self._extract_svg_gradient(svg_content)
                         from_color_hex, to_color_hex, angle = gradient_info
                         try:
                             from_r = int(from_color_hex[0:2], 16)

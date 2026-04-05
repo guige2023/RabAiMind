@@ -571,12 +571,39 @@
                   v-for="color in backgroundColors"
                   :key="color.value"
                   class="theme-color theme-color-sm"
-                  :class="{ active: formData.slideBackgrounds[i-1] === color.value }"
+                  :class="{ active: !formData.slideBackgrounds[i-1]?.background_image && formData.slideBackgrounds[i-1]?.background_color === color.value }"
                   :style="{ background: color.value }"
-                  @click="formData.slideBackgrounds[i-1] = color.value"
+                  @click="setSlideBgColor(i-1, color.value)"
                 >
-                  <span v-if="formData.slideBackgrounds[i-1] === color.value" class="check">✓</span>
+                  <span v-if="!formData.slideBackgrounds[i-1]?.background_image && formData.slideBackgrounds[i-1]?.background_color === color.value" class="check">✓</span>
                 </div>
+                <!-- 图片上传按钮 -->
+                <div
+                  class="theme-color theme-color-sm bg-image-btn"
+                  :class="{ active: formData.slideBackgrounds[i-1]?.background_image }"
+                  @click="triggerBgImageUpload(i-1)"
+                  title="上传背景图片"
+                >
+                  <img v-if="formData.slideBackgrounds[i-1]?.background_image" :src="formData.slideBackgrounds[i-1].background_image" class="bg-thumb-img" />
+                  <span v-else class="bg-upload-icon">🖼️</span>
+                </div>
+                <input
+                  type="file"
+                  :ref="el => bgImageRefs[i-1] = el"
+                  accept="image/*"
+                  style="display:none"
+                  @change="handleBgImageUpload(i-1, $event)"
+                />
+                <!-- 图片URL输入（备选） -->
+                <input
+                  v-if="formData.slideBackgrounds[i-1]?.background_image"
+                  type="text"
+                  class="bg-url-input"
+                  :value="formData.slideBackgrounds[i-1]?.background_image"
+                  placeholder="图片URL..."
+                  @change="setSlideBgImage(i-1, $event.target.value)"
+                />
+                <button v-if="formData.slideBackgrounds[i-1]?.background_image" class="bg-clear-btn" @click="clearSlideBgImage(i-1)" title="清除图片">✕</button>
               </div>
             </div>
           </div>
@@ -1163,6 +1190,79 @@ const route = useRoute()
 // Toast notifications
 const { showSuccess, showError, showInfo } = useInteractionFeedback()
 
+// 背景图片上传 refs
+const bgImageRefs = ref<HTMLInputElement[]>([])
+
+// 设置单页背景颜色
+function setSlideBgColor(index: number, color: string) {
+  if (!formData.value.slideBackgrounds[index]) {
+    formData.value.slideBackgrounds[index] = {
+      background_type: 'color',
+      background_color: color
+    }
+  } else {
+    formData.value.slideBackgrounds[index].background_type = 'color'
+    formData.value.slideBackgrounds[index].background_color = color
+    formData.value.slideBackgrounds[index].background_image = undefined
+  }
+}
+
+// 触发背景图片上传
+function triggerBgImageUpload(index: number) {
+  bgImageRefs.value[index]?.click()
+}
+
+// 处理背景图片上传
+async function handleBgImageUpload(index: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // 转为 base64（无需 task_id）
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const base64 = (e.target?.result as string).split(',')[1]
+    if (!formData.value.slideBackgrounds[index]) {
+      formData.value.slideBackgrounds[index] = {
+        background_type: 'image',
+        background_color: '',
+        background_image: `data:${file.type};base64,${base64}`
+      }
+    } else {
+      formData.value.slideBackgrounds[index].background_type = 'image'
+      formData.value.slideBackgrounds[index].background_image = `data:${file.type};base64,${base64}`
+    }
+    showSuccess(`第${index + 1}页已设置背景图片`)
+  }
+  reader.readAsDataURL(file)
+}
+
+// 设置背景图片URL
+function setSlideBgImage(index: number, url: string) {
+  if (!formData.value.slideBackgrounds[index]) {
+    formData.value.slideBackgrounds[index] = {
+      background_type: url ? 'image' : 'color',
+      background_color: '',
+      background_image: url || undefined
+    }
+  } else {
+    formData.value.slideBackgrounds[index].background_type = url ? 'image' : 'color'
+    formData.value.slideBackgrounds[index].background_image = url || undefined
+    if (!url) {
+      formData.value.slideBackgrounds[index].background_type = 'color'
+    }
+  }
+}
+
+// 清除背景图片
+function clearSlideBgImage(index: number) {
+  if (formData.value.slideBackgrounds[index]) {
+    formData.value.slideBackgrounds[index].background_type = 'color'
+    formData.value.slideBackgrounds[index].background_color = formData.value.themeColor
+    formData.value.slideBackgrounds[index].background_image = undefined
+  }
+}
+
 // 表单数据
 const formData = ref<{
   userRequest: string
@@ -1177,7 +1277,7 @@ const formData = ref<{
   useSmartLayout: boolean
   backgroundMode: string
   unifiedBackground: string
-  slideBackgrounds: string[]
+  slideBackgrounds: Array<{background_type: string, background_color: string, background_image?: string}>
   layoutMode: string
   unifiedLayout: string
   slideLayouts: string[]
@@ -2312,11 +2412,32 @@ const handleSubmit = async () => {
       // 自定义每页背景
       slideBackgrounds = []
       for (let i = 0; i < formData.value.slideCount; i++) {
-        slideBackgrounds.push({
-          slide_index: i,
-          background_type: 'color',
-          background_color: formData.value.slideBackgrounds[i] || formData.value.themeColor
-        })
+        const bg = formData.value.slideBackgrounds[i]
+        if (bg?.background_image) {
+          // 图片背景
+          slideBackgrounds.push({
+            slide_index: i,
+            background_type: 'image',
+            background_color: bg.background_color || '#165DFF',
+            background_image: bg.background_image
+          })
+        } else if (bg?.gradient_start && bg?.gradient_end) {
+          // 渐变背景
+          slideBackgrounds.push({
+            slide_index: i,
+            background_type: 'gradient',
+            background_color: bg.background_color || '#165DFF',
+            gradient_start: bg.gradient_start,
+            gradient_end: bg.gradient_end
+          })
+        } else {
+          // 颜色背景
+          slideBackgrounds.push({
+            slide_index: i,
+            background_type: 'color',
+            background_color: bg?.background_color || formData.value.themeColor
+          })
+        }
       }
     }
   }
@@ -3140,6 +3261,55 @@ useKeyboardShortcuts([
 .theme-color-sm {
   width: 32px;
   height: 32px;
+}
+
+.bg-image-btn {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #CCC;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.bg-image-btn.active {
+  border-color: #165DFF;
+  border-style: solid;
+}
+
+.bg-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bg-upload-icon {
+  font-size: 16px;
+}
+
+.bg-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid #DDD;
+  border-radius: 4px;
+}
+
+.bg-clear-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  color: #999;
+  background: none;
+  border: 1px solid #DDD;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bg-clear-btn:hover {
+  color: #E53;
+  border-color: #E53;
 }
 
 /* 布局设置 */
