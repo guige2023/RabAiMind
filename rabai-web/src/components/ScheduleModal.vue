@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
+  <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
     <div class="modal-card schedule-modal">
       <div class="modal-header">
         <h3>📅 定时发布与自动化</h3>
@@ -258,6 +258,7 @@ import { reactive, computed, ref } from 'vue'
 import { api } from '../api/client'
 
 const props = defineProps<{
+  show?: boolean
   taskId?: string
   taskName?: string
 }>()

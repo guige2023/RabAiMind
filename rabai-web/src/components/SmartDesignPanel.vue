@@ -1,5 +1,5 @@
 <template>
-  <div class="smart-design-overlay" @click.self="closePanel">
+  <div v-if="show" class="smart-design-overlay" @click.self="closePanel">
     <div class="smart-design-panel">
       <div class="panel-header">
         <div class="header-title">
