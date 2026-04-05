@@ -228,6 +228,10 @@ const pollPreview = async () => {
         previewSlides.value = slidesWithTimestamp
         // 自动滚动到最新
         currentPreviewIndex.value = slidesWithTimestamp.length - 1
+        // 同步更新总页数（AI可能生成超过预设页数）
+        if (slidesWithTimestamp.length > totalSlides.value) {
+          totalSlides.value = slidesWithTimestamp.length
+        }
       }
     }
   } catch (error) {
