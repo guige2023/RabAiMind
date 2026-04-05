@@ -1,0 +1,20 @@
+{
+  "backup_id": "bk_ccb15fd70ac3",
+  "task_id": "b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba",
+  "name": "备份 2026-04-05T12:50:23.263319",
+  "backup_type": "manual",
+  "created_at": "2026-04-05T12:50:23.263319",
+  "include_pptx": true,
+  "include_svg": true,
+  "files": {
+    "pptx": "b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba.pptx",
+    "svg": [
+      "/Users/guige/my_project/RabAiMind/src/data/backups/b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba/bk_ccb15fd70ac3/svg/slide_1.svg",
+      "/Users/guige/my_project/RabAiMind/src/data/backups/b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba/bk_ccb15fd70ac3/svg/slide_2.svg",
+      "/Users/guige/my_project/RabAiMind/src/data/backups/b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba/bk_ccb15fd70ac3/svg/slide_3.svg",
+      "/Users/guige/my_project/RabAiMind/src/data/backups/b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba/bk_ccb15fd70ac3/svg/slide_4.svg",
+      "/Users/guige/my_project/RabAiMind/src/data/backups/b05f7fa3-a7ea-4a5f-aa86-13a3fd3fddba/bk_ccb15fd70ac3/svg/slide_5.svg"
+    ],
+    "task_data": "task_data.json"
+  }
+}
