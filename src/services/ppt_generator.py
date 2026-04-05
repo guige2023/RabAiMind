@@ -1400,10 +1400,11 @@ class PPTGenerator:
                                     _noFill = _xPr.find(qn('a:noFill'))
                                     if _noFill is not None:
                                         _xPr.remove(_noFill)
-
-                                    text_color = RGBColor(255, 255, 255)
-                                logger.info(f"已设置图片背景: {bg_image[:50]}")
-                                set_bg_done = True
+                                        text_color = RGBColor(255, 255, 255)
+                                        logger.info(f"已设置图片背景: {bg_image[:50]}")
+                                        set_bg_done = True
+                                    else:
+                                        set_bg_done = False
                             else:
                                 set_bg_done = False
                         except Exception as _e:
