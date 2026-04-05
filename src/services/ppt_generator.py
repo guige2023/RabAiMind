@@ -1338,8 +1338,43 @@ class PPTGenerator:
                         bg_color = self._extract_svg_background_color(svg_content)
                         logger.info(f"使用SVG背景颜色: {bg_color}")
 
-                    if bg_color and len(bg_color) == 6:
-                        # 转换颜色
+                    # 尝试从SVG提取渐变背景（多stop → 转PPT渐变）
+                    gradient_info = self._extract_svg_gradient(svg_content)
+                    if gradient_info:
+                        from_color_hex, to_color_hex, angle = gradient_info
+                        try:
+                            from_r = int(from_color_hex[0:2], 16)
+                            from_g = int(from_color_hex[2:4], 16)
+                            from_b = int(from_color_hex[4:6], 16)
+                            to_r = int(to_color_hex[0:2], 16)
+                            to_g = int(to_color_hex[2:4], 16)
+                            to_b = int(to_color_hex[4:6], 16)
+                            # 使用渐变填充
+                            fill = slide.background.fill
+                            fill.gradient()
+                            fill.gradient_angle = angle
+                            fill.gradient_from_color.rgb = RGBColor(from_r, from_g, from_b)
+                            fill.gradient_to_color.rgb = RGBColor(to_r, to_g, to_b)
+                            # 计算文字颜色（基于渐变终点的亮度）
+                            brightness_to = (to_r * 299 + to_g * 587 + to_b * 114) / 1000
+                            text_color = RGBColor(255, 255, 255) if brightness_to < 128 else RGBColor(0, 0, 0)
+                            logger.info(f"已设置渐变背景: {from_color_hex} → {to_color_hex} (angle={angle})")
+                        except Exception as e:
+                            logger.warning(f"渐变设置失败，使用纯色: {e}")
+                            if bg_color and len(bg_color) == 6:
+                                r = int(bg_color[0:2], 16)
+                                g = int(bg_color[2:4], 16)
+                                b = int(bg_color[4:6], 16)
+                                slide.background.fill.solid()
+                                slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
+                                brightness = (r * 299 + g * 587 + b * 114) / 1000
+                                text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                            else:
+                                slide.background.fill.solid()
+                                slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
+                                text_color = RGBColor(255, 255, 255)
+                    elif bg_color and len(bg_color) == 6:
+                        # 纯色（无渐变时回退）
                         r = int(bg_color[0:2], 16)
                         g = int(bg_color[2:4], 16)
                         b = int(bg_color[4:6], 16)
@@ -1719,6 +1754,53 @@ class PPTGenerator:
                     if color.startswith('#'):
                         return color[1:]
 
+        return None
+
+    def _extract_svg_gradient(self, svg_content: str):
+        """从SVG中提取渐变信息，返回 (from_hex, to_hex, angle) 或 None"""
+        import re
+        # 提取渐变定义中的所有stop
+        stops = re.findall(r'<stop[^>]+stop-color:\s*([^:;"\s]+)[^>]*offset="([^"]+)"', svg_content)
+        if len(stops) >= 2:
+            # 提取角度（x2-x1, y2-y1）
+            grad_match = re.search(r'linearGradient[^>]+x1="([^"]+)"[^>]+y1="([^"]+)"[^>]+x2="([^"]+)"[^>]+y2="([^"]+)"', svg_content)
+            if not grad_match:
+                grad_match = re.search(r'linearGradient[^>]+x2="([^"]+)"[^>]+y2="([^"]+)"', svg_content)
+            
+            angle = 45  # 默认45度
+            if grad_match:
+                try:
+                    groups = grad_match.groups()
+                    x2_str = groups[0] if len(groups) >= 1 else "1"
+                    y2_str = groups[1] if len(groups) >= 2 else "0"
+                    x2 = float(x2_str)
+                    y2 = float(y2_str)
+                    angle = int(abs(y2) * 90 / max(abs(x2), 0.01))
+                except (ValueError, TypeError):
+                    angle = 45
+            
+            # 取第一个和最后一个stop的颜色
+            first_color = stops[0][0].strip()
+            last_color = stops[-1][0].strip()
+            
+            if first_color.startswith('#') and len(first_color) == 7:
+                first_hex = first_color[1:]
+            elif first_color.startswith('#') and len(first_color) == 4:
+                # #RGB → #RRGGBB
+                first_hex = first_color[1] * 2 + first_color[2] * 2 + first_color[3] * 2
+            else:
+                first_hex = None
+            
+            if last_color.startswith('#') and len(last_color) == 7:
+                last_hex = last_color[1:]
+            elif last_color.startswith('#') and len(last_color) == 4:
+                last_hex = last_color[1] * 2 + last_color[2] * 2 + last_color[3] * 2
+            else:
+                last_hex = None
+            
+            if first_hex and last_hex:
+                logger.info(f"提取SVG渐变: {first_hex} → {last_hex} (angle={angle})")
+                return (first_hex, last_hex, angle)
         return None
 
     def _extract_image_url(self, svg_content: str) -> Optional[str]:
