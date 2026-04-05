@@ -1348,8 +1348,10 @@ class PPTGenerator:
                         try:
                             import base64
                             from pathlib import Path
-                            from pptx.parts.image import Image as _PptxImage
+                            from io import BytesIO
                             from lxml import etree
+                            from pptx.dml.fill import _BlipFill
+                            from pptx.oxml.ns import qn
 
                             img_bytes = None
                             if bg_image.startswith('data:'):
@@ -1371,19 +1373,34 @@ class PPTGenerator:
                                     logger.info(f"图片背景: 本地文件")
 
                             if img_bytes:
-                                _slide_part = slide.part
-                                _img_obj = _PptxImage(img_bytes)
-                                _rId = _slide_part.relate_to(_img_obj, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image')
-                                _blip = slide.background.fill._blipFill()
-                                _blip_elem = _blip._element
-                                _blip_elem.set('dpi', '131072')
-                                _stretch = _blip_elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}stretch')
-                                if _stretch is None:
-                                    _stretch = etree.SubElement(_blip_elem, '{http://schemas.openxmlformats.org/drawingml/2006/main}stretch')
-                                    _stretch_f = etree.SubElement(_stretch, '{http://schemas.openxmlformats.org/drawingml/2006/main}fillRect')
-                                    _stretch_f.set('extentX', '0')
-                                    _stretch_f.set('extentY', '0')
-                                _blip_elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}blip').set('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed', _rId)
+                                # 使用 get_or_add_image_part 添加图片（返回 ImagePart 和 rId）
+                                _img_io = BytesIO(img_bytes)
+                                _img_ext = 'png'
+                                if bg_image.startswith('data:'):
+                                    _mime = bg_image.split(';')[0].split('/')[-1]
+                                    if _mime in ('jpeg', 'jpg', 'png', 'gif', 'webp'):
+                                        _img_ext = _mime
+                                _img_part, _rId = slide.part.get_or_add_image_part(_img_io)
+
+                                # 构建 blipFill XML
+                                _xPr = slide.background.fill._xPr  # bgPr 元素
+                                _blipFill = etree.SubElement(_xPr, qn('a:blipFill'))
+                                _blipFill.set('dpi', '131072')
+                                _blip = etree.SubElement(_blipFill, qn('a:blip'))
+                                _blip.set(qn('r:embed'), _rId)
+                                _stretch = etree.SubElement(_blipFill, qn('a:stretch'))
+                                _fillRect = etree.SubElement(_stretch, qn('a:fillRect'))
+                                _fillRect.set('extentX', '0')
+                                _fillRect.set('extentY', '0')
+
+                                # 更新 fill._fill 为 _BlipFill（保持 python-pptx 内部状态同步）
+                                slide.background.fill._fill = _BlipFill(_blipFill)
+
+                                # 删除 noFill 元素（如果存在）
+                                _noFill = _xPr.find(qn('a:noFill'))
+                                if _noFill is not None:
+                                    _xPr.remove(_noFill)
+
                                 text_color = RGBColor(255, 255, 255)
                                 logger.info(f"已设置图片背景: {bg_image[:50]}")
                                 set_bg_done = True
