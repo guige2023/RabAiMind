@@ -1472,24 +1472,25 @@ class PPTGenerator:
                                     slide.background.fill.solid()
                                     slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
                                     text_color = RGBColor(255, 255, 255)
-                    elif bg_color and len(bg_color) == 6 and not set_bg_done:
-                        # 纯色（无渐变时回退）
-                        r = int(bg_color[0:2], 16)
-                        g = int(bg_color[2:4], 16)
-                        b = int(bg_color[4:6], 16)
-                        slide.background.fill.solid()
-                        slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
-                        logger.info(f"已设置背景颜色: {bg_color}")
+                    elif not set_bg_done:
+                        if bg_color and len(bg_color) == 6:
+                            # 纯色（无渐变时回退）
+                            r = int(bg_color[0:2], 16)
+                            g = int(bg_color[2:4], 16)
+                            b = int(bg_color[4:6], 16)
+                            slide.background.fill.solid()
+                            slide.background.fill.fore_color.rgb = RGBColor(r, g, b)
+                            logger.info(f"已设置背景颜色: {bg_color}")
 
-                        # 计算背景亮度，决定文字颜色
-                        brightness = (r * 299 + g * 587 + b * 114) / 1000
-                        text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
-                    else:
-                        # 使用默认蓝色背景
-                        slide.background.fill.solid()
-                        slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
-                        text_color = RGBColor(255, 255, 255)  # 蓝色背景用白色文字
-                        logger.info("已设置默认蓝色背景")
+                            # 计算背景亮度，决定文字颜色
+                            brightness = (r * 299 + g * 587 + b * 114) / 1000
+                            text_color = RGBColor(255, 255, 255) if brightness < 128 else RGBColor(0, 0, 0)
+                        else:
+                            # 使用默认蓝色背景
+                            slide.background.fill.solid()
+                            slide.background.fill.fore_color.rgb = RGBColor(0x16, 0x5D, 0xFF)
+                            text_color = RGBColor(255, 255, 255)  # 蓝色背景用白色文字
+                            logger.info("已设置默认蓝色背景")
 
                     # 提取并添加文字
                     title, contents = self._extract_text_from_svg(svg_content)
