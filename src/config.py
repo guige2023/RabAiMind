@@ -163,10 +163,26 @@ class Settings(BaseSettings):
     SCHEMA_DIR: str = "./schemas"
 
     def model_post_init(self, __context) -> None:
-        """Resolve OS-specific defaults after initialization."""
+        """Resolve OS-specific defaults and validate critical config after initialization."""
         # Resolve MCP_OKPPT_SERVER_PATH - if empty, use OS-specific default
         if not self.MCP_OKPPT_SERVER_PATH:
             object.__setattr__(self, "MCP_OKPPT_SERVER_PATH", _get_okppt_server_path_default())
+
+        # Validate critical environment variables at startup
+        self._validate_critical_vars()
+
+    def _validate_critical_vars(self) -> None:
+        """Raise an error at startup if any critical env var is empty."""
+        missing = []
+        if not self.VOLCANO_API_KEY:
+            missing.append("VOLCANO_API_KEY")
+        if not self.VOLCANO_TEXT_MODEL:
+            missing.append("VOLCANO_TEXT_MODEL")
+        if missing:
+            raise ValueError(
+                f"[config] Missing required environment variables: {', '.join(missing)}. "
+                f"Please set them in .env before starting the server."
+            )
 
     class Config:
         env_file = ".env"

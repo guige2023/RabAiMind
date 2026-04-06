@@ -246,7 +246,7 @@
                   :style="{ [floatingConfig.position.includes('bottom') ? 'bottom' : 'top']: '24px', [floatingConfig.position.includes('left') ? 'left' : 'right']: '24px', background: floatingConfig.buttonColor }"
                 >
                   <svg width="20" height="20" viewBox="0 0 56 56" fill="none">
-                    <circle cx="28" cy="28" r="28" :fill="floatingConfig.buttonColor"/>
+                    <circle cx="28" cy="28" r="28" :fill="safeButtonColor"/>
                     <path d="M18 28h20M28 18v20" stroke="white" stroke-width="3" stroke-linecap="round"/>
                   </svg>
                 </div>
@@ -533,6 +533,15 @@ const floatingConfig = ref({
   buttonColor: '#165DFF',
 })
 
+// 验证十六进制颜色，防止 XSS
+const isValidHexColor = (color: string): boolean => /^#[0-9A-Fa-f]{6}$/.test(color)
+
+const safeButtonColor = computed(() =>
+  isValidHexColor(floatingConfig.value.buttonColor)
+    ? floatingConfig.value.buttonColor
+    : '#165DFF'
+)
+
 const inlineConfig = ref({
   maxWidth: '640px',
   gradient: 'blue',
@@ -681,7 +690,7 @@ const generateClientCode = (): string => {
     return `<script>
 (function() {
   var btn = document.createElement('div');
-  btn.innerHTML = '<svg width="56" height="56" viewBox="0 0 56 56" fill="none"><circle cx="28" cy="28" r="28" fill="${floatingConfig.value.buttonColor}"/><path d="M18 28h20M28 18v20" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>';
+  btn.innerHTML = '<svg width="56" height="56" viewBox="0 0 56 56" fill="none"><circle cx="28" cy="28" r="28" fill="' + (isValidHexColor(floatingConfig.value.buttonColor) ? floatingConfig.value.buttonColor : '#165DFF') + '"/><path d="M18 28h20M28 18v20" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>';
   btn.style.cssText = 'position:fixed;${vPos}:24px;${hPos}:24px;cursor:pointer;z-index:99999;border:none;background:none;box-shadow:0 4px 16px rgba(0,0,0,0.25);border-radius:50%;transition:transform .2s;width:56px;height:56px;';
   btn.onmouseover = function() { this.style.transform='scale(1.1)'; };
   btn.onmouseout = function() { this.style.transform='scale(1)'; };
