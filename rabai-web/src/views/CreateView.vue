@@ -1440,7 +1440,7 @@ const onThemeChange = (colors: { primary: string; secondary: string; accent: str
 
 const onDarkModeChange = (mode: string) => {
   // ThemePanel handles DOM updates, just log for tracking
-  console.log('[CreateView] Dark mode changed to:', mode)
+  // Dark mode changed
 }
 
 const onFontChange = (fonts: { header: string; body: string }) => {
@@ -2070,11 +2070,7 @@ const loadConfigsFromAPI = async () => {
     }
 
     configsLoaded.value = true
-    console.log('[CreateView] 配置已从API加载:', {
-      templates: apiTemplates.value.length,
-      scenes: apiScenes.value.length,
-      styles: apiStyles.value.length
-    })
+    // 配置已从API加载
   } catch (e) {
     console.warn('[CreateView] 从API加载配置失败，使用硬编码兜底:', e)
     configsLoaded.value = true  // 标记已尝试加载，避免重复

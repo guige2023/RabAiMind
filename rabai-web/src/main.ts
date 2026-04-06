@@ -41,9 +41,9 @@ initDeviceMode()
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
-      console.log('SW registered:', registration.scope)
+      // SW registered
     }).catch((error) => {
-      console.log('SW registration failed:', error)
+      // SW registration failed
     })
   })
 

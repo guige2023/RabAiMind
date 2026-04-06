@@ -2002,7 +2002,7 @@ async function toggleHandGesture() {
     // 启动手势识别
     await handGesture.start()
     handGestureEnabled.value = true
-    console.log('[HandGesture] Started')
+    
   } else {
     // 停止手势识别
     handGesture.stop()

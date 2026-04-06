@@ -3308,16 +3308,15 @@ const handleCoachApplyTiming = (timingResult: any) => {
 
 // SmartDesignPanel handlers (stub implementations)
 const handleSmartDesignApply = (result: any) => {
-  console.log('[SmartDesign] apply:', result)
   showSmartDesignPanel.value = false
 }
 
 const handleToggleGuides = (enabled: boolean) => {
-  console.log('[SmartDesign] toggle guides:', enabled)
+  // guides toggled
 }
 
 const handleSpacingChange = (data: any) => {
-  console.log('[SmartDesign] spacing change:', data)
+  // spacing changed
 }
 
 const applyMasterToSlide = (slideIndex: number, masterId: string) => {
@@ -3783,7 +3782,6 @@ function handleExportRecording(options: any) {
 
 function handleStreamConfig(config: any) {
   // Handle live streaming config from RecordingPanel
-  console.log('[Streaming] config:', config)
 }
 
 function handleRecordingPanelClose() {
@@ -4130,7 +4128,7 @@ const playTransitionSound = () => {
   if (transitionSettings.soundEffect === 'none') return
   // Sound playback would be handled by audio API
   // For now we trigger a visual feedback
-  console.log('Transition sound:', transitionSettings.soundEffect)
+  // Transition sound playback
 }
 
 const getTransitionLabel = (type: string) => {
@@ -4351,7 +4349,7 @@ const loadScenesAndStyles = async () => {
     if (stylesRes?.data && Array.isArray(stylesRes.data)) {
       styles.value = stylesRes.data
     }
-    console.log('[ResultView] 场景/风格已加载:', scenes.value.length, styles.value.length)
+    // 场景/风格已加载
   } catch (e) {
     console.warn('[ResultView] 加载场景/风格失败，使用硬编码兜底:', e)
   }
@@ -4520,14 +4518,12 @@ const pdfOptions = ref({
 })
 
 const handleElementApply = (editedSlides: any) => {
-  console.log('元素已更新:', editedSlides)
   triggerSignificantEditCheckpoint('元素编辑')
   alert('元素微调已保存！请下载更新后的PPT。')
 }
 
 // R118: 智能内容建议 - 应用添加的内容
 const handleApplyAddition = (addition: any) => {
-  console.log('应用添加的内容:', addition)
   const slideIndex = addition.slide_index
   if (slideIndex !== undefined && editableSlides.value[slideIndex]) {
     const slide = editableSlides.value[slideIndex]
@@ -4540,13 +4536,11 @@ const handleApplyAddition = (addition: any) => {
 
 // 图表已生成
 const handleChartGenerated = (chartData: any) => {
-  console.log('图表已生成:', chartData)
   alert('图表已生成！点击"插入到幻灯片"添加到PPT中。')
 }
 
 // 插入图表到幻灯片
 const handleInsertChartIntoSlide = (chartData: any) => {
-  console.log('插入图表到幻灯片:', chartData)
   triggerSignificantEditCheckpoint('图表插入')
   alert('图表已插入到幻灯片！请下载查看。')
   showChartEditor.value = false
@@ -5226,7 +5220,7 @@ const regenerateWithEdits = async () => {
 
     // Step 3: 关键修复！用新任务ID保存大纲（这样结果页能通过 getOutline(new_task_id) 获取）
     await api.ppt.saveOutline(newTaskId, outlineData)
-    console.log('✅ 大纲已保存到服务器（新任务ID）')
+    // removed
 
     // Step 4: 更新localStorage（以新任务ID为key存储，结果页会优先从API获取）
     localStorage.setItem(`ppt_outline_${newTaskId}`, JSON.stringify(outlineData))

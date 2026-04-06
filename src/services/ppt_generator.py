@@ -173,6 +173,7 @@ class PPTGenerator:
         try:
             from .task_manager import get_task_manager
             task_manager = get_task_manager()
+            cancel_event = task_manager.get_cancel_event(task_id)
 
             # 更新状态 - 0%
             task_manager.update_progress(task_id, 0, "开始生成PPT...", "processing")
@@ -211,6 +212,11 @@ class PPTGenerator:
 
             for i, slide in enumerate(slides_content):
                 # R24优化: 频繁检查任务是否已取消，避免无效计算
+                # 优先使用 cancel_event（比查询任务状态更快）
+                if cancel_event.is_set():
+                    logger.info(f"任务 {task_id} 已取消，停止图片生成")
+                    task_manager.update_progress(task_id, 45, "任务已取消", "cancelled")
+                    return {"success": False, "error": "任务已被用户取消"}
                 task = task_manager.get_task(task_id)
                 if task and task.get("status") == "cancelled":
                     logger.info(f"任务 {task_id} 已取消，停止图片生成")
@@ -238,6 +244,9 @@ class PPTGenerator:
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             def generate_single_svg(args):
+                # 定期检查取消标志，避免长时间阻塞
+                if cancel_event.is_set():
+                    raise asyncio.CancelledError("任务已被取消")
                 i, slide = args
                 slide_num = i + 1
                 user_layout = None
@@ -291,7 +300,14 @@ class PPTGenerator:
                         task_manager.update_progress(task_id, 80, "任务已取消", "cancelled")
                         return {"success": False, "error": "任务已被用户取消"}
 
-                    slide_num, svg_code = future.result()
+                    try:
+                        slide_num, svg_code = future.result()
+                    except (asyncio.CancelledError, Exception):
+                        # 工作线程检测到取消或发生错误，取消所有待完成的future
+                        for f in futures:
+                            f.cancel()
+                        task_manager.update_progress(task_id, 80, "任务已取消", "cancelled")
+                        return {"success": False, "error": "任务已被用户取消"}
                     svg_path = os.path.join(task_output_dir, f"slide_{slide_num}.svg")
                     with open(svg_path, 'w', encoding='utf-8') as f:
                         f.write(svg_code)
@@ -977,7 +993,7 @@ class PPTGenerator:
     def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
         """智能文字模式 - 不依赖AI生成SVG，使用纯代码生成美观SVG"""
         # DEBUG日志
-        logger.info(f"[DEBUG] slide_{slide_num}: title={slide.get('title', '')[:30]}... content={slide.get('content', [])}")
+        logger.debug(f"[slide_{slide_num}] title={slide.get('title', '')[:30]}... content={slide.get('content', [])}")
         title = slide.get("title", "")
         subtitle = slide.get("subtitle", "")
         content = slide.get("content", [])
@@ -2198,20 +2214,27 @@ class PPTGenerator:
                             logo_data = match.group(1)
                     binary = base64.b64decode(logo_data + "==")
                     import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                        tmp.write(binary)
-                        tmp_path = tmp.name
+                    tmp_path = None
+                    try:
+                        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                            tmp.write(binary)
+                            tmp_path = tmp.name
 
-                    pos = logo_positions.get(brand.logo_position, logo_positions["bottom-right"])
-                    if isinstance(pos[0], float):
-                        # center position (as float Inches)
-                        from pptx.util import Emu
-                        left = int(pos[0])
-                        top = int(pos[1])
-                    else:
-                        left, top = pos
-                    last_slide.shapes.add_picture(tmp_path, left, top, *logo_size)
-                    os.unlink(tmp_path)
+                        pos = logo_positions.get(brand.logo_position, logo_positions["bottom-right"])
+                        if isinstance(pos[0], float):
+                            # center position (as float Inches)
+                            from pptx.util import Emu
+                            left = int(pos[0])
+                            top = int(pos[1])
+                        else:
+                            left, top = pos
+                        last_slide.shapes.add_picture(tmp_path, left, top, *logo_size)
+                    finally:
+                        if tmp_path and os.path.exists(tmp_path):
+                            try:
+                                os.unlink(tmp_path)
+                            except OSError:
+                                pass
                     logger.info(f"品牌 LOGO 已注入，位置: {brand.logo_position}")
                 except Exception as e:
                     logger.warning(f"LOGO 注入失败: {e}")

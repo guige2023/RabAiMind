@@ -55,10 +55,9 @@ async def lifespan(app: FastAPI):
 
     # P0 修复: 校验认证配置
     if settings.API_AUTH_ENABLED:
-        if settings.JWT_SECRET == "your-secret-key-change-in-production":
-            logger.warning("⚠️ API_AUTH 已启用但使用了默认 JWT_SECRET，请在 .env 中设置强密钥！")
-        else:
-            logger.info("✅ API 认证已启用")
+        if not settings.JWT_SECRET:
+            raise ValueError("JWT_SECRET must be set when API_AUTH_ENABLED=true")
+        logger.info("✅ API 认证已启用，JWT_SECRET 已配置")
 
     yield
 

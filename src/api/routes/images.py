@@ -19,7 +19,7 @@ import asyncio
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps
 
 # Use shared HTTP client with connection pooling
-from src.core.http_client import http_client
+from src.core.http_client import http_client, is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,8 @@ def _save_base64_image(base64_data: str, prefix: str = "img") -> str:
 
 def _download_image_as_base64(url: str) -> str:
     """下载图片并转为 base64"""
+    if not is_safe_url(url):
+        raise ValueError(f"URL failed SSRF validation: {url}")
     resp = http_client.client.get(url, timeout=httpx.Timeout(15.0))
     resp.raise_for_status()
     return base64.b64encode(resp.content).decode()

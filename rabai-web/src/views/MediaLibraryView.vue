@@ -659,9 +659,9 @@ const useForPPT = (url: string) => {
   alert('已添加到PPT素材，可以去创建页面使用啦！')
 }
 
-const selectMedia = (item: any) => console.log('选择素材:', item)
+const selectMedia = (item: any) => { /* select media */ }
 const viewImage = (item: any) => window.open(item.url, '_blank')
-const editMedia = (item: MediaItem) => console.log('编辑素材:', item)
+const editMedia = (item: MediaItem) => { /* edit media */ }
 const deleteMedia = (item: MediaItem) => {
   const idx = mediaList.value.findIndex(m => m.id === item.id)
   if (idx > -1) mediaList.value.splice(idx, 1)

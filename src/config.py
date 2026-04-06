@@ -13,7 +13,7 @@ import os
 import platform
 import shutil
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 # 加载 .env 文件
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     API_AUTH_ENABLED: bool = False
     API_KEY: Optional[str] = None
-    JWT_SECRET: str = "your-secret-key-change-in-production"
+    JWT_SECRET: str = Field(default="")
     MAX_UPLOAD_SIZE: int = 52428800  # 50MB
 
     # ========== MCP 服务配置 ==========

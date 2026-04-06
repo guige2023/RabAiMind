@@ -85,14 +85,14 @@ def safe_json_parse(text: str) -> Optional[dict]:
     # 尝试直接解析
     try:
         return json.loads(text)
-    except:
+    except Exception:
         pass
     # 尝试提取 ```json ... ``` 块
     match = re.search(r"```(?:json)?\s*([\s\S]+?)```", text)
     if match:
         try:
             return json.loads(match.group(1).strip())
-        except:
+        except Exception:
             pass
     # 尝试提取第一个 { ... }
     start = text.find("{")
@@ -100,7 +100,7 @@ def safe_json_parse(text: str) -> Optional[dict]:
     if start >= 0 and end > start:
         try:
             return json.loads(text[start:end])
-        except:
+        except Exception:
             pass
     return None
 

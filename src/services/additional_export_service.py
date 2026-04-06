@@ -282,7 +282,7 @@ class AdditionalExportService:
             # Draw some text
             try:
                 font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
-            except:
+            except Exception:
                 font = ImageFont.load_default()
             
             draw.text((20, 80), "Preview", fill=(100, 100, 100), font=font)

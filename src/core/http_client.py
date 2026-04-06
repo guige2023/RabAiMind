@@ -11,9 +11,10 @@ Features:
 - Configurable limits (max connections, max keepalive connections)
 - Automatic cleanup on app shutdown
 - Thread-safe for FastAPI's async context
+- SSRF protection via is_safe_url()
 
 Usage:
-    from src.core.http_client import http_client
+    from src.core.http_client import http_client, is_safe_url
 
     # In async context:
     response = await http_client.get("https://api.example.com/data")
@@ -25,9 +26,93 @@ Date: 2026-04-04
 
 import httpx
 import logging
+import ipaddress
 from typing import Optional, Dict, Any
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+# Blocked hostnames / addresses
+_BLOCKED_HOSTNAMES = frozenset({
+    "localhost", "127.0.0.1", "::1", "0.0.0.0",
+    "localhost.localdomain", "ip6-localhost", "ip6-loopback",
+})
+
+# Reserved/private network prefixes
+_PRIVATE_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8", strict=False),
+    ipaddress.ip_network("172.16.0.0/12", strict=False),
+    ipaddress.ip_network("192.168.0.0/16", strict=False),
+    ipaddress.ip_network("169.254.0.0/16", strict=False),   # link-local
+    ipaddress.ip_network("224.0.0.0/4", strict=False),      # multicast
+    ipaddress.ip_network("240.0.0.0/4", strict=False),      # reserved
+    ipaddress.ip_network("127.0.0.0/8", strict=False),      # loopback
+    ipaddress.ip_network("0.0.0.0/8", strict=False),       # current network
+    ipaddress.ip_network("fc00::/7", strict=False),          # unique local
+    ipaddress.ip_network("fe80::/10", strict=False),         # link-local
+)
+
+
+def is_safe_url(url: str) -> bool:
+    """
+    Check if a URL is safe against SSRF attacks.
+
+    Blocks:
+    - Localhost / 127.0.0.1 / ::1
+    - Private/reserved IP ranges (10.x, 172.16-31.x, 192.168.x, link-local, etc.)
+    - URLs without a clear host (e.g. file://, data://)
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        True if the URL is safe to fetch, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https"):
+        return False
+
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return False
+
+    # Block literal blocked hostnames
+    if hostname.lower() in _BLOCKED_HOSTNAMES:
+        return False
+
+    # Block hosts that resolve to private IPs
+    try:
+        addr = ipaddress.ip_address(hostname)
+        for net in _PRIVATE_NETWORKS:
+            if addr in net:
+                return False
+    except ValueError:
+        # Not an IP literal — resolve hostname
+        try:
+            import socket
+            infos = socket.getaddrinfo(hostname, None)
+            for info in infos:
+                sockaddr = info[4]
+                if sockaddr:
+                    try:
+                        resolved = ipaddress.ip_address(sockaddr[0])
+                        for net in _PRIVATE_NETWORKS:
+                            if resolved in net:
+                                logger.warning(f"SSRF blocked: {hostname} resolves to private IP {sockaddr[0]}")
+                                return False
+                    except ValueError:
+                        continue
+        except Exception:
+            # DNS resolution failed — treat as potentially unsafe
+            logger.warning(f"SSRF check: could not resolve hostname '{hostname}', blocking as precaution")
+            return False
+
+    return True
 
 # Connection pool limits
 # These are conservative defaults that work well for most use cases
@@ -197,7 +282,13 @@ async def get_image_from_url(url: str, timeout: Optional[float] = None) -> bytes
 
     Returns:
         Image bytes
+
+    Raises:
+        ValueError: If the URL fails SSRF validation
     """
+    if not is_safe_url(url):
+        raise ValueError(f"URL failed SSRF validation: {url}")
+
     kwargs: Dict[str, Any] = {}
     if timeout:
         kwargs["timeout"] = httpx.Timeout(timeout)
@@ -217,7 +308,13 @@ async def fetch_json(url: str, timeout: Optional[float] = None) -> Dict[str, Any
 
     Returns:
         Parsed JSON response
+
+    Raises:
+        ValueError: If the URL fails SSRF validation
     """
+    if not is_safe_url(url):
+        raise ValueError(f"URL failed SSRF validation: {url}")
+
     kwargs: Dict[str, Any] = {"headers": {"Accept": "application/json"}}
     if timeout:
         kwargs["timeout"] = httpx.Timeout(timeout)

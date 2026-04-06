@@ -862,8 +862,6 @@ const testAPI = async () => {
 // AI重新生成大纲
 const generateOutline = async () => {
   isLoading.value = true
-  console.log('[generateOutline] 🚀 开始生成大纲')
-  console.log('[generateOutline] 请求内容:', route.query.request)
 
   const request = route.query.request as string || '商务演示'
   const scene = route.query.scene as string || 'business'
@@ -872,20 +870,14 @@ const generateOutline = async () => {
   // 尝试调用后端API生成大纲
   try {
     const { api } = await import('../api/client')
-    console.log('[generateOutline] 📡 调用 api.ppt.plan API...')
-    console.log('[generateOutline] 参数:', { request, scene, style })
 
     const response = await api.ppt.plan(request, 6, scene, style)
-    console.log('[generateOutline] ✅ API响应收到:', JSON.stringify(response?.data)?.substring(0, 500))
 
     // 检查响应结构
     if (response?.data) {
       const data = response.data as any
-      console.log('[generateOutline] 响应 data.success:', data.success)
-      console.log('[generateOutline] 响应 data.slides:', data.slides?.length, '页')
 
       if (data.success && data.slides && data.slides.length > 0) {
-        console.log('[generateOutline] ✅ 使用API返回的大纲，共', data.slides.length, '页')
         outline.slides = data.slides.map((s: any, i: number) => ({
           id: generateId(),
           title: s.title || `第${i + 1}页`,
@@ -1014,7 +1006,7 @@ const saveOutline = async () => {
     // 如果已有 taskId，更新大纲
     if ((window as any).__currentTaskId) {
       await api.ppt.saveOutline((window as any).__currentTaskId, outlineData)
-      console.log('✅ 大纲已保存到服务器')
+      // removed: console.log('大纲已保存')
     } else {
       // 新建并保存
       const response = await api.ppt.commitOutline({
@@ -1106,7 +1098,7 @@ onMounted(async () => {
     if (parsed.generationMode) genOptions.generationMode = parsed.generationMode
     if (parsed.outputFormat) genOptions.outputFormat = parsed.outputFormat
     if (parsed.quality) genOptions.quality = parsed.quality
-    console.log('[OutlineEdit] 加载生成选项:', genOptions)
+    // 加载生成选项
     localStorage.removeItem('ppt_outline_temp')
     debugSrc.value = 'localStorage'
   }

@@ -468,7 +468,7 @@ class EnhancedPdfExportService:
                 
                 try:
                     os_module.remove(temp_path)
-                except:
+                except Exception:
                     pass
             except Exception as e:
                 logger.debug(f"Could not draw picture: {e}")
@@ -518,7 +518,7 @@ class EnhancedPdfExportService:
                         # For proper wrapping, use TextObject
                         try:
                             c.drawString(left_px, top_px + height_px - font_size, text[:100])
-                        except:
+                        except Exception:
                             pass
                     except Exception as e:
                         logger.debug(f"Could not draw text: {e}")
@@ -539,7 +539,7 @@ class EnhancedPdfExportService:
                             c.setFillColorRGB(0.9, 0.9, 0.9)
                         
                         c.rect(left_px, top_px, width_px, height_px, fill=1, stroke=0)
-            except:
+            except Exception:
                 pass
     
     def _draw_watermark(

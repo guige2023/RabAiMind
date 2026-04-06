@@ -155,7 +155,7 @@ async function performOCR(imageDataURL: string): Promise<string> {
   try {
     const Tesseract = await import('tesseract.js')
     const result = await Tesseract.recognize(imageDataURL, 'eng+chi_sim', {
-      logger: m => console.log('[OCR]', m.status, m.progress)
+      
     })
     return result.data.text
   } catch (e) {

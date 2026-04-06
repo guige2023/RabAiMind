@@ -38,7 +38,7 @@ from ...services.history_sync_service import get_history_sync_service
 from ...services.template_manager import get_template_manager
 from ...services.advanced_analytics_service import get_advanced_analytics_service
 from ...config import settings
-from ...core.http_client import http_client
+from ...core.http_client import http_client, is_safe_url
 
 from ...api.middleware.rate_limit import (
     get_user_id_from_request,
@@ -1332,6 +1332,10 @@ async def export_png_sequence(
             # 构造完整URL
             if svg_url.startswith('/'):
                 svg_url = f"http://localhost:{chr(123)}settings.API_PORT{chr(125)}{svg_url}"
+
+            if not is_safe_url(svg_url):
+                logger.warning(f"SSRF blocked: {svg_url}")
+                continue
 
             resp = await http_client.get(svg_url, timeout=httpx.Timeout(30.0))
             if resp.status_code != 200:

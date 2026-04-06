@@ -114,6 +114,20 @@ export interface SlideOutlineItem {
   image_prompt?: string
 }
 
+export interface OutlineSlideData {
+  title: string
+  content: string
+  layout?: string
+  slide_type?: string
+}
+
+export interface OutlineSaveData {
+  slides: OutlineSlideData[]
+  scene?: string
+  style?: string
+  user_request?: string
+}
+
 export interface PlanPPTRequest {
   user_request: string
   slide_count?: number
@@ -255,8 +269,8 @@ export interface APIClient {
     getScenes: () => Promise<AxiosResponse<Scene[]>>
     getStyles: () => Promise<AxiosResponse<Style[]>>
     plan: (request: string, slideCount?: number, scene?: string, style?: string) => Promise<AxiosResponse<PlanPPTResponse>>
-    saveOutline: (taskId: string, outline: any) => Promise<AxiosResponse<any>>
-    commitOutline: (data: any) => Promise<AxiosResponse<any>>
+    saveOutline: (taskId: string, outline: OutlineSaveData) => Promise<AxiosResponse<{ success: boolean }>>
+    commitOutline: (data: { task_id: string; pre_generated_slides: Array<{ title: string; content: string; layout?: string; slide_type?: string }>; scene?: string; style?: string; user_request?: string; slide_count?: number; layout_mode?: string; theme_color?: string }) => Promise<AxiosResponse<{ success: boolean; task_id: string }>>
     getOutline: (taskId: string) => Promise<AxiosResponse<any>>
     regenerateSlide: (params: { taskId: string; slideIndex: number; scene?: string; style?: string; content?: string; layout?: string; title?: string }) => Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>>
     uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string }) => Promise<AxiosResponse<any>>

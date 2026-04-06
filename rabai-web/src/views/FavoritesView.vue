@@ -246,7 +246,7 @@ const useTemplate = (template: Template) => {
 
 // Preview template
 const previewTemplate = (template: Template) => {
-  console.log('Preview:', template.name)
+  // preview template
 }
 
 // View result

@@ -11,6 +11,7 @@ import type {
   Template,
   Scene,
   Style,
+  OutlineSaveData,
   APIClient
 } from '../utils/types'
 
@@ -220,11 +221,11 @@ export const api: APIClient = {
       })
     },
 
-    saveOutline: (taskId: string, outline: any): Promise<AxiosResponse<any>> => {
+    saveOutline: (taskId: string, outline: OutlineSaveData): Promise<AxiosResponse<{ success: boolean }>> => {
       return apiClient.post(`/ppt/outline/save?task_id=${taskId}`, outline)
     },
 
-    commitOutline: (data: any): Promise<AxiosResponse<any>> => {
+    commitOutline: (data: { task_id: string; pre_generated_slides: Array<{ title: string; content: string; layout?: string; slide_type?: string }>; scene?: string; style?: string; user_request?: string; slide_count?: number; layout_mode?: string; theme_color?: string }): Promise<AxiosResponse<{ success: boolean; task_id: string }>> => {
       return apiClient.post('/ppt/outline/commit', data)
     },
 
