@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
@@ -33,7 +34,15 @@ export default defineConfig({
           if (id.includes('node_modules/vue') ||
               id.includes('node_modules/vue-router') ||
               id.includes('node_modules/pinia')) {
-            return 'vendor-vue'
+            return 'vue-vendor'
+          }
+          if (id.includes('node_modules/chart.js') ||
+              id.includes('node_modules/vue-chartjs')) {
+            return 'charts'
+          }
+          if (id.includes('node_modules/@vueup/vue-quill') ||
+              id.includes('node_modules/quill')) {
+            return 'editor'
           }
           if (id.includes('node_modules/@vueuse') ||
               id.includes('node_modules/naive-ui')) {
@@ -69,5 +78,9 @@ export default defineConfig({
   },
   esbuild: {
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
   }
 })
