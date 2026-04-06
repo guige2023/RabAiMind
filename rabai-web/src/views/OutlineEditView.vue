@@ -1051,8 +1051,21 @@ onMounted(async () => {
   const passedTemplate = route.query.template as string
   const passedThemeColor = route.query.themeColor as string
   
-  if (passedStyle) outline.style = passedStyle
-  if (passedThemeColor) outline.theme = passedThemeColor
+  // 应用 CreateView 传来的所有参数
+  if (passedStyle) {
+    outline.style = passedStyle
+    genOptions.style = passedStyle
+  }
+  if (passedScene) {
+    genOptions.scene = passedScene
+  }
+  if (passedTemplate) {
+    genOptions.template = passedTemplate
+  }
+  if (passedThemeColor) {
+    outline.theme = passedThemeColor
+    genOptions.themeColor = passedThemeColor
+  }
 
   // 如果 URL 有 taskId，从服务器加载大纲
   const taskIdFromUrl = route.query.taskId as string
