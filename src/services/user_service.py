@@ -43,6 +43,29 @@ DEFAULT_PREFERENCES = {
         "auto_save_interval": 30,
         "show_grid": True,
         "snap_to_grid": True
+    },
+    # R129: PPT generation defaults
+    "ppt_generation": {
+        "default_category": "business",
+        "default_style": "modern",
+        "default_slide_count": 10,
+        "auto_enhance": True,
+        "include_transitions": True
+    },
+    # R129: Export defaults
+    "export": {
+        "default_format": "pptx",
+        "default_quality": "high",
+        "include_notes": True,
+        "include_speaker_guide": False
+    },
+    # R129: Presentation mode defaults
+    "presentation": {
+        "auto_advance": False,
+        "auto_advance_seconds": 10,
+        "show_progress_bar": True,
+        "show_timer": True,
+        "laser_pointer_enabled": True
     }
 }
 

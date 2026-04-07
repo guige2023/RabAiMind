@@ -60,13 +60,13 @@ async def upload_chart_file(
     except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail={"success": False, "error": str(e)}
+            detail={"error": "BAD_REQUEST", "detail": str(e)}
         )
     except Exception as e:
         logger.error(f"图表生成失败: {e}")
         raise HTTPException(
             status_code=500,
-            detail={"success": False, "error": f"图表生成失败: {str(e)}"}
+            detail={"error": "CHART_ERROR", "detail": f"图表生成失败: {str(e)}"}
         )
 
 
@@ -88,7 +88,7 @@ async def preview_chart_columns(
     except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail={"success": False, "error": str(e)}
+            detail={"error": "BAD_REQUEST", "detail": str(e)}
         )
     except Exception as e:
         logger.error(f"文件解析失败: {e}")
@@ -131,7 +131,7 @@ async def smart_fill_chart_data(
             "fill_method": method,
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"Smart Fill 失败: {e}")
         raise HTTPException(
@@ -175,7 +175,7 @@ async def suggest_chart_type(
             "columns": cg.extract_columns(df)
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"智能图表建议失败: {e}")
         raise HTTPException(status_code=500, detail={"success": False, "error": f"分析失败: {str(e)}"})
@@ -204,7 +204,7 @@ async def get_chart_drilldown(
         drilldown = cg.get_drilldown_data(df, label_col, value_col, label_value, group_by)
         return drilldown
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"下钻数据获取失败: {e}")
         raise HTTPException(status_code=500, detail={"success": False, "error": f"下钻失败: {str(e)}"})
