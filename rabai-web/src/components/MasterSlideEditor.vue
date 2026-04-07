@@ -715,7 +715,7 @@ const applyColorsFromTheme = () => {
     'tech-purple': { primary: '#5856D6', secondary: '#3634A3', accent: '#8B89FF' },
     'nature-green': { primary: '#34C759', secondary: '#248A3D', accent: '#5DD879' },
   }
-  const theme = primaries[activeThemeId.value || '']
+  const theme = (primaries as Record<string, { primary: string; secondary: string; accent: string }>)[activeThemeId.value || '']
   if (theme) {
     editingMaster.value.theme_primary = theme.primary
     editingMaster.value.theme_secondary = theme.secondary

@@ -359,7 +359,8 @@ export interface APIClient {
     saveMasterSlide: (master: any) => Promise<AxiosResponse<{ success: boolean; master_slide: any }>>
     deleteMasterSlide: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
     deleteCustomTheme: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
-    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; theme: any }>>
+    getCustomThemes: () => Promise<AxiosResponse<{ success: boolean; themes: any[] }>>
+    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; theme: any; alternatives?: any[] }>>
   }
   // R160: Sharing / Access Requests
   sharing: {

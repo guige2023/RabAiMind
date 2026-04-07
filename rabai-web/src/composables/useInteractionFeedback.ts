@@ -38,7 +38,7 @@ export function useInteractionFeedback() {
   })
 
   // 显示成功提示
-  const showSuccess = (title: string, message: string, duration = 3000) => {
+  const showSuccess = (title: string, message = '', duration = 3000) => {
     const id = `toast-${Date.now()}`
     messages.value.push({
       id,
@@ -56,7 +56,7 @@ export function useInteractionFeedback() {
   }
 
   // 显示错误提示
-  const showError = (title: string, message: string, duration = 5000) => {
+  const showError = (title: string, message = '', duration = 5000) => {
     const id = `toast-${Date.now()}`
     messages.value.push({
       id,
