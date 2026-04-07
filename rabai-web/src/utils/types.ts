@@ -266,6 +266,21 @@ export interface APIClient {
   logActivity: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; activity?: any }>>
   markActivityRead: (taskId: string, activityId: string) => Promise<AxiosResponse<{ success: boolean }>>
   markAllActivitiesRead: (taskId: string) => Promise<AxiosResponse<{ success: boolean; count: number }>>
+  // Data Sources (R113)
+  listDataSources: () => Promise<AxiosResponse<{ success: boolean; data_sources: any[] }>>
+  getDataSource: (sourceId: string) => Promise<AxiosResponse<{ success: boolean; data_source: any }>>
+  updateDataSource: (sourceId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+  deleteDataSource: (sourceId: string) => Promise<AxiosResponse<{ success: boolean }>>
+  importExcel: (params: any) => Promise<AxiosResponse<{ success: boolean; source_id: string }>>
+  importCSV: (params: any) => Promise<AxiosResponse<{ success: boolean; source_id: string }>>
+  importGoogleSheets: (params: any) => Promise<AxiosResponse<{ success: boolean; source_id: string }>>
+  syncDataSource: (sourceId: string, accessToken: string) => Promise<AxiosResponse<{ success: boolean }>>
+  getDataSourcePreview: (sourceId: string) => Promise<AxiosResponse<{ success: boolean; headers: string[]; table_preview: any[][] }>>
+  setThresholdAlerts: (sourceId: string, alerts: any[]) => Promise<AxiosResponse<{ success: boolean }>>
+  getThresholdAlerts: (sourceId: string) => Promise<AxiosResponse<{ success: boolean }>>
+  analyzeData: (sourceId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+  getForecast: (sourceId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+  generateFromDataSource: (params: any) => Promise<AxiosResponse<{ success: boolean; outline: any }>>
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
   resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   ppt: {

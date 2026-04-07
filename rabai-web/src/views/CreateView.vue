@@ -589,7 +589,7 @@
                 </div>
                 <input
                   type="file"
-                  :ref="el => bgImageRefs[i-1] = el"
+                  :ref="(el) => { bgImageRefs[i-1] = el as HTMLInputElement }"
                   accept="image/*"
                   style="display:none"
                   @change="handleBgImageUpload(i-1, $event)"
@@ -601,7 +601,7 @@
                   class="bg-url-input"
                   :value="formData.slideBackgrounds[i-1]?.background_image"
                   placeholder="图片URL..."
-                  @change="setSlideBgImage(i-1, $event.target.value)"
+                  @change="setSlideBgImage(i-1, ($event.target as HTMLInputElement).value)"
                 />
                 <button v-if="formData.slideBackgrounds[i-1]?.background_image" class="bg-clear-btn" @click="clearSlideBgImage(i-1)" title="清除图片">✕</button>
               </div>
@@ -1232,7 +1232,7 @@ async function handleBgImageUpload(index: number, event: Event) {
       formData.value.slideBackgrounds[index].background_type = 'image'
       formData.value.slideBackgrounds[index].background_image = `data:${file.type};base64,${base64}`
     }
-    showSuccess(`第${index + 1}页已设置背景图片`)
+    showSuccess('背景图片已设置', `第${index + 1}页背景图片设置成功`)
   }
   reader.readAsDataURL(file)
 }
@@ -1518,6 +1518,7 @@ const dsShowGoogle = ref(false)
 const googleSheetUrl = ref('')
 const googleAccessToken = ref('')
 const dataSourceList = ref<any[]>([])
+const dsEditSource = ref<any>(null)
 const dsAlertSource = ref<any>(null)
 const dsAlertSourceId = ref('')
 const dsAlerts = ref<Array<{ column: string; condition: string; value: number; label: string; enabled: boolean }>>([])
@@ -1628,12 +1629,10 @@ const handleGenerateFromDs = async (sourceId: string) => {
     })
     if (res.data.success) {
       showDataSourceModal.value = false
-      outlineData.value = res.data.outline
-      autoEditing.value = true
-      scene.value = 'data_report'
-      style.value = 'professional'
       formData.value.slideCount = res.data.outline.slides?.length || 10
       formData.value.title = res.data.outline.title || ''
+      formData.value.scene = 'data_report'
+      formData.value.style = 'professional'
     } else {
       dsError.value = res.data.message || '生成失败'
     }
