@@ -315,6 +315,38 @@ MAX_SLIDE_CONTENT_LENGTH = 500  # Maximum content length before warning
 MAX_SLIDE_TITLE_LENGTH = 40  # Maximum title length before warning
 
 # =============================================================================
+# Version Detection Thresholds
+# =============================================================================
+SIGNIFICANT_CHANGE_RATIO = 0.5  # 50% content change threshold for auto-versioning
+OUTLINE_DIFF_THRESHOLD = 3  # Minimum line difference for outline change detection
+AUTO_VERSION_THRESHOLD = 3  # Cumulative changes before auto-version creation
+CONTENT_PREVIEW_LENGTH = 50  # Content preview truncation length for diff
+TEXT_DIFF_MAX_LINES = 5  # Maximum lines to show in text diff
+
+# =============================================================================
+# Slide Quality Thresholds
+# =============================================================================
+SLIDE_COUNT_MIN = 5  # Minimum recommended slides
+SLIDE_COUNT_MAX = 20  # Maximum recommended slides
+TITLE_MIN_LENGTH = 3  # Minimum title length
+TITLE_MAX_LENGTH = 40  # Maximum title length before warning
+TITLE_TRUNCATE_LENGTH = 30  # Title truncation preview length
+CONTENT_MIN_LENGTH = 20  # Minimum content length
+CONTENT_MAX_LENGTH = 500  # Maximum content length
+CONTENT_LAYOUT_MIN_LENGTH = 50  # Minimum content for title/center layouts
+
+# =============================================================================
+# Confidence Thresholds
+# =============================================================================
+LANGUAGE_DETECTION_CONFIDENCE = 0.5  # Default confidence for language detection
+
+# =============================================================================
+# Async Operation Settings
+# =============================================================================
+THREAD_JOIN_TIMEOUT = 1.0  # Timeout for joining threads (in seconds)
+CANCEL_TASK_TIMEOUT = 5.0  # Timeout for async task cancellation
+
+# =============================================================================
 # Language Detection Settings
 # =============================================================================
 LANGUAGE_DETECTION_TEXT_LIMIT = 2000  # Text limit for language detection

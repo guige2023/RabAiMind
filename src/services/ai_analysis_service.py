@@ -2,10 +2,13 @@
 """
 AI Analysis Service - Phase 2.1 AI分析服务层
 
-封装AIAnalyzer，提供更高级别的服务接口
+提供文档分析、PPT大纲生成、竞品分析、受众画像等高级功能。
+
+注意: 此服务使用延迟导入来避免与 Agent 层的循环依赖。
+Agent 层负责编排决策，Service 层负责具体业务逻辑。
 
 作者: Claude
-日期: 2026-04-07
+日期: 2026-04-07 (refactored)
 """
 
 import logging
@@ -13,39 +16,112 @@ import os
 import tempfile
 from typing import Dict, Any, List, Optional, Union
 
-from src.agents.ai_analyzer import (
-    AIAnalyzer,
-    Slide,
-    KeyInfo,
-    AudiencePersona,
-    CompetitorAnalysis,
-    get_ai_analyzer,
-    extract_text_from_file
-)
-
 logger = logging.getLogger(__name__)
+
+
+# ==================== Data Models (for type hints) ====================
+
+class Slide:
+    """幻灯片数据结构"""
+    def __init__(
+        self,
+        slide_number: int,
+        title: str,
+        content: str,
+        bullet_points: Optional[List[str]] = None,
+        layout_type: str = "content_card",
+        notes: Optional[str] = None
+    ):
+        self.slide_number = slide_number
+        self.title = title
+        self.content = content
+        self.bullet_points = bullet_points or []
+        self.layout_type = layout_type
+        self.notes = notes
+
+
+class KeyInfo:
+    """文档关键信息"""
+    def __init__(
+        self,
+        title: str,
+        summary: str,
+        key_points: List[str],
+        keywords: List[str],
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.title = title
+        self.summary = summary
+        self.key_points = key_points
+        self.keywords = keywords
+        self.metadata = metadata or {}
+
+
+class AudiencePersona:
+    """受众画像"""
+    def __init__(
+        self,
+        name: str,
+        age_range: str,
+        occupation: str,
+        pain_points: List[str],
+        interests: List[str],
+        preferred_content_style: str,
+        demographics: Optional[Dict[str, Any]] = None
+    ):
+        self.name = name
+        self.age_range = age_range
+        self.occupation = occupation
+        self.pain_points = pain_points
+        self.interests = interests
+        self.preferred_content_style = preferred_content_style
+        self.demographics = demographics or {}
+
+
+class CompetitorAnalysis:
+    """竞品分析结果"""
+    def __init__(
+        self,
+        competitor_name: str,
+        strengths: List[str],
+        weaknesses: List[str],
+        market_position: str,
+        comparison_data: Optional[Dict[str, Any]] = None
+    ):
+        self.competitor_name = competitor_name
+        self.strengths = strengths
+        self.weaknesses = weaknesses
+        self.market_position = market_position
+        self.comparison_data = comparison_data or {}
 
 
 class AIAnalysisService:
     """
     AI分析服务
 
-    提供文档分析、PPT大纲生成、竞品分析、受众画像等高级功能
+    提供文档分析、PPT大纲生成、竞品分析、受众画像等高级功能。
+
+    架构原则:
+    - Service 层不直接导入 Agent 层
+    - Agent 层编排决策，使用 Service 层实现业务逻辑
+    - 通过延迟导入打破循环依赖
     """
 
-    def __init__(self, analyzer: Optional[AIAnalyzer] = None):
+    def __init__(self, analyzer=None):
         """
         初始化AI分析服务
 
         Args:
-            analyzer: AIAnalyzer实例，如果为None则使用全局单例
+            analyzer: AIAnalyzer实例，如果为None则延迟创建
         """
         self._analyzer = analyzer
 
     @property
-    def analyzer(self) -> AIAnalyzer:
-        """获取AIAnalyzer实例（懒加载）"""
+    def analyzer(self):
+        """获取AIAnalyzer实例（懒加载，避免循环依赖）"""
         if self._analyzer is None:
+            # 延迟导入，避免循环依赖
+            from src.agents.ai_analyzer import get_ai_analyzer
             self._analyzer = get_ai_analyzer()
         return self._analyzer
 
@@ -219,13 +295,12 @@ def get_ai_analysis_service() -> AIAnalysisService:
     return _ai_analysis_service_instance
 
 
-# 导出
+# 导出数据类型（供其他模块使用）
 __all__ = [
     "AIAnalysisService",
     "get_ai_analysis_service",
-    "AIAnalyzer",
     "Slide",
     "KeyInfo",
     "AudiencePersona",
-    "CompetitorAnalysis"
+    "CompetitorAnalysis",
 ]
