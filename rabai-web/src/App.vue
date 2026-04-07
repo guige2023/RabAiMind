@@ -119,9 +119,9 @@
           <button
             class="view-mode-toggle"
             @click="cycleViewMode"
-            :aria-label="`{{ t('a11y.viewMode') }}: ${viewModeLabel}`"
+            :aria-label="`${t('a11y.viewMode')}: ${viewModeLabel}`"
           >
-            <span class="view-mode-label" aria-hidden="true">{{ viewModeOptions.find(o => o.value === viewMode.value)?.label }}</span>
+            <span class="view-mode-label" aria-hidden="true">{{ viewModeOptions.find(o => o.value === viewMode)?.label }}</span>
           </button>
         </div>
       </header>
@@ -217,7 +217,7 @@ const openMobileNav = () => {
   mobileNavRef.value?.open()
 }
 
-const openHelp = (tab?: string) => {
+const openHelp = (tab?: string | MouseEvent) => {
   helpRef.value?.open(tab)
 }
 
