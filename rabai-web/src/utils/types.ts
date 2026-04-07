@@ -273,7 +273,7 @@ export interface APIClient {
     commitOutline: (data: { task_id: string; pre_generated_slides: Array<{ title: string; content: string; layout?: string; slide_type?: string }>; scene?: string; style?: string; user_request?: string; slide_count?: number; layout_mode?: string; theme_color?: string }) => Promise<AxiosResponse<{ success: boolean; task_id: string }>>
     getOutline: (taskId: string) => Promise<AxiosResponse<any>>
     regenerateSlide: (params: { taskId: string; slideIndex: number; scene?: string; style?: string; content?: string; layout?: string; title?: string }) => Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>>
-    uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string }) => Promise<AxiosResponse<any>>
+    uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string; themeId?: string; showTrendLine?: boolean; annotations?: any[] }) => Promise<AxiosResponse<any>>
     previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>

@@ -116,13 +116,13 @@
               <table class="editable-table">
                 <thead>
                   <tr>
-                    <th v-for="col in columnInfo.all_columns" :key="col">{{ col }}</th>
+                    <th v-for="col in allColumns" :key="col">{{ col }}</th>
                     <th v-if="editableData.length > 0" class="action-col">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(row, rowIndex) in editableData" :key="rowIndex">
-                    <td v-for="col in columnInfo.all_columns" :key="col">
+                    <td v-for="col in allColumns" :key="col">
                       <input 
                         type="text" 
                         v-model="row[col]" 
@@ -312,7 +312,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { api } from '../api/client'
+import { api, apiClient } from '../api/client'
 
 const props = defineProps<{
   taskId: string
@@ -482,16 +482,17 @@ const processFile = async (file: File) => {
     const response = await api.ppt.previewChart(props.taskId, file)
     
     if (response.data.success) {
-      columnInfo.value = response.data.columns
+      const cols = response.data.columns
+      columnInfo.value = cols
       // 自动选择第一列
-      if (columnInfo.value.label_columns.length > 0) {
-        labelCol.value = columnInfo.value.label_columns[0]
+      if (cols.label_columns.length > 0) {
+        labelCol.value = cols.label_columns[0]
       }
-      if (columnInfo.value.numeric_columns.length > 0) {
-        valueCol.value = columnInfo.value.numeric_columns[0]
+      if (cols.numeric_columns.length > 0) {
+        valueCol.value = cols.numeric_columns[0]
       }
       // 初始化可编辑数据
-      editableData.value = response.data.columns.preview.map((row: any) => ({ ...row }))
+      editableData.value = cols.preview.map((row: any) => ({ ...row }))
     }
   } catch (err) {
     console.error('预览文件失败:', err)
@@ -547,7 +548,7 @@ const runSmartFill = async () => {
     formData.append('file', uploadedFile.value)
     formData.append('target_col', smartFillTargetCol.value)
     formData.append('method', smartFillMethod.value)
-    const resp = await api.post('/api/v1/ppt/chart/smart-fill', formData, {
+    const resp = await apiClient.post('/api/v1/ppt/chart/smart-fill', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     if (resp.data.success) {
@@ -608,7 +609,7 @@ const toggleAutoRefresh = () => {
 
 // R62: 添加标注
 const addAnnotation = () => {
-  if (!newAnnotation.value.x && newAnnotation.value.x !== 0) {
+  if (!newAnnotation.value.x && newAnnotation.value.x !== '0') {
     alert('请选择X轴索引')
     return
   }
