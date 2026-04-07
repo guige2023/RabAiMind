@@ -860,6 +860,10 @@ export function useTemplateStore() {
       await apiClient.post('/templates/track', null, {
         params: { event_type: eventType, template_id: templateId, ...extra }
       })
+      // R129: Also record template click for dedicated analytics
+      if (eventType === 'click' && templateId) {
+        apiClient.post(`/templates/${templateId}/click`).catch(() => {})
+      }
     } catch (e) {
       // 静默失败，不影响主流程
     }

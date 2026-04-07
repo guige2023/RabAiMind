@@ -816,6 +816,11 @@ export const api: APIClient = {
       return apiClient.post('/templates/track', null, { params: params })
     },
 
+    // R129: Record template click for analytics
+    recordTemplateClick: (templateId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post(`/templates/${templateId}/click`)
+    },
+
     getTrendingQueries: (limit = 10, days = 7): Promise<AxiosResponse<{ success: boolean; queries: Array<{ query: string; count: number }>; period_days: number }>> => {
       return apiClient.get('/templates/search-analytics/trending-queries', { params: { limit, days } })
     },
