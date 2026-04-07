@@ -168,7 +168,7 @@
                 <button @click="openSecurityPanel()">
                   <span>🔒</span> 安全设置
                 </button>
-                <button @click="showBackupPanel = true; showMoreMenu = false; loadBackups?.()">
+                <button @click="showBackupPanel = true; showMoreMenu = false">
                   <span>💾</span> 备份管理
                 </button>
                 <button @click="showScheduleModal = true; showMoreMenu = false">
@@ -502,7 +502,7 @@
               </p>
             </div>
             <!-- R142: 编辑幻灯片列表 - 无障碍列表 -->
-            <div class="edit-slides" role="list" aria-label="幻灯片编辑列表" :aria-label="`共 ${editableSlides.length} 页幻灯片，当前第 ${focusedSlideIndex + 1} 页`">
+            <div class="edit-slides" role="list" :aria-label="`幻灯片编辑列表 · 共 ${editableSlides.length} 页，当前第 ${focusedSlideIndex + 1} 页`">
               <div
                 v-for="(slide, index) in editableSlides"
                 :key="index"
@@ -683,12 +683,12 @@
                       class="dictation-btn"
                       :class="{ active: dictationActive && dictatingSlideIndex === index && dictatingField === 'notes' }"
                       @click="startDictationForField(index, 'notes')"
-                      :title="dictatingActive && dictatingSlideIndex === index ? '停止录音' : '语音输入备注'"
+                      :title="dictationActive && dictatingSlideIndex === index ? '停止录音' : '语音输入备注'"
                       type="button"
-                      :aria-label="dictatingActive && dictatingSlideIndex === index ? '停止语音输入' : '语音输入备注'"
-                      :aria-pressed="dictatingActive && dictatingSlideIndex === index && dictatingField === 'notes'"
+                      :aria-label="dictationActive && dictatingSlideIndex === index ? '停止语音输入' : '语音输入备注'"
+                      :aria-pressed="dictationActive && dictatingSlideIndex === index && dictatingField === 'notes'"
                     >
-                      {{ dictatingActive && dictatingSlideIndex === index && dictatingField === 'notes' ? '⏹️' : '🎤' }}
+                      {{ dictationActive && dictatingSlideIndex === index && dictatingField === 'notes' ? '⏹️' : '🎤' }}
                     </button>
                   </div>
 
@@ -767,7 +767,7 @@
                   </button>
                   <input
                     type="file"
-                    :ref="el => imageUploadRefs[index] = el"
+                    :ref="el => { if (el) imageUploadRefs[index] = el as HTMLElement }"
                     accept="image/*"
                     style="display: none"
                     @change="handleImageUpload(index, $event)"
@@ -985,7 +985,7 @@
               <div class="pdf-watermark-group">
                 <label class="pdf-toggle-row">
                   <span class="pdf-toggle-label">🔒 启用水印</span>
-                  <switch :checked="pdfOptions.watermarkEnabled" @change="pdfOptions.watermarkEnabled = $event.detail.value" class="pdf-switch" />
+                  <switch :checked="pdfOptions.watermarkEnabled" @change="onPdfWatermarkChange($event)" class="pdf-switch" />
                 </label>
                 <div v-if="pdfOptions.watermarkEnabled" class="pdf-watermark-options">
                   <input v-model="pdfOptions.watermarkText" placeholder="水印文字" class="pdf-input" />
@@ -1001,7 +1001,7 @@
               <div class="pdf-header-footer-group">
                 <label class="pdf-toggle-row">
                   <span class="pdf-toggle-label">📌 启用页眉页脚</span>
-                  <switch :checked="pdfOptions.headerFooterEnabled" @change="pdfOptions.headerFooterEnabled = $event.detail.value" class="pdf-switch" />
+                  <switch :checked="pdfOptions.headerFooterEnabled" @change="onPdfHeaderFooterChange($event)" class="pdf-switch" />
                 </label>
                 <div v-if="pdfOptions.headerFooterEnabled" class="pdf-hf-options">
                   <input v-model="pdfOptions.headerText" placeholder="页眉文字(可选)" class="pdf-input" />
@@ -1067,7 +1067,7 @@
                   <span class="chart-toggle-label">包含数据图表</span>
                   <switch
                     :checked="chartConfig.include_charts"
-                    @change="chartConfig.include_charts = $event.detail.value"
+                    @change="onChartIncludeChartsChange($event)"
                     class="chart-switch"
                   />
                 </label>
@@ -1075,7 +1075,7 @@
                   <span class="chart-toggle-label">🥧 饼图</span>
                   <switch
                     :checked="chartConfig.include_pie_chart"
-                    @change="chartConfig.include_pie_chart = $event.detail.value"
+                    @change="onChartIncludePieChange($event)"
                     class="chart-switch"
                     :disabled="!chartConfig.include_charts"
                   />
@@ -1084,7 +1084,7 @@
                   <span class="chart-toggle-label">📊 柱状图</span>
                   <switch
                     :checked="chartConfig.include_bar_chart"
-                    @change="chartConfig.include_bar_chart = $event.detail.value"
+                    @change="onChartIncludeBarChange($event)"
                     class="chart-switch"
                     :disabled="!chartConfig.include_charts"
                   />
@@ -1093,7 +1093,7 @@
                   <span class="chart-toggle-label">📈 折线图</span>
                   <switch
                     :checked="chartConfig.include_line_chart"
-                    @change="chartConfig.include_line_chart = $event.detail.value"
+                    @change="onChartIncludeLineChange($event)"
                     class="chart-switch"
                     :disabled="!chartConfig.include_charts"
                   />
@@ -1473,8 +1473,8 @@
 
           <!-- 当前页面A/B测试入口 -->
           <view class="ab-create-section" v-if="!showABResult">
-            <text class="ab-create-label">当前页面: 第 {{ currentSlideIndex + 1 }} 页</text>
-            <button class="btn btn-primary btn-create-ab" @click="createABTest(currentSlideIndex)">
+            <text class="ab-create-label">当前页面: 第 {{ focusedSlideIndex + 1 }} 页</text>
+            <button class="btn btn-primary btn-create-ab" @click="createABTest(focusedSlideIndex)">
               🌟 为此页创建A/B测试
             </button>
           </view>
@@ -1791,7 +1791,7 @@
             </view>
             <view class="auto-save-row" v-if="autoSaveEnabled && lastAutoSaveTime">
               <text class="auto-save-label">上次保存</text>
-              <text class="auto-save-time">{{ formatTime(lastAutoSaveTime) }}</text>
+              <text class="auto-save-time">{{ lastAutoSaveTime ? formatTime(new Date(lastAutoSaveTime).toISOString()) : '' }}</text>
             </view>
             <button class="btn btn-sm btn-save-now" @click="triggerAutoSave" v-if="autoSaveEnabled">
               💾 立即保存
@@ -1807,7 +1807,7 @@
         <div class="recovery-icon">🛟</div>
         <h3 class="recovery-title">检测到未保存的编辑</h3>
         <p class="recovery-desc" v-if="recoveryInfo">
-          上次编辑时间: {{ formatTime(recoveryInfo.savedAt) }}
+          上次编辑时间: {{ formatTime(new Date(recoveryInfo.savedAt).toISOString()) }}
         </p>
         <p class="recovery-desc" v-else>是否要恢复未保存的编辑？</p>
         <div class="recovery-actions">
@@ -1926,7 +1926,7 @@
                 :key="t.value"
                 class="transition-item"
                 :class="{ active: transitionSettings.type === t.value }"
-                @click="transitionSettings.type = t.value"
+                @click="transitionSettings.type = t.value as 'slide' | 'fade' | 'zoom' | 'flip' | 'morph' | 'random'"
               >
                 <span class="transition-icon">{{ t.icon }}</span>
                 <span class="transition-name">{{ t.name }}</span>
@@ -1943,7 +1943,7 @@
                 :key="d.value"
                 class="duration-item"
                 :class="{ active: transitionSettings.duration === d.value && !transitionSettings.useCustomDuration }"
-                @click="transitionSettings.duration = d.value; transitionSettings.useCustomDuration = false"
+                @click="transitionSettings.duration = d.value as 'fast' | 'normal' | 'slow'; transitionSettings.useCustomDuration = false"
               >
                 {{ d.label }}
               </button>
@@ -1981,7 +1981,7 @@
                 :key="s.value"
                 class="sound-effect-item"
                 :class="{ active: transitionSettings.soundEffect === s.value }"
-                @click="transitionSettings.soundEffect = s.value"
+                @click="transitionSettings.soundEffect = s.value as 'none' | 'click' | 'whoosh' | 'whoosh2' | 'drum'"
               >
                 <span class="sound-icon">{{ s.icon }}</span>
                 <span class="sound-name">{{ s.name }}</span>
@@ -4160,6 +4160,13 @@ const selectedTagFilter = ref('')
 const showTagDialog = ref(false)
 const editingVersionId = ref('')
 const newTagInput = ref('')
+
+// 打开标签对话框
+const openTagDialog = (versionId: string) => {
+  editingVersionId.value = versionId
+  showTagDialog.value = true
+}
+
 // 自动版本化
 const autoVersionStatus = ref<{
   significant_change_count: number
@@ -4200,6 +4207,7 @@ const autoSaveInterval = ref(300000) // 默认5分钟（300秒 = 300000毫秒）
 const lastAutoSaveTime = ref<number | null>(null)
 const lastCheckpointTime = ref<number | null>(null)
 const checkpointInterval = 300000  // 5分钟检查点
+const showAutoSaveSettings = ref(false)  // 控制自动保存设置面板显示
 const showRecoveryModal = ref(false)
 const recoveryInfo = ref<{savedAt: number; state: any} | null>(null)
 const showActionLog = ref(false)  // 是否显示操作日志tab
@@ -4251,6 +4259,7 @@ const batchExportSelected = ref<Set<string>>(new Set())
 // 存为模板相关
 const batchThemeSecondary = ref('#0E42D2')
 const batchThemeAccent = ref('#64D2FF')
+const batchThemePrimary = ref('#165DFF')
 
 // Localize / Translation state
 const { locale: currentLocale, t } = useI18n()
@@ -4516,6 +4525,14 @@ const pdfOptions = ref({
   headerFooterColor: '#666666',
   aspectRatio: '16:9', // 16:9 | 4:3 | 1:1 | 9:16
 })
+
+// Handlers for native switch components (emit CustomEvent with detail.value)
+const onPdfWatermarkChange = (e: Event) => { pdfOptions.value.watermarkEnabled = (e as CustomEvent).detail.value }
+const onPdfHeaderFooterChange = (e: Event) => { pdfOptions.value.headerFooterEnabled = (e as CustomEvent).detail.value }
+const onChartIncludeChartsChange = (e: Event) => { chartConfig.value.include_charts = (e as CustomEvent).detail.value }
+const onChartIncludePieChange = (e: Event) => { chartConfig.value.include_pie_chart = (e as CustomEvent).detail.value }
+const onChartIncludeBarChange = (e: Event) => { chartConfig.value.include_bar_chart = (e as CustomEvent).detail.value }
+const onChartIncludeLineChange = (e: Event) => { chartConfig.value.include_line_chart = (e as CustomEvent).detail.value }
 
 const handleElementApply = (editedSlides: any) => {
   triggerSignificantEditCheckpoint('元素编辑')
