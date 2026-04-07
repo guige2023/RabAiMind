@@ -211,7 +211,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 const props = defineProps<{
   workspaceId?: string
