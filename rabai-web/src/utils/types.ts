@@ -281,6 +281,23 @@ export interface APIClient {
   analyzeData: (sourceId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
   getForecast: (sourceId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
   generateFromDataSource: (params: any) => Promise<AxiosResponse<{ success: boolean; outline: any }>>
+  // Presentation Security (R122)
+  security: {
+    getConfig: (taskId: string) => Promise<AxiosResponse<any>>
+    setPassword: (taskId: string, password: string) => Promise<AxiosResponse<any>>
+    removePassword: (taskId: string) => Promise<AxiosResponse<any>>
+    getPasswordStatus: (taskId: string) => Promise<AxiosResponse<any>>
+    verifyPassword: (taskId: string, password: string) => Promise<AxiosResponse<any>>
+    setBiometric: (taskId: string, required: boolean) => Promise<AxiosResponse<any>>
+    getBiometricStatus: (taskId: string) => Promise<AxiosResponse<any>>
+    verifyBiometric: (taskId: string, assertion: string) => Promise<AxiosResponse<any>>
+    setIPAllowlist: (taskId: string, allowed_ips: string[]) => Promise<AxiosResponse<any>>
+    getIPAllowlist: (taskId: string) => Promise<AxiosResponse<any>>
+    setWatermark: (taskId: string, opts: any) => Promise<AxiosResponse<any>>
+    getWatermark: (taskId: string) => Promise<AxiosResponse<any>>
+    getAccessLog: (taskId: string, limit?: number, offset?: number) => Promise<AxiosResponse<any>>
+    deleteSecurity: (taskId: string) => Promise<AxiosResponse<any>>
+  }
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
   resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   ppt: {
@@ -313,6 +330,14 @@ export interface APIClient {
     acquireCollaborativeLock: (taskId: string, userId: string, slideIndex?: number) => Promise<AxiosResponse<{ success: boolean }>>
     releaseCollaborativeLock: (taskId: string, userId: string, slideIndex?: number) => Promise<AxiosResponse<{ success: boolean }>>
     getCollaborativeLocks: (taskId: string) => Promise<AxiosResponse<{ success: boolean; locks: any }>>
+    updateSlideNotes: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+    updateSlideStickyNotes: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+    saveSlideAnnotations: (taskId: string, slideIndex: number, annotations: any[]) => Promise<AxiosResponse<{ success: boolean }>>
+    getStickyNotes: (taskId: string) => Promise<AxiosResponse<{ success: boolean; sticky_notes: any[] }>>
+    addStickyNote: (taskId: string, note: any) => Promise<AxiosResponse<{ success: boolean }>>
+    deleteStickyNote: (taskId: string, noteId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getNotesTemplates: (templateType?: string) => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
+    createNotesTemplate: (tpl: any) => Promise<AxiosResponse<{ success: boolean }>>
     previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>

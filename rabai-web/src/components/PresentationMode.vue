@@ -1192,10 +1192,15 @@ export interface Poll {
 }
 
 export interface TransitionSettings {
-  type: 'slide' | 'fade' | 'zoom' | 'flip'
+  type: 'slide' | 'fade' | 'zoom' | 'flip' | 'morph' | 'random'
   duration: 'fast' | 'normal' | 'slow'
+  customDuration?: number
+  useCustomDuration?: boolean
+  soundEffect?: 'none' | 'click' | 'whoosh' | 'whoosh2' | 'drum'
   autoAdvance: boolean
   autoDelay: number
+  morphEnabled?: boolean
+  randomEnabled?: boolean
 }
 
 export interface RecordedSlideTiming {

@@ -3563,8 +3563,6 @@ function handleAnnotateNotes(slideIndex: number, notes: string) {
   if (idx >= 0) {
     editableSlides.value[idx].presenterNotes = notes
   }
-  // Also update via slideUpdate if available
-  slideUpdate(editableSlides.value[slideIndex], slideIndex)
 }
 
 function handleWebcamConfig(config: any) {
@@ -3587,6 +3585,7 @@ let recordingCanvas: HTMLCanvasElement | null = null
 let recordingCtx: CanvasRenderingContext2D | null = null
 let recordingAnimationId: number | null = null
 let recordingStartTime = 0
+const recordingChunks = ref<Blob[]>([])
 
 const recordingBlob = ref<Blob | null>(null)
 const recordingUrl = ref<string | null>(null)
@@ -3631,7 +3630,7 @@ async function handleStartRecord() {
   // Add webcam stream if enabled
   if (currentWebcamConfig.value?.stream) {
     const combinedStream = new MediaStream()
-    recordingStream.getVideoTracks().forEach(t => combinedStream.addTrack(t))
+    recordingStream!.getVideoTracks().forEach(t => combinedStream.addTrack(t))
     // Add webcam track
     const webcamTrack = currentWebcamConfig.value.stream.getVideoTracks()[0]
     if (webcamTrack) combinedStream.addTrack(webcamTrack)
@@ -3683,7 +3682,7 @@ function startCanvasCapture() {
   // Draw the current slide to canvas
   try {
     // Use dom-to-canvas approach: draw the slides container
-    const dataUrl = slidesEl.toDataURL?.('image/png')
+    const dataUrl = (slidesEl as HTMLCanvasElement).toDataURL?.('image/png')
     if (dataUrl) {
       const img = new Image()
       img.onload = () => {
@@ -3763,7 +3762,7 @@ function handleStopRecord() {
 
 function handleExportRecording(options: any) {
   if (!recordingBlob.value && !recordingUrl.value) {
-    showWarning('没有可导出的录制内容')
+    showWarning('没有可导出的录制内容', '请先开始录制后再导出')
     return
   }
   
@@ -3777,7 +3776,7 @@ function handleExportRecording(options: any) {
   a.download = `presentation_${taskId.value}_${Date.now()}.${format}`
   a.click()
   
-  showSuccess('录制已导出')
+  showSuccess('导出成功', '录制文件已保存到下载目录')
 }
 
 function handleStreamConfig(config: any) {
