@@ -262,6 +262,12 @@ export interface APIClient {
   getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
   resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
+  getActivityFeed: (taskId: string, params?: { activity_type?: string; user_id?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; activities: any[] }>>
+  logActivity: (taskId: string, params: { activity_type: string; user_id: string; description?: string }) => Promise<AxiosResponse<{ success: boolean }>>
+  markActivityRead: (taskId: string, activityId: string) => Promise<AxiosResponse<{ success: boolean }>>
+  markAllActivitiesRead: (taskId: string) => Promise<AxiosResponse<{ success: boolean; count: number }>>
+  addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
+  resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   ppt: {
     createTask: (data: GeneratePPTRequest) => Promise<AxiosResponse<GeneratePPTResponse>>
     getTask: (taskId: string) => Promise<AxiosResponse<TaskStatusResponse>>
