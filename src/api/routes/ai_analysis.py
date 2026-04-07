@@ -130,12 +130,12 @@ async def analyze_document(request: AnalyzeRequest):
         }
 
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail={"error": "NOT_FOUND", "detail": str(e)})
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"文档分析失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/analyze/upload")
@@ -159,7 +159,7 @@ async def analyze_document_upload(request: Request):
         file = form.get("file")
 
         if not file or not isinstance(file, UploadFile):
-            raise HTTPException(status_code=400, detail="请上传文件")
+            raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": "请上传文件"})
 
         # 验证文件类型
         allowed_extensions = {".txt", ".pdf", ".docx", ".doc"}
@@ -196,7 +196,7 @@ async def analyze_document_upload(request: Request):
         raise
     except Exception as e:
         logger.error(f"文档上传分析失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/outline")
@@ -229,7 +229,7 @@ async def generate_outline(request: OutlineRequest):
 
     except Exception as e:
         logger.error(f"大纲生成失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/competitor")
@@ -249,7 +249,7 @@ async def competitor_analysis(request: CompetitorRequest):
     try:
         # 验证URL格式
         if not request.url.startswith(("http://", "https://")):
-            raise HTTPException(status_code=400, detail="请提供有效的URL")
+            raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": "请提供有效的URL"})
 
         result = service.competitor_analysis(request.url, request.name)
 
@@ -272,7 +272,7 @@ async def competitor_analysis(request: CompetitorRequest):
         raise
     except Exception as e:
         logger.error(f"竞品分析失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/audience")
@@ -319,4 +319,4 @@ async def audience_profiling(request: AudienceRequest):
         raise
     except Exception as e:
         logger.error(f"受众画像生成失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
