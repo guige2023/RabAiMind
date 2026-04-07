@@ -12,6 +12,7 @@ to provide a centralized configuration point for the application.
 DEFAULT_SLIDE_WIDTH = 1600
 DEFAULT_SLIDE_HEIGHT = 900
 SLIDE_ASPECT_RATIO = "16:9"
+DEFAULT_GRADIENT_ANGLE = 45  # Default angle for SVG gradient fills
 
 # =============================================================================
 # Default Generation Parameters
@@ -146,6 +147,11 @@ PLACEHOLDER_TITLE_FONT_SIZE = 36
 PLACEHOLDER_PAGE_NUMBER_FONT_SIZE = 20
 PLACEHOLDER_DECORATIVE_CIRCLE_OPACITY_1 = 0.08
 PLACEHOLDER_DECORATIVE_CIRCLE_OPACITY_2 = 0.06
+# SVG safe margin boundaries (content should stay within these limits)
+SVG_SAFE_MARGIN_LEFT = 100
+SVG_SAFE_MARGIN_TOP = 50
+SVG_SAFE_MARGIN_RIGHT = 1400
+SVG_SAFE_MARGIN_BOTTOM = 800
 
 # =============================================================================
 # Image Settings
@@ -154,6 +160,11 @@ IMAGE_QUALITY_JPEG = 75
 IMAGE_RESIZE_WIDTH = 1920
 IMAGE_RESIZE_HEIGHT = 1080
 IMAGE_BRIGHTNESS_SAMPLE_SIZE = 100
+IMAGE_BRIGHTNESS_THRESHOLD = 128  # Threshold for determining light/dark backgrounds
+# Brightness formula coefficients: (R * 299 + G * 587 + B * 114) / 1000
+BRIGHTNESS_COEFFICIENT_RED = 299
+BRIGHTNESS_COEFFICIENT_GREEN = 587
+BRIGHTNESS_COEFFICIENT_BLUE = 114
 
 # =============================================================================
 # Chart Theme Colors
@@ -196,6 +207,8 @@ PPTX_SLIDE_HEIGHT_INCHES = 9
 PPTX_TITLE_FONT_SIZE = 48
 PPTX_CONTENT_FONT_SIZE = 26
 PPTX_CONTENT_LINE_SPACING = 18
+PPTX_ALPHA_MULTIPLIER = 1000  # Transparency percentage to PPTX alpha value multiplier
+PPTX_SHADOW_OFFSET = 3  # Default shadow offset for text shadow effect
 
 # =============================================================================
 # Branding Settings
@@ -266,3 +279,49 @@ INTERNAL_DOMAINS = (
 # Compression Settings
 # =============================================================================
 COMPRESSION_LEVEL = 9  # Maximum ZIP compression
+
+# =============================================================================
+# Thread Pool Settings
+# =============================================================================
+SVG_GENERATION_THREAD_WORKERS = 4  # ThreadPoolExecutor for parallel SVG generation
+PPTX_CONVERSION_THREAD_WORKERS = 1  # ThreadPoolExecutor for PPTX conversion
+
+# =============================================================================
+# Task Manager Settings
+# =============================================================================
+MAX_TASKS = 1000  # Maximum task queue capacity
+MAX_COMPLETED_CLEANUP = 100  # Number of old completed tasks to clean up per cycle
+CLEANUP_INTERVAL = 10  # Cleanup interval (every N operations)
+MAX_TASK_AGE_MINUTES = 30  # Maximum task age before cleanup (in minutes)
+MAX_ACTION_LOG = 100  # Maximum action log entries
+MAX_UNDO_STACK = 100  # Maximum undo stack size
+MAX_ACTION_TIMELINE = 200  # Maximum action timeline entries
+MAX_CHECKPOINTS = 50  # Maximum checkpoints per task
+MAX_SLIDE_CHANGES = 200  # Maximum slide changes recorded
+
+# =============================================================================
+# Async Operation Settings
+# =============================================================================
+THREAD_JOIN_TIMEOUT = 1.0  # Timeout for joining threads (in seconds)
+CANCEL_TASK_TIMEOUT = 5.0  # Timeout for async task cancellation
+BACKGROUND_IMAGE_TIMEOUT = 15  # Timeout for background image downloads
+
+# =============================================================================
+# A/B Testing Settings
+# =============================================================================
+DEFAULT_VARIANT_COUNT = 2  # Default number of A/B test variants
+MIN_SLIDE_CONTENT_LENGTH = 20  # Minimum content length before warning
+MAX_SLIDE_CONTENT_LENGTH = 500  # Maximum content length before warning
+MAX_SLIDE_TITLE_LENGTH = 40  # Maximum title length before warning
+
+# =============================================================================
+# Language Detection Settings
+# =============================================================================
+LANGUAGE_DETECTION_TEXT_LIMIT = 2000  # Text limit for language detection
+LANGUAGE_DETECTION_SAMPLE_LENGTH = 200  # Sample length for display
+
+# =============================================================================
+# Slide Layout Thresholds
+# =============================================================================
+SLIDE_NUMBER_DISPLAY_THRESHOLD = 800  # Y position threshold for slide number filtering
+OUTLINE_LINE_DIFF_THRESHOLD = 3  # Minimum line difference for outline change detection
