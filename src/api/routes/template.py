@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
 from dataclasses import asdict
 
@@ -73,16 +73,22 @@ async def search_templates(
     q: str = "",
     category: Optional[str] = None,
     style: Optional[str] = None,
-    limit: int = 20
+    limit: int = Field(default=20, ge=1, le=100, description="返回数量限制")
 ):
     """
     搜索模板
+
+    根据关键词搜索模板，支持按分类和风格筛选。
 
     Args:
         q: 搜索关键词（匹配名称和描述）
         category: 可选，按分类筛选
         style: 可选，按风格筛选
-        limit: 返回数量限制，默认20
+        limit: 返回数量限制（1-100，默认20）
+
+    Returns:
+        success: 是否成功
+        templates: 匹配的模板列表
     """
     manager = get_template_manager()
     templates = manager.search_templates(query=q, category=category, style=style, limit=limit)
@@ -232,7 +238,7 @@ async def get_template(template_id: str):
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"模板 {template_id} 不存在"
+            detail={"error": "TEMPLATE_NOT_FOUND", "detail": f"模板 {template_id} 不存在"}
         )
 
     return TemplateResponse(
@@ -249,14 +255,31 @@ async def get_template(template_id: str):
 
 @router.post("/upload")
 async def upload_template(
-    name: str,
-    description: str,
-    scene: str = "business",
-    style: str = "professional",
-    visibility: str = "private",
+    name: str = Field(..., min_length=1, max_length=100, description="模板名称"),
+    description: str = Field(..., min_length=1, max_length=500, description="模板描述"),
+    scene: str = Field(default="business", description="适用场景"),
+    style: str = Field(default="professional", description="风格"),
+    visibility: str = Field(default="private", description="可见性: private/public"),
     file: UploadFile = File(None),
 ):
-    """用户上传自己的模板"""
+    """
+    用户上传自己的模板
+
+    将用户创建的PPT模板上传到个人模板库。
+
+    Args:
+        name: 模板名称（1-100字符）
+        description: 模板描述（1-500字符）
+        scene: 适用场景（默认business）
+        style: 风格（默认professional）
+        visibility: 可见性（private=私人, public=公开到市场）
+        file: 可选的PPTX文件
+
+    Returns:
+        success: 是否成功
+        template_id: 模板ID
+        template: 模板详情
+    """
     manager = get_template_manager()
     template_id = f"user_{int(time.time())}"
 
@@ -309,7 +332,7 @@ class BatchRenameRequest(BaseModel):
 @router.post("/batch/rename")
 async def batch_rename_templates(request: BatchRenameRequest):
     """批量重命名模板"""
-    from pydantic import BaseModel
+    from pydantic import BaseModel, Field
     manager = get_template_manager()
     renamed = []
     errors = []
@@ -682,7 +705,7 @@ async def publish_template(template_id: str, visibility: str = "public"):
             t["visibility"] = visibility
             manager._save_user_templates()
             return {"success": True, "template_id": template_id, "visibility": visibility}
-    raise HTTPException(status_code=404, detail=f"模板 {template_id} 不存在")
+    raise HTTPException(status_code=404, detail={"error": "TEMPLATE_NOT_FOUND", "detail": f"模板 {template_id} 不存在"})
 
 
 # 2. Template reviews & ratings
@@ -726,7 +749,7 @@ async def delete_template_review(template_id: str, review_id: str, user_id: str 
     ms = get_marketplace_service()
     ok = ms.delete_review(template_id, review_id, user_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="点评不存在或无权删除")
+        raise HTTPException(status_code=404, detail={"error": "REVIEW_NOT_FOUND", "detail": "点评不存在或无权删除"})
     return {"success": True}
 
 
@@ -826,7 +849,7 @@ async def get_bundle(bundle_id: str):
     ms = get_marketplace_service()
     bundle = ms.get_bundle(bundle_id)
     if not bundle:
-        raise HTTPException(status_code=404, detail="捆绑包不存在")
+        raise HTTPException(status_code=404, detail={"error": "BUNDLE_NOT_FOUND", "detail": "捆绑包不存在"})
     manager = get_template_manager()
     template_list = []
     for tid in bundle.get("template_ids", []):
@@ -1368,7 +1391,7 @@ async def get_template_preview_slides(template_id: str):
     
     template = manager.get_template(template_id)
     if not template:
-        raise HTTPException(status_code=404, detail=f"模板 {template_id} 不存在")
+        raise HTTPException(status_code=404, detail={"error": "TEMPLATE_NOT_FOUND", "detail": f"模板 {template_id} 不存在"})
     
     # 生成预览幻灯片列表
     preview_slides = _generate_preview_slides(template)

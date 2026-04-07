@@ -225,20 +225,20 @@
             </div>
             <div class="setting-row">
               <label>显示图例</label>
-              <switch :checked="showLegend" @change="showLegend = $event.detail.value" class="setting-switch" />
+              <switch :checked="showLegend" @change="onShowLegendChange($event)" class="setting-switch" />
             </div>
             <div class="setting-row">
               <label>显示坐标轴标签</label>
-              <switch :checked="showAxisLabels" @change="showAxisLabels = $event.detail.value" class="setting-switch" />
+              <switch :checked="showAxisLabels" @change="onShowAxisLabelsChange($event)" class="setting-switch" />
             </div>
             <div class="setting-row">
               <label>显示数据标签</label>
-              <switch :checked="showDataLabels" @change="showDataLabels = $event.detail.value" class="setting-switch" />
+              <switch :checked="showDataLabels" @change="onShowDataLabelsChange($event)" class="setting-switch" />
             </div>
             <!-- R62: 趋势线（仅折线图） -->
             <div class="setting-row" v-if="selectedChartType === 'line'">
               <label>显示趋势线</label>
-              <switch :checked="showTrendLine" @change="showTrendLine = $event.detail.value; onConfigChange()" class="setting-switch" />
+              <switch :checked="showTrendLine" @change="onShowTrendLineChange($event)" class="setting-switch" />
             </div>
 
           <!-- R62: 图表标注 -->
@@ -383,6 +383,15 @@ let autoRefreshTimer: number | null = null
 
 // R62: 趋势线
 const showTrendLine = ref(false)
+
+// Handlers for switch change events
+const onShowLegendChange = (e: Event) => { showLegend.value = (e as CustomEvent).detail.value }
+const onShowAxisLabelsChange = (e: Event) => { showAxisLabels.value = (e as CustomEvent).detail.value }
+const onShowDataLabelsChange = (e: Event) => { showDataLabels.value = (e as CustomEvent).detail.value }
+const onShowTrendLineChange = (e: Event) => {
+  showTrendLine.value = (e as CustomEvent).detail.value
+  onConfigChange()
+}
 
 // R62: 图表标注
 const showAnnotationPanel = ref(false)

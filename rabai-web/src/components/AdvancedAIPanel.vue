@@ -585,7 +585,7 @@ const props = defineProps<{
   slides?: Array<{ title: string; content: string; bullet_points?: string[] }>
 }>()
 
-defineEmits(['close', 'apply-content-template'])
+const emit = defineEmits(['close', 'apply-content-template'])
 
 const tabs = [
   { id: 'smart-copy', name: '智能复制', icon: '🧠' },

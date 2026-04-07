@@ -348,4 +348,18 @@ export interface APIClient {
       }>
     }>>
   }
+  // R32/R109/R133: AI 增强功能
+  ai: {
+    rephrase: (text: string, style?: string) => Promise<AxiosResponse<{ success: boolean; rephrased: string }>>
+    translate: (text: string, targetLang: string) => Promise<AxiosResponse<{ success: boolean; translated: string; lang: string }>>
+    layoutSuggestion: (params: { slideIndex: number; elements: any[]; slideContent: string }) => Promise<AxiosResponse<{ success: boolean; suggestion: any }>>
+    autoEnhance: (params: { slideIndex: number; elements: any[]; colorScheme?: string }) => Promise<AxiosResponse<{ success: boolean; enhancement: any }>>
+    contentScore: (params: { elements: any[]; slideContent: string }) => Promise<AxiosResponse<{ success: boolean; score: any }>>
+    generateContentTemplate: (params: { template_type: string; topic?: string; context?: string; slide_title?: string; count?: number }) => Promise<AxiosResponse<{ success: boolean; content: any; template_type: string }>>
+    professionalPolish: (params: { slideIndex: number; targetLevel: string }) => Promise<AxiosResponse<{ success: boolean; polish: any }>>
+    smartCopy: (params: { sourceSlideIndex: number; targetSlideIndex: number }) => Promise<AxiosResponse<{ success: boolean }>>
+    extendContent: (params: { slideIndex: number; ratio?: number }) => Promise<AxiosResponse<{ success: boolean; content: any }>>
+    generateSpeakerNotes: (params: { slideIndex: number; slidesContent: string[] }) => Promise<AxiosResponse<{ success: boolean; notes: string }>>
+    checkDesignConsistency: (params: { slideIndices: number[] }) => Promise<AxiosResponse<{ success: boolean; consistency: any }>>
+  }
 }
