@@ -379,6 +379,11 @@ export interface APIClient {
     deleteShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean }>>
     getShortUrlAnalytics: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; short_code: string; total_accesses: number; qr_scans: number; nfc_taps: number; beacon_triggers: number; created_at: string }>>
     recordQRScan: (shortCode: string, deviceInfo?: string, location?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    recordNFCTap: (shortCode: string, deviceInfo?: string, location?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    listBeacons: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; beacons: any[] }>>
+    createBeacon: (shortCode: string, params: any) => Promise<AxiosResponse<{ success: boolean; beacon: any }>>
+    updateBeacon: (beaconId: string, params: any) => Promise<AxiosResponse<{ success: boolean }>>
+    deleteBeacon: (beaconId: string) => Promise<AxiosResponse<{ success: boolean }>>
   }
   collaboration: {
     listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>>
