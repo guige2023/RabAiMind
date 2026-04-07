@@ -55,10 +55,10 @@ const FIST_THRESHOLD = 0.15  // 手指弯曲阈值
 const POINT_THRESHOLD = 0.08 // 指向手势阈值
 
 // 计算手指是否弯曲（基于 landmark 距离）
-function isFingerCurled(landmarks: any[], fingerTips: number[], fingerBase: number): boolean {
-  const tip = landmarks[fingerTips]
+function isFingerCurled(landmarks: any[], fingerTip: number, fingerBase: number): boolean {
+  const tip = landmarks[fingerTip]
   const base = landmarks[fingerBase]
-  const mcp = landmarks[fingerTips - 1] // MCP joint
+  const mcp = landmarks[fingerTip - 1] // MCP joint
   if (!tip || !base || !mcp) return false
   const tipToBase = Math.hypot(tip.x - base.x, tip.y - base.y)
   const mcpToBase = Math.hypot(mcp.x - base.x, mcp.y - base.y)

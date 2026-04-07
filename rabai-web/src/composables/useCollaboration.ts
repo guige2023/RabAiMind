@@ -1,7 +1,7 @@
 // useCollaboration.ts — 实时协作 composable (R71)
 import { ref, computed, onUnmounted } from 'vue'
 import { nextTick } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 export interface CursorPosition {
   user_id: string
@@ -188,7 +188,7 @@ export const useCollaboration = (
           try {
             await apiClient.post('/notifications/generation', {
               notif_type: 'collaborator_joined',
-              task_id: taskId.value,
+              task_id: taskId,
               title: `${msg.user_name} 加入了编辑`,
               message: `${msg.user_name} (${msg.role || 'viewer'}) 已加入协作文档编辑`,
               collaborator_name: msg.user_name,
@@ -197,7 +197,7 @@ export const useCollaboration = (
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification(`${msg.user_name} 加入了编辑`, {
                 body: `${msg.user_name} 作为 ${msg.role || 'viewer'} 加入了这篇演示文稿的编辑`,
-                tag: `collab-joined-${taskId.value}`,
+                tag: `collab-joined-${taskId}`,
                 icon: '/icon-192.svg',
               })
             }
@@ -380,10 +380,7 @@ export const useCollaboration = (
       base_version: serverVersion.value,
       client_id: currentUser.id,
     }
-    send({
-      type: 'operation',
-      ...operation,
-    })
+    send(operation)
     return operation
   }
 

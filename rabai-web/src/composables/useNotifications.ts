@@ -13,7 +13,7 @@
  */
 
 import { ref, computed } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 import { useInteractionFeedback } from './useInteractionFeedback'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export interface GenerationNotification {
 // ── Composable ─────────────────────────────────────────────────────────────────
 
 export function useNotifications() {
-  const { showToast } = useInteractionFeedback()
+  const { showSuccess } = useInteractionFeedback()
 
   // State
   const reminders = ref<Reminder[]>([])
@@ -208,12 +208,12 @@ export function useNotifications() {
       const res = await apiClient.post('/notifications/reminders', params)
       if (res.data.success) {
         reminders.value.push(res.data.data)
-        showToast('✅ 提醒已设置', `将在 ${params.review_date} 前提醒您`, 'success')
+        showSuccess('✅ 提醒已设置', `将在 ${params.review_date} 前提醒您`, 'success')
         showBrowserNotification('🔔 提醒已设置', `「${params.title}」将在 ${params.review_date} 审核`, 'reminder-set')
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 设置失败', e.message, 'error')
+      showSuccess('❌ 设置失败', e.message, 'error')
     }
   }
 
@@ -226,7 +226,7 @@ export function useNotifications() {
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 更新失败', e.message, 'error')
+      showSuccess('❌ 更新失败', e.message, 'error')
     }
   }
 
@@ -235,10 +235,10 @@ export function useNotifications() {
       const res = await apiClient.delete(`/notifications/reminders/${reminderId}`)
       if (res.data.success) {
         reminders.value = reminders.value.filter(r => r.id !== reminderId)
-        showToast('🗑️ 提醒已删除', '', 'info')
+        showSuccess('🗑️ 提醒已删除', '', 'info')
       }
     } catch (e: any) {
-      showToast('❌ 删除失败', e.message, 'error')
+      showSuccess('❌ 删除失败', e.message, 'error')
     }
   }
 
@@ -264,11 +264,11 @@ export function useNotifications() {
       const res = await apiClient.post('/notifications/smart-alerts', params)
       if (res.data.success) {
         smartAlerts.value.unshift(res.data.data)
-        showToast('✅ 智能提醒已创建', `内容更新后将自动提醒您`, 'success')
+        showSuccess('✅ 智能提醒已创建', `内容更新后将自动提醒您`, 'success')
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 创建失败', e.message, 'error')
+      showSuccess('❌ 创建失败', e.message, 'error')
     }
   }
 
@@ -309,12 +309,12 @@ export function useNotifications() {
     try {
       const res = await apiClient.post('/notifications/mentions', params)
       if (res.data.success) {
-        showToast('📣 @提及已发送', `已通知 ${params.to_user}`, 'success')
+        showSuccess('📣 @提及已发送', `已通知 ${params.to_user}`, 'success')
         showBrowserNotification(`📣 @${params.to_user}`, params.message.substring(0, 60), 'mention-sent')
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 发送失败', e.message, 'error')
+      showSuccess('❌ 发送失败', e.message, 'error')
     }
   }
 
@@ -359,11 +359,11 @@ export function useNotifications() {
       if (res.data.success) {
         deadlines.value.push(res.data.data)
         deadlines.value.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-        showToast('⏰ 截止日期已设置', `"${params.title}" 已加入倒计时`, 'success')
+        showSuccess('⏰ 截止日期已设置', `"${params.title}" 已加入倒计时`, 'success')
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 设置失败', e.message, 'error')
+      showSuccess('❌ 设置失败', e.message, 'error')
     }
   }
 
@@ -396,11 +396,11 @@ export function useNotifications() {
       const res = await apiClient.post('/notifications/digest/subscribe', params)
       if (res.data.success) {
         digestSub.value = res.data.data
-        showToast('📧 周报订阅成功', `每周 ${WEEKDAYS[params.day_of_week ?? 1]} ${params.hour ?? 9}:00 发送`, 'success')
+        showSuccess('📧 周报订阅成功', `每周 ${WEEKDAYS[params.day_of_week ?? 1]} ${params.hour ?? 9}:00 发送`, 'success')
         return res.data.data
       }
     } catch (e: any) {
-      showToast('❌ 订阅失败', e.message, 'error')
+      showSuccess('❌ 订阅失败', e.message, 'error')
     }
   }
 
@@ -408,9 +408,9 @@ export function useNotifications() {
     try {
       await apiClient.delete('/notifications/digest/unsubscribe')
       digestSub.value = null
-      showToast('📧 周报已取消订阅', '', 'info')
+      showSuccess('📧 周报已取消订阅', '', 'info')
     } catch (e: any) {
-      showToast('❌ 取消失败', e.message, 'error')
+      showSuccess('❌ 取消失败', e.message, 'error')
     }
   }
 
@@ -418,10 +418,10 @@ export function useNotifications() {
     try {
       const res = await apiClient.post('/notifications/digest/test')
       if (res.data.success) {
-        showToast('📧 测试邮件已发送', '请检查您的收件箱', 'success')
+        showSuccess('📧 测试邮件已发送', '请检查您的收件箱', 'success')
       }
     } catch (e: any) {
-      showToast('❌ 发送失败', e.message, 'error')
+      showSuccess('❌ 发送失败', e.message, 'error')
     }
   }
 

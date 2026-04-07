@@ -10,6 +10,10 @@ export type EasingType =
   | 'bounce'
   | 'elastic'
   | 'sharp'
+  | 'smooth'
+  | 'snappy'
+  | 'gentle'
+  | 'spring'
   // Bezier presets
   | 'bezier-smooth'
   | 'bezier-snappy'
