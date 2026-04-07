@@ -131,6 +131,205 @@ async def update_template(template_id: str, request: dict):
     return {"success": False, "error": "模板不存在"}
 
 
+# ==================== Template Tags ====================
+
+class TagSearchRequest(BaseModel):
+    """标签搜索请求"""
+    query: str = Field(default="", description="搜索关键词")
+    category: Optional[str] = Field(default=None, description="分类过滤")
+    style: Optional[str] = Field(default=None, description="风格过滤")
+    tags: Optional[List[str]] = Field(default=None, description="标签列表（AND过滤）")
+    limit: int = Field(default=20, ge=1, le=100, description="返回数量")
+
+
+@router.get("/templates/tags")
+async def get_all_template_tags():
+    """获取所有可用模板标签"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    tags = manager.get_all_tags()
+    # Built-in popular tags with metadata
+    POPULAR_TAGS = [
+        {"name": "免费", "icon": "🆓", "color": "#34C759"},
+        {"name": "热门", "icon": "🔥", "color": "#FF9500"},
+        {"name": "新品", "icon": "✨", "color": "#AF52DE"},
+        {"name": "推荐", "icon": "⭐", "color": "#FFD60A"},
+        {"name": "商务", "icon": "💼", "color": "#165DFF"},
+        {"name": "简约", "icon": "📐", "color": "#8E8E93"},
+        {"name": "创意", "icon": "🎨", "color": "#FF2D55"},
+        {"name": "科技", "icon": "🚀", "color": "#00C7BE"},
+        {"name": "教育", "icon": "📚", "color": "#5AC8FA"},
+        {"name": "中国风", "icon": "🏮", "color": "#FF3B30"},
+    ]
+    all_tags = []
+    for tag_name in tags:
+        # Find matching popular tag or create generic entry
+        known = next((t for t in POPULAR_TAGS if t["name"] == tag_name), None)
+        all_tags.append({
+            "name": tag_name,
+            "icon": known["icon"] if known else "🏷️",
+            "color": known["color"] if known else "#8E8E93",
+            "count": 1
+        })
+    return {"success": True, "tags": all_tags}
+
+
+@router.post("/templates/search-with-tags")
+async def search_templates_with_tags(req: TagSearchRequest):
+    """搜索模板（支持标签过滤）"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    templates = manager.search_templates(
+        query=req.query,
+        category=req.category,
+        style=req.style,
+        tags=req.tags,
+        limit=req.limit
+    )
+    return {
+        "success": True,
+        "total": len(templates),
+        "templates": [t.to_dict() for t in templates]
+    }
+
+
+@router.post("/templates/{template_id}/tags")
+async def add_template_tags(template_id: str, request: dict):
+    """为模板添加标签（仅限用户模板）"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    tags_to_add = request.get("tags", [])
+    # Check user template
+    for i, t in enumerate(manager.user_templates):
+        if t.get("id") == template_id:
+            existing = set(t.get("tags", []))
+            existing.update(tags_to_add)
+            manager.user_templates[i]["tags"] = list(existing)
+            manager._save_user_templates()
+            return {"success": True, "tags": list(existing)}
+    raise HTTPException(status_code=404, detail="模板不存在或无权修改")
+
+
+@router.delete("/templates/{template_id}/tags")
+async def remove_template_tags(template_id: str, request: dict):
+    """从模板移除标签（仅限用户模板）"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    tags_to_remove = set(request.get("tags", []))
+    for i, t in enumerate(manager.user_templates):
+        if t.get("id") == template_id:
+            existing = set(t.get("tags", []))
+            existing -= tags_to_remove
+            manager.user_templates[i]["tags"] = list(existing)
+            manager._save_user_templates()
+            return {"success": True, "tags": list(existing)}
+    raise HTTPException(status_code=404, detail="模板不存在或无权修改")
+
+
+# ==================== Advanced Template Search ====================
+
+class AdvancedSearchRequest(BaseModel):
+    """高级搜索请求"""
+    query: Optional[str] = Field(default="", description="搜索关键词")
+    category: Optional[str] = Field(default=None, description="分类过滤")
+    style: Optional[str] = Field(default=None, description="风格过滤")
+    author: Optional[str] = Field(default=None, description="作者过滤")
+    tags: Optional[List[str]] = Field(default=None, description="标签列表（AND过滤）")
+    date_from: Optional[str] = Field(default=None, description="开始日期 YYYY-MM-DD")
+    date_to: Optional[str] = Field(default=None, description="结束日期 YYYY-MM-DD")
+    template_type: Optional[str] = Field(default="all", description="模板类型: all/ugc/system")
+    sort_by: Optional[str] = Field(default="relevance", description="排序: relevance/newest/popularity/name")
+    page: int = Field(default=1, ge=1, description="页码")
+    limit: int = Field(default=20, ge=1, le=100, description="每页数量")
+    use_semantic: bool = Field(default=False, description="是否使用AI语义搜索")
+
+
+@router.post("/templates/advanced-search")
+async def advanced_template_search(req: AdvancedSearchRequest):
+    """高级模板搜索 - 支持多条件过滤和AI语义搜索"""
+    from ...services.template_manager import get_template_manager
+    from datetime import datetime
+
+    manager = get_template_manager()
+
+    # Get all templates and filter manually (since built-in templates don't have all fields)
+    all_templates = list(manager._templates.values())
+
+    # Apply filters
+    result = all_templates
+
+    if req.query:
+        query_lower = req.query.lower()
+        result = [
+            t for t in result
+            if query_lower in t.name.lower() or query_lower in t.description.lower()
+        ]
+
+    if req.category:
+        result = [t for t in result if t.category == req.category]
+
+    if req.style:
+        result = [t for t in result if t.style == req.style]
+
+    if req.author:
+        author_lower = req.author.lower()
+        result = [t for t in result if author_lower in t.author.lower()]
+
+    if req.tags:
+        result = [t for t in result if all(tag in t.tags for tag in req.tags)]
+
+    if req.template_type == "ugc":
+        result = [t for t in result if t.is_ugc]
+    elif req.template_type == "system":
+        result = [t for t in result if not t.is_ugc]
+
+    # Date filtering
+    if req.date_from:
+        try:
+            date_from = datetime.fromisoformat(req.date_from)
+            result = [t for t in result if t.created_at and datetime.fromisoformat(t.created_at) >= date_from]
+        except ValueError:
+            pass
+
+    if req.date_to:
+        try:
+            date_to = datetime.fromisoformat(req.date_to)
+            result = [t for t in result if t.created_at and datetime.fromisoformat(t.created_at) <= date_to]
+        except ValueError:
+            pass
+
+    # Sorting
+    if req.sort_by == "newest":
+        result.sort(key=lambda t: t.created_at or "", reverse=True)
+    elif req.sort_by == "popularity":
+        result.sort(key=lambda t: t.download_count, reverse=True)
+    elif req.sort_by == "name":
+        result.sort(key=lambda t: t.name)
+    # relevance: keep default order (by search score)
+
+    # Pagination
+    total = len(result)
+    total_pages = (total + req.limit - 1) // req.limit
+    start = (req.page - 1) * req.limit
+    end = start + req.limit
+    paginated = result[start:end]
+
+    return {
+        "success": True,
+        "results": [t.to_dict() for t in paginated],
+        "total": total,
+        "page": req.page,
+        "total_pages": total_pages,
+        "query": req.query,
+        "applied_filters": {
+            "category": req.category,
+            "style": req.style,
+            "tags": req.tags,
+            "author": req.author,
+        }
+    }
+
+
 # ==================== PPT Content Search ====================
 
 class PPTSearchResult(BaseModel):
