@@ -1362,6 +1362,28 @@ const advancedHighlighted = ref<Record<string, any>>({})
 const advancedPage = ref(1)
 const advancedTotalPages = ref(1)
 
+// R129: Available tags from backend
+const availableTags = ref<Array<{ name: string; icon: string; color: string; count: number }>>([
+  { name: '商务', icon: '💼', color: '#165DFF', count: 0 },
+  { name: '创意', icon: '🎨', color: '#FF2D55', count: 0 },
+  { name: '简约', icon: '📐', color: '#8E8E93', count: 0 },
+  { name: '科技', icon: '🚀', color: '#00C7BE', count: 0 },
+  { name: '教育', icon: '📚', color: '#5AC8FA', count: 0 },
+  { name: '金融', icon: '💰', color: '#34C759', count: 0 },
+])
+
+// R129: Load tags from backend
+const loadAvailableTags = async () => {
+  try {
+    const res = await api.template.getTags()
+    if (res.data.success && res.data.tags) {
+      availableTags.value = res.data.tags.slice(0, 12) // Limit to 12 tags
+    }
+  } catch (e) {
+    console.warn('Failed to load tags from API, using defaults')
+  }
+}
+
 // R111: Perform advanced search via API
 const performAdvancedSearch = async (page = 1) => {
   advancedLoading.value = true
@@ -1851,6 +1873,8 @@ onMounted(() => {
   loadBundles()
   // R102: 加载今日推荐
   loadTemplateOfTheDay()
+  // R129: 加载可用标签
+  loadAvailableTags()
 })
 
 // 模板创建工作室

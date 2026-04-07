@@ -1063,21 +1063,21 @@ class SlideNotesUpdate(BaseModel):
 
 class StickyNoteItem(BaseModel):
     """便签数据"""
-    id: str
-    slide_index: int
-    content: str
-    author: str
-    color: str = "#FFE066"
-    position_x: float = 0
-    position_y: float = 0
-    created_at: Optional[str] = None
+    id: str = Field(..., description="便签ID")
+    slide_index: int = Field(..., ge=0, description="幻灯片索引")
+    content: str = Field(..., max_length=1000, description="便签内容")
+    author: str = Field(default="anonymous", max_length=100, description="作者")
+    color: str = Field(default="#FFE066", description="便签颜色")
+    position_x: float = Field(default=0, description="X坐标")
+    position_y: float = Field(default=0, description="Y坐标")
+    created_at: Optional[str] = Field(default=None, description="创建时间")
 
 
 class StickyNoteCreate(BaseModel):
     """创建便签请求"""
-    slide_index: int
-    content: str
-    author: str
+    slide_index: int = Field(..., ge=0, description="幻灯片索引")
+    content: str = Field(..., min_length=1, max_length=1000, description="便签内容")
+    author: str = Field(default="anonymous", max_length=100, description="作者")
     color: str = "#FFE066"
     position_x: float = 0
     position_y: float = 0
