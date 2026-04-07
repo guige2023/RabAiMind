@@ -34,6 +34,9 @@ from .routes.dashboard import router as dashboard_router
 from .routes.sharing import router as sharing_router
 from .routes.share_enhancements import router as share_enhancements_router
 from .routes.ai_analysis import router as ai_analysis_router
+from .routes.chart_routes import router as chart_router
+from .routes.template_routes import router as template_routes_router
+from .routes.export_routes import router as export_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -41,6 +44,9 @@ api_router = APIRouter()
 # 注册子路由
 api_router.include_router(ppt_router)
 api_router.include_router(template_router)
+api_router.include_router(chart_router)
+api_router.include_router(template_routes_router)
+api_router.include_router(export_router)
 api_router.include_router(favorites_router)
 api_router.include_router(images_router)
 api_router.include_router(brand_router)
