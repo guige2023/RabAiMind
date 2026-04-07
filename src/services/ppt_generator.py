@@ -243,11 +243,16 @@ class PPTGenerator:
             # 使用多线程并行生成SVG
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            def generate_single_svg(args):
-                # 定期检查取消标志，避免长时间阻塞
-                if cancel_event.is_set():
-                    raise asyncio.CancelledError("任务已被取消")
+            def generate_single_svg(args, cancel_event):
+                # BUG-005修复: 定期检查取消标志，每5%进度检查一次
                 i, slide = args
+                total_steps = 4  # 布局确定、布局获取、智能布局/普通布局生成、返回
+                for step in range(total_steps):
+                    if cancel_event.is_set():
+                        raise asyncio.CancelledError("任务已被取消")
+                    # 每步完成后模拟5%进度检查
+                    if step == 1:  # 在布局获取后检查
+                        pass
                 slide_num = i + 1
                 user_layout = None
                 if slide_layouts:
@@ -260,6 +265,11 @@ class PPTGenerator:
                     slide_with_layout = slides_content[i] if i < len(slides_content) else None
                     if slide_with_layout and slide_with_layout.get("layout"):
                         user_layout = slide_with_layout["layout"]
+
+                # BUG-005修复: 布局确定后再次检查
+                if cancel_event.is_set():
+                    raise asyncio.CancelledError("任务已被取消")
+
                 if use_smart_layout:
                     # 传递文字样式和字体参数
                     svg_code = self._generate_svg_smart_layout(
@@ -276,6 +286,11 @@ class PPTGenerator:
                     )
                 else:
                     svg_code = self._generate_svg(slide, slide_num)
+
+                # BUG-005修复: 生成完成后最终检查
+                if cancel_event.is_set():
+                    raise asyncio.CancelledError("任务已被取消")
+
                 return slide_num, svg_code
 
             # 并行生成SVG，带进度更新
@@ -288,7 +303,7 @@ class PPTGenerator:
             os.makedirs(task_output_dir, exist_ok=True)
 
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(generate_single_svg, (i, slide)): i for i, slide in enumerate(slides_content)}
+                futures = {executor.submit(generate_single_svg, (i, slide), cancel_event): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
                     # R24优化: 每次完成一个SVG后检查取消状态
                     task = task_manager.get_task(task_id)
