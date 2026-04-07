@@ -440,6 +440,7 @@ export interface APIClient {
   ai: {
     rephrase: (text: string, style?: string) => Promise<AxiosResponse<{ success: boolean; rephrased: string }>>
     translate: (text: string, targetLang: string) => Promise<AxiosResponse<{ success: boolean; translated: string; lang: string }>>
+    translateText: (params: { text: string; source_lang: string; target_lang: string }) => Promise<AxiosResponse<{ success: boolean; data: { original: string; translated: string; source_lang: string; target_lang: string } }>>
     layoutSuggestion: (params: { slideIndex: number; elements: any[]; slideContent: string }) => Promise<AxiosResponse<{ success: boolean; suggestion: any }>>
     autoEnhance: (params: { slideIndex: number; elements: any[]; colorScheme?: string }) => Promise<AxiosResponse<{ success: boolean; enhancement: any }>>
     contentScore: (params: { elements: any[]; slideContent: string }) => Promise<AxiosResponse<{ success: boolean; score: any }>>

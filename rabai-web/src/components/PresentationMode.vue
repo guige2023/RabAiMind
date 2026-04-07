@@ -1989,6 +1989,10 @@ const spotlightRingStyle = computed(() => ({
   height: `${spotlightSize.value}px`
 }))
 
+const spotlightOverlayStyle = computed(() => ({
+  cursor: 'none'
+}))
+
 const toggleSpotlight = () => {
   spotlightActive.value = !spotlightActive.value
   if (spotlightActive.value) {
