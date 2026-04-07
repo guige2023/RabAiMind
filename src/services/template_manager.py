@@ -51,6 +51,43 @@ class Template:
     def __post_init__(self):
         if self.tags is None:
             self.tags = []
+        # Auto-generate tags based on category, style, and properties
+        if not self.tags:
+            auto_tags = []
+            # Category-based tags
+            category_tag_map = {
+                "business": ["商务"],
+                "education": ["教育"],
+                "tech": ["科技"],
+                "creative": ["创意"],
+                "personal": ["个人"],
+                "government": ["政府"],
+                "finance": ["金融"],
+                "marketing": ["营销"],
+                "medical": ["医疗"],
+            }
+            if self.category in category_tag_map:
+                auto_tags.extend(category_tag_map[self.category])
+            # Style-based tags
+            style_tag_map = {
+                "professional": ["商务"],
+                "minimal": ["简约"],
+                "modern": ["现代"],
+                "classic": ["经典"],
+                "creative": ["创意"],
+                "elegant": ["优雅"],
+                "energetic": ["活力"],
+            }
+            if self.style in style_tag_map:
+                auto_tags.extend(style_tag_map[self.style])
+            # Popularity-based tag
+            if self.download_count > 1500:
+                auto_tags.append("热门")
+            # UGC tag
+            if self.is_ugc:
+                auto_tags.append("用户上传")
+            # Remove duplicates
+            self.tags = list(set(auto_tags))
 
     def to_dict(self) -> dict:
         """转换为字典，包含新增字段"""

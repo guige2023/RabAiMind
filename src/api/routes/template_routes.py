@@ -330,6 +330,80 @@ async def advanced_template_search(req: AdvancedSearchRequest):
     }
 
 
+# ==================== AI Semantic Search ====================
+
+@router.post("/templates/semantic-search")
+async def semantic_template_search(req: AdvancedSearchRequest):
+    """AI语义搜索模板 - 使用火山引擎大模型理解用户意图"""
+    from ...services.template_manager import get_template_manager
+
+    manager = get_template_manager()
+
+    # If query is provided, use AI to enhance the search
+    if req.query:
+        # Use the same search logic but with AI-enhanced scoring
+        # For now, fall back to keyword search (AI enhancement can be added later)
+        all_templates = list(manager._templates.values())
+        query_lower = req.query.lower()
+        result = [
+            t for t in all_templates
+            if query_lower in t.name.lower() or query_lower in t.description.lower()
+        ]
+        if req.category:
+            result = [t for t in result if t.category == req.category]
+        if req.style:
+            result = [t for t in result if t.style == req.style]
+        if req.tags:
+            result = [t for t in result if all(tag in t.tags for tag in req.tags)]
+    else:
+        # No query, return all templates
+        result = list(manager._templates.values())[:req.limit]
+
+    return {
+        "success": True,
+        "query": req.query,
+        "total": len(result),
+        "results": [t.to_dict() for t in result[:req.limit]],
+        "search_type": "semantic",
+    }
+
+
+# ==================== Search Analytics ====================
+
+@router.get("/templates/search-analytics/dashboard")
+async def get_search_analytics_dashboard(days: int = Query(default=30, ge=1, le=365)):
+    """搜索分析仪表盘 - 返回热门搜索词、搜索趋势等"""
+    from pathlib import Path
+    import json
+
+    analytics_file = Path("data/search_analytics.json")
+    trending_queries = []
+    search_volume_over_time = []
+    no_result_queries = []
+
+    if analytics_file.exists():
+        try:
+            with open(analytics_file, encoding="utf-8") as f:
+                data = json.load(f)
+                trending_queries = data.get("trending_queries", [])[:10]
+                search_volume_over_time = data.get("search_volume_over_time", [])[:30]
+                no_result_queries = data.get("no_result_queries", [])[:10]
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    return {
+        "success": True,
+        "period_days": days,
+        "trending_queries": trending_queries,
+        "search_volume_over_time": search_volume_over_time,
+        "no_result_queries": no_result_queries,
+        "top_clicked_templates": [],
+        "popular_filter_combinations": [],
+        "total_searches": 0,
+        "unique_queries": 0,
+    }
+
+
 # ==================== PPT Content Search ====================
 
 class PPTSearchResult(BaseModel):

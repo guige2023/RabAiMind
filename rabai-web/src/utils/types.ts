@@ -280,6 +280,33 @@ export interface APIClient {
     rollbackVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
     diffVersions: (taskId: string, versionA: string, versionB: string) => Promise<AxiosResponse<{ success: boolean; version_a: string; version_b: string; diff: any[]; total_changes: number }>>
     createSnapshot: (taskId: string, name?: string) => Promise<AxiosResponse<{ success: boolean; version_id: string }>>
+    exportPngSequence: (taskId: string, resolution?: string) => Promise<Blob>
+  }
+  // R160: Backup
+  backup: {
+    listBackups: (taskId: string) => Promise<AxiosResponse<{ success: boolean; backups: any[] }>>
+    createBackup: (taskId: string, name: string) => Promise<AxiosResponse<{ success: boolean; backup_id: string }>>
+    restoreBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    getBackupSlides: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; slides: any[] }>>
+    downloadBackup: (taskId: string, backupId: string) => Promise<Blob>
+    deleteBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    importBackup: (file: File) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+  }
+  // R160: Sharing / Access Requests
+  sharing: {
+    listIncomingAccessRequests: () => Promise<AxiosResponse<{ success: boolean; requests: any[] }>>
+    listMyAccessRequests: () => Promise<AxiosResponse<{ success: boolean; requests: any[] }>>
+    approveAccessRequest: (requestId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    rejectAccessRequest: (requestId: string, reason?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    deleteAccessRequest: (requestId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    createAccessRequest: (data: { item_id: string; item_type: string; message?: string }) => Promise<AxiosResponse<{ success: boolean; request_id: string }>>
+  }
+  // R160: Collaboration
+  collaboration: {
+    listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>>
+    createShareLink: (taskId: string, role: string) => Promise<AxiosResponse<{ success: boolean; link: string; share_id: string }>>
+    deleteShareLink: (taskId: string, shareId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    listShareLinks: (taskId: string) => Promise<AxiosResponse<{ success: boolean; links: any[] }>>
   }
   images: {
     search: (query: string, page?: number) => Promise<AxiosResponse<ImageSearchResponse>>
@@ -296,6 +323,7 @@ export interface APIClient {
     uploadTemplate: (data: { name: string; description: string; scene: string; style: string; visibility: string }) => Promise<AxiosResponse<{ success: boolean; template_id: string; template: any }>>
     listMyTemplates: () => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
     deleteTemplate: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
+    renameTemplate: (id: string, data: { name: string; description?: string }) => Promise<AxiosResponse<{ success: boolean; template: any }>>
   }
   // R58: Voice / TTS
   voice: {
