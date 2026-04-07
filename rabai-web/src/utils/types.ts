@@ -261,7 +261,7 @@ export interface APIClient {
     // Collaboration suggest edits (top-level methods)
   getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
-  resolveSuggestEdit: (taskId: string, editId: string, params: { status: string; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
+  resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   ppt: {
     createTask: (data: GeneratePPTRequest) => Promise<AxiosResponse<GeneratePPTResponse>>
     getTask: (taskId: string) => Promise<AxiosResponse<TaskStatusResponse>>
@@ -278,6 +278,7 @@ export interface APIClient {
     getOutline: (taskId: string) => Promise<AxiosResponse<any>>
     regenerateSlide: (params: { taskId: string; slideIndex: number; scene?: string; style?: string; content?: string; layout?: string; title?: string }) => Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>>
     uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string; themeId?: string; showTrendLine?: boolean; annotations?: any[] }) => Promise<AxiosResponse<any>>
+    updateSlideImage: (params: { taskId: string; slideIndex: number; image_url?: string; action: 'set' | 'remove' | 'regenerate' }) => Promise<AxiosResponse<{ success: boolean; image_url?: string; message: string }>>
     previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>
@@ -314,6 +315,7 @@ export interface APIClient {
     resolveShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; original_url: string; ppt_id: string; title: string }>>
     listShortUrls: () => Promise<AxiosResponse<{ success: boolean; short_urls: any[] }>>
     deleteShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getShortUrlAnalytics: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; short_code: string; total_accesses: number; qr_scans: number; nfc_taps: number; beacon_triggers: number; created_at: string }>>
   }
   collaboration: {
     listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>>
@@ -322,7 +324,7 @@ export interface APIClient {
     listShareLinks: (taskId: string) => Promise<AxiosResponse<{ success: boolean; links: any[] }>>
     getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
     addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
-    resolveSuggestEdit: (taskId: string, editId: string, params: { status: string; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
+    resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   }
   images: {
     search: (query: string, page?: number) => Promise<AxiosResponse<ImageSearchResponse>>
@@ -343,6 +345,7 @@ export interface APIClient {
     getTrending: (limit?: number, days?: number) => Promise<AxiosResponse<{ success: boolean; templates: any[]; period_days: number }>>
     getSimilar: (templateId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; templates: any[]; template_id: string }>>
     getRecommended: (params: { user_id?: string; scene?: string; style?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; templates: any[]; user_id: string }>>
+    matchTemplates: (params: { q?: string; scene?: string; style?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; templates: any[]; query: string; detected_scene: string | null; detected_style: string | null }>>
   }
   // R58: Voice / TTS
   voice: {

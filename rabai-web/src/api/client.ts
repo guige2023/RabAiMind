@@ -1061,6 +1061,23 @@ export const api: APIClient = {
       count?: number
     }): Promise<AxiosResponse<{ success: boolean; content: any; template_type: string }>> => {
       return apiClient.post('/ai/content-template', params)
+    },
+
+    // R148: Single-slide AI methods
+    professionalPolish: (params: { slideIndex: number; targetLevel: string }): Promise<AxiosResponse<{ success: boolean; polish: any }>> => {
+      return apiClient.post('/ai/polish', { slide_index: params.slideIndex, target_level: params.targetLevel })
+    },
+    smartCopy: (params: { sourceSlideIndex: number; targetSlideIndex: number }): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post('/ai/smart-copy', { source_slide_index: params.sourceSlideIndex, target_slide_index: params.targetSlideIndex })
+    },
+    extendContent: (params: { slideIndex: number; ratio?: number }): Promise<AxiosResponse<{ success: boolean; content: any }>> => {
+      return apiClient.post('/ai/extend-content', { slide_index: params.slideIndex, ratio: params.ratio || 1.5 })
+    },
+    generateSpeakerNotes: (params: { slideIndex: number; slidesContent: string[] }): Promise<AxiosResponse<{ success: boolean; notes: string }>> => {
+      return apiClient.post('/ai/speaker-notes', { slide_index: params.slideIndex, slides_content: params.slidesContent })
+    },
+    checkDesignConsistency: (params: { slideIndices: number[] }): Promise<AxiosResponse<{ success: boolean; consistency: any }>> => {
+      return apiClient.post('/ai/design-consistency', { slide_indices: params.slideIndices })
     }
   },
 
@@ -2222,6 +2239,15 @@ export const api: APIClient = {
     },
     listShareLinks: (taskId: string): Promise<AxiosResponse<{ success: boolean; links: any[] }>> => {
       return apiClient.get(`/sharing/links/${taskId}`)
+    },
+    getSuggestEdits: (taskId: string, slideNum?: number): Promise<AxiosResponse<{ success: boolean; edits: any[] }>> => {
+      return apiClient.get(`/collaboration/suggest-edits/${taskId}`, { params: slideNum ? { slide_num: slideNum } : {} })
+    },
+    addSuggestEdit: (taskId: string, params: any): Promise<AxiosResponse<{ success: boolean; edit: any }>> => {
+      return apiClient.post(`/collaboration/suggest-edits/${taskId}`, params)
+    },
+    resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.put(`/collaboration/suggest-edits/${taskId}/${editId}`, params)
     },
   },
 }
