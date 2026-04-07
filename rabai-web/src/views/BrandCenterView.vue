@@ -332,7 +332,24 @@
 import { ref, computed, onMounted } from 'vue'
 import { api } from '../api/client'
 
-const brand = ref({
+const brand = ref<{
+  brand_name: string
+  primary_color: string
+  secondary_color: string
+  accent_color: string
+  fonts: string
+  slogan: string
+  logo_data: string
+  logo_position: string
+  powered_by_toggle: boolean
+  footer_text: string
+  white_label_mode: boolean
+  auto_color_detection: boolean
+  custom_domain: string
+  brand_kits: Array<{ kit_id: string; kit_name: string; primary_color: string; secondary_color: string; accent_color: string; fonts: string; logo_data?: string }>
+  email_template_enabled: boolean
+  email_tagline: string
+}>({
   brand_name: '',
   primary_color: '#165DFF',
   secondary_color: '#0E42D2',
@@ -414,9 +431,9 @@ const deleteKit = async (kitId) => {
 
 // ===== 品牌一致性评分 (R132) =====
 
-const recentTasks = ref([])
+const recentTasks = ref<Array<{ task_id: string; title?: string; slide_count?: number; result?: { slide_count?: number } }>>([])
 const selectedTaskId = ref('')
-const consistencyResult = ref(null)
+const consistencyResult = ref<any>(null)
 const checkingConsistency = ref(false)
 
 const loadRecentTasks = async () => {
