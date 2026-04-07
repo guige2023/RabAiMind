@@ -3277,7 +3277,7 @@ function initSlideTranslateRecognition() {
 
 async function translateSlideText(text: string) {
   try {
-    const res = await api.translate.translateText({
+    const res = await api.ai.translateText({
       text,
       source_lang: 'zh',
       target_lang: translateTargetLang.value,

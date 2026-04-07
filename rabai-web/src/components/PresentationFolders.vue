@@ -238,7 +238,7 @@ const folderPpts = computed(() => {
   if (!selectedFolder.value) return []
   const ids = selectedFolder.value.ppt_ids || []
   // Would load PPT details from history
-  return ids.map(id => ({ task_id: id, title: id, created_at: '' }))
+  return ids.map((id: string) => ({ task_id: id, title: id, created_at: '' }))
 })
 
 const form = ref({
