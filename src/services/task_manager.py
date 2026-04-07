@@ -67,7 +67,41 @@ class TaskManager:
         layout_mode: str = "auto",
         color_scheme: str = "#165DFF",
     ) -> str:
-        """创建新任务"""
+        """Create a new PPT generation task.
+
+        Creates a new task with the specified parameters and returns a unique
+        task ID that can be used to track progress and retrieve results.
+
+        Args:
+            user_request: Natural language description of the presentation content.
+            slide_count: Target number of slides (default: 10).
+            scene: Visual style/scene category.
+                - "business": Professional business style
+                - "academic": Educational style
+                - "marketing": Marketing style
+                - "general": General purpose
+            style: Typography and design style.
+                - "professional": Clean and formal
+                - "creative": Modern and creative
+                - "minimal": Simple and minimal
+                - "bold": Bold and impactful
+            template: Template name to use (default: "default").
+            theme_color: Primary color in hex format (e.g., "#165DFF").
+            layout_mode: Layout selection mode.
+                - "auto": Intelligent automatic layout
+                - "manual": User-specified layouts
+            color_scheme: Color scheme in hex format.
+
+        Returns:
+            A unique task_id string that can be used to track this task.
+
+        Example:
+            >>> task_id = task_manager.create_task(
+            ...     user_request="Create a presentation about AI trends",
+            ...     slide_count=10,
+            ...     scene="tech"
+            ... )
+        """
         task_id = generate_task_id()
 
         task = {
@@ -114,11 +148,33 @@ class TaskManager:
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Dict]:
-        """获取任务"""
+        """Retrieve a task by its ID.
+
+        Args:
+            task_id: The unique identifier of the task to retrieve.
+
+        Returns:
+            The task dictionary if found, None otherwise.
+            Task dictionary contains keys like: task_id, user_request, slide_count,
+            scene, style, status, progress, current_step, created_at, etc.
+        """
         return self.tasks.get(task_id)
 
     def save_outline(self, task_id: str, outline: Dict) -> None:
-        """保存大纲到任务（支持跨设备继续编辑）"""
+        """Save presentation outline to a task for cross-device editing.
+
+        Stores the presentation outline structure in the task, enabling users to
+        continue editing from any device. Also records the operation in the action
+        log for undo/redo support.
+
+        Args:
+            task_id: The unique identifier of the task.
+            outline: Dictionary containing the outline structure with slides.
+                Typically includes keys like "slides": [{title, bullets, notes}, ...]
+
+        Raises:
+            This method silently returns if task_id is not found.
+        """
         with self._task_lock:
             if task_id in self.tasks:
                 old_outline = self.tasks[task_id].get("outline")
@@ -158,14 +214,17 @@ class TaskManager:
                 self.tasks[task_id]["updated_at"] = get_timestamp()
 
     def get_history(self, status_filter: Optional[str] = None) -> Dict[str, Dict]:
-        """
-        获取历史任务列表（包含云端同步的历史）
-        
+        """Get history of tasks, optionally filtered by status.
+
+        Retrieves all tasks or only tasks matching a specific status.
+        Includes tasks synced from cloud storage.
+
         Args:
-            status_filter: 可选，筛选状态 (pending/processing/completed/failed/cancelled)
-            
+            status_filter: Optional filter to return only tasks with this status.
+                Valid values: "pending", "processing", "completed", "failed", "cancelled"
+
         Returns:
-            {task_id: task_data}
+            Dictionary mapping task_id to task data dict for each matching task.
         """
         with self._task_lock:
             if status_filter:
@@ -177,11 +236,14 @@ class TaskManager:
             return dict(self.tasks)
 
     def force_sync_all(self) -> int:
-        """
-        强制同步所有当前任务到云端
-        
+        """Force sync all current tasks to cloud storage.
+
+        Iterates through all tasks and pushes each to cloud storage using
+        the configured sync service. Use this to ensure all local tasks
+        are backed up to the cloud.
+
         Returns:
-            成功同步的任务数
+            Number of tasks successfully synced to cloud storage.
         """
         count = 0
         with self._task_lock:
@@ -203,7 +265,26 @@ class TaskManager:
         current_step: str,
         status: str = "processing"
     ) -> None:
-        """更新任务进度"""
+        """Update task progress and status.
+
+        Call this method periodically during PPT generation to report progress.
+        Updates the task's progress percentage, current step description, and status.
+
+        Args:
+            task_id: The unique identifier of the task.
+            progress: Progress percentage (0-100).
+            current_step: Human-readable description of the current processing step.
+                Examples: "AI正在构思布局...", "正在生成第3/10张配图..."
+            status: Task status. Common values:
+                - "pending": Task created but not started
+                - "processing": Task is actively running
+                - "completed": Task finished successfully
+                - "failed": Task encountered an error
+                - "cancelled": Task was cancelled by user
+
+        Raises:
+            Silently returns if task_id is not found (no-op).
+        """
         with self._task_lock:
             if task_id in self.tasks:
                 self.tasks[task_id]["progress"] = progress
@@ -223,7 +304,27 @@ class TaskManager:
         slides_summary: Optional[List[Dict]] = None,
         svg_paths: Optional[List[str]] = None
     ) -> None:
-        """完成任务，并同步到云端"""
+        """Mark a task as completed with generated file information.
+
+        Updates the task status to "completed" and stores the result metadata including
+        the path to the generated PPTX file, slide count, and quality information.
+        Also automatically creates an initial version and syncs to cloud storage.
+
+        Args:
+            task_id: The unique identifier of the task.
+            pptx_path: Absolute path to the generated PPTX file.
+            slide_count: Number of slides in the generated presentation.
+            file_size: Size of the generated file in bytes.
+            compression_ratio: Compression ratio achieved (0.0 to 1.0).
+            quality: Output quality level ("standard", "high", "ultra").
+            output_format: File format ("pptx", "pdf", "svg", "png").
+            slides_summary: Optional list of slide summaries, each containing
+                title, content preview, and chart information.
+            svg_paths: Optional list of paths to intermediate SVG files.
+
+        Raises:
+            Silently returns if task_id is not found (no-op).
+        """
         task_copy = None
         with self._task_lock:
             if task_id in self.tasks:
@@ -270,7 +371,21 @@ class TaskManager:
             pass  # Non-critical
 
     def fail_task(self, task_id: str, error_code: str, error_message: str) -> None:
-        """任务失败，并同步到云端"""
+        """Mark a task as failed with error information.
+
+        Updates the task status to "failed" and stores error details including
+        an error code and human-readable message. Also syncs to cloud storage.
+
+        Args:
+            task_id: The unique identifier of the task.
+            error_code: Short machine-readable error code.
+                Examples: "GENERATION_ERROR", "TIMEOUT", "API_ERROR"
+            error_message: Human-readable error description.
+                Examples: "PPT生成失败，请稍后重试", "图片下载超时"
+
+        Raises:
+            Silently returns if task_id is not found (no-op).
+        """
         task_copy = None
         with self._task_lock:
             if task_id in self.tasks:
@@ -1649,9 +1764,25 @@ class TaskManager:
             self._async_tasks[task_id] = async_task
 
     def get_cancel_event(self, task_id: str) -> threading.Event:
-        """获取任务的取消事件标志（线程安全）
-        
-        PPTGenerator 在循环中应定期检查 cancel_event.is_set() 以响应取消请求。
+        """Get the cancellation event for a task (thread-safe).
+
+        Returns a threading.Event object that can be used to check if a task
+        has been requested to cancel. Workers should periodically check
+        event.is_set() during long operations and stop gracefully if set.
+
+        Args:
+            task_id: The unique identifier of the task.
+
+        Returns:
+            threading.Event object. Call is_set() to check cancellation status,
+            or set() to request cancellation.
+
+        Example:
+            >>> cancel_event = task_manager.get_cancel_event(task_id)
+            >>> for item in items:
+            ...     if cancel_event.is_set():
+            ...         break  # Stop work gracefully
+            ...     process(item)
         """
         with self._cancel_events_lock:
             if task_id not in self._cancel_events:
@@ -1727,7 +1858,20 @@ class TaskManager:
                 del self._async_tasks[tid]
 
     def cancel_task(self, task_id: str) -> bool:
-        """取消任务"""
+        """Cancel a task and signal worker threads to stop.
+
+        Sets the cancel event to signal any running worker threads to stop
+        immediately, and updates the task status to "cancelled". Only affects
+        tasks that are in "pending" or "processing" status.
+
+        Args:
+            task_id: The unique identifier of the task to cancel.
+
+        Returns:
+            True if the task was successfully cancelled, False if the task
+            was not found or was already in a terminal state (completed,
+            failed, or already cancelled).
+        """
         cancelled = False
         # 设置取消事件，通知正在运行的工作线程立即停止
         self.get_cancel_event(task_id).set()
@@ -1748,7 +1892,18 @@ class TaskManager:
         return cancelled
 
     def delete_task(self, task_id: str) -> bool:
-        """删除任务（批量操作使用）"""
+        """Delete a task from the task manager.
+
+        Permanently removes a task from the internal task dictionary.
+        Use with caution as this operation cannot be undone.
+
+        Args:
+            task_id: The unique identifier of the task to delete.
+
+        Returns:
+            True if the task was successfully deleted, False if the task
+            was not found.
+        """
         with self._task_lock:
             if task_id in self.tasks:
                 del self.tasks[task_id]
@@ -2507,7 +2662,19 @@ _manager_lock = threading.Lock()  # 保护单例创建
 
 
 def get_task_manager() -> TaskManager:
-    """获取任务管理器实例（线程安全）"""
+    """Get the TaskManager singleton instance (thread-safe).
+
+    Uses double-checked locking pattern to ensure only one instance
+    is created even under concurrent access.
+
+    Returns:
+        The singleton TaskManager instance.
+
+    Example:
+        >>> manager = get_task_manager()
+        >>> manager is get_task_manager()
+        True
+    """
     global _task_manager
     if _task_manager is None:
         with _manager_lock:

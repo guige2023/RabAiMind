@@ -142,29 +142,98 @@ class PPTGenerator:
         # R148: AI 脚本内容生成类型
         script_content_type: Optional[str] = None  # story_arc/data_story/persuasion/audience_persona/competitor_analysis
     ) -> Dict[str, Any]:
-        """生成 PPT - okppt方式
+        """Generate a PowerPoint presentation using AI-generated SVG layouts.
 
-        两阶段模式:
-        - Step 1 (内容): AI 规划内容，用户在大纲编辑页确认
-        - Step 2 (排版): 传入预生成内容，直接进入排版渲染，跳过 AI 内容规划
+        This method orchestrates the complete PPT generation workflow including
+        content planning, AI image generation, SVG creation, and PPTX conversion.
+
+        The generation supports two modes:
+        - Two-phase mode: AI plans content, user confirms in outline editor,
+          then rendering proceeds with pre-generated slides
+        - One-shot mode: Complete generation in a single call
 
         Args:
-            generation_mode: 生成模式
-                - standard: 标准模式，平衡速度和质量
-                - fast: 快速模式，快速生成预览
-                - quality: 高清模式，高质量输出
-                - stream: 流式模式，边生成边输出
+            task_id: Unique identifier for tracking this generation task.
+            user_request: Natural language description of the presentation content.
+            slide_count: Target number of slides to generate (default: 10).
+            scene: Visual style/scene for the presentation.
+                - "business": Professional business style
+                - "academic": Educational/academic style
+                - "marketing": Marketing/promotional style
+                - "general": Generic style
+            style: Typography style for text.
+                - "professional": Clean and formal
+                - "creative": Modern and creative
+                - "minimal": Simple and minimal
+                - "bold": Bold and impactful
+            template: Template name to use (default: "default").
+            theme_color: Primary color in hex format (e.g., "#165DFF").
+            text_style: Style for overlaying text on images.
+                - "transparent_overlay": Semi-transparent dark overlay
+                - "shadow": Text with shadow effect
+                - "glow": Text with glow effect
+                - "outline": Text with outline
+                - "gradient": Text with gradient fill
+                - "neon": Neon-style text
+            shadow_color: Color for shadow effects in hex format.
+            overlay_transparency: Transparency percentage for text overlay (0-100).
+            use_smart_layout: Whether to use intelligent layout engine.
+            slide_backgrounds: Optional list of slide background configurations.
+            slide_layouts: Optional list of user-specified layout types per slide.
+            include_charts: Whether to include data charts in the presentation.
+            include_pie_chart: Include pie chart when charts are enabled.
+            include_bar_chart: Include bar chart when charts are enabled.
+            include_line_chart: Include line chart when charts are enabled.
+            add_watermark: Whether to add a watermark to slides.
+            font_title: Font family for titles.
+            font_subtitle: Font family for subtitles.
+            font_content: Font family for body content.
+            font_caption: Font family for captions.
+            generation_mode: Generation speed/quality mode.
+                - "standard": Balanced speed and quality
+                - "fast": Quick preview generation
+                - "quality": High-quality output
+                - "stream": Streaming output as generation progresses
+            output_format: Output file format.
+                - "pptx": Microsoft PowerPoint (default)
+                - "pdf": PDF document
+                - "svg": SVG vector graphics
+                - "png": PNG images
+            quality: Output quality level.
+                - "standard": 1080p resolution
+                - "high": 1440p resolution
+                - "ultra": 4K resolution
+            layout_mode: Layout determination mode.
+                - "auto": Intelligent automatic layout selection
+                - "manual": User-specified layouts only
+            unified_layout: Whether to apply the same layout to all slides.
+            pre_generated_slides: Pre-generated slide content for two-phase mode.
+                Each dict should contain: title, content, slide_type, layout.
+            script_content_type: AI script content generation type.
+                - "story_arc": Narrative/story-driven structure
+                - "data_story": Data-focused presentation
+                - "persuasion": Persuasive argument structure
+                - "audience_persona": Audience-targeted content
+                - "competitor_analysis": Competitive analysis format
 
-            output_format: 输出格式
-                - pptx: PowerPoint文件
-                - pdf: PDF文件
-                - svg: SVG矢量图
-                - png: PNG图片
+        Returns:
+            Dict containing:
+                - success (bool): Whether generation completed successfully
+                - pptx_path (str): Path to generated PPTX file
+                - slide_count (int): Actual number of slides generated
+                - output_files (dict): Additional output file paths by format
+                - error (str, on failure): Error message describing what went wrong
 
-            quality: 输出质量
-                - standard: 1080p
-                - high: 1440p
-                - ultra: 4K
+        Example:
+            >>> result = await generator.generate(
+            ...     task_id="task_123",
+            ...     user_request="Create a presentation about AI trends",
+            ...     slide_count=10,
+            ...     scene="tech",
+            ...     style="professional"
+            ... )
+            >>> if result["success"]:
+            ...     print(f"Generated: {result['pptx_path']}")
         """
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}, mode={generation_mode}, format={output_format}, quality={quality}")
 
@@ -778,18 +847,35 @@ class PPTGenerator:
     def add_chart_slide(self, task_id: str, chart_svg_path: str,
                         slide_title: str, chart_description: str = "",
                         scene: str = "business", style: str = "professional") -> str:
-        """生成包含图表的幻灯片 SVG
-        
+        """Generate an SVG slide with an embedded chart.
+
+        Creates a new slide SVG that contains a chart element with the specified
+        title and description. The slide uses scene-appropriate colors and styling.
+
         Args:
-            task_id: 任务ID
-            chart_svg_path: 图表SVG文件路径（相对路径，如 static/charts/xxx.svg）
-            slide_title: 幻灯片标题
-            chart_description: 图表描述文字
-            scene: 场景风格
-            style: 样式风格
-        
+            task_id: Unique task identifier for organizing output files.
+            chart_svg_path: Relative path to the chart SVG file
+                (e.g., "static/charts/xxx.svg").
+            slide_title: Title text for the slide (max 30 characters).
+            chart_description: Optional description text to display below the title
+                (max 100 characters).
+            scene: Visual style/scene for color theme selection.
+                - "business": Professional blue theme
+                - "academic": Educational gray-blue theme
+                - "creative": Purple creative theme
+                - "minimal": Clean gray theme
+            style: Typography style (currently unused, reserved for future use).
+
         Returns:
-            生成的SVG文件路径
+            Absolute path to the generated SVG file in the task output directory.
+
+        Example:
+            >>> svg_path = generator.add_chart_slide(
+            ...     task_id="task_123",
+            ...     chart_svg_path="static/charts/sales_data.svg",
+            ...     slide_title="Q4 Sales Analysis",
+            ...     chart_description="Revenue growth by region"
+            ... )
         """
         from pathlib import Path
         import os
