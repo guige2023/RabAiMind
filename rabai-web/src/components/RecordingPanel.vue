@@ -356,6 +356,29 @@ interface LastRecording {
   url: string
 }
 
+interface WebcamConfig {
+  enabled: boolean
+  position: string
+  size: number
+  borderRadius: number
+  mirror: boolean
+  border: boolean
+  stream: MediaStream | null
+}
+
+interface StreamConfig {
+  rtmpUrl: string
+  streamKey: string
+  quality: string
+}
+
+interface ExportOptions {
+  format: 'mp4' | 'webm'
+  quality: 'low' | 'medium' | 'high'
+  includeAudio: boolean
+  includeWebcam: boolean
+}
+
 const props = defineProps<{
   show: boolean
   taskId?: string
@@ -443,6 +466,20 @@ function startRecording() {
   isPaused.value = false
   recordingDuration.value = 0
   emit('start-record')
+  
+  recordingTimer = setInterval(() => {
+    if (!isPaused.value) {
+      recordingDuration.value++
+    }
+  }, 1000)
+}
+
+async function startPresentationAndRecord() {
+  // Start presentation mode and begin recording
+  emit('start-record')
+  isRecording.value = true
+  isPaused.value = false
+  recordingDuration.value = 0
   
   recordingTimer = setInterval(() => {
     if (!isPaused.value) {
