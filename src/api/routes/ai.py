@@ -6,7 +6,7 @@ R32: AI rephrase, translate, layout suggestion, auto-enhance, content score
 
 import logging
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 
 from src.services.volc_api import get_volc_api
@@ -18,44 +18,93 @@ router = APIRouter(prefix="/api/v1/ai", tags=["AI增强"])
 # ==================== Request/Response Models ====================
 
 class RephraseRequest(BaseModel):
-    text: str
-    style: Optional[str] = "natural"  # natural, formal, creative, concise
+    """AI文本改写请求"""
+    text: str = Field(..., min_length=1, max_length=5000, description="待改写的原始文本")
+    style: str = Field(default="natural", description="改写风格: natural(自然)/formal(正式)/creative(创意)/concise(简洁)")
+
+    @field_validator('style')
+    @classmethod
+    def validate_style(cls, v: str) -> str:
+        valid = {"natural", "formal", "creative", "concise"}
+        if v not in valid:
+            raise ValueError(f"style 必须是 {valid} 之一")
+        return v
+
 
 class TranslateRequest(BaseModel):
-    text: str
-    target_lang: str = "en"  # 50+ languages supported
+    """AI文本翻译请求"""
+    text: str = Field(..., min_length=1, max_length=5000, description="待翻译的文本")
+    target_lang: str = Field(default="en", description="目标语言代码，如 zh/en/ja/ko/fr/de 等")
+
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text 不能为空")
+        return v
+
 
 class LayoutSuggestionRequest(BaseModel):
-    slide_index: int
-    elements: List[Dict[str, Any]]  # element data
-    slide_content: str  # overall slide text content
+    """布局建议请求"""
+    slide_index: int = Field(..., ge=1, description="幻灯片序号（1-based）")
+    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
+    slide_content: str = Field(default="", max_length=2000, description="幻灯片的整体文本内容")
+
 
 class AutoEnhanceRequest(BaseModel):
-    slide_index: int
-    elements: List[Dict[str, Any]]
-    color_scheme: Optional[str] = "#165DFF"  # accent color
+    """一键美化请求"""
+    slide_index: int = Field(..., ge=1, description="幻灯片序号（1-based）")
+    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
+    color_scheme: Optional[str] = Field(default="#165DFF", description="主题强调色（hex格式）")
+
 
 class ContentScoreRequest(BaseModel):
-    elements: List[Dict[str, Any]]
-    slide_content: str
+    """内容评分请求"""
+    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片元素列表")
+    slide_content: str = Field(default="", max_length=3000, description="幻灯片文本内容")
+
 
 class ExpandShortenRequest(BaseModel):
-    text: str
-    ratio: float = 1.5  # 1.0=原长度, 2.0=扩展2倍, 0.5=压缩50%
-    mode: str = "expand"  # expand or shorten
+    """内容扩展/压缩请求"""
+    text: str = Field(..., min_length=1, max_length=5000, description="待处理文本")
+    ratio: float = Field(default=1.5, ge=0.1, le=5.0, description="比例: 1.0=原长, 2.0=扩展2倍, 0.5=压缩50%")
+    mode: str = Field(default="expand", description="模式: expand(扩展) 或 shorten(压缩)")
+
+    @field_validator('mode')
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        if v not in {"expand", "shorten"}:
+            raise ValueError("mode 必须是 expand 或 shorten")
+        return v
+
 
 class GrammarCheckRequest(BaseModel):
-    text: str
+    """语法检查请求"""
+    text: str = Field(..., min_length=1, max_length=5000, description="待检查的文本")
 
 
 # ==================== Helper ====================
 
 def call_ai(prompt: str, system: str = "") -> str:
-    """调用火山引擎AI，返回文本内容"""
+    """
+    调用火山引擎AI，返回文本内容。
+
+    使用统一的错误处理格式，所有异常都转换为结构化的 {error, detail} 格式。
+
+    Args:
+        prompt: 用户输入的提示词
+        system: 系统指令（可选）
+
+    Returns:
+        AI生成的文本内容
+
+    Raises:
+        HTTPException: AI服务调用失败时抛出，状态码500
+    """
     volc = get_volc_api()
     # 如果有system指令，追加到prompt前面
     full_prompt = (system + "\n\n" + prompt) if system else prompt
-    
+
     try:
         result = volc.text_generation(
             prompt=full_prompt,
@@ -69,13 +118,19 @@ def call_ai(prompt: str, system: str = "") -> str:
                 return result.get("content", "")
             # 失败情况
             error = result.get("error", "未知错误")
-            raise HTTPException(status_code=500, detail=f"AI服务错误: {error}")
+            raise HTTPException(
+                status_code=500,
+                detail={"error": "AI_SERVICE_ERROR", "detail": f"AI服务错误: {error}"}
+            )
         return str(result)
     except HTTPException:
         raise  # FastAPI HTTPException should pass through
     except Exception as e:
         logger.error(f"AI调用失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": f"AI服务调用失败: {str(e)}"})
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "AI_SERVICE_ERROR", "detail": f"AI服务调用失败: {str(e)}"}
+        )
 
 
 def safe_json_parse(text: str) -> Optional[dict]:
@@ -111,7 +166,17 @@ def safe_json_parse(text: str) -> Optional[dict]:
 async def rephrase_text(req: RephraseRequest):
     """
     AI改写文本
-    对选中的文本进行智能改写，保持原意但改善表达
+
+    对用户选中的文本进行智能改写，保持原意但改善表达。
+    支持4种改写风格：自然口语、正式书面、创意生动、简洁精炼。
+
+    Args:
+        req.text: 待改写的原始文本（1-5000字符）
+        req.style: 改写风格（natural/formal/creative/concise）
+
+    Returns:
+        success: 是否成功
+        rephrased: 改写后的文本
     """
     style_map = {
         "natural": "自然流畅、口语化",
@@ -137,14 +202,25 @@ async def rephrase_text(req: RephraseRequest):
         raise
     except Exception as e:
         logger.error(f"rephrase失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/translate")
 async def translate_text(req: TranslateRequest):
     """
     AI翻译文本
-    支持中文(zh)、英文(en)、日语(ja)、韩语(ko)互译
+
+    支持50+语言的智能翻译，包括中文、英文、日语、韩语及众多小语种。
+    保持专业、地道的表达风格。
+
+    Args:
+        req.text: 待翻译的原始文本（1-5000字符）
+        req.target_lang: 目标语言代码（zh/en/ja/ko/fr/de 等）
+
+    Returns:
+        success: 是否成功
+        translated: 翻译后的文本
+        lang: 目标语言代码
     """
     lang_map = {
         # East Asia
@@ -238,14 +314,25 @@ async def translate_text(req: TranslateRequest):
         raise
     except Exception as e:
         logger.error(f"translate失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/layout-suggestion")
 async def layout_suggestion(req: LayoutSuggestionRequest):
     """
     智能布局建议
-    根据幻灯片内容分析，推荐最佳元素布局
+
+    分析幻灯片内容类型和元素，自动推荐最佳布局方案。
+    包括元素位置、尺寸、对齐方式等详细信息。
+
+    Args:
+        req.slide_index: 幻灯片序号（1-based）
+        req.elements: 幻灯片中的元素列表
+        req.slide_content: 幻灯片的整体文本内容
+
+    Returns:
+        success: 是否成功
+        suggestion: 布局建议（layout_type, suggested_alignments, reason）
     """
     elements_info = "\n".join([
         f"- {i+1}. 类型:{e.get('type')}, 内容:{e.get('content', e.get('fill', ''))[:50]}"
@@ -292,14 +379,25 @@ async def layout_suggestion(req: LayoutSuggestionRequest):
         raise
     except Exception as e:
         logger.error(f"layout-suggestion失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/auto-enhance")
 async def auto_enhance(req: AutoEnhanceRequest):
     """
     一键美化
-    基于现有设计自动优化：配色、字体、间距等
+
+    基于现有设计自动优化，包括配色方案、字体选择、间距调整等。
+    适合快速提升PPT视觉质量。
+
+    Args:
+        req.slide_index: 幻灯片序号（1-based）
+        req.elements: 幻灯片元素列表
+        req.color_scheme: 主题强调色（hex格式，如 #165DFF）
+
+    Returns:
+        success: 是否成功
+        enhancement: 优化建议（配色、字体、间距、设计技巧）
     """
     elements_summary = "\n".join([
         f"- {e.get('type')}: {e.get('content', e.get('fill', ''))[:30]}"
@@ -346,14 +444,24 @@ async def auto_enhance(req: AutoEnhanceRequest):
         raise
     except Exception as e:
         logger.error(f"auto-enhance失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/content-score")
 async def content_score(req: ContentScoreRequest):
     """
     内容质量评分
-    从完整性、清晰度、专业性、可读性等维度评分
+
+    从完整性、清晰度、专业性、可读性、视觉吸引力等5个维度
+    对PPT幻灯片内容进行AI评分，并给出优缺点和改进建议。
+
+    Args:
+        req.elements: 幻灯片元素列表
+        req.slide_content: 幻灯片文本内容
+
+    Returns:
+        success: 是否成功
+        score: 评分结果（overall_score, scores各维度, strengths, improvements, summary）
     """
     content_preview = req.slide_content[:500] if req.slide_content else "无内容"
     elements_count = len(req.elements)
@@ -415,15 +523,26 @@ async def content_score(req: ContentScoreRequest):
         raise
     except Exception as e:
         logger.error(f"content-score失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/expand-shorten")
 async def expand_shorten_text(req: ExpandShortenRequest):
     """
-    AI 内容扩展/压缩
-    根据ratio扩展或压缩文本内容，保持核心信息
-    - ratio: 1.0=原长度, 2.0=扩展2倍, 0.5=压缩50%
+    AI内容扩展/压缩
+
+    根据指定的ratio对文本进行智能扩展或压缩，保持核心信息不变。
+    扩展模式增加细节和论述，压缩模式保留核心精炼内容。
+
+    Args:
+        req.text: 待处理的文本（1-5000字符）
+        req.ratio: 比例系数（0.1-5.0，1.0=原长，2.0=扩展2倍，0.5=压缩50%）
+        req.mode: 模式（expand=扩展，shorten=压缩）
+
+    Returns:
+        success: 是否成功
+        result: 处理后的文本
+        ratio: 实际使用的比例
     """
     ratio = req.ratio
     if ratio > 1.0:
@@ -447,14 +566,23 @@ async def expand_shorten_text(req: ExpandShortenRequest):
         raise
     except Exception as e:
         logger.error(f"expand-shorten失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/grammar-check")
 async def grammar_check(req: GrammarCheckRequest):
     """
-    AI 语法和拼写检查
-    检查文本中的语法错误、拼写错误和标点问题
+    AI语法和拼写检查
+
+    自动检测文本中的语法错误、拼写错误和标点问题，
+    并提供修正版本和改进建议。
+
+    Args:
+        req.text: 待检查的文本（1-5000字符）
+
+    Returns:
+        success: 是否成功
+        check: 检查结果（corrected, errors列表, has_errors）
     """
     prompt = f"""请检查以下文本的语法、拼写和标点错误，并给出修正版本。
 
@@ -496,7 +624,7 @@ async def grammar_check(req: GrammarCheckRequest):
         raise
     except Exception as e:
         logger.error(f"grammar-check失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ==================== New R109: AI Content Enhancement ====================
@@ -517,8 +645,17 @@ class ClicheDetectRequest(BaseModel):
 @router.post("/smart-footnotes")
 async def smart_footnotes(req: SmartFootnotesRequest):
     """
-    AI 智能脚注 - 为内容添加相关引用和来源
-    根据文本内容，AI自动生成相关 citations、统计数据来源、参考文献等脚注
+    AI智能脚注
+
+    根据文本内容自动生成相关引用、数据来源和参考文献脚注。
+    适用于需要引用支撑的商务PPT和学术报告。
+
+    Args:
+        req: SmartFootnotesRequest（包含text和可选的topic）
+
+    Returns:
+        success: 是否成功
+        footnotes: 脚注列表（citations, sources, references）
     """
     topic_hint = f"\n内容主题：{req.topic}" if req.topic else ""
     
@@ -566,14 +703,23 @@ async def smart_footnotes(req: SmartFootnotesRequest):
         raise
     except Exception as e:
         logger.error(f"smart-footnotes失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/tone-adjust")
 async def tone_adjust(req: ToneAdjustRequest):
     """
-    AI 语气调整 - 调整文本的语气风格
-    支持：formal(正式), casual(休闲), technical(技术), persuasive(说服), warm(温暖)
+    AI语气调整
+
+    调整文本的语气风格，支持正式、休闲、技术、说服、温暖等多种语气。
+    适用于同一内容需要不同受众场景的情况。
+
+    Args:
+        req: ToneAdjustRequest（包含text和target_tone）
+
+    Returns:
+        success: 是否成功
+        adjusted: 语气调整后的文本
     """
     tone_map = {
         "formal": "正式商务语气，严肃专业，适合正式场合",
@@ -624,14 +770,23 @@ async def tone_adjust(req: ToneAdjustRequest):
         raise
     except Exception as e:
         logger.error(f"tone-adjust失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/cliche-detect")
 async def cliche_detect(req: ClicheDetectRequest):
     """
-    AI 陈词滥调检测 - 检测文本中的陈词滥调和过度使用的短语
-    并为每个检测到的陈词滥调提供更生动、更有创意的替代方案
+    AI陈词滥调检测
+
+    检测文本中的陈词滥调和过度使用的短语，
+    并为每个检测项提供更生动、更有创意的替代表达。
+
+    Args:
+        req: ClicheDetectRequest（包含text）
+
+    Returns:
+        success: 是否成功
+        detected: 检测结果（cliches列表，包含original,替代方案,reason）
     """
     prompt = f"""请检测以下文本中的陈词滥调（clichés）和过度使用的短语，
 并为每一个提供更有创意、更生动的替代表达。
@@ -678,7 +833,7 @@ async def cliche_detect(req: ClicheDetectRequest):
         raise
     except Exception as e:
         logger.error(f"cliche-detect失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ==================== R133: AI Content Templates ====================
@@ -707,7 +862,15 @@ TEMPLATE_DESCRIPTIONS = {
 
 @router.get("/content-templates")
 async def list_content_templates():
-    """列出所有可用的内容模板类型"""
+    """
+    列出所有可用的AI内容模板类型
+
+    返回系统支持的所有内容模板及其描述，供用户选择合适的模板生成内容。
+
+    Returns:
+        success: 是否成功
+        templates: 模板类型列表（type, description）
+    """
     return {
         "success": True,
         "templates": [
@@ -720,8 +883,18 @@ async def list_content_templates():
 @router.post("/content-template")
 async def generate_content_template(req: ContentTemplateRequest):
     """
-    AI 内容模板生成
-    根据指定的模板类型，自动生成对应的幻灯片文本内容
+    AI内容模板生成
+
+    根据指定的模板类型自动生成对应的高质量幻灯片文本内容。
+    支持多种模板类型：故事弧线、数据故事、说服技巧、受众画像、竞品分析等。
+
+    Args:
+        req: ContentTemplateRequest（包含template_type, topic, context等）
+
+    Returns:
+        success: 是否成功
+        content: 生成的内容
+        template_type: 使用的模板类型
     """
     template_type = req.template_type
     topic = req.topic or "通用主题"
@@ -924,4 +1097,4 @@ async def generate_content_template(req: ContentTemplateRequest):
         raise
     except Exception as e:
         logger.error(f"content-template失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})

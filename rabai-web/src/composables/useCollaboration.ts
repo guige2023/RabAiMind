@@ -454,6 +454,60 @@ export const useCollaboration = (
     connected.value = false
   }
 
+  // R160: Collaboration state
+  const collaborators = ref<any[]>([])
+  const validShareLinks = ref<any[]>([])
+  const isCollaborating = computed(() => collaborators.value.length > 0)
+
+  const loadCollaborators = async (taskId: string) => {
+    try {
+      const res = await apiClient.get(`/sharing/collaborators/${taskId}`)
+      collaborators.value = res.data.collaborators || []
+    } catch {
+      collaborators.value = []
+    }
+  }
+
+  const loadShareLinks = async (taskId: string) => {
+    try {
+      const res = await apiClient.get(`/sharing/links/${taskId}`)
+      validShareLinks.value = res.data.links || []
+    } catch {
+      validShareLinks.value = []
+    }
+  }
+
+  const createShareLink = async (role: string, options?: { expiresInDays?: number }) => {
+    const documentId = 'current-doc'
+    const res = await apiClient.post(`/sharing/links/${documentId}`, { role, ...options })
+    if (res.data.success) {
+      await loadShareLinks(documentId)
+    }
+    return res.data
+  }
+
+  const deleteShareLink = async (linkId: string) => {
+    const documentId = 'current-doc'
+    await apiClient.delete(`/sharing/links/${documentId}/${linkId}`)
+    validShareLinks.value = validShareLinks.value.filter(l => l.id !== linkId)
+  }
+
+  const copyShareLink = async (linkId: string) => {
+    const link = validShareLinks.value.find(l => l.id === linkId)
+    if (link) {
+      await navigator.clipboard.writeText(link.url || link.link || '')
+    }
+  }
+
+  const addCollaborator = async (email: string, role: string) => {
+    // Placeholder - real implementation would call an API
+    return false
+  }
+
+  const removeCollaborator = async (userId: string) => {
+    collaborators.value = collaborators.value.filter(c => c.user_id !== userId)
+  }
+
   onUnmounted(() => {
     disconnect()
   })
@@ -472,6 +526,10 @@ export const useCollaboration = (
     followingUserId,
     followViewport,
     serverVersion,
+    // R160: Collaboration
+    collaborators,
+    isCollaborating,
+    validShareLinks,
     // Methods
     updateCursor,
     updatePresence,
@@ -483,5 +541,13 @@ export const useCollaboration = (
     replyComment,
     resolveComment,
     disconnect,
+    // R160: Collaboration methods
+    loadCollaborators,
+    loadShareLinks,
+    createShareLink,
+    deleteShareLink,
+    copyShareLink,
+    addCollaborator,
+    removeCollaborator,
   }
 }

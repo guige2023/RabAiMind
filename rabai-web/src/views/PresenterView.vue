@@ -1,5 +1,5 @@
 <template>
-  <div class="presenter-view">
+  <div class="presenter-view" :class="{ 'laser-active': laserActive }" @keydown="handleKeydown" tabindex="0" ref="presenterRoot">
     <!-- 顶部信息栏 -->
     <div class="presenter-header">
       <div class="header-left">
@@ -10,14 +10,54 @@
         <span v-if="timerDurationMinutes > 0" class="time-remaining" :class="{ warning: remainingSeconds <= 60 && remainingSeconds > 0, overtime: isOvertime }">
           / {{ isOvertime ? '+' : '' }}{{ formatTime(Math.abs(remainingSeconds)) }}
         </span>
+        <!-- Auto-advance indicator -->
+        <span v-if="autoAdvanceEnabled && autoAdvanceSeconds > 0" class="auto-advance-indicator" :class="{ active: autoAdvanceRunning }">
+          🔄 {{ autoAdvanceSeconds }}s
+        </span>
       </div>
       <div class="header-center">
+        <!-- Progress bar -->
+        <div class="progress-bar-container">
+          <div class="progress-bar-fill" :style="{ width: progressPercent + '%' }"></div>
+        </div>
         <span class="slide-info">{{ currentSlide + 1 }} / {{ totalSlides }}</span>
       </div>
       <div class="header-right">
+        <!-- Laser pointer toggle -->
+        <button class="header-btn" :class="{ active: laserActive }" @click="toggleLaser" title="激光笔 (L)">
+          🎯 激光笔
+        </button>
+        <!-- Auto-advance toggle -->
+        <button class="header-btn" :class="{ active: autoAdvanceEnabled }" @click="toggleAutoAdvance" title="自动翻页 (A)">
+          ⏭️ 自动
+        </button>
+        <!-- Keyboard shortcuts help -->
+        <button class="header-btn" @click="showShortcuts = !showShortcuts" title="快捷键 (?)">
+          ⌨️
+        </button>
         <button class="btn-close" @click="closePresenter" title="关闭演讲者视图">
           ✕ 关闭
         </button>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div v-if="showShortcuts" class="shortcuts-modal" @click.self="showShortcuts = false">
+      <div class="shortcuts-content">
+        <h2>⌨️ 快捷键</h2>
+        <div class="shortcuts-grid">
+          <div class="shortcut-item"><kbd>←</kbd><kbd>→</kbd><span>上一页 / 下一页</span></div>
+          <div class="shortcut-item"><kbd>Space</kbd><span>下一页</span></div>
+          <div class="shortcut-item"><kbd>Home</kbd><span>第一页</span></div>
+          <div class="shortcut-item"><kbd>End</kbd><span>最后一页</span></div>
+          <div class="shortcut-item"><kbd>T</kbd><span>开始/暂停计时</span></div>
+          <div class="shortcut-item"><kbd>R</kbd><span>重置计时</span></div>
+          <div class="shortcut-item"><kbd>L</kbd><span>激光笔</span></div>
+          <div class="shortcut-item"><kbd>A</kbd><span>自动翻页</span></div>
+          <div class="shortcut-item"><kbd>+</kbd><kbd>-</kbd><span>调整自动翻页时间</span></div>
+          <div class="shortcut-item"><kbd>Esc</kbd><span>关闭快捷键帮助</span></div>
+        </div>
+        <button class="close-shortcuts-btn" @click="showShortcuts = false">关闭</button>
       </div>
     </div>
 
@@ -136,6 +176,19 @@
       <button class="nav-btn secondary" @click="resetTimer" title="重置计时">
         ↺ 重置
       </button>
+      <!-- Auto-advance controls -->
+      <div class="auto-advance-controls" v-if="autoAdvanceEnabled">
+        <button class="nav-btn secondary" @click="adjustAutoAdvance(-5)" title="减少自动翻页时间">
+          -5s
+        </button>
+        <span class="auto-advance-label">{{ autoAdvanceSeconds }}s/页</span>
+        <button class="nav-btn secondary" @click="adjustAutoAdvance(5)" title="增加自动翻页时间">
+          +5s
+        </button>
+        <button class="nav-btn secondary" :class="{ active: autoAdvanceRunning }" @click="toggleAutoAdvanceRunning">
+          {{ autoAdvanceRunning ? '⏸ 暂停自动' : '▶ 自动翻页' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -159,6 +212,22 @@ const elapsedSeconds = ref(0)
 const timerDurationMinutes = ref(0)
 const timerRunning = ref(false)
 
+// Auto-advance state
+const autoAdvanceEnabled = ref(false)
+const autoAdvanceSeconds = ref(10)
+const autoAdvanceRunning = ref(false)
+let autoAdvanceInterval: ReturnType<typeof setInterval> | null = null
+let autoAdvanceCountdown = ref(0)
+
+// Laser pointer
+const laserActive = ref(false)
+
+// Keyboard shortcuts modal
+const showShortcuts = ref(false)
+
+// Ref for focus
+const presenterRoot = ref<HTMLElement | null>(null)
+
 // AI Coach data from main presentation window
 const coachData = ref({
   confidenceScore: 75,
@@ -181,6 +250,12 @@ const remainingSeconds = computed(() => {
 })
 
 const isOvertime = computed(() => remainingSeconds.value < 0)
+
+// Progress bar percentage
+const progressPercent = computed(() => {
+  if (totalSlides.value === 0) return 0
+  return ((currentSlide.value + 1) / totalSlides.value) * 100
+})
 
 const formatTime = (seconds: number): string => {
   const abs = Math.abs(seconds)
@@ -216,6 +291,8 @@ const saveToStorage = () => {
       elapsedSeconds: elapsedSeconds.value,
       timerDurationMinutes: timerDurationMinutes.value,
       timerRunning: timerRunning.value,
+      autoAdvanceEnabled: autoAdvanceEnabled.value,
+      autoAdvanceSeconds: autoAdvanceSeconds.value,
       lastUpdate: Date.now()
     }))
   } catch (e) {
@@ -330,9 +407,136 @@ const closePresenter = () => {
   window.close()
 }
 
+// Auto-advance functions
+const toggleAutoAdvance = () => {
+  autoAdvanceEnabled.value = !autoAdvanceEnabled.value
+  if (autoAdvanceEnabled.value && autoAdvanceRunning.value) {
+    startAutoAdvanceInterval()
+  } else {
+    stopAutoAdvanceInterval()
+  }
+  saveToStorage()
+}
+
+const toggleAutoAdvanceRunning = () => {
+  if (autoAdvanceRunning.value) {
+    stopAutoAdvanceInterval()
+  } else {
+    startAutoAdvanceInterval()
+  }
+}
+
+const startAutoAdvanceInterval = () => {
+  stopAutoAdvanceInterval()
+  if (!autoAdvanceEnabled.value || autoAdvanceSeconds.value <= 0) return
+  autoAdvanceRunning.value = true
+  autoAdvanceCountdown.value = autoAdvanceSeconds.value
+  autoAdvanceInterval = setInterval(() => {
+    autoAdvanceCountdown.value--
+    if (autoAdvanceCountdown.value <= 0) {
+      // Auto advance to next slide
+      if (currentSlide.value < totalSlides.value - 1) {
+        goToSlide(currentSlide.value + 1)
+      }
+      autoAdvanceCountdown.value = autoAdvanceSeconds.value
+    }
+  }, 1000)
+}
+
+const stopAutoAdvanceInterval = () => {
+  autoAdvanceRunning.value = false
+  if (autoAdvanceInterval) {
+    clearInterval(autoAdvanceInterval)
+    autoAdvanceInterval = null
+  }
+}
+
+const adjustAutoAdvance = (delta: number) => {
+  autoAdvanceSeconds.value = Math.max(3, Math.min(60, autoAdvanceSeconds.value + delta))
+  if (autoAdvanceRunning.value) {
+    startAutoAdvanceInterval()
+  }
+  saveToStorage()
+}
+
+// Laser pointer toggle
+const toggleLaser = () => {
+  laserActive.value = !laserActive.value
+}
+
+// Keyboard shortcuts
+const handleKeydown = (e: KeyboardEvent) => {
+  // Ignore if typing in an input
+  if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+    return
+  }
+  switch (e.key) {
+    case 'ArrowRight':
+    case ' ':
+    case 'PageDown':
+      e.preventDefault()
+      nextSlide()
+      break
+    case 'ArrowLeft':
+    case 'PageUp':
+      e.preventDefault()
+      prevSlide()
+      break
+    case 'Home':
+      e.preventDefault()
+      goToSlide(0)
+      break
+    case 'End':
+      e.preventDefault()
+      goToSlide(totalSlides.value - 1)
+      break
+    case 't':
+    case 'T':
+      e.preventDefault()
+      toggleTimer()
+      break
+    case 'r':
+    case 'R':
+      e.preventDefault()
+      resetTimer()
+      break
+    case 'l':
+    case 'L':
+      e.preventDefault()
+      toggleLaser()
+      break
+    case 'a':
+    case 'A':
+      e.preventDefault()
+      toggleAutoAdvance()
+      break
+    case '+':
+    case '=':
+      e.preventDefault()
+      adjustAutoAdvance(5)
+      break
+    case '-':
+    case '_':
+      e.preventDefault()
+      adjustAutoAdvance(-5)
+      break
+    case '?':
+      e.preventDefault()
+      showShortcuts.value = !showShortcuts.value
+      break
+    case 'Escape':
+      if (showShortcuts.value) {
+        showShortcuts.value = false
+      }
+      break
+  }
+}
+
 onMounted(() => {
   loadFromStorage()
   setupBroadcastChannel()
+  // Focus for keyboard events
+  presenterRoot.value?.focus()
 })
 
 onUnmounted(() => {

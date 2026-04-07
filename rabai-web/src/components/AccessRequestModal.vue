@@ -214,7 +214,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import apiClient from '../api/client'
+import api from '../api/client'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits(['close'])
@@ -314,7 +314,7 @@ const loadAll = async () => {
 const loadIncoming = async () => {
   loading.value = true
   try {
-    const res = await apiClient.get('/sharing/access-requests/owner')
+    const res = await api.sharing.listIncomingAccessRequests()
     incomingRequests.value = res.data.requests || []
     pendingCount.value = incomingRequests.value.filter((r: any) => r.status === 'pending').length
   } catch {
@@ -327,7 +327,7 @@ const loadIncoming = async () => {
 const loadMyRequests = async () => {
   loading.value = true
   try {
-    const res = await apiClient.get('/sharing/access-requests/mine')
+    const res = await api.sharing.listMyAccessRequests()
     myRequests.value = res.data.requests || []
   } catch {
     myRequests.value = []
@@ -338,7 +338,7 @@ const loadMyRequests = async () => {
 
 const handleApprove = async (req: any) => {
   try {
-    await apiClient.post(`/sharing/access-requests/${req.id}/approve`)
+    await api.sharing.approveAccessRequest(req.id)
     req.status = 'approved'
     pendingCount.value = Math.max(0, pendingCount.value - 1)
   } catch {
@@ -358,7 +358,7 @@ const cancelReject = () => {
 
 const confirmReject = async (req: any) => {
   try {
-    await apiClient.post(`/sharing/access-requests/${req.id}/reject`, { reason: rejectReason.value })
+    await api.sharing.rejectAccessRequest(req.id, rejectReason.value)
     req.status = 'rejected'
     req.reject_reason = rejectReason.value
     pendingCount.value = Math.max(0, pendingCount.value - 1)
@@ -372,7 +372,7 @@ const confirmReject = async (req: any) => {
 const handleCancel = async (req: any) => {
   if (!confirm('确定要取消这个请求吗？')) return
   try {
-    await apiClient.delete(`/sharing/access-requests/${req.id}`)
+    await api.sharing.deleteAccessRequest(req.id)
     myRequests.value = myRequests.value.filter(r => r.id !== req.id)
   } catch {
     // ignore
@@ -384,7 +384,7 @@ const submitRequest = async () => {
   submitting.value = true
   submitResult.value = null
   try {
-    await apiClient.post('/sharing/access-requests', form.value)
+    await api.sharing.createAccessRequest(form.value)
     submitResult.value = { type: 'success', text: '✅ 访问请求已发送！所有者审批后你会收到通知。' }
     form.value = { resource_type: 'ppt', resource_id: '', resource_name: '', permission_requested: 'view', message: '' }
     setTimeout(() => {

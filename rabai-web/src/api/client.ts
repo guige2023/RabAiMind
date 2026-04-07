@@ -2152,6 +2152,70 @@ export const api: APIClient = {
       return apiClient.delete(`/share/beacon/${beaconId}`)
     },
   },
+  // R160: Backup
+  backup: {
+    listBackups: (taskId: string): Promise<AxiosResponse<{ success: boolean; backups: any[] }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}`)
+    },
+    createBackup: (taskId: string, name: string): Promise<AxiosResponse<{ success: boolean; backup_id: string }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}`, { name })
+    },
+    restoreBackup: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}/${backupId}/restore`)
+    },
+    getBackupSlides: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; slides: any[] }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/slides`)
+    },
+    downloadBackup: (taskId: string, backupId: string): Promise<Blob> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/download`, { responseType: 'blob' })
+    },
+    deleteBackup: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/backups/${taskId}/${backupId}`)
+    },
+    importBackup: (file: File): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return apiClient.post('/ppt/backups/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
+  },
+  // R160: Sharing / Access Requests
+  sharing: {
+    listIncomingAccessRequests: (): Promise<AxiosResponse<{ success: boolean; requests: any[] }>> => {
+      return apiClient.get('/sharing/access-requests/owner')
+    },
+    listMyAccessRequests: (): Promise<AxiosResponse<{ success: boolean; requests: any[] }>> => {
+      return apiClient.get('/sharing/access-requests/mine')
+    },
+    approveAccessRequest: (requestId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post(`/sharing/access-requests/${requestId}/approve`)
+    },
+    rejectAccessRequest: (requestId: string, reason?: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.post(`/sharing/access-requests/${requestId}/reject`, { reason })
+    },
+    deleteAccessRequest: (requestId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/sharing/access-requests/${requestId}`)
+    },
+    createAccessRequest: (data: { item_id: string; item_type: string; message?: string }): Promise<AxiosResponse<{ success: boolean; request_id: string }>> => {
+      return apiClient.post('/sharing/access-requests', data)
+    },
+  },
+  // R160: Collaboration
+  collaboration: {
+    listCollaborators: (taskId: string): Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>> => {
+      return apiClient.get(`/sharing/collaborators/${taskId}`)
+    },
+    createShareLink: (taskId: string, role: string): Promise<AxiosResponse<{ success: boolean; link: string; share_id: string }>> => {
+      return apiClient.post(`/sharing/links/${taskId}`, { role })
+    },
+    deleteShareLink: (taskId: string, shareId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/sharing/links/${taskId}/${shareId}`)
+    },
+    listShareLinks: (taskId: string): Promise<AxiosResponse<{ success: boolean; links: any[] }>> => {
+      return apiClient.get(`/sharing/links/${taskId}`)
+    },
+  },
 }
 
 export default api
+// Raw axios instance for direct HTTP calls
+export { apiClient }
