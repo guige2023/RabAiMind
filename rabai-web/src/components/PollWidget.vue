@@ -199,7 +199,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 interface Poll {
   poll_id: string

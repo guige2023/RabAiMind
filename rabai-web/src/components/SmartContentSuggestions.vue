@@ -274,7 +274,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import api from '../api/client'
+import { apiClient } from '../api/client'
 
 const props = defineProps<{
   show: boolean
@@ -317,7 +317,7 @@ const runContentBoost = async () => {
   loading.value = true
   loadingText.value = '分析内容中...'
   try {
-    const res = await api.post('/ppt/suggest/content-boost', {
+    const res = await apiClient.post('/ppt/suggest/content-boost', {
       topic: props.topic || 'PPT演示',
       slides: props.slides,
       style: props.style || 'professional',
@@ -347,7 +347,7 @@ const runCitationFinder = async () => {
   loading.value = true
   loadingText.value = '查找引用中...'
   try {
-    const res = await api.post('/ppt/suggest/citations', {
+    const res = await apiClient.post('/ppt/suggest/citations', {
       topic: props.topic || 'PPT演示',
       slides: props.slides
     })
@@ -370,7 +370,7 @@ const runImageSuggestions = async () => {
   loading.value = true
   loadingText.value = '生成配图建议中...'
   try {
-    const res = await api.post('/ppt/suggest/images', {
+    const res = await apiClient.post('/ppt/suggest/images', {
       topic: props.topic || 'PPT演示',
       slides: props.slides
     })
@@ -393,7 +393,7 @@ const runQuoteSuggestions = async () => {
   loading.value = true
   loadingText.value = '生成引用语中...'
   try {
-    const res = await api.post('/ppt/suggest/quotes', {
+    const res = await apiClient.post('/ppt/suggest/quotes', {
       topic: props.topic || 'PPT演示',
       slides: props.slides,
       style: props.style || 'professional',
@@ -418,7 +418,7 @@ const runRelatedPresentations = async () => {
   loading.value = true
   loadingText.value = '发现相关演示中...'
   try {
-    const res = await api.post('/ppt/suggest/related', {
+    const res = await apiClient.post('/ppt/suggest/related', {
       topic: props.topic || 'PPT演示',
       slides: props.slides,
       style: props.style || 'professional',
