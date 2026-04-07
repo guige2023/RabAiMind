@@ -9,7 +9,7 @@
  * 
  * The backend is the message broker — no room state stored client-side
  */
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, Ref } from 'vue'
 
 export type RemoteCommand = 
   | 'next_slide' 
