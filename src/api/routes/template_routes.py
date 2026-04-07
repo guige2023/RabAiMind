@@ -453,6 +453,14 @@ async def semantic_template_search(req: AdvancedSearchRequest):
         # No query, return all templates
         result = list(manager._templates.values())[:req.limit]
 
+    # Record search analytics
+    _record_search(req.query, len(result), {
+        "category": req.category,
+        "style": req.style,
+        "tags": req.tags,
+        "search_type": "semantic"
+    })
+
     return {
         "success": True,
         "query": req.query,
@@ -460,6 +468,15 @@ async def semantic_template_search(req: AdvancedSearchRequest):
         "results": [t.to_dict() for t in result[:req.limit]],
         "search_type": "semantic",
     }
+
+
+# ==================== Template Click Tracking ====================
+
+@router.post("/templates/{template_id}/click")
+async def record_template_click(template_id: str):
+    """Record a template click for analytics"""
+    _record_template_click(template_id)
+    return {"success": True}
 
 
 # ==================== Search Analytics ====================

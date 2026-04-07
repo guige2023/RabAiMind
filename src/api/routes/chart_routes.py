@@ -124,7 +124,7 @@ async def preview_chart_columns(
         logger.error(f"文件解析失败: {e}")
         raise HTTPException(
             status_code=500,
-            detail={"success": False, "error": f"文件解析失败: {str(e)}"}
+            detail={"error": "ENDPOINT_ERROR", "detail": f"文件解析失败: {str(e)}"}
         )
 
 
@@ -208,7 +208,7 @@ async def suggest_chart_type(
         raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"智能图表建议失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": f"分析失败: {str(e)}"})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": f"分析失败: {str(e)}"})
 
 
 # R89: 图表下钻数据
@@ -237,4 +237,4 @@ async def get_chart_drilldown(
         raise HTTPException(status_code=400, detail={"error": "BAD_REQUEST", "detail": str(e)})
     except Exception as e:
         logger.error(f"下钻数据获取失败: {e}")
-        raise HTTPException(status_code=500, detail={"success": False, "error": f"下钻失败: {str(e)}"})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": f"下钻失败: {str(e)}"})

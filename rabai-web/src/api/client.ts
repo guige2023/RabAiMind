@@ -694,6 +694,31 @@ export const api: APIClient = {
     }): Promise<AxiosResponse<{ success: boolean; template: any }>> => {
       return apiClient.post('/ppt/notes-templates', tpl)
     },
+
+    // R160: Backup
+    listBackups: (taskId: string): Promise<AxiosResponse<{ success: boolean; backups: any[] }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}`)
+    },
+    createBackup: (taskId: string, name: string): Promise<AxiosResponse<{ success: boolean; backup_id: string }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}`, { name })
+    },
+    restoreBackup: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      return apiClient.post(`/ppt/backups/${taskId}/${backupId}/restore`)
+    },
+    getBackupSlides: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean; slides: any[] }>> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/slides`)
+    },
+    downloadBackup: (taskId: string, backupId: string): Promise<Blob> => {
+      return apiClient.get(`/ppt/backups/${taskId}/${backupId}/download`, { responseType: 'blob' })
+    },
+    deleteBackup: (taskId: string, backupId: string): Promise<AxiosResponse<{ success: boolean }>> => {
+      return apiClient.delete(`/ppt/backups/${taskId}/${backupId}`)
+    },
+    importBackup: (file: File): Promise<AxiosResponse<{ success: boolean; message: string }>> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return apiClient.post('/ppt/backups/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    },
   },
 
   images: {

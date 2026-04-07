@@ -1446,7 +1446,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         logger.error(f"单页重生成失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": f"重生成失败: {str(e)}"}
+            detail={"error": "ENDPOINT_ERROR", "detail": f"重生成失败: {str(e)}"}
         )
 
 
@@ -1538,7 +1538,7 @@ async def update_slide_image(task_id: str, slide_index: int, request: SlideImage
             logger.error(f"重新生成图片失败: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"success": False, "error": f"重新生成图片失败: {str(e)}"}
+                detail={"error": "ENDPOINT_ERROR", "detail": f"重新生成图片失败: {str(e)}"}
             )
 
     elif request.image_url:
@@ -1613,7 +1613,7 @@ async def update_slide_image(task_id: str, slide_index: int, request: SlideImage
         logger.error(f"更新幻灯片图片失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": f"更新图片失败: {str(e)}"}
+            detail={"error": "ENDPOINT_ERROR", "detail": f"更新图片失败: {str(e)}"}
         )
 
 
@@ -1690,7 +1690,7 @@ async def upload_slide_image(task_id: str, slide_index: int, request: Request):
         logger.error(f"上传图片失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"success": False, "error": f"上传图片失败: {str(e)}"}
+            detail={"error": "ENDPOINT_ERROR", "detail": f"上传图片失败: {str(e)}"}
         )
 
 
