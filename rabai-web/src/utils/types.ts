@@ -305,6 +305,12 @@ export interface APIClient {
     createAccessRequest: (data: { item_id: string; item_type: string; message?: string }) => Promise<AxiosResponse<{ success: boolean; request_id: string }>>
   }
   // R160: Collaboration
+  shareEnhancements: {
+    createShortUrl: (params: { original_url: string; ppt_id: string; title: string }) => Promise<AxiosResponse<{ success: boolean; short_code: string; short_url: string; original_url: string; created_at: string }>>
+    resolveShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; original_url: string; ppt_id: string; title: string }>>
+    listShortUrls: () => Promise<AxiosResponse<{ success: boolean; short_urls: any[] }>>
+    deleteShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean }>>
+  }
   collaboration: {
     listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>>
     createShareLink: (taskId: string, role: string) => Promise<AxiosResponse<{ success: boolean; link: string; share_id: string }>>
