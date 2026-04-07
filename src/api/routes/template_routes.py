@@ -264,10 +264,10 @@ async def update_template(template_id: str, request: dict):
 
 class TagSearchRequest(BaseModel):
     """标签搜索请求"""
-    query: str = Field(default="", description="搜索关键词")
-    category: Optional[str] = Field(default=None, description="分类过滤")
-    style: Optional[str] = Field(default=None, description="风格过滤")
-    tags: Optional[List[str]] = Field(default=None, description="标签列表（AND过滤）")
+    query: str = Field(default="", max_length=200, description="搜索关键词")
+    category: Optional[str] = Field(default=None, max_length=50, description="分类过滤")
+    style: Optional[str] = Field(default=None, max_length=50, description="风格过滤")
+    tags: Optional[List[str]] = Field(default_factory=list, description="标签列表（AND过滤）")
     limit: int = Field(default=20, ge=1, le=100, description="返回数量")
 
 

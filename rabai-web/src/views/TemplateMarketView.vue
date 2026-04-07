@@ -228,12 +228,16 @@
           <h3 class="filter-title">标签</h3>
           <div class="filter-options tag-filter-options">
             <button
-              v-for="tag in ['商务', '创意', '简约', '科技', '教育', '金融']"
-              :key="tag"
+              v-for="tag in availableTags"
+              :key="tag.name"
               class="filter-btn tag-filter-btn"
-              :class="{ active: advancedTags.includes(tag) }"
-              @click="toggleAdvancedTag(tag)"
-            >{{ tag }}</button>
+              :class="{ active: advancedTags.includes(tag.name) }"
+              @click="toggleAdvancedTag(tag.name)"
+              :style="{ borderColor: advancedTags.includes(tag.name) ? tag.color : 'transparent' }"
+            >
+              <span class="tag-icon">{{ tag.icon }}</span>
+              {{ tag.name }}
+            </button>
           </div>
         </div>
 
