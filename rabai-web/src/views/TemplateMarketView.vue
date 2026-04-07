@@ -378,7 +378,7 @@
                 :src="getThumbUrl(templateOfTheDay.template.thumbnail)"
                 :alt="templateOfTheDay.template.name"
                 class="template-thumb-img"
-                @error="$event.target.style.display='none'"
+                @error="(e.target as HTMLImageElement).style.display='none'"
               />
               <div v-else class="thumbnail-placeholder daily-thumb-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -426,7 +426,7 @@
                   :src="getThumbUrl(template.thumbnail)"
                   :alt="template.name"
                   class="template-thumb-img"
-                  @error="$event.target.style.display='none'"
+                  @error="(e.target as HTMLImageElement).style.display='none'"
                 />
                 <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -477,7 +477,7 @@
                   :src="getThumbUrl(template.thumbnail)"
                   :alt="template.name"
                   class="template-thumb-img"
-                  @error="$event.target.style.display='none'"
+                  @error="(e.target as HTMLImageElement).style.display='none'"
                 />
                 <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -528,7 +528,7 @@
                   :src="getThumbUrl(template.thumbnail)"
                   :alt="template.name"
                   class="template-thumb-img"
-                  @error="$event.target.style.display='none'"
+                  @error="(e.target as HTMLImageElement).style.display='none'"
                 />
                 <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -585,7 +585,7 @@
                   class="bundle-template-thumb"
                   @click="selectTemplate({ id: tpl.id, name: tpl.name, description: '', category: tpl.category, style: tpl.style, thumbnail: tpl.thumbnail, tags: [tpl.category], slides: 8, popularity: 80, isPremium: false, isFavorite: false, is_ugc: false, author: '', createdAt: '' } as Template)"
                 >
-                  <img v-if="tpl.thumbnail" :src="getThumbUrl(tpl.thumbnail)" :alt="tpl.name" class="bundle-thumb-img" @error="$event.target.style.display='none'" />
+                  <img v-if="tpl.thumbnail" :src="getThumbUrl(tpl.thumbnail)" :alt="tpl.name" class="bundle-thumb-img" @error="(e.target as HTMLImageElement).style.display='none'" />
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                     <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -639,7 +639,7 @@
                   :src="getThumbUrl(template.thumbnail)"
                   :alt="template.name"
                   class="template-thumb-img"
-                  @error="$event.target.style.display='none'"
+                  @error="(e.target as HTMLImageElement).style.display='none'"
                 />
                 <div v-else class="thumbnail-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -679,7 +679,7 @@
                 :src="getThumbUrl(template.thumbnail)"
                 :alt="template.name"
                 class="template-thumb-img"
-                @error="$event.target.style.display='none'"
+                @error="(e.target as HTMLImageElement).style.display='none'"
               />
               <div v-else class="thumbnail-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1195,7 +1195,7 @@
                     @click="selectTemplate(sim); loadSelectedTemplateSimilar()"
                   >
                     <div class="similar-thumbnail">
-                      <img v-if="sim.thumbnail" :src="getThumbUrl(sim.thumbnail)" :alt="sim.name" class="similar-thumb-img" @error="$event.target.style.display='none'" />
+                      <img v-if="sim.thumbnail" :src="getThumbUrl(sim.thumbnail)" :alt="sim.name" class="similar-thumb-img" @error="(e.target as HTMLImageElement).style.display='none'" />
                       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <rect x="3" y="3" width="18" height="18" rx="2"/>
                         <path d="M9 9h6M9 12h6M9 15h4"/>
@@ -1505,9 +1505,9 @@ const collections = ref<TemplateCollection[]>([
 
 // R35: 推荐相关状态
 const selectedTemplateSimilar = ref<Template[]>([])
-const trendingTemplates = computed(() => store.trendingTemplates)
-const recommendedTemplates = computed(() => store.recommendedTemplates)
-const trendingQueries = computed(() => store.trendingQueries)
+const trendingTemplates = computed(() => store.trendingTemplates?.value ?? [])
+const recommendedTemplates = computed(() => store.recommendedTemplates?.value ?? [])
+const trendingQueries = computed(() => store.trendingQueries?.value ?? [])
 
 // R35: 加载相似模板
 const loadSelectedTemplateSimilar = async () => {
