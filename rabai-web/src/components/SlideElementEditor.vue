@@ -1693,11 +1693,11 @@ const layoutPresets = LAYOUT_PRESETS
 // R21: 字体主题
 const activeFontTheme = ref('default')
 const fontThemes = [
-  { id: 'default', name: '默认', fontFamily: '宋体' },
-  { id: 'professional', name: '商务', fontFamily: '微软雅黑' },
-  { id: 'tech', name: '科技', fontFamily: 'Arial' },
-  { id: 'simple', name: '简约', fontFamily: 'Georgia' },
-  { id: 'chinese', name: '国风', fontFamily: '楷体' },
+  { id: 'default', name: '默认', fontFamily: '宋体', icon: '📄' },
+  { id: 'professional', name: '商务', fontFamily: '微软雅黑', icon: '💼' },
+  { id: 'tech', name: '科技', fontFamily: 'Arial', icon: '🔧' },
+  { id: 'simple', name: '简约', fontFamily: 'Georgia', icon: '✨' },
+  { id: 'chinese', name: '国风', fontFamily: '楷体', icon: '🏯' },
 ]
 
 // R21: 配色方案
@@ -2989,6 +2989,11 @@ const updateElementProp = (prop: string, value: any) => {
   if (selectedElementIndex.value === null) return
   saveHistory()
   ;(slides.value[activeSlideIndex.value].elements[selectedElementIndex.value] as any)[prop] = value
+}
+
+// Stub for animation update calls (animation changes are applied directly to selectedElement.value)
+const updateElement = () => {
+  // Animation changes are applied directly to slides.value via selectedElement ref binding
 }
 
 const setAlignment = (align: string) => {
