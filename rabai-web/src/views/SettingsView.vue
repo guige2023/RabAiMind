@@ -675,6 +675,9 @@ const prefs = reactive<any>({
   notifications: { email_on_complete: true, push_on_complete: true, weekly_summary: false, collab_joined_push: true, collab_joined_email: false },
   accessibility: { reduce_motion: false, high_contrast: false, font_size: 'medium', dyslexia_font: false },
   editor: { auto_save: true, show_grid: true, snap_to_grid: true },
+  ppt_generation: { default_category: 'business', default_style: 'modern', default_slide_count: 10, auto_enhance: true, include_transitions: true },
+  export: { default_format: 'pptx', default_quality: 'high', include_notes: true, include_speaker_guide: false },
+  presentation: { auto_advance: false, auto_advance_seconds: 10, show_progress_bar: true, show_timer: true, laser_pointer_enabled: true },
 })
 const resetting = ref(false)
 
