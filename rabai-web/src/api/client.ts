@@ -825,6 +825,11 @@ export const api: APIClient = {
       return apiClient.post(`/templates/${templateId}/publish`, null, { params: { visibility } })
     },
 
+    // R129: Template Tags
+    getTags: (): Promise<AxiosResponse<{ success: boolean; tags: Array<{ name: string; icon: string; color: string; count: number }> }>> => {
+      return apiClient.get('/ppt/templates/tags')
+    },
+
     // Reviews & Ratings
     getReviews: (templateId: string): Promise<AxiosResponse<{ success: boolean; reviews: any[]; count: number; average_rating: number }>> => {
       return apiClient.get(`/templates/${templateId}/reviews`)
