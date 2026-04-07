@@ -42,7 +42,26 @@ def svg_placeholder_xml(
     accent_color: str = "#60a5fa",
     icon: str = "📄"
 ) -> str:
-    """生成 SVG 占位图 XML 字符串（不依赖任何外部资源）"""
+    """Generate an SVG placeholder XML string for PPT slides.
+
+    Creates a self-contained SVG with a gradient background, decorative circles,
+    title text, and page number. Does not depend on any external resources.
+
+    Args:
+        slide_num: The slide number to display in the corner.
+        title: The title text to display (truncated to 20 characters).
+        bg_color: Background gradient start color in hex format.
+        accent_color: Accent color for decorative elements.
+        icon: Emoji icon to display prominently on the slide.
+
+    Returns:
+        A complete SVG XML string with 16:9 aspect ratio (1600x900).
+
+    Example:
+        >>> svg = svg_placeholder_xml(1, "Introduction", "#1e3a5f", "#60a5fa", "📊")
+        >>> "<svg xmlns=" in svg
+        True
+    """
     W, H = 1600, 900
     # 标题最多显示 20 字符
     display_title = (title[:20] + "…") if len(title) > 20 else title
@@ -78,6 +97,14 @@ class PPTGenerator:
     """PPT 生成器 - okppt方式"""
 
     def __init__(self):
+        """Initialize the PPT Generator.
+
+        Sets up output and template directories, initializes failure counters
+        for image generation, and creates thread locks for layout operations.
+
+        Note:
+            Ensures OUTPUT_DIR and TEMPLATE_DIR exist before initialization.
+        """
         ensure_dir(settings.OUTPUT_DIR)
         ensure_dir(settings.TEMPLATE_DIR)
         self._image_failure_count: int = 0  # AI图片生成失败计数
@@ -2310,7 +2337,19 @@ _generator_lock = threading.Lock()  # 保护单例创建
 
 
 def get_ppt_generator() -> PPTGenerator:
-    """获取PPT生成器实例（线程安全）"""
+    """Get the PPT Generator singleton instance (thread-safe).
+
+    Uses double-checked locking pattern to ensure only one instance
+    is created even under concurrent access.
+
+    Returns:
+        The singleton PPTGenerator instance.
+
+    Example:
+        >>> generator = get_ppt_generator()
+        >>> generator is get_ppt_generator()
+        True
+    """
     global _ppt_generator
     if _ppt_generator is None:
         with _generator_lock:
