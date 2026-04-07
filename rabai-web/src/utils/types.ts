@@ -362,4 +362,13 @@ export interface APIClient {
     generateSpeakerNotes: (params: { slideIndex: number; slidesContent: string[] }) => Promise<AxiosResponse<{ success: boolean; notes: string }>>
     checkDesignConsistency: (params: { slideIndices: number[] }) => Promise<AxiosResponse<{ success: boolean; consistency: any }>>
   }
+  // R109/R148: Advanced AI (高级AI功能)
+  advancedAI: {
+    smartCopy: (params: { source_slides: Array<{ title: string; content: string; bullet_points?: string[] }>; target_theme: string; target_style?: string; target_page_count?: number }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+    extendContent: (params: { outline: Array<{ title: string; content?: string }>; topic: string; audience?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+    generateSpeakerNotes: (params: { slides: Array<{ title: string; content: string; bullet_points?: string[] }>; total_duration?: number }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+    checkDesignConsistency: (params: { slides: Array<{ title: string; content: string; design_info?: any }>; style_theme?: string; brand_colors?: string[] }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+    professionalPolish: (params: { slides: Array<{ title: string; content: string; bullet_points?: string[] }>; target_style?: string; use_case?: string }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+    generateScriptContent: (params: { content_type: string; topic: string; scene?: string; slide_count?: number; audience?: string; brief_description?: string }) => Promise<AxiosResponse<{ success: boolean; data?: any; error?: string }>>
+  }
 }

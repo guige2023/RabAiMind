@@ -39,7 +39,26 @@ async def upload_chart_file(
     show_animation: bool = Form(False),
     animation_type: str = Form("fade_in"),
 ):
-    """上传 CSV/Excel 文件，生成图表 SVG（R62: 支持模板/趋势线/标注）"""
+    """
+    上传 CSV/Excel 文件，生成图表 SVG
+
+    支持多种图表类型（柱状图、折线图、饼图等），可自定义主题、趋势线、标注和动画效果。
+
+    Args:
+        task_id: 任务ID
+        file: CSV/Excel 文件
+        chart_type: 图表类型（bar/line/pie等）
+        label_col: 标签列名
+        value_col: 数值列名
+        theme_id: 主题ID
+        show_trend_line: 是否显示趋势线
+        annotations_json: 标注数据JSON
+        show_animation: 是否显示动画
+        animation_type: 动画类型
+
+    Returns:
+        生成结果（SVG路径、图表数据等）
+    """
     try:
         annotations = json.loads(annotations_json) if annotations_json and annotations_json != "[]" else None
     except Exception:
@@ -75,7 +94,18 @@ async def preview_chart_columns(
     task_id: str,
     file: UploadFile = File(...),
 ):
-    """上传 CSV/Excel，预览列信息（不生成图表）"""
+    """
+    上传 CSV/Excel，预览列信息
+
+    在生成图表之前，先上传文件并预览可用的列信息（列名、数据类型、样本值）。
+
+    Args:
+        task_id: 任务ID
+        file: CSV/Excel 文件
+
+    Returns:
+        列信息预览（列名、类型、样本值）
+    """
     try:
         content = await file.read()
         cg = ChartGenerator()
@@ -136,7 +166,7 @@ async def smart_fill_chart_data(
         logger.error(f"Smart Fill 失败: {e}")
         raise HTTPException(
             status_code=500,
-            detail={"success": False, "error": f"Smart Fill 失败: {str(e)}"}
+            detail={"error": "SMART_FILL_ERROR", "detail": f"Smart Fill 失败: {str(e)}"}
         )
 
 

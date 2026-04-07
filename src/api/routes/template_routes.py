@@ -375,21 +375,72 @@ async def get_search_analytics_dashboard(days: int = Query(default=30, ge=1, le=
     """搜索分析仪表盘 - 返回热门搜索词、搜索趋势等"""
     from pathlib import Path
     import json
+    from datetime import datetime, timedelta
+    from collections import Counter
 
     analytics_file = Path("data/search_analytics.json")
     trending_queries = []
     search_volume_over_time = []
     no_result_queries = []
+    total_searches = 0
+    unique_queries = 0
+    top_clicked_templates = []
 
     if analytics_file.exists():
         try:
             with open(analytics_file, encoding="utf-8") as f:
                 data = json.load(f)
-                trending_queries = data.get("trending_queries", [])[:10]
-                search_volume_over_time = data.get("search_volume_over_time", [])[:30]
-                no_result_queries = data.get("no_result_queries", [])[:10]
-        except (json.JSONDecodeError, IOError):
-            pass
+
+            # Get searches from the last N days
+            cutoff_date = datetime.now() - timedelta(days=days)
+            recent_searches = [
+                s for s in data.get("searches", [])
+                if datetime.fromisoformat(s.get("timestamp", "2000-01-01")) >= cutoff_date
+            ]
+
+            # Compute trending queries (most searched)
+            search_counts = Counter(s.get("query", "") for s in recent_searches if s.get("query"))
+            trending_queries = [
+                {"query": q, "count": c}
+                for q, c in search_counts.most_common(10)
+            ]
+
+            # Compute search volume over time (group by date)
+            date_counts = Counter()
+            for s in recent_searches:
+                dt = datetime.fromisoformat(s.get("timestamp", "2000-01-01"))
+                date_str = dt.strftime("%Y-%m-%d")
+                date_counts[date_str] += 1
+            search_volume_over_time = [
+                {"date": d, "count": c}
+                for d, c in sorted(date_counts.items())
+            ]
+
+            # Compute no-result queries
+            no_result_searches = [s for s in recent_searches if s.get("results_count", 1) == 0]
+            no_result_counts = Counter(s.get("query", "") for s in no_result_searches)
+            no_result_queries = [
+                {"query": q, "count": c}
+                for q, c in no_result_counts.most_common(10)
+            ]
+
+            total_searches = len(recent_searches)
+            unique_queries = len(search_counts)
+
+            # Get top clicked templates
+            template_clicks = data.get("template_clicks", {})
+            top_clicked = sorted(
+                template_clicks.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:5]
+            top_clicked_templates = [
+                {"id": tid, "click_count": c}
+                for tid, c in top_clicked
+            ]
+
+        except (json.JSONDecodeError, IOError, ValueError) as e:
+            logger.warning(f"Failed to parse search analytics: {e}")
 
     return {
         "success": True,
@@ -397,10 +448,10 @@ async def get_search_analytics_dashboard(days: int = Query(default=30, ge=1, le=
         "trending_queries": trending_queries,
         "search_volume_over_time": search_volume_over_time,
         "no_result_queries": no_result_queries,
-        "top_clicked_templates": [],
+        "top_clicked_templates": top_clicked_templates,
         "popular_filter_combinations": [],
-        "total_searches": 0,
-        "unique_queries": 0,
+        "total_searches": total_searches,
+        "unique_queries": unique_queries,
     }
 
 
