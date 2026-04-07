@@ -474,25 +474,25 @@ const tabs = [
 
 const AVATAR_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
 
-const deviceColor = (device: string): string => {
+const deviceColor = (device: string | number): string => {
   const map: Record<string, string> = { desktop: '#165DFF', mobile: '#00C850', tablet: '#FF9500' }
-  return map[device] || '#8E8E93'
+  return map[String(device)] || '#8E8E93'
 }
-const deviceLabel = (device: string): string => {
+const deviceLabel = (device: string | number): string => {
   const map: Record<string, string> = { desktop: '桌面', mobile: '手机', tablet: '平板' }
-  return map[device] || device
+  return map[String(device)] || String(device)
 }
-const deviceIcon = (device: string): string => {
+const deviceIcon = (device: string | number): string => {
   const map: Record<string, string> = { desktop: '🖥️', mobile: '📱', tablet: '📲' }
-  return map[device] || '💻'
+  return map[String(device)] || '💻'
 }
-const viaIcon = (via: string): string => {
+const viaIcon = (via: string | number): string => {
   const map: Record<string, string> = { direct_link: '🔗', email: '📧', social: '🌐', qr_code: '📱', wechat: '💬' }
-  return map[via] || '🔗'
+  return map[String(via)] || '🔗'
 }
-const viaLabel = (via: string): string => {
+const viaLabel = (via: string | number): string => {
   const map: Record<string, string> = { direct_link: '直接链接', email: '邮件', social: '社交媒体', qr_code: '二维码', wechat: '微信' }
-  return map[via] || via
+  return map[String(via)] || String(via)
 }
 const avatarColor = (email: string): string => {
   let hash = 0
@@ -503,7 +503,7 @@ const avatarColor = (email: string): string => {
 }
 
 const maxGeoCount = computed(() => {
-  const countries = geoData.value?.countries || {}
+  const countries = (geoData.value?.countries || {}) as Record<string, number>
   return Math.max(...Object.values(countries), 1)
 })
 
@@ -551,7 +551,7 @@ const effLabel = (score: number): string => {
   return '待提升'
 }
 
-const formatTime = (iso: string): string => {
+const formatTime = (iso: string | number): string => {
   if (!iso) return ''
   try {
     const d = new Date(iso)

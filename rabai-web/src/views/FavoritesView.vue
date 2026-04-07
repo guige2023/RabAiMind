@@ -191,7 +191,7 @@ interface HistoryItem {
 const historyList = ref<HistoryItem[]>([])
 
 // Load favorites from template store
-const favoriteTemplates = computed(() => templateStore.favoriteTemplates)
+const favoriteTemplates = computed(() => templateStore.favoriteTemplates?.value ?? [])
 
 // Get favorite history items
 const favoriteHistory = computed(() =>
