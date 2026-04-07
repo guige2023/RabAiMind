@@ -775,8 +775,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import axios from '../api/client'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { apiClient as axios } from '../api/client'
 import { useAccessibility } from '../composables/useAccessibility'
 import { useI18n } from '../composables/useI18n'
 import { usePerformanceMode } from '../composables/usePerformanceMode'
@@ -892,7 +892,7 @@ const startupTime = ref<{ fcp: number; lcp: number; domContentLoaded: number; lo
 
 const measureStartupTime = () => {
   if (window.performance) {
-    const nav = performance.getEntriesByEntries('navigation')[0] as PerformanceNavigationTiming
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
     if (nav) {
       const paintEntries = performance.getEntriesByType('paint')
       const fcp = paintEntries.find(e => e.name === 'first-contentful-paint')
@@ -930,7 +930,6 @@ const loadStartupOptions = () => {
 }
 
 // Watch startup options changes
-import { watch } from 'vue'
 watch(startupOptions, (val) => {
   localStorage.setItem('rabai_startup_options', JSON.stringify(val))
 }, { deep: true })
