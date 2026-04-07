@@ -258,6 +258,10 @@ export interface APIInfo {
 // ==================== API 客户端类型 ====================
 
 export interface APIClient {
+    // Collaboration suggest edits (top-level methods)
+  getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
+  addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
+  resolveSuggestEdit: (taskId: string, editId: string, params: { status: string; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   ppt: {
     createTask: (data: GeneratePPTRequest) => Promise<AxiosResponse<GeneratePPTResponse>>
     getTask: (taskId: string) => Promise<AxiosResponse<TaskStatusResponse>>
@@ -316,6 +320,9 @@ export interface APIClient {
     createShareLink: (taskId: string, role: string) => Promise<AxiosResponse<{ success: boolean; link: string; share_id: string }>>
     deleteShareLink: (taskId: string, shareId: string) => Promise<AxiosResponse<{ success: boolean }>>
     listShareLinks: (taskId: string) => Promise<AxiosResponse<{ success: boolean; links: any[] }>>
+    getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
+    addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
+    resolveSuggestEdit: (taskId: string, editId: string, params: { status: string; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
   }
   images: {
     search: (query: string, page?: number) => Promise<AxiosResponse<ImageSearchResponse>>
