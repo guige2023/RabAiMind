@@ -24,6 +24,8 @@ export interface Template {
   subcategory?: string
   // R128: 下载次数
   download_count?: number
+  // R128: 使用次数
+  use_count?: number
   // R128: 评分细分
   rating_breakdown?: {
     design: number
@@ -57,7 +59,7 @@ function mapApiTemplate(apiT: any): Template {
     style: apiT.style,
     slides: 8,  // 默认值
     thumbnail: apiT.thumbnail || '',
-    tags: [apiT.category, apiT.style],  // 派生
+    tags: apiT.tags?.length ? apiT.tags : [apiT.category, apiT.style],  // 优先使用后端标签
     popularity: 80,  // 默认热度
     isPremium: ['tech', 'creative'].includes(apiT.category),  // 简单判断
     author: apiT.author || 'RabAi Mind',
@@ -67,6 +69,7 @@ function mapApiTemplate(apiT: any): Template {
     is_ugc: apiT.is_ugc || false,
     subcategory: apiT.subcategory || '',
     download_count: apiT.download_count || 0,
+    use_count: apiT.use_count || 0,
     rating_breakdown: apiT.rating_breakdown,
   }
 }

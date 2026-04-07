@@ -2217,5 +2217,3 @@ export const api: APIClient = {
 }
 
 export default api
-// Raw axios instance for direct HTTP calls
-export { apiClient }

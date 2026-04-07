@@ -332,6 +332,8 @@ const columnInfo = ref<{
   preview: any[]
 } | null>(null)
 
+const allColumns = computed(() => columnInfo.value?.all_columns || [])
+
 // 图表配置
 const chartTypes = [
   { id: 'bar', name: '柱状图', icon: '📊' },
