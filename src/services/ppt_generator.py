@@ -12,7 +12,6 @@ import os
 import re
 import json
 import threading
-import contextvars
 import numpy as np
 import concurrent.futures
 from typing import Optional, Dict, Any, List
@@ -28,9 +27,6 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
 logger = setup_logger("ppt_generator")
-
-# BUG-005修复: 使用ContextVar实现线程安全的每请求布局隔离
-_first_page_layout_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('_first_page_layout', default=None)
 
 
 # ─── 独立工具函数（类外定义，避免循环引用）───────────────────────────────────────
@@ -172,8 +168,6 @@ class PPTGenerator:
         """
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}, mode={generation_mode}, format={output_format}, quality={quality}")
 
-        # 重置跨任务状态，防止污染 (BUG-005修复: 使用ContextVar)
-        _first_page_layout_var.set(None)
         self._image_failure_count = 0
 
         # BUG修复: 如果指定了 template（非default），解析模板并使用其配置覆盖参数
@@ -273,7 +267,7 @@ class PPTGenerator:
             # 使用多线程并行生成SVG
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            def generate_single_svg(args, cancel_event):
+            def generate_single_svg(args, cancel_event, layout_override):
                 # BUG-005修复: 定期检查取消标志，每5%进度检查一次
                 i, slide = args
                 total_steps = 4  # 布局确定、布局获取、智能布局/普通布局生成、返回
@@ -301,7 +295,7 @@ class PPTGenerator:
                     raise asyncio.CancelledError("任务已被取消")
 
                 if use_smart_layout:
-                    # 传递文字样式和字体参数
+                    # 传递文字样式和字体参数，以及线程安全的布局覆盖值
                     svg_code = self._generate_svg_smart_layout(
                         slide, slide_num, theme_color, style, user_layout,
                         text_style=text_style,
@@ -312,7 +306,8 @@ class PPTGenerator:
                         font_content=font_content,
                         font_caption=font_caption,
                         layout_mode=layout_mode,
-                        unified_layout=unified_layout
+                        unified_layout=unified_layout,
+                        layout_type_override=layout_override
                     )
                 else:
                     svg_code = self._generate_svg(slide, slide_num)
@@ -327,13 +322,40 @@ class PPTGenerator:
             svg_files = []
             completed = 0
             total = len(slides_content)
-            
+
             # 使用任务专属目录，避免多任务文件冲突
             task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
             os.makedirs(task_output_dir, exist_ok=True)
 
+            # BUG-005修复: 在主线程预先计算首页布局，避免ContextVar在线程池中不生效
+            first_page_layout_override = None
+            if use_smart_layout and unified_layout:
+                # 预先确定首页布局类型
+                first_slide_layout = None
+                if slide_layouts:
+                    for layout in slide_layouts:
+                        if layout.slide_index == 0:
+                            first_slide_layout = layout.layout_type
+                            break
+                if not first_slide_layout and slides_content:
+                    slide_with_layout = slides_content[0] if slides_content else None
+                    if slide_with_layout and slide_with_layout.get("layout"):
+                        first_slide_layout = slide_with_layout["layout"]
+                if first_slide_layout:
+                    first_page_layout_override = first_slide_layout
+                else:
+                    # 自动检测首页布局
+                    from .smart_layout.creative_engine import get_creative_engine
+                    engine = get_creative_engine()
+                    first_title = slides_content[0].get("title", "") if slides_content else ""
+                    first_content = slides_content[0].get("content", []) if slides_content else []
+                    first_content_text = "\n".join([str(c) for c in first_content])
+                    suggestion = engine.get_layout_suggestion(first_title, first_content_text)
+                    first_page_layout_override = suggestion.get("content_type", "title_slide")
+                logger.info(f"[SmartLayout] 预计算首页布局: {first_page_layout_override}")
+
             with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {executor.submit(generate_single_svg, (i, slide), cancel_event): i for i, slide in enumerate(slides_content)}
+                futures = {executor.submit(generate_single_svg, (i, slide), cancel_event, first_page_layout_override): i for i, slide in enumerate(slides_content)}
                 for future in as_completed(futures):
                     # R24优化: 每次完成一个SVG后检查取消状态
                     task = task_manager.get_task(task_id)
@@ -913,7 +935,8 @@ class PPTGenerator:
         font_content: str = "思源宋体",
         font_caption: str = "思源黑体",
         layout_mode: str = "auto",
-        unified_layout: bool = True
+        unified_layout: bool = True,
+        layout_type_override: str = None  # BUG-005修复: 线程安全的布局覆盖值
     ) -> str:
         """使用智能布局模块生成SVG
 
@@ -953,7 +976,12 @@ class PPTGenerator:
                 content_list.append({"title": str(item), "content": ""})
 
         # 确定布局类型
-        if layout_mode == 'manual':
+        # BUG-005修复: 使用layout_type_override实现线程安全的跨slide布局统一
+        if unified_layout and layout_type_override is not None:
+            # 统一布局模式：所有slide使用预计算的首页布局
+            slide_type = layout_type_override
+            logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，使用布局 {slide_type}")
+        elif layout_mode == 'manual':
             # 手动模式：只使用用户指定的布局，不自动检测
             if user_layout:
                 slide_type = user_layout
@@ -964,35 +992,12 @@ class PPTGenerator:
                 # 如果是第一页，使用封面布局（无指定布局时）
                 if slide_num == 1:
                     slide_type = "title_slide"
-
-            # 统一布局模式：保存首页布局（BUG-005修复: 使用ContextVar线程安全）
-            if unified_layout:
-                if _first_page_layout_var.get() is None:
-                    _first_page_layout_var.set(slide_type)
-                    logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，设置首页布局 {slide_type}")
-                else:
-                    slide_type = _first_page_layout_var.get()
-                    logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，复用布局 {slide_type}")
-            else:
-                logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用布局 {slide_type}")
+            logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用布局 {slide_type}")
         else:
             # 自动模式：智能检测布局
             if user_layout:
-                # 有用户指定布局
-                if unified_layout:
-                    # 统一布局模式（BUG-005修复: 使用ContextVar线程安全）
-                    if _first_page_layout_var.get() is None:
-                        # 第一次执行（可能是slide 1），设置首页布局
-                        _first_page_layout_var.set(user_layout)
-                        slide_type = user_layout
-                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，设置首页布局 {slide_type}")
-                    else:
-                        # 后续页面复用首页布局
-                        slide_type = _first_page_layout_var.get()
-                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，复用布局 {slide_type}")
-                else:
-                    slide_type = user_layout
-                    logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
+                slide_type = user_layout
+                logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
             else:
                 # 无用户指定，自动检测
                 content_text = "\n".join([str(c) for c in content])
@@ -1002,15 +1007,7 @@ class PPTGenerator:
                 # 如果是第一页，使用封面布局
                 if slide_num == 1:
                     slide_type = "title_slide"
-
-                # 统一布局模式：保存首页布局（BUG-005修复: 使用ContextVar线程安全）
-                if unified_layout:
-                    if _first_page_layout_var.get() is None:
-                        _first_page_layout_var.set(slide_type)
-                        logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，设置首页布局 {slide_type}")
-                    else:
-                        slide_type = _first_page_layout_var.get()
-                        logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，复用首页布局 {slide_type}")
+                logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局 {slide_type}")
 
         # 生成配色
         colors = engine.generate_color_palette(style, theme_color)
