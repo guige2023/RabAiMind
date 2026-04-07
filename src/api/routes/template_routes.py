@@ -1,0 +1,830 @@
+# -*- coding: utf-8 -*-
+"""
+Template, layout, theme, and slide annotation related API routes.
+
+Handles template management, layout suggestions, theme recommendations,
+slide notes, sticky notes, and notes templates.
+"""
+
+from fastapi import APIRouter, HTTPException, Request, Query, Body
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+import uuid
+import logging
+
+from ._base_routes import (
+    _check_rate_limit_middleware,
+    create_router,
+)
+
+logger = logging.getLogger(__name__)
+
+router = create_router(prefix="/api/v1/ppt", tags=["ppt-template"])
+
+
+# ==================== Template Management ====================
+
+@router.get("/templates")
+async def get_templates():
+    """获取模板列表（重定向到真实 TemplateManager）"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    templates = manager.list_templates()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "description": t.description,
+            "category": t.category,
+            "style": t.style,
+            "thumbnail": t.thumbnail,
+            "colors": t.colors,
+            "fonts": t.fonts,
+        }
+        for t in templates
+    ]
+
+
+@router.post("/templates")
+async def create_template(request: dict):
+    """保存用户模板"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+
+    # 生成模板ID
+    template_id = f"user_{uuid.uuid4().hex[:12]}"
+
+    # 构建模板数据
+    template_data = {
+        "id": template_id,
+        "name": request.get("name", "未命名模板"),
+        "description": request.get("description", ""),
+        "category": request.get("scene", "business"),
+        "style": request.get("style", "professional"),
+        "thumbnail": request.get("thumbnail", ""),
+        "colors": request.get("colors", ["#165DFF", "#FFFFFF"]),
+        "fonts": request.get("fonts", ["思源黑体", "Arial"]),
+        "is_ugc": True,
+        "author": "current_user",
+        "visibility": request.get("visibility", "private"),
+        "created_at": datetime.now().isoformat(),
+        "layout": request.get("layout", {}),
+        "applicable_scenes": request.get("applicable_scenes", []),
+        "example": request.get("description", ""),
+    }
+
+    manager.add_user_template(template_data)
+
+    return {"success": True, "template_id": template_id, "template": template_data}
+
+
+@router.get("/templates/my")
+async def get_my_templates():
+    """获取当前用户的模板列表"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+    templates = manager.get_user_templates("current_user")
+    return {
+        "success": True,
+        "templates": templates
+    }
+
+
+@router.delete("/templates/{template_id}")
+async def delete_template(template_id: str):
+    """删除用户模板"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+
+    # 检查是否是用户模板
+    user_templates = manager.get_user_templates("current_user")
+    if not any(t.get("id") == template_id for t in user_templates):
+        return {"success": False, "error": "模板不存在或无权删除"}
+
+    manager.remove_user_template(template_id)
+    return {"success": True}
+
+
+@router.patch("/templates/{template_id}")
+async def update_template(template_id: str, request: dict):
+    """更新/重命名用户模板"""
+    from ...services.template_manager import get_template_manager
+    manager = get_template_manager()
+
+    # 检查是否是用户模板
+    user_templates = manager.get_user_templates("current_user")
+    if not any(t.get("id") == template_id for t in user_templates):
+        return {"success": False, "error": "模板不存在或无权修改"}
+
+    # 更新用户模板
+    for i, t in enumerate(manager.user_templates):
+        if t.get("id") == template_id:
+            if "name" in request:
+                manager.user_templates[i]["name"] = request["name"]
+            if "description" in request:
+                manager.user_templates[i]["description"] = request["description"]
+            manager._save_user_templates()
+            return {"success": True, "template": manager.user_templates[i]}
+
+    return {"success": False, "error": "模板不存在"}
+
+
+# ==================== PPT Content Search ====================
+
+class PPTSearchResult(BaseModel):
+    task_id: str
+    title: str
+    slide_num: int
+    matched_text: str
+    context: str  # 前后文
+
+
+class PPTSearchResponse(BaseModel):
+    success: bool
+    query: str
+    total: int
+    results: List[PPTSearchResult]
+
+
+@router.post("/search", response_model=PPTSearchResponse)
+async def search_ppt_content(
+    http_request: Request,
+    query: str = Body(..., embed=True),
+    limit: int = Body(20, embed=True)
+):
+    """
+    搜索 PPT 内容（在所有历史任务的幻灯片文本中搜索）
+
+    Args:
+        query: 搜索关键词
+        limit: 最大返回结果数
+    """
+    from ...services.task_manager import get_task_manager
+
+    if not query or len(query.strip()) < 2:
+        return PPTSearchResponse(success=False, query=query, total=0, results=[])
+
+    manager = get_task_manager()
+    all_tasks = manager.get_history()
+
+    results: List[PPTSearchResult] = []
+    query_lower = query.lower().strip()
+
+    for task_id, task in all_tasks.items():
+        # 只搜索已完成的任务
+        if task.get("status") != "completed":
+            continue
+
+        # 获取大纲中的幻灯片内容
+        outline = task.get("outline")
+        if not outline:
+            continue
+
+        slides = outline.get("slides", [])
+
+        # 也检查 slides_summary
+        if not slides:
+            slides = task.get("result", {}).get("slides_summary", [])
+
+        for idx, slide in enumerate(slides):
+            title = slide.get("title", "") or ""
+            content = slide.get("content", "") or ""
+            combined = f"{title} {content}".lower()
+
+            if query_lower in combined:
+                # 提取匹配上下文
+                idx_in_content = combined.find(query_lower)
+                start = max(0, idx_in_content - 20)
+                end = min(len(combined), idx_in_content + len(query) + 20)
+                context = combined[start:end].strip()
+
+                # 获取任务标题
+                task_title = task.get("title", "") or task.get("request", "未命名PPT")[:50]
+
+                results.append(PPTSearchResult(
+                    task_id=task_id,
+                    title=task_title,
+                    slide_num=idx + 1,
+                    matched_text=query,
+                    context=f"...{context}..."
+                ))
+
+                if len(results) >= limit:
+                    break
+
+        if len(results) >= limit:
+            break
+
+    return PPTSearchResponse(
+        success=True,
+        query=query,
+        total=len(results),
+        results=results
+    )
+
+
+# ==================== Scenes and Styles ====================
+
+@router.get("/scenes")
+async def get_scenes():
+    """获取场景类型"""
+    return [
+        {"id": "business", "name": "商务", "description": "商业演示"},
+        {"id": "education", "name": "教育", "description": "教学课件"},
+        {"id": "tech", "name": "科技", "description": "技术分享"},
+        {"id": "creative", "name": "创意", "description": "创意展示"},
+        {"id": "marketing", "name": "营销", "description": "市场营销推广"},
+        {"id": "finance", "name": "金融", "description": "金融财务报告"},
+        {"id": "medical", "name": "医疗", "description": "医疗健康领域"},
+        {"id": "government", "name": "政府", "description": "政府公文演示"}
+    ]
+
+
+@router.get("/styles")
+async def get_styles():
+    """获取风格类型"""
+    return [
+        {"id": "professional", "name": "专业", "description": "商务专业风格"},
+        {"id": "simple", "name": "简约", "description": "简洁大方风格"},
+        {"id": "energetic", "name": "活力", "description": "充满活力风格"},
+        {"id": "premium", "name": "高端", "description": "高端大气风格"},
+        {"id": "creative", "name": "创意", "description": "创意无限风格"},
+        {"id": "fresh", "name": "清新", "description": "小清新风格"},
+        {"id": "tech", "name": "科技", "description": "科技感风格"},
+        {"id": "elegant", "name": "优雅", "description": "优雅精致风格"},
+        {"id": "playful", "name": "活泼", "description": "活泼可爱风格"},
+        {"id": "minimalist", "name": "极简", "description": "极简主义风格"}
+    ]
+
+
+# ==================== Layout Suggestions ====================
+
+@router.get("/layouts/suggest")
+async def suggest_layouts(
+    title: str = "",
+    content: str = "",
+):
+    """
+    智能布局推荐：根据幻灯片内容分析，推荐最佳布局
+
+    分析内容类型（列表/对比/时间线/数据/金句等），返回多个布局建议
+    """
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
+    from ...services.smart_layout.layout_strategy import get_layout_strategy
+
+    analyzer = get_content_analyzer()
+    strategy = get_layout_strategy()
+
+    # 分析内容
+    analysis = analyzer.analyze(title, content)
+
+    # 获取推荐布局
+    primary_layout = strategy.select_layout({
+        "type": analysis.type,
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+    })
+
+    # 获取备选布局
+    suggestions = strategy.suggest_layouts_for_content({
+        "type": analysis.type,
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+    })
+
+    # 构建布局详情
+    layout_details = []
+    all_layouts = strategy.get_all_layouts()
+    for i, layout_type in enumerate(suggestions):
+        layout_info = all_layouts.get(layout_type, all_layouts["content_card"])
+        layout_details.append({
+            "type": layout_type,
+            "name": layout_info["name"],
+            "description": layout_info["description"],
+            "confidence": 1.0 - i * 0.2,  # 递减置信度
+            "is_primary": i == 0,
+        })
+
+    return {
+        "success": True,
+        "content_type": analysis.type,
+        "content_type_display": {
+            "title_slide": "封面页",
+            "content": "内容页",
+            "quote": "金句页",
+            "timeline": "时间线",
+            "comparison": "对比页",
+            "data": "数据页",
+        }.get(analysis.type, "内容页"),
+        "density": analysis.density,
+        "element_count": analysis.element_count,
+        "has_timeline": analysis.has_timeline,
+        "has_comparison": analysis.has_comparison,
+        "keywords": analysis.keywords,
+        "primary_layout": primary_layout,
+        "suggestions": layout_details,
+    }
+
+
+@router.get("/layouts/all")
+async def get_all_layouts():
+    """获取所有可用布局"""
+    from ...services.smart_layout.layout_strategy import get_layout_strategy
+    strategy = get_layout_strategy()
+    all_layouts = strategy.get_all_layouts()
+
+    layout_list = []
+    for layout_type, info in all_layouts.items():
+        layout_list.append({
+            "type": layout_type,
+            "name": info["name"],
+            "description": info["description"],
+            "typical_use": info.get("typical_use", []),
+            "elements": info.get("elements", []),
+        })
+
+    return {"success": True, "layouts": layout_list}
+
+
+# ==================== Layout Preference Tracking ====================
+
+@router.post("/templates/preferences")
+async def save_layout_preference(
+    user_id: str = "anonymous",
+    template_id: str = "",
+    layout_type: str = "",
+    content_type: str = "",
+    scene: str = "",
+    style: str = "",
+    action: str = "apply",  # apply | dismiss | regenerate
+):
+    """
+    记录用户的布局偏好（模板学习）
+
+    当用户应用、忽略或重新生成布局时记录，帮助系统学习用户偏好
+    """
+    from ...services.search_analytics import get_user_history
+
+    history = get_user_history()
+
+    # 记录布局偏好
+    history.record_layout_preference(
+        user_id=user_id,
+        template_id=template_id,
+        layout_type=layout_type,
+        content_type=content_type,
+        scene=scene,
+        style=style,
+        action=action,
+    )
+
+    return {"success": True, "action": action}
+
+
+@router.get("/templates/preferences")
+async def get_layout_preferences(
+    user_id: str = "anonymous",
+    content_type: str = "",
+    limit: int = 3,
+):
+    """
+    获取用户的布局偏好（基于学习历史）
+    """
+    from ...services.search_analytics import get_user_history
+
+    history = get_user_history()
+    preferences = history.get_layout_preferences(
+        user_id=user_id,
+        content_type=content_type,
+        limit=limit,
+    )
+
+    return {"success": True, "preferences": preferences, "user_id": user_id}
+
+
+# ==================== Theme Suggestion ====================
+
+@router.get("/theme/suggest")
+async def suggest_theme(
+    content: str = "",
+    title: str = "",
+    scene: str = "",
+    style: str = "",
+):
+    """
+    智能主题推荐：根据内容上下文自动推荐最佳主题配色
+
+    分析内容类型、行业领域和情感基调，返回推荐的主题配色方案
+    """
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
+    from ...services.smart_layout.color_scheme import get_color_scheme_generator
+
+    # 分析内容类型
+    analyzer = get_content_analyzer()
+    analysis = analyzer.analyze(title or "", content or "")
+
+    # 行业/场景关键词映射到主题
+    SCENE_THEME_MAP = {
+        "科技": {"primary": "#165DFF", "secondary": "#0E42D2", "accent": "#64D2FF", "style": "tech"},
+        "商务": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#FF7D00", "style": "professional"},
+        "金融": {"primary": "#1A1A2E", "secondary": "#165DFF", "accent": "#C6A87C", "style": "premium"},
+        "教育": {"primary": "#34C759", "secondary": "#248A3D", "accent": "#FF9500", "style": "nature"},
+        "医疗": {"primary": "#00B96B", "secondary": "#00875A", "accent": "#64D2FF", "style": "simple"},
+        "创意": {"primary": "#722ED1", "secondary": "#EB2F96", "accent": "#13C2C2", "style": "creative"},
+        "时尚": {"primary": "#FF2D55", "secondary": "#C41E3A", "accent": "#FFD60A", "style": "elegant"},
+        "餐饮": {"primary": "#FF9500", "secondary": "#CC7A00", "accent": "#FF3B30", "style": "energetic"},
+        "旅游": {"primary": "#007AFF", "secondary": "#0055CC", "accent": "#5AC8FA", "style": "nature"},
+        "地产": {"primary": "#C6A87C", "secondary": "#8B7355", "accent": "#D4AF37", "style": "premium"},
+        "互联网": {"primary": "#165DFF", "secondary": "#00B96B", "accent": "#FF7D00", "style": "tech"},
+        "人工智能": {"primary": "#5856D6", "secondary": "#3634A3", "accent": "#BF5AF2", "style": "tech"},
+        "创业": {"primary": "#FF9500", "secondary": "#FF3B30", "accent": "#FFD60A", "style": "energetic"},
+        "企业": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#00B96B", "style": "professional"},
+        "政府": {"primary": "#165DFF", "secondary": "#1A1A2E", "accent": "#FF3B30", "style": "professional"},
+        "公益": {"primary": "#34C759", "secondary": "#30D158", "accent": "#FFD60A", "style": "nature"},
+    }
+
+    # 内容类型关键词
+    CONTENT_THEME_MAP = {
+        "title_slide": {"primary": "#165DFF", "secondary": "#0E42D2", "accent": "#C6A87C", "style": "premium"},
+        "quote": {"primary": "#AF52DE", "secondary": "#5E5CE6", "accent": "#BF5AF2", "style": "elegant"},
+        "timeline": {"primary": "#5856D6", "secondary": "#3634A3", "accent": "#FF9500", "style": "tech"},
+        "comparison": {"primary": "#165DFF", "secondary": "#00B96B", "accent": "#FF9500", "style": "professional"},
+        "data": {"primary": "#165DFF", "secondary": "#364FC7", "accent": "#34C759", "style": "professional"},
+        "content": {"primary": "#165DFF", "secondary": "#FFFFFF", "accent": "#FF7D00", "style": "professional"},
+    }
+
+    # 基于场景匹配主题
+    matched_theme = None
+    if scene:
+        scene_keywords = {
+            "科技": ["科技", "技术", "AI", "智能", "代码", "软件", "系统"],
+            "商务": ["商务", "企业", "公司", "商业", "汇报", "会议"],
+            "金融": ["金融", "银行", "投资", "财务", "基金", "股票"],
+            "教育": ["教育", "培训", "学校", "课程", "教学", "学习"],
+            "医疗": ["医疗", "健康", "医院", "医药", "生物"],
+            "创意": ["创意", "设计", "艺术", "品牌", "策划"],
+            "时尚": ["时尚", "服装", "美容", "生活"],
+            "餐饮": ["餐饮", "美食", "餐厅", "食品"],
+            "旅游": ["旅游", "旅行", "酒店", "度假"],
+            "地产": ["地产", "房产", "建筑", "装修"],
+        }
+        for theme_name, keywords in scene_keywords.items():
+            if any(kw in content for kw in keywords):
+                matched_theme = SCENE_THEME_MAP.get(theme_name)
+                break
+
+    # 基于内容类型兜底
+    if not matched_theme:
+        matched_theme = CONTENT_THEME_MAP.get(
+            analysis.type,
+            CONTENT_THEME_MAP["content"]
+        )
+
+    # 用户指定风格优先
+    if style and style != "auto":
+        color_gen = get_color_scheme_generator()
+        palette = color_gen.get_palette(style)
+        matched_theme = {
+            "primary": palette.primary,
+            "secondary": palette.secondary,
+            "accent": palette.accent,
+            "style": style,
+        }
+
+    # 构建推荐理由
+    reasons = []
+    if analysis.type != "content":
+        reasons.append(f"内容类型「{analysis.type}」适合此配色")
+    if scene:
+        reasons.append(f"场景「{scene}」推荐此配色")
+    if analysis.keywords:
+        reasons.append(f"关键词：{', '.join(analysis.keywords[:3])}")
+
+    return {
+        "success": True,
+        "theme": {
+            "primary": matched_theme["primary"],
+            "secondary": matched_theme["secondary"],
+            "accent": matched_theme["accent"],
+            "style": matched_theme["style"],
+            "name": _get_theme_style_name_api(matched_theme["style"]),
+        },
+        "content_analysis": {
+            "type": analysis.type,
+            "keywords": analysis.keywords[:5],
+            "density": analysis.density,
+        },
+        "reasons": reasons,
+    }
+
+
+def _get_theme_style_name_api(style: str) -> str:
+    """获取主题风格的中文名称"""
+    names = {
+        "professional": "专业商务",
+        "creative": "创意活力",
+        "simple": "简约现代",
+        "tech": "科技未来",
+        "premium": "高端大气",
+        "nature": "自然清新",
+        "energetic": "活力动感",
+        "elegant": "优雅知性",
+    }
+    return names.get(style, style)
+
+
+# ==================== Slide Notes ====================
+
+class SlideNotesUpdate(BaseModel):
+    """幻灯片备注更新"""
+    slide_index: int
+    notes: Optional[str] = None
+    rich_notes: Optional[str] = None
+    speaker_notes: Optional[str] = None
+    sticky_notes: Optional[List[Dict[str, Any]]] = None
+    annotations: List[Dict[str, Any]] = []
+
+
+class StickyNoteItem(BaseModel):
+    """便签数据"""
+    id: str
+    slide_index: int
+    content: str
+    author: str
+    color: str = "#FFE066"
+    position_x: float = 0
+    position_y: float = 0
+    created_at: Optional[str] = None
+
+
+class StickyNoteCreate(BaseModel):
+    """创建便签请求"""
+    slide_index: int
+    content: str
+    author: str
+    color: str = "#FFE066"
+    position_x: float = 0
+    position_y: float = 0
+
+
+@router.patch("/slides/{task_id}/notes")
+async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
+    """R152: 更新幻灯片备注（支持富文本和演讲者私有备注）"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        if update.slide_index < 0 or update.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+
+        slide = slides[update.slide_index]
+        if update.notes is not None:
+            slide["notes"] = update.notes
+        if update.rich_notes is not None:
+            slide["rich_notes"] = update.rich_notes
+        if update.speaker_notes is not None:
+            slide["speaker_notes"] = update.speaker_notes
+
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": update.slide_index}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+@router.patch("/slides/{task_id}/sticky-notes")
+async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
+    """R152: 更新幻灯片便签数据"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        if update.slide_index < 0 or update.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+
+        if update.sticky_notes is not None:
+            slides[update.slide_index]["sticky_notes"] = update.sticky_notes
+
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": update.slide_index}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+@router.post("/annotations/{task_id}/{slide_index}")
+async def save_slide_annotations(task_id: str, slide_index: int, annotations: List[Dict[str, Any]]):
+    """R152: 保存幻灯片标注（演示模式涂鸦）"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        if slide_index < 0 or slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+
+        slides[slide_index]["annotations"] = annotations
+        tm.save_outline(task_id, outline)
+        return {"success": True, "slide_index": slide_index, "count": len(annotations)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+@router.get("/sticky-notes/{task_id}")
+async def get_sticky_notes(task_id: str):
+    """R152: 获取任务的所有便签"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        all_sticky = []
+        for idx, slide in enumerate(slides):
+            sticky = slide.get("sticky_notes", [])
+            for s in sticky:
+                all_sticky.append({**s, "slide_index": idx})
+
+        return {"success": True, "sticky_notes": all_sticky}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+@router.post("/sticky-notes/{task_id}")
+async def add_sticky_note(task_id: str, note: StickyNoteCreate):
+    """R152: 添加便签"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        if note.slide_index < 0 or note.slide_index >= len(slides):
+            raise HTTPException(status_code=404, detail="Slide not found")
+
+        new_note = {
+            "id": str(uuid.uuid4())[:8],
+            "slide_index": note.slide_index,
+            "content": note.content,
+            "author": note.author,
+            "color": note.color,
+            "position_x": note.position_x,
+            "position_y": note.position_y,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        if "sticky_notes" not in slides[note.slide_index]:
+            slides[note.slide_index]["sticky_notes"] = []
+        slides[note.slide_index]["sticky_notes"].append(new_note)
+
+        tm.save_outline(task_id, outline)
+        return {"success": True, "note": new_note}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+@router.delete("/sticky-notes/{task_id}/{note_id}")
+async def delete_sticky_note(task_id: str, note_id: str):
+    """R152: 删除便签"""
+    from ...services.task_manager import get_task_manager
+    tm = get_task_manager()
+
+    try:
+        outline = tm.get_outline(task_id)
+        slides = outline.get("slides", [])
+
+        found = False
+        for slide in slides:
+            sticky = slide.get("sticky_notes", [])
+            slide["sticky_notes"] = [s for s in sticky if s.get("id") != note_id]
+            if len(slide["sticky_notes"]) < len(sticky):
+                found = True
+
+        if not found:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        tm.save_outline(task_id, outline)
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+
+
+# ==================== Notes Templates ====================
+
+# In-memory store for notes templates (in production, use database)
+NOTES_TEMPLATES_STORE = [
+    {
+        "id": "tpl-business-1",
+        "name": "商业汇报模板",
+        "description": "适用于季度汇报、项目汇报",
+        "template_type": "business",
+        "content": "【背景】<br>本次汇报聚焦于...<br><br>【核心成果】<br>• 成果1：...<br>• 成果2：...<br><br>【关键数据】<br>- 指标1：...<br>- 指标2：...<br><br>【下一步计划】<br>1. ...<br>2. ...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-education-1",
+        "name": "教学演示模板",
+        "description": "适用于课堂教学、学术报告",
+        "template_type": "education",
+        "content": "【教学目标】<br>本节课我们将学习...<br><br>【重点难点】<br>• 重点：...<br>• 难点：...<br><br>【案例分析】<br>...<br><br>【思考题】<br>1. ...<br>2. ...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-tech-1",
+        "name": "技术分享模板",
+        "description": "适用于技术分享会、架构讲解",
+        "template_type": "tech",
+        "content": "【背景介绍】<br>今天分享的主题是...<br><br>【技术方案】<br>我们采用了以下方案：<br>• 方案A：...<br>• 方案B：...<br><br>【代码示例】<br>```<br>...<br>```<br><br>【Q&A】<br>",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-marketing-1",
+        "name": "营销提案模板",
+        "description": "适用于营销方案、客户提案",
+        "template_type": "marketing",
+        "content": "【市场洞察】<br>当前市场趋势显示...<br><br>【目标受众】<br>我们的目标用户是...<br><br>【核心策略】<br>• 策略1：...<br>• 策略2：...<br><br>【预期效果】<br>- 品牌提升：...<br>- 转化提升：...",
+        "created_at": "2026-01-01T00:00:00",
+    },
+    {
+        "id": "tpl-general-1",
+        "name": "通用备注模板",
+        "description": "适用于各类演示的通用备注",
+        "template_type": "通用",
+        "content": "【开场】<br>各位好，今天我将分享...<br><br>【要点1】<br>首先，...<br><br>【要点2】<br>其次，...<br><br>【总结】<br>综上所述，...<br><br>【问答】<br>",
+        "created_at": "2026-01-01T00:00:00",
+    },
+]
+
+
+class NotesTemplateItem(BaseModel):
+    """备注模板"""
+    id: str
+    name: str
+    description: str
+    template_type: str  # business | education | tech | marketing |通用
+    content: str
+    created_at: Optional[str] = None
+
+
+class NotesTemplateCreate(BaseModel):
+    """创建备注模板"""
+    name: str
+    description: str = ""
+    template_type: str = "通用"
+    content: str
+
+
+@router.get("/notes-templates")
+async def get_notes_templates(template_type: Optional[str] = None):
+    """R152: 获取备注模板列表"""
+    if template_type:
+        filtered = [t for t in NOTES_TEMPLATES_STORE if t["template_type"] == template_type]
+        return {"success": True, "templates": filtered}
+    return {"success": True, "templates": NOTES_TEMPLATES_STORE}
+
+
+@router.post("/notes-templates")
+async def create_notes_template(tpl: NotesTemplateCreate):
+    """R152: 创建自定义备注模板"""
+    global NOTES_TEMPLATES_STORE
+    new_tpl = {
+        "id": f"tpl-custom-{uuid.uuid4().hex[:8]}",
+        "name": tpl.name,
+        "description": tpl.description,
+        "template_type": tpl.template_type,
+        "content": tpl.content,
+        "created_at": datetime.now().isoformat(),
+    }
+    NOTES_TEMPLATES_STORE.append(new_tpl)
+    return {"success": True, "template": new_tpl}
+
+
+@router.delete("/notes-templates/{template_id}")
+async def delete_notes_template(template_id: str):
+    """R152: 删除自定义备注模板"""
+    global NOTES_TEMPLATES_STORE
+    if template_id.startswith("tpl-custom-"):
+        before = len(NOTES_TEMPLATES_STORE)
+        NOTES_TEMPLATES_STORE = [t for t in NOTES_TEMPLATES_STORE if t["id"] != template_id]
+        if len(NOTES_TEMPLATES_STORE) == before:
+            raise HTTPException(status_code=404, detail="Template not found")
+        return {"success": True}
+    raise HTTPException(status_code=403, detail="Cannot delete built-in templates")
