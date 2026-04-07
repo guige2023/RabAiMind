@@ -655,7 +655,7 @@ async def export_png_sequence(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail={"success": False, "error": f"PNG导出失败: {str(e)}"}
+            detail={"error": "ENDPOINT_ERROR", "detail": f"PNG导出失败: {str(e)}"}
         )
 
 

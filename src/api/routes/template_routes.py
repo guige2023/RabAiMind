@@ -24,6 +24,85 @@ logger = logging.getLogger(__name__)
 router = create_router(prefix="/api/v1/ppt", tags=["ppt-template"])
 
 
+# ==================== Search Analytics Helper ====================
+
+def _record_search(query: str, results_count: int, filters: Optional[Dict[str, Any]] = None) -> None:
+    """Record a search for analytics."""
+    from pathlib import Path
+    import json
+    import os
+
+    analytics_file = Path("data/search_analytics.json")
+    data = {"searches": [], "search_count": {}, "clicked_templates": [], "template_clicks": {}}
+
+    if analytics_file.exists():
+        try:
+            with open(analytics_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # Ensure structure
+    if "searches" not in data:
+        data["searches"] = []
+    if "search_count" not in data:
+        data["search_count"] = {}
+    if "template_clicks" not in data:
+        data["template_clicks"] = {}
+
+    # Record search
+    data["searches"].append({
+        "query": query,
+        "timestamp": datetime.now().isoformat(),
+        "results_count": results_count,
+        "filters": filters or {}
+    })
+
+    # Update count
+    if query:
+        data["search_count"][query] = data["search_count"].get(query, 0) + 1
+
+    # Keep only last 10000 searches to avoid file bloat
+    if len(data["searches"]) > 10000:
+        data["searches"] = data["searches"][-10000:]
+
+    try:
+        os.makedirs(os.path.dirname(analytics_file), exist_ok=True)
+        with open(analytics_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        logger.warning(f"Failed to record search analytics: {e}")
+
+
+def _record_template_click(template_id: str) -> None:
+    """Record a template click for analytics."""
+    from pathlib import Path
+    import json
+    import os
+
+    analytics_file = Path("data/search_analytics.json")
+    data = {"searches": [], "search_count": {}, "clicked_templates": [], "template_clicks": {}}
+
+    if analytics_file.exists():
+        try:
+            with open(analytics_file, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    if "template_clicks" not in data:
+        data["template_clicks"] = {}
+
+    data["template_clicks"][template_id] = data["template_clicks"].get(template_id, 0) + 1
+
+    try:
+        os.makedirs(os.path.dirname(analytics_file), exist_ok=True)
+        with open(analytics_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        logger.warning(f"Failed to record template click: {e}")
+
+
 # ==================== Template Management ====================
 
 @router.get("/templates")
@@ -186,6 +265,12 @@ async def search_templates_with_tags(req: TagSearchRequest):
         tags=req.tags,
         limit=req.limit
     )
+    # Record search analytics
+    _record_search(req.query, len(templates), {
+        "category": req.category,
+        "style": req.style,
+        "tags": req.tags
+    })
     return {
         "success": True,
         "total": len(templates),
@@ -923,7 +1008,7 @@ async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.patch("/slides/{task_id}/sticky-notes")
@@ -945,7 +1030,7 @@ async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/annotations/{task_id}/{slide_index}")
@@ -965,7 +1050,7 @@ async def save_slide_annotations(task_id: str, slide_index: int, annotations: Li
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": slide_index, "count": len(annotations)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/sticky-notes/{task_id}")
@@ -986,7 +1071,7 @@ async def get_sticky_notes(task_id: str):
 
         return {"success": True, "sticky_notes": all_sticky}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/sticky-notes/{task_id}")
@@ -1020,7 +1105,7 @@ async def add_sticky_note(task_id: str, note: StickyNoteCreate):
         tm.save_outline(task_id, outline)
         return {"success": True, "note": new_note}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.delete("/sticky-notes/{task_id}/{note_id}")
@@ -1048,7 +1133,7 @@ async def delete_sticky_note(task_id: str, note_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ==================== Notes Templates ====================

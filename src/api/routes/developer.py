@@ -287,7 +287,7 @@ async def get_api_health(request: Request):
         components.append(HealthCheckItem(
             component="rate_limiter",
             status="degraded",
-            detail={"success": False, "error": f"Rate limiter error: {str(e)}"},
+            detail={"error": "ENDPOINT_ERROR", "detail": f"Rate limiter error: {str(e)}"},
         ))
 
     # 3. Quota storage
@@ -308,7 +308,7 @@ async def get_api_health(request: Request):
         components.append(HealthCheckItem(
             component="quota_storage",
             status="degraded",
-            detail={"success": False, "error": f"Quota storage error: {str(e)}"},
+            detail={"error": "ENDPOINT_ERROR", "detail": f"Quota storage error: {str(e)}"},
         ))
 
     # 4. Webhook service
@@ -328,7 +328,7 @@ async def get_api_health(request: Request):
         components.append(HealthCheckItem(
             component="webhook_logs",
             status="degraded",
-            detail={"success": False, "error": f"Webhook log error: {str(e)}"},
+            detail={"error": "ENDPOINT_ERROR", "detail": f"Webhook log error: {str(e)}"},
         ))
 
     # 5. Volcano AI API connectivity
@@ -354,7 +354,7 @@ async def get_api_health(request: Request):
         components.append(HealthCheckItem(
             component="volcano_ai",
             status="error",
-            detail={"success": False, "error": f"Volcano AI check failed: {str(e)}"},
+            detail={"error": "ENDPOINT_ERROR", "detail": f"Volcano AI check failed: {str(e)}"},
         ))
 
     # 6. Data directory
@@ -380,7 +380,7 @@ async def get_api_health(request: Request):
         components.append(HealthCheckItem(
             component="data_storage",
             status="degraded",
-            detail={"success": False, "error": f"Data storage check failed: {str(e)}"},
+            detail={"error": "ENDPOINT_ERROR", "detail": f"Data storage check failed: {str(e)}"},
         ))
 
     return {

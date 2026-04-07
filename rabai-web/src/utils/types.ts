@@ -281,9 +281,7 @@ export interface APIClient {
     diffVersions: (taskId: string, versionA: string, versionB: string) => Promise<AxiosResponse<{ success: boolean; version_a: string; version_b: string; diff: any[]; total_changes: number }>>
     createSnapshot: (taskId: string, name?: string) => Promise<AxiosResponse<{ success: boolean; version_id: string }>>
     exportPngSequence: (taskId: string, resolution?: string) => Promise<Blob>
-  }
-  // R160: Backup
-  backup: {
+    // R160: Backup
     listBackups: (taskId: string) => Promise<AxiosResponse<{ success: boolean; backups: any[] }>>
     createBackup: (taskId: string, name: string) => Promise<AxiosResponse<{ success: boolean; backup_id: string }>>
     restoreBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
