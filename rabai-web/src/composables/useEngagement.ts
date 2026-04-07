@@ -3,7 +3,7 @@
  * 社交互动 composable - 管理反应、浏览量、分享链接
  */
 import { ref, computed } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 export interface EngagementStats {
   success: boolean
