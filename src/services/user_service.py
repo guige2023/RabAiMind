@@ -152,6 +152,19 @@ class UserService:
         if "language" in updates:
             if updates["language"] in ("zh", "en", "ja", "ko"):
                 self._preferences["language"] = updates["language"]
+        # R129: Handle new preference categories
+        if "ppt_generation" in updates:
+            for k, v in updates["ppt_generation"].items():
+                if k in self._preferences.get("ppt_generation", {}):
+                    self._preferences["ppt_generation"][k] = v
+        if "export" in updates:
+            for k, v in updates["export"].items():
+                if k in self._preferences.get("export", {}):
+                    self._preferences["export"][k] = v
+        if "presentation" in updates:
+            for k, v in updates["presentation"].items():
+                if k in self._preferences.get("presentation", {}):
+                    self._preferences["presentation"][k] = v
 
         _save_json(PREFS_FILE, self._preferences)
         return self.get_preferences()
