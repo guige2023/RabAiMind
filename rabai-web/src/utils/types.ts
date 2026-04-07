@@ -288,7 +288,7 @@ export interface APIClient {
     getBackupSlides: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; slides: any[] }>>
     downloadBackup: (taskId: string, backupId: string) => Promise<Blob>
     deleteBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean }>>
-    importBackup: (file: File) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    importBackup: (file: File) => Promise<AxiosResponse<{ success: boolean; backup_id: string; task_id: string }>>
   }
   // R160: Sharing / Access Requests
   sharing: {
@@ -322,6 +322,9 @@ export interface APIClient {
     listMyTemplates: () => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
     deleteTemplate: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
     renameTemplate: (id: string, data: { name: string; description?: string }) => Promise<AxiosResponse<{ success: boolean; template: any }>>
+    getTrending: (limit?: number, days?: number) => Promise<AxiosResponse<{ success: boolean; templates: any[]; period_days: number }>>
+    getSimilar: (templateId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; templates: any[]; template_id: string }>>
+    getRecommended: (params: { user_id?: string; scene?: string; style?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; templates: any[]; user_id: string }>>
   }
   // R58: Voice / TTS
   voice: {
@@ -359,6 +362,12 @@ export interface APIClient {
     extendContent: (params: { slideIndex: number; ratio?: number }) => Promise<AxiosResponse<{ success: boolean; content: any }>>
     generateSpeakerNotes: (params: { slideIndex: number; slidesContent: string[] }) => Promise<AxiosResponse<{ success: boolean; notes: string }>>
     checkDesignConsistency: (params: { slideIndices: number[] }) => Promise<AxiosResponse<{ success: boolean; consistency: any }>>
+    expandShorten: (text: string, ratio?: number) => Promise<AxiosResponse<{ success: boolean; result: string; ratio: number }>>
+    grammarCheck: (text: string) => Promise<AxiosResponse<{ success: boolean; check: { corrected: string; errors: any[]; has_errors: boolean } }>>
+    smartFootnotes: (text: string, topic?: string, count?: number) => Promise<AxiosResponse<{ success: boolean; footnotes: { footnotes: Array<{ source: string; source_type: string; description: string; in_text_mark: string }>; formatted_footnotes: string } }>>
+    toneAdjust: (text: string, tone: string) => Promise<AxiosResponse<{ success: boolean; adjusted: { adjusted: string; tone: string; tone_description: string; changes_summary: string } }>>
+    clicheDetect: (text: string) => Promise<AxiosResponse<{ success: boolean; detection: { detected: Array<{ phrase: string; reason: string; alternatives: Array<{ text: string; style: string }> }>; has_cliches: boolean; cleaned_text: string; summary: string } }>>
+    listContentTemplates: () => Promise<AxiosResponse<{ success: boolean; templates: Array<{ type: string; description: string }> }>>
   }
   // R109/R148: Advanced AI (高级AI功能)
   advancedAI: {
