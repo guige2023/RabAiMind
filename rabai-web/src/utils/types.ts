@@ -338,6 +338,8 @@ export interface APIClient {
     deleteStickyNote: (taskId: string, noteId: string) => Promise<AxiosResponse<{ success: boolean }>>
     getNotesTemplates: (templateType?: string) => Promise<AxiosResponse<{ success: boolean; templates: any[] }>>
     createNotesTemplate: (tpl: any) => Promise<AxiosResponse<{ success: boolean }>>
+    suggestLayouts: (params: { title?: string; content?: string }) => Promise<AxiosResponse<{ success: boolean; suggestions: any[] }>>
+    saveLayoutPreference: (params: any) => Promise<AxiosResponse<{ success: boolean }>>
     previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>

@@ -377,7 +377,7 @@
         </table>
       </view>
       
-      <button class="generate-btn" type="primary" @click="generateChartFromData">生成图表</button>
+      <button class="generate-btn" type="button" @click="generateChartFromData">生成图表</button>
     </div>
   </div>
 </template>
@@ -397,7 +397,7 @@ interface Slide {
   id: string
   title: string
   content: string
-  layout: 'title' | 'content' | 'two-column' | 'image-left' | 'image-right' | 'centered'
+  layout: 'title' | 'content' | 'two-column' | 'image-left' | 'image-right' | 'centered' | 'content_card'
 }
 
 interface OutlineData {
@@ -540,12 +540,6 @@ const dismissSuggestion = async (suggestion: LayoutSuggestion) => {
 
 // Auto-save indicator
 const autoSaveKey = ref(`outline_${route.query.taskId || 'new'}`)
-const { saveDraft, lastSavedTime, isSaving } = useAutoSave({
-  key: autoSaveKey.value,
-  data: outline,
-  debounceMs: 3000,
-  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-})
 const autoSaveLabel = ref('')
 
 // Update auto-save label
@@ -604,6 +598,14 @@ const outline = reactive<OutlineData>({
   slides: [],
   style: 'professional',
   theme: 'blue'
+})
+
+// Auto-save after outline is defined
+const { saveDraft, lastSavedTime, isSaving } = useAutoSave({
+  key: autoSaveKey.value,
+  data: outline,
+  debounceMs: 3000,
+  maxAge: 7 * 24 * 60 * 60 * 1000
 })
 
 // 生成选项 - 从 CreateView 传递（通过 route.query）
@@ -949,12 +951,12 @@ const generatePPT = async () => {
     const response = await api.ppt.createTask({
       user_request: route.query.request as string || 'PPT 生成',
       slide_count: outline.slides.length,
-      scene: genOptions.scene,
-      style: genOptions.style,
-      template: genOptions.template,
+      scene: genOptions.scene as any,
+      style: genOptions.style as any,
+      template: genOptions.template as any,
       theme_color: genOptions.themeColor,
-      pre_generated_slides: preGeneratedSlides,
-      text_style: genOptions.textStyle,
+      pre_generated_slides: preGeneratedSlides as any,
+      text_style: genOptions.textStyle as any,
       shadow_color: genOptions.shadowColor,
       overlay_transparency: genOptions.overlayTransparency,
       use_smart_layout: genOptions.useSmartLayout,
@@ -962,13 +964,13 @@ const generatePPT = async () => {
       font_subtitle: genOptions.fontSubtitle,
       font_content: genOptions.fontContent,
       font_caption: genOptions.fontCaption,
-      layout_mode: genOptions.layoutMode === '统一' ? 'auto' : genOptions.layoutMode,
-      unified_layout: genOptions.layoutMode !== '统一',
+      layout_mode: (genOptions.layoutMode as string) === '统一' ? 'auto' : genOptions.layoutMode,
+      unified_layout: (genOptions.layoutMode as string) !== '统一',
       include_charts: false,
-      generation_mode: genOptions.generationMode,
-      output_format: genOptions.outputFormat,
-      quality: genOptions.quality
-    })
+      generation_mode: genOptions.generationMode as any,
+      output_format: genOptions.outputFormat as any,
+      quality: genOptions.quality as any
+    } as any)
     const taskId = response.data.task_id
 
     // 保存大纲到本地存储（备用）
