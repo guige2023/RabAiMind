@@ -521,6 +521,9 @@ const voiceGroups = computed(() => {
   return Object.values(groups)
 })
 
+// Local speaking state (separate from prop, used for local async operations)
+const localSpeaking = ref(false)
+
 const slideContentPreview = computed(() => {
   const text = props.slideContent || ''
   return text.length > 200 ? text.slice(0, 200) + '...' : text
@@ -673,7 +676,7 @@ async function doTranslate() {
   translateError.value = ''
   translatedResult.value = ''
   try {
-    const res = await api.translate.translateText({
+    const res = await api.ai.translateText({
       text: translateInput.value,
       source_lang: translateSource.value,
       target_lang: translateTarget.value,
@@ -702,8 +705,8 @@ function onTranslateResult(result: string, error?: string) {
 async function speakTranslation() {
   if (!translatedResult.value) return
   try {
-    isSpeaking.value = true
-    const res = await api.voice.tts({
+    localSpeaking.value = true
+    const res = await api.voice.generateTTS({
       text: translatedResult.value,
       voice: localSettings.value.ttsVoice || 'zh-CN-Xiaoxiao',
       rate: localSettings.value.ttsRate || '+0%',
@@ -712,9 +715,9 @@ async function speakTranslation() {
     } as any)
     if (res.data.success) {
       const audio = new Audio(res.data.data.audio_url)
-      audio.onended = () => { isSpeaking.value = false }
-      audio.onerror = () => { isSpeaking.value = false }
-      audio.play().catch(() => { isSpeaking.value = false })
+      audio.onended = () => { localSpeaking.value = false }
+      audio.onerror = () => { localSpeaking.value = false }
+      audio.play().catch(() => { localSpeaking.value = false })
     }
   } catch {
     isSpeaking.value = false
