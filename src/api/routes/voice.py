@@ -142,7 +142,7 @@ async def generate_tts(request: TTSRequest):
         }
     except Exception as e:
         logger.error(f"[TTS] Error: {e}")
-        raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail={"success": False, "error": f"TTS generation failed: {str(e)}"})
 
 
 @router.get("/audio/{filename}")
@@ -216,7 +216,7 @@ Text to translate:
         raise
     except Exception as e:
         logger.error(f"[Translate] Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail={"success": False, "error": f"Translation failed: {str(e)}"})
 
 
 @router.post("/tts-batch")

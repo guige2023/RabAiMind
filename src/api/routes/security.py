@@ -1401,7 +1401,7 @@ async def get_custom_role(
     try:
         return manager.get_role(role_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
 
 
 @router.put("/roles/{role_id}")

@@ -705,7 +705,7 @@ const addSlide = () => {
 // 删除页面
 const deleteSlide = (index: number) => {
   if (outline.slides.length <= 1) {
-    alert('至少保留一页')
+    showError('操作无效', '至少保留一页')
     return
   }
   saveUndoSnapshot()
@@ -769,7 +769,7 @@ const chooseChartFile = async () => {
       }
     } catch (err) {
       console.error('文件解析失败', err)
-      alert('文件解析失败，请检查文件格式')
+      showError('文件解析失败', '请检查文件格式')
     }
   }
   input.click()
@@ -778,7 +778,7 @@ const chooseChartFile = async () => {
 // 生成图表
 const generateChartFromData = async () => {
   if (!chartSelectedFile.value) {
-    alert('请先选择文件')
+    showError('请选择文件', '请先选择文件')
     return
   }
   
@@ -786,7 +786,7 @@ const generateChartFromData = async () => {
   const valueCol = chartColumns.value.numeric_columns?.[selectedValueColIndex.value] || ''
   
   if (!labelCol || !valueCol) {
-    alert('请选择标签列和数值列')
+    showError('请选择列', '请选择标签列和数值列')
     return
   }
   
@@ -822,11 +822,11 @@ const generateChartFromData = async () => {
         layout: 'content'
       })
       
-      alert(`图表已生成！共 ${result.charts.length} 个图表。\n文件: ${result.svg_urls.join(', ')}`)
+      showSuccess('图表已生成', `共 ${result.charts.length} 个图表，已添加到幻灯片`)
     }
   } catch (err) {
     console.error('图表生成失败', err)
-    alert('图表生成失败，请重试')
+    showError('图表生成失败', '请重试')
   }
 }
 
@@ -899,7 +899,7 @@ const generateOutline = async () => {
     if (!apiError?.response || apiError?.code === 'ERR_NETWORK' || apiError?.message?.includes('Network')) {
       console.warn('[generateOutline] 🌐 检测到网络错误，后端服务可能未启动')
       isLoading.value = false
-      alert('⚠️ 无法连接到后端服务\n\n请确保后端服务已启动:\ncd /Users/guige/my_project/RabAiMind\nsource .venv/bin/activate\npython3 -m uvicorn src.main:app --host 127.0.0.1 --port 8003\n\n如果后端已启动，请检查浏览器控制台获取更多信息。')
+      showError('无法连接后端服务', '请确保后端服务已启动并运行在 8003 端口')
       return
     }
   }

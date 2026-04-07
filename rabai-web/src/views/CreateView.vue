@@ -1163,9 +1163,8 @@
           </div>
         </div>
 
-        <div v-if="dsLoading" class="import-loading">
-          <div class="spinner"></div>
-          <span>{{ dsLoadingText }}</span>
+        <div v-if="dsLoading" class="ds-skeleton-wrapper">
+          <LoadingSkeleton type="list" :count="3" />
         </div>
       </div>
     </div>
@@ -1183,6 +1182,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import ThemePanel from '../components/ThemePanel.vue'
 import Tooltip from '../components/Tooltip.vue'
+import LoadingSkeleton from '../components/LoadingSkeleton.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -4389,5 +4389,9 @@ useKeyboardShortcuts([
 .ds-forecast-val {
   font-weight: 600;
   color: #165DFF;
+}
+
+.ds-skeleton-wrapper {
+  padding: 16px 0;
 }
 </style>

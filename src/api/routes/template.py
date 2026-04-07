@@ -849,7 +849,7 @@ async def purchase_bundle(bundle_id: str, user_id: str = "anonymous"):
         bundle = ms.get_bundle(bundle_id)
         return {"success": True, "purchase": purchase, "bundle": bundle}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
 
 
 # ─── Template of the Day ────────────────────────────────────────────────────

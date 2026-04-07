@@ -163,7 +163,7 @@ async def import_excel(
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Excel import error: {e}")
         raise HTTPException(status_code=500, detail="Excel 文件导入失败")
@@ -201,7 +201,7 @@ async def import_csv(
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"CSV import error: {e}")
         raise HTTPException(status_code=500, detail="CSV 文件导入失败")
@@ -235,7 +235,7 @@ async def import_google_sheets(request_body: GoogleSheetsImportRequest, request:
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Google Sheets import error: {e}")
         raise HTTPException(status_code=500, detail="Google Sheets 导入失败")
@@ -259,7 +259,7 @@ async def sync_data_source(source_id: str, request_body: SyncRequest):
         return result
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Sync error: {e}")
         raise HTTPException(status_code=500, detail="数据源同步失败")
@@ -375,7 +375,7 @@ async def analyze_data(source_id: str, body: CompareRequest):
         )
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Analyze error: {e}")
         raise HTTPException(status_code=500, detail="数据分析失败")
@@ -408,7 +408,7 @@ async def get_forecast(source_id: str, body: ForecastRequest):
         )
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Forecast error: {e}")
         raise HTTPException(status_code=500, detail="预测生成失败")
@@ -448,7 +448,7 @@ async def generate_ppt_from_data_source(request_body: GenerateFromDataSourceRequ
         )
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
     except Exception as e:
         logger.error(f"Generate from data source error: {e}")
         raise HTTPException(status_code=500, detail="从数据源生成 PPT 失败")

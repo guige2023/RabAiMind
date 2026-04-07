@@ -23,6 +23,8 @@ from .history_sync_service import get_history_sync_service, HistorySyncService
 
 logger = logging.getLogger(__name__)
 
+MAX_TASKS = 1000  # 任务队列最大容量，超出时清理最老的已完成任务
+
 
 class TaskManager:
     """任务管理器 - 管理PPT生成任务"""
@@ -96,6 +98,14 @@ class TaskManager:
 
         with self._task_lock:
             self.tasks[task_id] = task
+            # 容量清理：字典过大时清理最老的已完成任务
+            if len(self.tasks) > MAX_TASKS:
+                completed = [(k, v) for k, v in self.tasks.items() if v.get('status') == 'completed']
+                completed.sort(key=lambda x: x[1].get('created_at', ''))
+                for k, _ in completed[:100]:  # 清理100个最老的已完成任务
+                    if k in self.tasks:
+                        del self.tasks[k]
+                logger.info(f"[TaskManager] 容量超限，自动清理 {min(100, len(completed))} 个已完成任务")
             # 懒清理：每N次操作清理一次过期任务
             self._cleanup_counter += 1
             if self._cleanup_counter >= self._cleanup_interval:

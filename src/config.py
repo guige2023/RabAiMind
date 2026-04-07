@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     API_AUTH_ENABLED: bool = False
     API_KEY: Optional[str] = None
+    VERSION: str = "1.0.0"
     JWT_SECRET: str = Field(default="")
     MAX_UPLOAD_SIZE: int = 52428800  # 50MB
 

@@ -45,7 +45,7 @@ const getCacheKey = (config: any): string => {
 const createApiClient = (): AxiosInstance => {
   const client = axios.create({
     baseURL: '/api/v1',
-    timeout: 120000,
+    timeout: 30000,  // 30秒全局超时
     headers: {
       'Content-Type': 'application/json'
     }
@@ -119,8 +119,7 @@ const createApiClient = (): AxiosInstance => {
 
       if (
         !error.response &&
-        config.__retryCount < 3 &&
-        config.method !== 'get'
+        config.__retryCount < 3
       ) {
         config.__retryCount++
         const delay = Math.pow(2, config.__retryCount) * 1000

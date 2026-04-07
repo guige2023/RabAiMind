@@ -75,7 +75,7 @@ def call_ai(prompt: str, system: str = "") -> str:
         raise  # FastAPI HTTPException should pass through
     except Exception as e:
         logger.error(f"AI调用失败: {e}")
-        raise HTTPException(status_code=500, detail=f"AI服务调用失败: {str(e)}")
+        raise HTTPException(status_code=500, detail={"success": False, "error": f"AI服务调用失败: {str(e)}"})
 
 
 def safe_json_parse(text: str) -> Optional[dict]:
@@ -137,7 +137,7 @@ async def rephrase_text(req: RephraseRequest):
         raise
     except Exception as e:
         logger.error(f"rephrase失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/translate")
@@ -238,7 +238,7 @@ async def translate_text(req: TranslateRequest):
         raise
     except Exception as e:
         logger.error(f"translate失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/layout-suggestion")
@@ -292,7 +292,7 @@ async def layout_suggestion(req: LayoutSuggestionRequest):
         raise
     except Exception as e:
         logger.error(f"layout-suggestion失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/auto-enhance")
@@ -346,7 +346,7 @@ async def auto_enhance(req: AutoEnhanceRequest):
         raise
     except Exception as e:
         logger.error(f"auto-enhance失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/content-score")
@@ -415,7 +415,7 @@ async def content_score(req: ContentScoreRequest):
         raise
     except Exception as e:
         logger.error(f"content-score失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/expand-shorten")
@@ -447,7 +447,7 @@ async def expand_shorten_text(req: ExpandShortenRequest):
         raise
     except Exception as e:
         logger.error(f"expand-shorten失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/grammar-check")
@@ -496,7 +496,7 @@ async def grammar_check(req: GrammarCheckRequest):
         raise
     except Exception as e:
         logger.error(f"grammar-check失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 # ==================== New R109: AI Content Enhancement ====================
@@ -566,7 +566,7 @@ async def smart_footnotes(req: SmartFootnotesRequest):
         raise
     except Exception as e:
         logger.error(f"smart-footnotes失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/tone-adjust")
@@ -624,7 +624,7 @@ async def tone_adjust(req: ToneAdjustRequest):
         raise
     except Exception as e:
         logger.error(f"tone-adjust失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 @router.post("/cliche-detect")
@@ -678,7 +678,7 @@ async def cliche_detect(req: ClicheDetectRequest):
         raise
     except Exception as e:
         logger.error(f"cliche-detect失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
 
 
 # ==================== R133: AI Content Templates ====================
@@ -924,4 +924,4 @@ async def generate_content_template(req: ContentTemplateRequest):
         raise
     except Exception as e:
         logger.error(f"content-template失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})

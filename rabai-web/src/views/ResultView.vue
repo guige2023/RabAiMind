@@ -1414,8 +1414,7 @@
 
         <!-- 加载状态 -->
         <div v-else class="result-loading">
-          <div class="loading-spinner"></div>
-          <p>加载中...</p>
+          <LoadingSkeleton type="card" :count="3" />
         </div>
       </div>
     </div>
@@ -2554,6 +2553,7 @@ import PresentationCoach from '../components/PresentationCoach.vue'
 import ReactionButtons from '../components/ReactionButtons.vue'
 import ShareLinkModal from '../components/ShareLinkModal.vue'
 import SharingAnalytics from '../components/SharingAnalytics.vue'
+import LoadingSkeleton from '../components/LoadingSkeleton.vue'
 import SharePanel from '../components/SharePanel.vue'
 import AccessRequestModal from '../components/AccessRequestModal.vue'
 import PresentationFolders from '../components/PresentationFolders.vue'
@@ -7705,6 +7705,12 @@ onUnmounted(() => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.result-loading {
+  padding: 24px 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* 操作按钮 */

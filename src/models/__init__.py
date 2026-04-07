@@ -351,6 +351,7 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: str = "1.0.0"
+    uptime: float = 0.0
 
 
 class APIInfo(BaseModel):
