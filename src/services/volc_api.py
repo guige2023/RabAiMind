@@ -7,6 +7,7 @@ import logging
 import os
 import json
 import requests
+import certifi
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import time
@@ -65,7 +66,7 @@ class VolcEngineAPI:
             headers=self._get_headers(),
             json=payload,
             timeout=timeout,
-            verify=False
+            verify=certifi.where()
         )
     
     def text_generation(

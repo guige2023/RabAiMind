@@ -215,7 +215,7 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
                 headers=headers,
                 json=data,
                 timeout=(30, 120),
-                verify=False
+                verify=certifi.where()
             )
 
             if resp.status_code == 200:
@@ -937,7 +937,7 @@ def plan_ppt_stream(user_request: str, slide_count: int = 5, scene: str = "busin
             json=data,
             timeout=(5, 90),
             stream=True,
-            verify=False
+            verify=certifi.where()
         )
 
         if resp.status_code == 200:
