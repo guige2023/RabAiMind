@@ -1008,7 +1008,7 @@
                   />
                   <span class="trim-unit">s</span>
                 </div>
-                <div v-if="selectedElement.trimEnd > 0 && selectedElement.trimStart > 0" class="trim-duration">
+                <div v-if="(selectedElement.trimEnd ?? 0) > 0 && (selectedElement.trimStart ?? 0) > 0" class="trim-duration">
                   时长: {{ (selectedElement.trimEnd - selectedElement.trimStart).toFixed(1) }}s
                 </div>
               </div>
