@@ -913,7 +913,7 @@ async def get_task_version(task_id: str, version_id: str):
         result = tm.get_version(task_id, version_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/versions/{task_id}/{version_id}/rollback")
@@ -925,7 +925,7 @@ async def rollback_task_version(task_id: str, version_id: str):
     try:
         return tm.rollback_version(task_id, version_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/versions/{task_id}/diff")
@@ -941,7 +941,7 @@ async def diff_task_versions(
     try:
         return tm.diff_versions(task_id, version_a, version_b)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/versions/{task_id}/snapshot")
@@ -953,7 +953,7 @@ async def create_task_snapshot(task_id: str, name: str = None):
     try:
         return tm.create_version(task_id, name)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/action_log/{task_id}")
@@ -986,7 +986,7 @@ async def undo_last_action(task_id: str):
         result = tm.undo(task_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/redo_stack/{task_id}")
@@ -1009,7 +1009,7 @@ async def redo_last_action(task_id: str):
         result = tm.redo(task_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/timeline/{task_id}")
@@ -1036,7 +1036,7 @@ async def undo_by_action_id(task_id: str, action_id: str, force: bool = False):
         result = tm.undo_by_action_id(task_id, action_id, force)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/checkpoints/{task_id}")
@@ -1049,7 +1049,7 @@ async def create_checkpoint(task_id: str, name: str = None, checkpoint_type: str
         result = tm.create_checkpoint(task_id, name, checkpoint_type)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/checkpoints/{task_id}")
@@ -1072,7 +1072,7 @@ async def restore_checkpoint(task_id: str, checkpoint_id: str):
         result = tm.restore_checkpoint(task_id, checkpoint_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/collaborative-lock/{task_id}")
@@ -1085,7 +1085,7 @@ async def acquire_collaborative_lock(task_id: str, user_id: str, slide_index: in
         result = tm.acquire_collaborative_lock(task_id, user_id, slide_index)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.delete("/collaborative-lock/{task_id}")
@@ -1098,7 +1098,7 @@ async def release_collaborative_lock(task_id: str, user_id: str, slide_index: in
         result = tm.release_collaborative_lock(task_id, user_id, slide_index)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/collaborative-locks/{task_id}")
@@ -1120,7 +1120,7 @@ async def branch_from_version(task_id: str, version_id: str, name: str = None):
         result = tm.branch_version(task_id, version_id, name)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/versions/{task_id}/merge")
@@ -1139,7 +1139,7 @@ async def merge_versions(
         result = tm.merge_version(task_id, source_version_id, target_version_id, strategy, slide_resolutions)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ========== 版本标签 ==========
@@ -1154,7 +1154,7 @@ async def add_version_tag(task_id: str, version_id: str, tag: str = Body(..., de
         result = tm.add_version_tag(task_id, version_id, tag)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.delete("/versions/{task_id}/{version_id}/tag/{tag}")
@@ -1167,7 +1167,7 @@ async def remove_version_tag(task_id: str, version_id: str, tag: str):
         result = tm.remove_version_tag(task_id, version_id, tag)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/versions/{task_id}/tags")
@@ -1266,7 +1266,7 @@ async def auto_save_state(task_id: str, state: dict = Body(...)):
         result = tm.auto_save(task_id, state)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/autosave/{task_id}")
@@ -1279,7 +1279,7 @@ async def get_auto_save_state(task_id: str):
         result = tm.get_auto_save(task_id)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/regenerate/{task_id}/{slide_index}")
@@ -3071,7 +3071,7 @@ async def create_ab_test(task_id: str, slide_index: int = Query(..., ge=0), vari
     try:
         return tm.create_ab_test(task_id, slide_index, variant_count)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/ab_test/{task_id}")
@@ -3093,7 +3093,7 @@ async def get_ab_test(task_id: str, test_id: str):
     try:
         return tm.get_ab_test(task_id, test_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/ab_test/{task_id}/{test_id}/view")
@@ -3105,7 +3105,7 @@ async def track_ab_view(task_id: str, test_id: str, variant_id: str = Query(...)
     try:
         return tm.track_ab_view(task_id, test_id, variant_id, time_spent_ms)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/ab_test/{task_id}/{test_id}/click")
@@ -3117,7 +3117,7 @@ async def track_ab_click(task_id: str, test_id: str, variant_id: str = Query(...
     try:
         return tm.track_ab_click(task_id, test_id, variant_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/ab_test/{task_id}/{test_id}/select")
@@ -3129,7 +3129,7 @@ async def select_ab_winner(task_id: str, test_id: str, variant_id: str = Query(.
     try:
         return tm.select_ab_winner(task_id, test_id, variant_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.delete("/ab_test/{task_id}/{test_id}")
@@ -3141,7 +3141,7 @@ async def delete_ab_test(task_id: str, test_id: str):
     try:
         return tm.delete_ab_test(task_id, test_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ========== 幻灯片级版本历史 ==========
@@ -3167,7 +3167,7 @@ async def suggest_improvements(task_id: str):
     try:
         return tm.suggest_improvements(task_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ========== 内容语言检测 ==========
@@ -3181,7 +3181,7 @@ async def detect_content_language(task_id: str):
     try:
         return tm.detect_language(task_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ========== 演示文稿本地化/翻译 ==========
@@ -3200,7 +3200,7 @@ async def localize_presentation(
     try:
         return tm.localize(task_id, target_locale, source_locale, apply_rtl)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=400, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/language_versions/{task_id}")
@@ -3212,7 +3212,7 @@ async def list_language_versions(task_id: str):
     try:
         return tm.list_language_versions(task_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ============ R118: Smart Content Suggestions ============
@@ -3446,7 +3446,7 @@ async def download_backup(task_id: str, backup_id: str):
             filename=f"backup_{backup_id}.rabak",
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=404, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/backups/import")
@@ -3468,7 +3468,7 @@ async def import_backup(file: UploadFile = File(...)):
         result = bs.import_backup_file(tmp_path)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=400, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
@@ -3553,7 +3553,7 @@ async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.patch("/slides/{task_id}/sticky-notes")
@@ -3575,7 +3575,7 @@ async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/annotations/{task_id}/{slide_index}")
@@ -3595,7 +3595,7 @@ async def save_slide_annotations(task_id: str, slide_index: int, annotations: Li
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": slide_index, "count": len(annotations)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.get("/sticky-notes/{task_id}")
@@ -3616,7 +3616,7 @@ async def get_sticky_notes(task_id: str):
         
         return {"success": True, "sticky_notes": all_sticky}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.post("/sticky-notes/{task_id}")
@@ -3652,7 +3652,7 @@ async def add_sticky_note(task_id: str, note: StickyNoteCreate):
         tm.save_outline(task_id, outline)
         return {"success": True, "note": new_note}
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 @router.delete("/sticky-notes/{task_id}/{note_id}")
@@ -3680,7 +3680,7 @@ async def delete_sticky_note(task_id: str, note_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
+        raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
 
 
 # ==================== Notes Templates ====================

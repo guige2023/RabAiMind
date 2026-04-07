@@ -399,6 +399,15 @@ async def advanced_template_search(req: AdvancedSearchRequest):
     end = start + req.limit
     paginated = result[start:end]
 
+    # Record search analytics
+    _record_search(req.query, total, {
+        "category": req.category,
+        "style": req.style,
+        "tags": req.tags,
+        "author": req.author,
+        "search_type": "advanced"
+    })
+
     return {
         "success": True,
         "results": [t.to_dict() for t in paginated],
