@@ -262,8 +262,8 @@ export interface APIClient {
   getSuggestEdits: (taskId: string, slideNum?: number) => Promise<AxiosResponse<{ success: boolean; edits: any[] }>>
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
   resolveSuggestEdit: (taskId: string, editId: string, params: { status: 'pending' | 'accepted' | 'rejected'; resolved_by: string }) => Promise<AxiosResponse<{ success: boolean }>>
-  getActivityFeed: (taskId: string, params?: { activity_type?: string; user_id?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; activities: any[] }>>
-  logActivity: (taskId: string, params: { activity_type: string; user_id: string; description?: string }) => Promise<AxiosResponse<{ success: boolean }>>
+  getActivityFeed: (taskId: string, params?: any) => Promise<AxiosResponse<{ success: boolean; activities: any[] }>>
+  logActivity: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; activity?: any }>>
   markActivityRead: (taskId: string, activityId: string) => Promise<AxiosResponse<{ success: boolean }>>
   markAllActivitiesRead: (taskId: string) => Promise<AxiosResponse<{ success: boolean; count: number }>>
   addSuggestEdit: (taskId: string, params: any) => Promise<AxiosResponse<{ success: boolean; edit: any }>>
@@ -285,6 +285,19 @@ export interface APIClient {
     regenerateSlide: (params: { taskId: string; slideIndex: number; scene?: string; style?: string; content?: string; layout?: string; title?: string }) => Promise<AxiosResponse<{ success: boolean; data: { svg_url: string; slide_index: number }; message: string }>>
     uploadChart: (params: { taskId: string; file: File; chartType: string; labelCol: string; valueCol: string; themeId?: string; showTrendLine?: boolean; annotations?: any[] }) => Promise<AxiosResponse<any>>
     updateSlideImage: (params: { taskId: string; slideIndex: number; image_url?: string; action: 'set' | 'remove' | 'regenerate' }) => Promise<AxiosResponse<{ success: boolean; image_url?: string; message: string }>>
+    getActionLog: (taskId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; action_log: any[] }>>
+    getUndoStack: (taskId: string) => Promise<AxiosResponse<{ success: boolean; undo_stack: any[] }>>
+    undo: (taskId: string) => Promise<AxiosResponse<{ success: boolean; message?: string }>>
+    redo: (taskId: string) => Promise<AxiosResponse<{ success: boolean; message?: string }>>
+    getRedoStack: (taskId: string) => Promise<AxiosResponse<{ success: boolean; redo_stack: any[] }>>
+    getActionTimeline: (taskId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; timeline: any[] }>>
+    undoByActionId: (taskId: string, actionId: string, force?: boolean) => Promise<AxiosResponse<{ success: boolean }>>
+    createCheckpoint: (taskId: string, name?: string, checkpointType?: string) => Promise<AxiosResponse<{ success: boolean; checkpoint_id: string }>>
+    getCheckpoints: (taskId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; checkpoints: any[] }>>
+    restoreCheckpoint: (taskId: string, checkpointId: string) => Promise<AxiosResponse<{ success: boolean; message?: string }>>
+    acquireCollaborativeLock: (taskId: string, userId: string, slideIndex?: number) => Promise<AxiosResponse<{ success: boolean }>>
+    releaseCollaborativeLock: (taskId: string, userId: string, slideIndex?: number) => Promise<AxiosResponse<{ success: boolean }>>
+    getCollaborativeLocks: (taskId: string) => Promise<AxiosResponse<{ success: boolean; locks: any }>>
     previewChart: (taskId: string, file: File) => Promise<AxiosResponse<any>>
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number }> }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: any }>>
@@ -295,7 +308,7 @@ export interface APIClient {
     // R160: Backup
     listBackups: (taskId: string) => Promise<AxiosResponse<{ success: boolean; backups: any[] }>>
     createBackup: (taskId: string, name: string) => Promise<AxiosResponse<{ success: boolean; backup_id: string }>>
-    restoreBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
+    restoreBackup: (taskId: string, backupId: string, restoreType?: 'full' | 'slides' | 'config', selectedSlideNums?: number[]) => Promise<AxiosResponse<{ success: boolean; message: string; restore_type?: string; selected_slides?: number[] }>>
     getBackupSlides: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; slides: any[] }>>
     downloadBackup: (taskId: string, backupId: string) => Promise<Blob>
     deleteBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean }>>
@@ -322,6 +335,7 @@ export interface APIClient {
     listShortUrls: () => Promise<AxiosResponse<{ success: boolean; short_urls: any[] }>>
     deleteShortUrl: (shortCode: string) => Promise<AxiosResponse<{ success: boolean }>>
     getShortUrlAnalytics: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; short_code: string; total_accesses: number; qr_scans: number; nfc_taps: number; beacon_triggers: number; created_at: string }>>
+    recordQRScan: (shortCode: string, deviceInfo?: string, location?: string) => Promise<AxiosResponse<{ success: boolean }>>
   }
   collaboration: {
     listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: any[] }>>
@@ -352,6 +366,9 @@ export interface APIClient {
     getSimilar: (templateId: string, limit?: number) => Promise<AxiosResponse<{ success: boolean; templates: any[]; template_id: string }>>
     getRecommended: (params: { user_id?: string; scene?: string; style?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; templates: any[]; user_id: string }>>
     matchTemplates: (params: { q?: string; scene?: string; style?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; templates: any[]; query: string; detected_scene: string | null; detected_style: string | null }>>
+    trackEvent: (params: { event_type: string; template_id?: string; user_id?: string; query?: string; scene?: string; style?: string; request_text?: string }) => Promise<AxiosResponse<{ success: boolean }>>
+    recordTemplateClick: (templateId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getTrendingQueries: (limit?: number, days?: number) => Promise<AxiosResponse<{ success: boolean; queries: Array<{ query: string; count: number }>; period_days: number }>>
   }
   // R58: Voice / TTS
   voice: {

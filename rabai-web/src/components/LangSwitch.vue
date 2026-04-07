@@ -17,7 +17,7 @@
       :aria-haspopup="true"
     >
       <span class="lang-icon" aria-hidden="true">🌐</span>
-      <span class="lang-current">{{ currentLocale.nativeName }}</span>
+      <span class="lang-current">{{ currentLocaleOption.nativeName }}</span>
       <span class="lang-arrow" aria-hidden="true">{{ showDropdown ? '▲' : '▼' }}</span>
     </button>
 
@@ -33,9 +33,9 @@
           v-for="locale in LOCALES"
           :key="locale.code"
           class="lang-option"
-          :class="{ active: currentLocale.code === locale.code }"
+          :class="{ active: currentLocale === locale.code }"
           role="option"
-          :aria-selected="currentLocale.code === locale.code"
+          :aria-selected="currentLocale === locale.code"
           :tabindex="0"
           @click="setLang(locale.code)"
           @keydown.enter.prevent="setLang(locale.code)"
@@ -46,7 +46,7 @@
         >
           <span class="lang-option-native">{{ locale.nativeName }}</span>
           <span class="lang-option-name">{{ locale.name }}</span>
-          <span v-if="currentLocale.code === locale.code" class="lang-option-check" aria-hidden="true">✓</span>
+          <span v-if="currentLocale === locale.code" class="lang-option-check" aria-hidden="true">✓</span>
         </li>
       </ul>
     </Transition>
@@ -55,9 +55,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { useI18n, LOCALES, type Locale } from '../composables/useI18n'
+import { useI18n, LOCALES, type LocaleOption } from '../composables/useI18n'
 
-const { locale: currentLocale, setLocale, t, localeName } = useI18n()
+const { currentLocale, currentLocaleOption, setLocale, t, localeName } = useI18n()
 const showDropdown = ref(false)
 const listRef = ref<HTMLElement | null>(null)
 const containerRef = ref<HTMLElement | null>(null)

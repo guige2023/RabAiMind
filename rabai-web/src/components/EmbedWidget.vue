@@ -462,7 +462,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 
 interface Props {
   show: boolean

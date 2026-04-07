@@ -384,7 +384,7 @@ const submitRequest = async () => {
   submitting.value = true
   submitResult.value = null
   try {
-    await api.sharing.createAccessRequest(form.value)
+    await api.sharing.createAccessRequest({ item_id: form.value.resource_id, item_type: form.value.resource_type, message: form.value.message })
     submitResult.value = { type: 'success', text: '✅ 访问请求已发送！所有者审批后你会收到通知。' }
     form.value = { resource_type: 'ppt', resource_id: '', resource_name: '', permission_requested: 'view', message: '' }
     setTimeout(() => {

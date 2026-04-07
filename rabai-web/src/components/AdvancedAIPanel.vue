@@ -732,7 +732,7 @@ async function handleContentTemplate() {
     if (res.data?.success) {
       contentTemplates.result = res.data.content
     } else {
-      alert(res.data?.error || '内容模板生成失败')
+      alert((res.data as any)?.error || '内容模板生成失败')
     }
   } catch (e: any) {
     alert('内容模板生成失败: ' + (e.message || '未知错误'))

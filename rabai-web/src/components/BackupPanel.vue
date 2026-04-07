@@ -121,7 +121,7 @@
               <div class="slide-number">{{ slide.slide_num }}</div>
               <div class="slide-title">{{ slide.title || '无标题' }}</div>
               <div v-if="slide.has_chart" class="slide-chart-badge">{{ slide.chart_type }}</div>
-              <img v-if="slide.svg_path" :src="getSlidePreviewUrl(slide.svg_path)" class="slide-preview-img" alt="" @error="e => e.target.style.display='none'" />
+              <img v-if="slide.svg_path" :src="getSlidePreviewUrl(slide.svg_path)" class="slide-preview-img" alt="" @error="e => e.target && (e.target.style.display='none')" />
             </div>
           </div>
 

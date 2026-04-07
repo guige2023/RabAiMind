@@ -283,7 +283,8 @@ const {
   removeFilter,
   clearAllFilters,
   startVoiceSearch,
-  stopVoiceSearch
+  stopVoiceSearch,
+  quickLinks
 } = useGlobalSearch()
 
 // R69: Quick filter toggle helper

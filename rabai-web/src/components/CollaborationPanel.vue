@@ -188,7 +188,7 @@ const {
   copyShareLink,
   addCollaborator,
   removeCollaborator
-} = useCollaboration(documentId.value)
+} = useCollaboration(documentId.value, { id: 'anonymous', name: 'Anonymous', avatar: '', role: 'viewer' })
 
 // 云同步功能
 const {
@@ -219,9 +219,9 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('zh-CN')
 }
 
-const handleAddCollaborator = () => {
+const handleAddCollaborator = async () => {
   if (!newEmail.value) return
-  const result = addCollaborator(newEmail.value, newRole.value)
+  const result = await addCollaborator(newEmail.value, newRole.value)
   if (result) {
     newEmail.value = ''
   }

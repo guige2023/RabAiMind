@@ -217,7 +217,7 @@ const openMobileNav = () => {
   mobileNavRef.value?.open()
 }
 
-const openHelp = (tab?: string | MouseEvent) => {
+const openHelp = (tab?: string) => {
   helpRef.value?.open(tab)
 }
 

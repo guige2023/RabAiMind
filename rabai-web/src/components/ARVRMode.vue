@@ -681,7 +681,6 @@ async function insertModel(preset: PresetModel) {
 
   // Make it float/bob animation
   const baseY = mesh.position.y
-  const originalUpdate = loop
   function animatedLoop() {
     if (animationFrameId !== null) {
       mesh.position.y = baseY + Math.sin(Date.now() * 0.002) * 0.1
@@ -689,8 +688,8 @@ async function insertModel(preset: PresetModel) {
     }
   }
   // Simple per-frame animation added to render loop
-  const origRender = threeRenderer?.render.bind(threeRenderer)
-  threeRenderer?.render(threeScene, threeCamera)
+  const origRender = threeRenderer?.render?.bind(threeRenderer)
+  if (threeCamera) threeRenderer?.render(threeScene, threeCamera)
 }
 
 async function insertCustomModel() {
