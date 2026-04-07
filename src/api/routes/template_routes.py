@@ -107,7 +107,14 @@ def _record_template_click(template_id: str) -> None:
 
 @router.get("/templates")
 async def get_templates():
-    """获取模板列表（重定向到真实 TemplateManager）"""
+    """
+    获取模板列表
+
+    从TemplateManager获取所有可用模板列表。
+
+    Returns:
+        模板列表（id, name, description, category, style, thumbnail, colors, fonts）
+    """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
     templates = manager.list_templates()
@@ -128,7 +135,19 @@ async def get_templates():
 
 @router.post("/templates")
 async def create_template(request: dict):
-    """保存用户模板"""
+    """
+    创建并保存用户模板
+
+    将用户创建的PPT模板保存到个人模板库。
+
+    Args:
+        request: 模板数据字典（name, description, scene, style等）
+
+    Returns:
+        success: 是否成功
+        template_id: 模板ID
+        template: 模板详情
+    """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
 
@@ -161,7 +180,15 @@ async def create_template(request: dict):
 
 @router.get("/templates/my")
 async def get_my_templates():
-    """获取当前用户的模板列表"""
+    """
+    获取当前用户的模板列表
+
+    返回当前用户创建的所有私人模板。
+
+    Returns:
+        success: 是否成功
+        templates: 用户模板列表
+    """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
     templates = manager.get_user_templates("current_user")
@@ -173,6 +200,17 @@ async def get_my_templates():
 
 @router.delete("/templates/{template_id}")
 async def delete_template(template_id: str):
+    """
+    删除用户模板
+
+    删除指定ID的用户私人模板。
+
+    Args:
+        template_id: 要删除的模板ID
+
+    Returns:
+        success: 是否成功
+    """
     """删除用户模板"""
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
@@ -188,7 +226,19 @@ async def delete_template(template_id: str):
 
 @router.patch("/templates/{template_id}")
 async def update_template(template_id: str, request: dict):
-    """更新/重命名用户模板"""
+    """
+    更新/重命名用户模板
+
+    更新指定ID的模板名称或其他属性。
+
+    Args:
+        template_id: 模板ID
+        request: 更新数据
+
+    Returns:
+        success: 是否成功
+        error: 错误信息（如有）
+    """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
 
@@ -223,6 +273,14 @@ class TagSearchRequest(BaseModel):
 
 @router.get("/templates/tags")
 async def get_all_template_tags():
+    """
+    获取所有模板标签
+
+    返回系统中的所有可用标签及其使用次数统计。
+
+    Returns:
+        所有标签列表及统计信息
+    """
     """获取所有可用模板标签"""
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
@@ -664,6 +722,14 @@ async def search_ppt_content(
 
 @router.get("/scenes")
 async def get_scenes():
+    """
+    获取所有适用场景
+
+    返回系统支持的所有PPT适用场景类型。
+
+    Returns:
+        场景列表
+    """
     """获取场景类型"""
     return [
         {"id": "business", "name": "商务", "description": "商业演示"},
@@ -679,6 +745,14 @@ async def get_scenes():
 
 @router.get("/styles")
 async def get_styles():
+    """
+    获取所有风格类型
+
+    返回系统支持的所有PPT风格类型。
+
+    Returns:
+        风格列表
+    """
     """获取风格类型"""
     return [
         {"id": "professional", "name": "专业", "description": "商务专业风格"},

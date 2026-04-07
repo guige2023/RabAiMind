@@ -216,6 +216,143 @@
           </div>
         </div>
 
+        <!-- PPT Generation Settings -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">📊</span>
+            <div>
+              <div class="label-title">PPT 生成默认设置</div>
+              <div class="label-desc">新建 PPT 时的默认配置</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <div class="select-row">
+              <span>默认分类</span>
+              <select class="select-input" :value="prefs.ppt_generation?.default_category || 'business'" @change="updatePrefNested('ppt_generation', 'default_category', ($event.target as HTMLSelectElement).value)">
+                <option value="business">商业</option>
+                <option value="education">教育</option>
+                <option value="tech">科技</option>
+                <option value="creative">创意</option>
+                <option value="personal">个人</option>
+              </select>
+            </div>
+            <div class="select-row">
+              <span>默认风格</span>
+              <select class="select-input" :value="prefs.ppt_generation?.default_style || 'modern'" @change="updatePrefNested('ppt_generation', 'default_style', ($event.target as HTMLSelectElement).value)">
+                <option value="professional">专业</option>
+                <option value="modern">现代</option>
+                <option value="minimal">简约</option>
+                <option value="creative">创意</option>
+                <option value="classic">经典</option>
+              </select>
+            </div>
+            <div class="select-row">
+              <span>默认页数</span>
+              <select class="select-input" :value="prefs.ppt_generation?.default_slide_count || 10" @change="updatePrefNested('ppt_generation', 'default_slide_count', parseInt(($event.target as HTMLSelectElement).value))">
+                <option value="5">5页</option>
+                <option value="8">8页</option>
+                <option value="10">10页</option>
+                <option value="12">12页</option>
+                <option value="15">15页</option>
+                <option value="20">20页</option>
+              </select>
+            </div>
+            <label class="toggle-row">
+              <span>自动增强内容</span>
+              <input type="checkbox" :checked="prefs.ppt_generation?.auto_enhance" @change="updatePrefNested('ppt_generation', 'auto_enhance', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>包含幻灯片转场</span>
+              <input type="checkbox" :checked="prefs.ppt_generation?.include_transitions" @change="updatePrefNested('ppt_generation', 'include_transitions', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Export Settings -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">📤</span>
+            <div>
+              <div class="label-title">导出默认设置</div>
+              <div class="label-desc">导出 PPT 时的默认选项</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <div class="select-row">
+              <span>默认格式</span>
+              <select class="select-input" :value="prefs.export?.default_format || 'pptx'" @change="updatePrefNested('export', 'default_format', ($event.target as HTMLSelectElement).value)">
+                <option value="pptx">PPTX</option>
+                <option value="pdf">PDF</option>
+                <option value="png">PNG</option>
+                <option value="jpg">JPG</option>
+              </select>
+            </div>
+            <div class="select-row">
+              <span>默认质量</span>
+              <select class="select-input" :value="prefs.export?.default_quality || 'high'" @change="updatePrefNested('export', 'default_quality', ($event.target as HTMLSelectElement).value)">
+                <option value="standard">标准 (720p)</option>
+                <option value="high">高清 (1080p)</option>
+                <option value="ultra">超清 (4K)</option>
+              </select>
+            </div>
+            <label class="toggle-row">
+              <span>包含演讲者备注</span>
+              <input type="checkbox" :checked="prefs.export?.include_notes" @change="updatePrefNested('export', 'include_notes', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>包含演讲者指南</span>
+              <input type="checkbox" :checked="prefs.export?.include_speaker_guide" @change="updatePrefNested('export', 'include_speaker_guide', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Presentation Settings -->
+        <div class="setting-group">
+          <div class="setting-label">
+            <span class="label-icon">🎤</span>
+            <div>
+              <div class="label-title">演示模式默认设置</div>
+              <div class="label-desc">演讲者视图和演示的默认配置</div>
+            </div>
+          </div>
+          <div class="setting-control notification-controls">
+            <label class="toggle-row">
+              <span>自动翻页</span>
+              <input type="checkbox" :checked="prefs.presentation?.auto_advance" @change="updatePrefNested('presentation', 'auto_advance', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <div class="select-row">
+              <span>自动翻页时间</span>
+              <select class="select-input" :value="prefs.presentation?.auto_advance_seconds || 10" @change="updatePrefNested('presentation', 'auto_advance_seconds', parseInt(($event.target as HTMLSelectElement).value))">
+                <option value="5">5秒</option>
+                <option value="10">10秒</option>
+                <option value="15">15秒</option>
+                <option value="20">20秒</option>
+                <option value="30">30秒</option>
+              </select>
+            </div>
+            <label class="toggle-row">
+              <span>显示进度条</span>
+              <input type="checkbox" :checked="prefs.presentation?.show_progress_bar" @change="updatePrefNested('presentation', 'show_progress_bar', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>显示计时器</span>
+              <input type="checkbox" :checked="prefs.presentation?.show_timer" @change="updatePrefNested('presentation', 'show_timer', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="toggle-row">
+              <span>激光笔功能</span>
+              <input type="checkbox" :checked="prefs.presentation?.laser_pointer_enabled" @change="updatePrefNested('presentation', 'laser_pointer_enabled', ($event.target as HTMLInputElement).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <!-- Reset -->
         <div class="setting-group reset-group">
           <div class="setting-label">
@@ -871,6 +1008,19 @@ const updateEditor = async (key: string, value: any) => {
     await axios.put('/user/preferences', { editor: { [key]: value } })
   } catch (e) {
     console.error('Failed to update editor', e)
+  }
+}
+
+// R129: Update nested preference (e.g., ppt_generation.default_category)
+const updatePrefNested = async (category: string, key: string, value: any) => {
+  if (!prefs[category]) {
+    prefs[category] = {}
+  }
+  prefs[category][key] = value
+  try {
+    await axios.put('/user/preferences', { [category]: { [key]: value } })
+  } catch (e) {
+    console.error(`Failed to update ${category}.${key}`, e)
   }
 }
 
