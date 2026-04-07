@@ -372,16 +372,16 @@ async def remove_template_tags(template_id: str, request: dict):
 
 class AdvancedSearchRequest(BaseModel):
     """高级搜索请求"""
-    query: Optional[str] = Field(default="", description="搜索关键词")
-    category: Optional[str] = Field(default=None, description="分类过滤")
-    style: Optional[str] = Field(default=None, description="风格过滤")
-    author: Optional[str] = Field(default=None, description="作者过滤")
-    tags: Optional[List[str]] = Field(default=None, description="标签列表（AND过滤）")
+    query: Optional[str] = Field(default="", max_length=200, description="搜索关键词")
+    category: Optional[str] = Field(default=None, max_length=50, description="分类过滤")
+    style: Optional[str] = Field(default=None, max_length=50, description="风格过滤")
+    author: Optional[str] = Field(default=None, max_length=100, description="作者过滤")
+    tags: Optional[List[str]] = Field(default_factory=list, description="标签列表（AND过滤）")
     date_from: Optional[str] = Field(default=None, description="开始日期 YYYY-MM-DD")
     date_to: Optional[str] = Field(default=None, description="结束日期 YYYY-MM-DD")
     template_type: Optional[str] = Field(default="all", description="模板类型: all/ugc/system")
     sort_by: Optional[str] = Field(default="relevance", description="排序: relevance/newest/popularity/name")
-    page: int = Field(default=1, ge=1, description="页码")
+    page: int = Field(default=1, ge=1, le=100, description="页码")
     limit: int = Field(default=20, ge=1, le=100, description="每页数量")
     use_semantic: bool = Field(default=False, description="是否使用AI语义搜索")
 
