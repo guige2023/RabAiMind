@@ -281,7 +281,6 @@ async def get_all_template_tags():
     Returns:
         所有标签列表及统计信息
     """
-    """获取所有可用模板标签"""
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
     tags = manager.get_all_tags()
