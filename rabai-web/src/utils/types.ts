@@ -289,6 +289,11 @@ export interface APIClient {
     downloadBackup: (taskId: string, backupId: string) => Promise<Blob>
     deleteBackup: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean }>>
     importBackup: (file: File) => Promise<AxiosResponse<{ success: boolean; backup_id: string; task_id: string }>>
+    getMasterSlides: () => Promise<AxiosResponse<{ success: boolean; master_slides: any[] }>>
+    saveMasterSlide: (master: any) => Promise<AxiosResponse<{ success: boolean; master_slide: any }>>
+    deleteMasterSlide: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
+    deleteCustomTheme: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
+    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; theme: any }>>
   }
   // R160: Sharing / Access Requests
   sharing: {
