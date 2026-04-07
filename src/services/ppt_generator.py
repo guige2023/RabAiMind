@@ -12,6 +12,7 @@ import os
 import re
 import json
 import threading
+import contextvars
 import numpy as np
 import concurrent.futures
 from typing import Optional, Dict, Any, List
@@ -27,6 +28,9 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 
 logger = setup_logger("ppt_generator")
+
+# BUG-005修复: 使用ContextVar实现线程安全的每请求布局隔离
+_first_page_layout_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('_first_page_layout', default=None)
 
 
 # ─── 独立工具函数（类外定义，避免循环引用）───────────────────────────────────────
@@ -78,7 +82,6 @@ class PPTGenerator:
         ensure_dir(settings.TEMPLATE_DIR)
         self._image_failure_count: int = 0  # AI图片生成失败计数
         self._image_failure_threshold: int = 3  # 失败阈值，超过后停止尝试
-        self._first_page_layout: Optional[str] = None  # 统一布局模式：首页布局
         self._layout_lock = threading.Lock()  # 布局操作线程锁
 
     async def generate(
@@ -142,8 +145,8 @@ class PPTGenerator:
         """
         logger.info(f"开始生成 PPT (okppt方式), task_id={task_id}, slide_count={slide_count}, mode={generation_mode}, format={output_format}, quality={quality}")
 
-        # 重置跨任务状态，防止污染
-        self._first_page_layout = None
+        # 重置跨任务状态，防止污染 (BUG-005修复: 使用ContextVar)
+        _first_page_layout_var.set(None)
         self._image_failure_count = 0
 
         # BUG修复: 如果指定了 template（非default），解析模板并使用其配置覆盖参数
@@ -935,15 +938,14 @@ class PPTGenerator:
                 if slide_num == 1:
                     slide_type = "title_slide"
 
-            # 统一布局模式：保存首页布局（线程安全）
+            # 统一布局模式：保存首页布局（BUG-005修复: 使用ContextVar线程安全）
             if unified_layout:
-                with self._layout_lock:
-                    if self._first_page_layout is None:
-                        self._first_page_layout = slide_type
-                        logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，设置首页布局 {slide_type}")
-                    else:
-                        slide_type = self._first_page_layout
-                        logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，复用布局 {slide_type}")
+                if _first_page_layout_var.get() is None:
+                    _first_page_layout_var.set(slide_type)
+                    logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，设置首页布局 {slide_type}")
+                else:
+                    slide_type = _first_page_layout_var.get()
+                    logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，统一布局，复用布局 {slide_type}")
             else:
                 logger.info(f"[SmartLayout] slide_{slide_num}: manual模式，使用布局 {slide_type}")
         else:
@@ -951,17 +953,16 @@ class PPTGenerator:
             if user_layout:
                 # 有用户指定布局
                 if unified_layout:
-                    # 统一布局模式：使用线程锁确保线程安全
-                    with self._layout_lock:
-                        if self._first_page_layout is None:
-                            # 第一次执行（可能是slide 1），设置首页布局
-                            self._first_page_layout = user_layout
-                            slide_type = user_layout
-                            logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，设置首页布局 {slide_type}")
-                        else:
-                            # 后续页面复用首页布局
-                            slide_type = self._first_page_layout
-                            logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，复用布局 {slide_type}")
+                    # 统一布局模式（BUG-005修复: 使用ContextVar线程安全）
+                    if _first_page_layout_var.get() is None:
+                        # 第一次执行（可能是slide 1），设置首页布局
+                        _first_page_layout_var.set(user_layout)
+                        slide_type = user_layout
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，设置首页布局 {slide_type}")
+                    else:
+                        # 后续页面复用首页布局
+                        slide_type = _first_page_layout_var.get()
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 统一布局模式，复用布局 {slide_type}")
                 else:
                     slide_type = user_layout
                     logger.info(f"[SmartLayout] slide_{slide_num}: 使用用户指定布局 {slide_type}")
@@ -975,15 +976,14 @@ class PPTGenerator:
                 if slide_num == 1:
                     slide_type = "title_slide"
 
-                # 统一布局模式：保存首页布局（线程安全）
+                # 统一布局模式：保存首页布局（BUG-005修复: 使用ContextVar线程安全）
                 if unified_layout:
-                    with self._layout_lock:
-                        if self._first_page_layout is None:
-                            self._first_page_layout = slide_type
-                            logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，设置首页布局 {slide_type}")
-                        else:
-                            slide_type = self._first_page_layout
-                            logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，复用首页布局 {slide_type}")
+                    if _first_page_layout_var.get() is None:
+                        _first_page_layout_var.set(slide_type)
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，设置首页布局 {slide_type}")
+                    else:
+                        slide_type = _first_page_layout_var.get()
+                        logger.info(f"[SmartLayout] slide_{slide_num}: 自动检测布局，复用首页布局 {slide_type}")
 
         # 生成配色
         colors = engine.generate_color_palette(style, theme_color)
