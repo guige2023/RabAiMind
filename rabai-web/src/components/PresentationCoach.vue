@@ -983,7 +983,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
-import { api } from '../api/client'
+import { api, apiClient } from '../api/client'
 
 const props = defineProps<{
   visible: boolean
@@ -1083,7 +1083,7 @@ async function runAnalysis() {
   loadingMessage.value = 'AI 正在分析幻灯片...'
   analysisResult.value = null
   try {
-    const res = await api.post('/ppt/coach/analyze', {
+    const res = await apiClient.post('/ppt/coach/analyze', {
       task_id: props.taskId,
       slides: props.slides
     })
@@ -1105,7 +1105,7 @@ async function runPractice() {
   practiceResult.value = null
   revealedQuestions.value.clear()
   try {
-    const res = await api.post('/ppt/coach/practice', {
+    const res = await apiClient.post('/ppt/coach/practice', {
       task_id: props.taskId,
       slides: props.slides,
       difficulty: selectedDifficulty.value,
@@ -1133,7 +1133,7 @@ async function runTiming() {
   loadingMessage.value = '计算时间分配...'
   timingResult.value = null
   try {
-    const res = await api.post('/ppt/coach/timing', {
+    const res = await apiClient.post('/ppt/coach/timing', {
       task_id: props.taskId,
       slides: props.slides,
       total_minutes: totalMinutes.value
@@ -1155,7 +1155,7 @@ async function runDelivery() {
   loadingMessage.value = 'AI 正在生成演讲技巧...'
   deliveryResult.value = null
   try {
-    const res = await api.post('/ppt/coach/delivery', {
+    const res = await apiClient.post('/ppt/coach/delivery', {
       task_id: props.taskId,
       slides: props.slides
     })
@@ -1177,7 +1177,7 @@ async function runAudience() {
   audienceResult.value = null
   revealedAudQuestions.value.clear()
   try {
-    const res = await api.post('/ppt/coach/audience', {
+    const res = await apiClient.post('/ppt/coach/audience', {
       task_id: props.taskId,
       slides: props.slides,
       audience_profile: audienceProfile.value
@@ -1247,7 +1247,7 @@ async function runPace() {
   loadingMessage.value = 'AI 正在分析语速...'
   paceResult.value = null
   try {
-    const res = await api.post('/ppt/coach/speaking-pace', {
+    const res = await apiClient.post('/ppt/coach/speaking-pace', {
       task_id: props.taskId,
       slides: props.slides,
       total_minutes: paceMinutes.value
@@ -1270,7 +1270,7 @@ async function runContent() {
   loadingMessage.value = 'AI 正在分析内容质量...'
   contentResult.value = null
   try {
-    const res = await api.post('/ppt/coach/content-dimensions', {
+    const res = await apiClient.post('/ppt/coach/content-dimensions', {
       task_id: props.taskId,
       slides: props.slides
     })
@@ -1292,7 +1292,7 @@ async function runDesign() {
   loadingMessage.value = 'AI 正在分析视觉设计...'
   designResult.value = null
   try {
-    const res = await api.post('/ppt/coach/visual-design', {
+    const res = await apiClient.post('/ppt/coach/visual-design', {
       task_id: props.taskId,
       slides: props.slides
     })
@@ -1314,7 +1314,7 @@ async function runEngagement() {
   loadingMessage.value = 'AI 正在预测观众参与度...'
   engagementResult.value = null
   try {
-    const res = await api.post('/ppt/coach/engagement', {
+    const res = await apiClient.post('/ppt/coach/engagement', {
       task_id: props.taskId,
       slides: props.slides,
       audience_profile: engagementProfile.value
@@ -1337,7 +1337,7 @@ async function runPersonalized() {
   loadingMessage.value = 'AI 正在生成个性化建议...'
   personalizedResult.value = null
   try {
-    const res = await api.post('/ppt/coach/personalized', {
+    const res = await apiClient.post('/ppt/coach/personalized', {
       task_id: props.taskId,
       slides: props.slides,
       user_id: 'default'
@@ -1717,7 +1717,7 @@ async function sendLiveAnalysis(isFinal = false) {
   const fRatio = totalWords.value > 0 ? fillerWordCount.value / totalWords.value : 0
 
   try {
-    const res = await api.post('/ppt/coach/live-session', {
+    const res = await apiClient.post('/ppt/coach/live-session', {
       task_id: props.taskId,
       slides: props.slides,
       speech_transcript: transcriptLines.value.join(' '),
