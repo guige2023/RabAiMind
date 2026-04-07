@@ -45,6 +45,12 @@ class Template:
     author: str = "system"
     visibility: str = "public"
     created_at: str = ""
+    tags: List[str] = None  # 标签列表，如 ["免费", "热门", "新品"]
+    use_count: int = 0  # 使用次数（生成PPT次数）
+
+    def __post_init__(self):
+        if self.tags is None:
+            self.tags = []
 
     def to_dict(self) -> dict:
         """转换为字典，包含新增字段"""
@@ -692,9 +698,10 @@ class TemplateManager:
         category: Optional[str] = None,
         style: Optional[str] = None,
         subcategory: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         limit: int = 20
     ) -> List[Template]:
-        """搜索模板"""
+        """搜索模板，支持标签过滤"""
         result = list(self._templates.values())
 
         if query:
@@ -713,7 +720,19 @@ class TemplateManager:
         if subcategory:
             result = [t for t in result if t.subcategory == subcategory]
 
+        if tags:
+            # Filter by tags (template must have ALL specified tags)
+            result = [t for t in result if all(tag in t.tags for tag in tags)]
+
         return result[:limit]
+
+    def get_all_tags(self) -> List[str]:
+        """获取所有模板标签及其使用次数"""
+        tag_counts: Dict[str, int] = {}
+        for t in self._templates.values():
+            for tag in t.tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        return sorted(tag_counts.keys())
 
     def get_categories(self) -> List[str]:
         """获取所有分类"""
