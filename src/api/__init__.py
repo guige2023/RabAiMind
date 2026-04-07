@@ -33,6 +33,7 @@ from .routes.collaboration import router as collaboration_router
 from .routes.dashboard import router as dashboard_router
 from .routes.sharing import router as sharing_router
 from .routes.share_enhancements import router as share_enhancements_router
+from .routes.ai_analysis import router as ai_analysis_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -45,6 +46,7 @@ api_router.include_router(images_router)
 api_router.include_router(brand_router)
 api_router.include_router(status_router)
 api_router.include_router(ai_router)
+api_router.include_router(ai_analysis_router)
 api_router.include_router(user_router)
 api_router.include_router(analytics_router)
 api_router.include_router(security_router)

@@ -12,6 +12,7 @@ import logging
 import os
 import tempfile
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
+from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
 from src.services.ai_analysis_service import get_ai_analysis_service
@@ -319,8 +320,3 @@ async def audience_profiling(request: AudienceRequest):
     except Exception as e:
         logger.error(f"受众画像生成失败: {e}")
         raise HTTPException(status_code=500, detail={"success": False, "error": str(e)})
-
-
-# ==================== Import for BaseModel ====================
-
-from pydantic import BaseModel
