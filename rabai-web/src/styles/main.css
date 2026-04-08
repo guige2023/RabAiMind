@@ -180,6 +180,829 @@
   border-color: #333333;
 }
 
+/* ============================================
+   增强深色模式覆盖 - ResultView & 全局组件
+   ============================================ */
+
+/* ResultView 主要容器 */
+:root.dark .result {
+  background: #0A0A0A;
+}
+
+:root.dark .result-card {
+  background: #1A1A1A;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+:root.dark .result-title {
+  color: #F5F5F5;
+}
+
+:root.dark .result-desc {
+  color: #AAAAAA;
+}
+
+/* 成功状态 */
+:root.dark .success-icon {
+  filter: brightness(1.1);
+}
+
+/* 文件信息 */
+:root.dark .file-info {
+  background: #0A0A0A;
+}
+
+:root.dark .info-label {
+  color: #888888;
+}
+
+:root.dark .info-value {
+  color: #F5F5F5;
+}
+
+/* PPT预览区域 */
+:root.dark .ppt-preview-section {
+  background: #0A0A0A;
+}
+
+:root.dark .preview-title {
+  color: #E5E5E5;
+}
+
+:root.dark .preview-loading {
+  color: #888888;
+}
+
+:root.dark .preview-loading .loading-spinner {
+  border-color: #333333;
+  border-top-color: #165DFF;
+}
+
+:root.dark .preview-empty {
+  color: #666666;
+}
+
+:root.dark .preview-load-failed {
+  color: #FF6B6B;
+}
+
+/* 预览网格 */
+:root.dark .preview-grid {
+  background: #0A0A0A;
+}
+
+/* 预览幻灯片 */
+:root.dark .preview-slide {
+  background: linear-gradient(135deg, #2a3f5f 0%, #1a2a4a 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+:root.dark .preview-slide:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+:root.dark .slide-number-badge {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+:root.dark .preview-slide .slide-actions {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+:root.dark .btn-regenerate {
+  background: #165DFF;
+  color: #fff;
+}
+
+:root.dark .btn-regenerate:hover {
+  background: #0E42D2;
+}
+
+:root.dark .btn-regenerate:disabled {
+  background: #444444;
+  color: #888888;
+}
+
+:root.dark .preview-error {
+  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+  color: #888888;
+}
+
+:root.dark .preview-more {
+  background: #1A1A1A;
+  color: #888888;
+}
+
+:root.dark .preview-tip {
+  color: #666666;
+}
+
+/* R149 性能指标 */
+:root.dark .preview-perf-badge {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* 预览骨架屏 */
+:root.dark .preview-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+}
+
+:root.dark .preview-loading-overlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================
+   深色模式 - 面板和侧边栏
+   ============================================ */
+
+/* 工作区/活动/评论面板 */
+:root.dark .workspace-panel,
+:root.dark .activity-panel,
+:root.dark .comments-panel {
+  background: #1A1A1A;
+  border-left: 1px solid #333333;
+}
+
+:root.dark .panel-header {
+  background: #0A0A0A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .header-title {
+  color: #F5F5F5;
+}
+
+:root.dark .panel-close {
+  color: #888888;
+}
+
+:root.dark .panel-close:hover {
+  background: #333333;
+}
+
+/* 面包屑导航 */
+:root.dark .breadcrumb {
+  background: #0A0A0A;
+}
+
+:root.dark .breadcrumb-item {
+  color: #888888;
+}
+
+:root.dark .breadcrumb-item:hover,
+:root.dark .breadcrumb-item.active {
+  color: #165DFF;
+}
+
+/* ============================================
+   深色模式 - 模态框
+   ============================================ */
+
+:root.dark .modal-mask {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+:root.dark .save-template-modal,
+:root.dark .localize-modal,
+:root.dark .batch-theme-modal,
+:root.dark .batch-export-modal {
+  background: #1A1A1A;
+  border: 1px solid #333333;
+}
+
+:root.dark .modal-title {
+  color: #F5F5F5;
+}
+
+:root.dark .modal-desc {
+  color: #AAAAAA;
+}
+
+/* 表单项 */
+:root.dark .form-item label,
+:root.dark .form-label {
+  color: #CCCCCC;
+}
+
+:root.dark .form-input,
+:root.dark .form-textarea,
+:root.dark .form-select {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+:root.dark .form-input:focus,
+:root.dark .form-textarea:focus,
+:root.dark .form-select:focus {
+  border-color: #165DFF;
+  box-shadow: 0 0 0 4px rgba(22, 93, 255, 0.2);
+}
+
+:root.dark .form-input::placeholder,
+:root.dark .form-textarea::placeholder {
+  color: #666666;
+}
+
+/* 颜色选择器 */
+:root.dark .color-picker {
+  background: #0A0A0A;
+  border-color: #333333;
+}
+
+:root.dark .color-text {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+/* 单选框/复选框 */
+:root.dark .radio-group,
+:root.dark .radio-item {
+  color: #E5E5E5;
+}
+
+:root.dark .checkbox-item {
+  color: #E5E5E5;
+}
+
+/* 主题预设 */
+:root.dark .preset-btn {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .preset-btn:hover {
+  border-color: #165DFF;
+}
+
+:root.dark .preset-btn.selected {
+  border-color: #165DFF;
+  background: rgba(22, 93, 255, 0.1);
+}
+
+/* 主题预览条 */
+:root.dark .theme-preview-strip {
+  background: #0A0A0A;
+}
+
+/* 模态框操作按钮 */
+:root.dark .modal-actions {
+  border-top: 1px solid #333333;
+}
+
+:root.dark .btn-outline {
+  background: transparent;
+  border: 1px solid #444444;
+  color: #E5E5E5;
+}
+
+:root.dark .btn-outline:hover {
+  background: #333333;
+  border-color: #555555;
+}
+
+/* ============================================
+   深色模式 - 编辑面板
+   ============================================ */
+
+:root.dark .content-edit-panel {
+  background: #0A0A0A;
+}
+
+:root.dark .edit-header {
+  background: #1A1A1A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .edit-header h3 {
+  color: #F5F5F5;
+}
+
+:root.dark .edit-tip {
+  color: #888888;
+}
+
+:root.dark .edit-slides {
+  background: #0A0A0A;
+}
+
+/* 编辑幻灯片卡片 */
+:root.dark .edit-slide-card {
+  background: #1A1A1A;
+  border: 1px solid #333333;
+}
+
+:root.dark .edit-slide-card:hover {
+  border-color: #165DFF;
+}
+
+:root.dark .edit-slide-header {
+  background: #0A0A0A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .slide-num {
+  color: #888888;
+}
+
+:root.dark .layout-select {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .slide-action-btns {
+  background: #0A0A0A;
+}
+
+/* 幻灯片操作按钮 */
+:root.dark .slide-action-btn {
+  background: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .slide-action-btn:hover:not(:disabled) {
+  background: #165DFF;
+}
+
+:root.dark .slide-action-btn:disabled {
+  background: #222222;
+  color: #555555;
+}
+
+/* 标题/内容编辑字段 */
+:root.dark .edit-slide-title,
+:root.dark .edit-slide-content,
+:root.dark .edit-slide-notes {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+:root.dark .edit-slide-title:focus,
+:root.dark .edit-slide-content:focus,
+:root.dark .edit-slide-notes:focus {
+  border-color: #165DFF;
+  box-shadow: 0 0 0 4px rgba(22, 93, 255, 0.2);
+}
+
+/* 备注编辑器标签页 */
+:root.dark .notes-tabs {
+  background: #0A0A0A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .notes-tab {
+  color: #888888;
+}
+
+:root.dark .notes-tab:hover {
+  color: #E5E5E5;
+}
+
+:root.dark .notes-tab.active {
+  color: #165DFF;
+  border-bottom: 2px solid #165DFF;
+}
+
+:root.dark .sticky-badge {
+  background: #165DFF;
+  color: #FFFFFF;
+}
+
+/* 便签颜色 */
+:root.dark .sticky-note-yellow { background: #3d3d1a; border-color: #666600; }
+:root.dark .sticky-note-pink { background: #3d1a2a; border-color: #661133; }
+:root.dark .sticky-note-blue { background: #1a2a3d; border-color: #003366; }
+:root.dark .sticky-note-green { background: #1a3d1a; border-color: #006633; }
+
+/* ============================================
+   深色模式 - 工具栏和按钮
+   ============================================ */
+
+:root.dark .function-toolbar {
+  background: rgba(26, 26, 26, 0.95);
+  border: 1px solid #333333;
+}
+
+:root.dark .toolbar-btn {
+  background: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .toolbar-btn:hover {
+  background: #165DFF;
+  color: #FFFFFF;
+}
+
+:root.dark .toolbar-btn.active {
+  background: #165DFF;
+  color: #FFFFFF;
+}
+
+/* AI 工具栏按钮 */
+:root.dark .ai-toolbar-btn {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  color: #FFFFFF !important;
+}
+
+:root.dark .ai-toolbar-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%) !important;
+}
+
+/* ============================================
+   深色模式 - 浮动工具栏
+   ============================================ */
+
+:root.dark .float-toolbar {
+  background: rgba(26, 26, 26, 0.98);
+  border-color: #333333;
+}
+
+/* ============================================
+   深色模式 - 动画预览
+   ============================================ */
+
+:root.dark .animation-preview-stage {
+  background: #0A0A0A;
+}
+
+:root.dark .transition-label-text {
+  color: #AAAAAA;
+}
+
+:root.dark .speed-fast { background: #1a2a4a; color: #60a5fa; }
+:root.dark .speed-normal { background: #1a3d2a; color: #4ade80; }
+:root.dark .speed-slow { background: #3d3a1a; color: #fbbf24; }
+
+/* ============================================
+   深色模式 - 下拉菜单
+   ============================================ */
+
+:root.dark .more-menu {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .more-menu button {
+  color: #E5E5E5;
+}
+
+:root.dark .more-menu button:hover {
+  background: #333333;
+}
+
+/* ============================================
+   深色模式 - 批量导出
+   ============================================ */
+
+:root.dark .batch-export-list {
+  background: #0A0A0A;
+}
+
+:root.dark .batch-export-item {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .batch-export-item:hover {
+  border-color: #165DFF;
+}
+
+:root.dark .batch-export-item.selected {
+  background: rgba(22, 93, 255, 0.1);
+  border-color: #165DFF;
+}
+
+:root.dark .batch-export-item.current {
+  background: rgba(22, 93, 255, 0.15);
+}
+
+:root.dark .batch-export-title {
+  color: #F5F5F5;
+}
+
+:root.dark .batch-export-meta {
+  color: #888888;
+}
+
+:root.dark .batch-current-tag {
+  background: #165DFF;
+  color: #FFFFFF;
+}
+
+:root.dark .batch-export-summary {
+  background: #0A0A0A;
+  color: #AAAAAA;
+}
+
+/* ============================================
+   深色模式 - 分享面板
+   ============================================ */
+
+:root.dark .share-section {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .share-title {
+  color: #F5F5F5;
+}
+
+:root.dark .share-link-box {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .share-options {
+  background: #0A0A0A;
+}
+
+:root.dark .share-option {
+  color: #E5E5E5;
+}
+
+:root.dark .share-option:hover {
+  background: #333333;
+}
+
+/* ============================================
+   深色模式 - 统计卡片
+   ============================================ */
+
+:root.dark .stat-card {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .stat-value {
+  color: #F5F5F5;
+}
+
+/* ============================================
+   深色模式 - 进度条
+   ============================================ */
+
+:root.dark .progress-bar {
+  background: #333333;
+}
+
+:root.dark .bar-track {
+  background: #333333;
+}
+
+:root.dark .bar-fill {
+  background: linear-gradient(90deg, #165DFF, #5AC8FA);
+}
+
+/* ============================================
+   深色模式 - 队列项
+   ============================================ */
+
+:root.dark .queue-header {
+  background: #0A0A0A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .queue-item {
+  background: #1A1A1A;
+  border-bottom: 1px solid #333333;
+}
+
+:root.dark .queue-item:hover {
+  background: #222222;
+}
+
+:root.dark .queue-item-type {
+  color: #888888;
+}
+
+/* ============================================
+   深色模式 - Toast 通知
+   ============================================ */
+
+:root.dark .toast {
+  background: #1A1A1A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+:root.dark .toast.success {
+  border-left: 4px solid #34C759;
+}
+
+:root.dark .toast.error {
+  border-left: 4px solid #FF3B30;
+}
+
+:root.dark .toast.warning {
+  border-left: 4px solid #FF9500;
+}
+
+/* ============================================
+   深色模式 - 辅助函数面板
+   ============================================ */
+
+:root.dark .tips-panel {
+  background: rgba(26, 26, 26, 0.95);
+  border-color: #333333;
+}
+
+:root.dark .tips-header {
+  background: #0A0A0A;
+  border-bottom: 1px solid #333333;
+}
+
+/* ============================================
+   深色模式 - 翻译/本地化
+   ============================================ */
+
+:root.dark .detected-lang-display {
+  background: #0A0A0A;
+  color: #F5F5F5;
+}
+
+:root.dark .locale-option {
+  color: #E5E5E5;
+}
+
+:root.dark .locale-option:hover {
+  background: #333333;
+}
+
+/* ============================================
+   深色模式 - 辅助功能面板
+   ============================================ */
+
+:root.dark .accessibility-panel,
+:root.dark .advanced-ai-panel,
+:root.dark .layout-panel,
+:root.dark .transition-panel,
+:root.dark .smart-design-panel,
+:root.dark .smart-content-suggestions {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .panel-section-title {
+  color: #F5F5F5;
+}
+
+:root.dark .section-divider {
+  background: #333333;
+}
+
+/* ============================================
+   深色模式 - 图表编辑器
+   ============================================ */
+
+:root.dark .chart-editor {
+  background: #1A1A1A;
+}
+
+:root.dark .chart-type-btn {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #E5E5E5;
+}
+
+:root.dark .chart-type-btn:hover {
+  border-color: #165DFF;
+}
+
+:root.dark .chart-type-btn.selected {
+  background: rgba(22, 93, 255, 0.2);
+  border-color: #165DFF;
+  color: #165DFF;
+}
+
+:root.dark .chart-data-input {
+  background: #0A0A0A;
+  border-color: #333333;
+  color: #F5F5F5;
+}
+
+/* ============================================
+   深色模式 - 版本历史
+   ============================================ */
+
+:root.dark .version-list {
+  background: #0A0A0A;
+}
+
+:root.dark .version-item {
+  background: #1A1A1A;
+  border-color: #333333;
+}
+
+:root.dark .version-item:hover {
+  background: #222222;
+}
+
+:root.dark .version-item.current {
+  background: rgba(22, 93, 255, 0.15);
+  border-color: #165DFF;
+}
+
+:root.dark .version-time {
+  color: #888888;
+}
+
+:root.dark .version-label {
+  color: #E5E5E5;
+}
+
+/* ============================================
+   深色模式 - 主编辑器和动画合成器
+   ============================================ */
+
+:root.dark .master-slide-editor,
+:root.dark .animation-composer {
+  background: #1A1A1A;
+}
+
+:root.dark .master-slide-preview {
+  background: #0A0A0A;
+  border-color: #333333;
+}
+
+:root.dark .animation-timeline {
+  background: #0A0A0A;
+  border-color: #333333;
+}
+
+:root.dark .timeline-track {
+  background: #333333;
+}
+
+:root.dark .timeline-keyframe {
+  background: #165DFF;
+}
+
+/* ============================================
+   深色模式 - AR/VR 模式
+   ============================================ */
+
+:root.dark .arvr-container {
+  background: #000000;
+}
+
+:root.dark .arvr-controls {
+  background: rgba(26, 26, 26, 0.9);
+  border-color: #333333;
+}
+
+/* ============================================
+   深色模式 - 录音面板
+   ============================================ */
+
+:root.dark .recording-panel {
+  background: #1A1A1A;
+}
+
+:root.dark .recording-status {
+  color: #F5F5F5;
+}
+
+:root.dark .recording-time {
+  color: #FF3B30;
+}
+
+:root.dark .recording-waveform {
+  background: #0A0A0A;
+}
+
+:root.dark .waveform-bar {
+  background: #165DFF;
+}
+
+/* ============================================
+   深色模式 - 深色模式专用的全局 CSS 变量
+   ============================================ */
+
+:root.dark {
+  /* 确保所有主要背景和文字颜色正确 */
+  --bg-primary: #0A0A0A;
+  --bg-secondary: #1A1A1A;
+  --bg-tertiary: #2A2A2A;
+  --text-primary: #F5F5F5;
+  --text-secondary: #AAAAAA;
+  --text-muted: #888888;
+  --border-color: #333333;
+  --border-light: #444444;
+  
+  /* 覆盖表单元素的背景图片（箭头图标） */
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
+:root.dark select {
+  background-image: var(--select-arrow);
+}
+
 /* 重置 */
 *,
 *::before,

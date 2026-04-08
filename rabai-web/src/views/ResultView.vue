@@ -2368,7 +2368,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import { useClipboardAndContent } from '../composables/useClipboardAndContent'
@@ -2378,7 +2378,6 @@ import { usePresentationAnalytics, startViewSession, endViewSession, trackScroll
 import { initNetworkQuality, getNetworkQuality } from '../composables/useNetworkQuality'
 import { useI18n, LOCALES, detectLanguage, RTL_LOCALES } from '../composables/useI18n'
 import { useSlideRenderCache } from '../composables/useSlideRenderCache'
-import { ref, shallowRef } from 'vue'
 
 // Dynamic imports for heavy components to enable better code splitting
 const PresentationMode = defineAsyncComponent(() => import('../components/PresentationMode.vue'))
