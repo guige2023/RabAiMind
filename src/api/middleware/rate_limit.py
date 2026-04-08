@@ -332,16 +332,15 @@ def get_user_id_from_request(request: Request) -> str:
     """
     Extract user_id from request.
     Priority:
-    1. X-User-ID header (for authenticated clients)
-    2. Authorization header (JWT Bearer token)
-    3. X-Forwarded-For / X-Real-IP (IP-based fallback)
+    1. Authorization header (JWT Bearer token) - primary authentication
+    2. X-User-ID header - only for trusted internal/debug requests
+    3. X-Forwarded-For / X-Real-IP - IP-based fallback (rate limiting only)
     """
-    # Check X-User-ID header first
-    user_id = request.headers.get("X-User-ID")
-    if user_id:
-        return user_id
-
-    # Try Authorization header
+    import os
+    # Debug mode check - only trust X-User-ID in trusted environments
+    is_trusted = os.getenv("RABAIMIND_TRUSTED_IP", "false").lower() == "true"
+    
+    # Try Authorization header first (JWT is authenticated)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         try:
@@ -353,7 +352,13 @@ def get_user_id_from_request(request: Request) -> str:
         except Exception:
             pass
 
-    # Fallback to IP
+    # X-User-ID only trusted in debug/trusted mode (not for production)
+    if is_trusted:
+        user_id = request.headers.get("X-User-ID")
+        if user_id:
+            return user_id
+
+    # Fallback to IP (least trusted, only for rate limiting)
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         ip = forwarded.split(",")[0].strip()

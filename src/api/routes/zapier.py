@@ -298,7 +298,7 @@ async def action_generate_ppt(
     await verify_api_key(x_api_key)
     body = await request.json()
     # 转发到主 API
-    from ...api.routes.ppt import router as ppt_router
+    from ...api.routes.ppt_routes import router as ppt_router
     # 简化：返回 task_id，实际转发逻辑在主 API
     return {
         "task_id": f"zapier_{int(time.time())}",

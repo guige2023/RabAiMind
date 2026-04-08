@@ -2371,8 +2371,18 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
-import PresentationMode from '../components/PresentationMode.vue'
-import ARVRMode from '../components/ARVRMode.vue'
+import { useClipboardAndContent } from '../composables/useClipboardAndContent'
+import { useCollaboration } from '../composables/useCollaboration'
+import { usePushNotification } from '../composables/usePushNotification'
+import { usePresentationAnalytics, startViewSession, endViewSession, trackScrollDepth, setupScrollTracking } from '../composables/usePresentationAnalytics'
+import { initNetworkQuality, getNetworkQuality } from '../composables/useNetworkQuality'
+import { useI18n, LOCALES, detectLanguage, RTL_LOCALES } from '../composables/useI18n'
+import { useSlideRenderCache } from '../composables/useSlideRenderCache'
+import { ref, shallowRef } from 'vue'
+
+// Dynamic imports for heavy components to enable better code splitting
+const PresentationMode = defineAsyncComponent(() => import('../components/PresentationMode.vue'))
+const ARVRMode = defineAsyncComponent(() => import('../components/ARVRMode.vue'))
 // Result view sub-components
 import SlidePreviewPanel from '../components/result/SlidePreviewPanel.vue'
 import SlideActionsPanel from '../components/result/SlideActionsPanel.vue'

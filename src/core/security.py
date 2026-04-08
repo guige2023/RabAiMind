@@ -392,7 +392,8 @@ class E2EEncryptionManager:
         from cryptography.hazmat.backends import default_backend
         import base64
 
-        salt = b"RabAiMind_E2E_v1"  # Static salt (token is already random)
+        import secrets
+        salt = secrets.token_bytes(16)  # Random salt for key derivation
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,

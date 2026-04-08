@@ -44,8 +44,11 @@ class MemoryCache<T> {
   }
 }
 
-// Create cache instance
-export const apiCache = new MemoryCache<any>()
+// Cache value type - using unknown for safety
+type CacheValue = unknown
+
+// Create cache instance with unknown type for API responses
+export const apiCache = new MemoryCache<CacheValue>()
 
 // Cleanup cache every 5 minutes
 setInterval(() => {
@@ -131,7 +134,7 @@ class IndexedDBCache {
     return this.db!
   }
 
-  async set(key: string, value: any, ttl?: number): Promise<void> {
+  async set(key: string, value: unknown, ttl?: number): Promise<void> {
     const db = await this.getDB()
     return new Promise((resolve, reject) => {
       const transaction = db.transaction('cache', 'readwrite')

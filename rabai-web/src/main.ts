@@ -1,10 +1,12 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import './styles/main.css'
 import './styles/mobile.css'
 import { initDeviceMode } from './composables/useDeviceMode'
 import { applyAccessibilityEarly } from './composables/useAccessibility'
+import { useSettingsStore } from './stores'
 
 const routes = [
   { path: '/', name: 'home', component: () => import('./views/HomeView.vue') },
@@ -32,8 +34,16 @@ const router = createRouter({
 applyAccessibilityEarly()
 
 const app = createApp(App)
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
+
 app.mount('#app')
+
+// Initialize settings store after app is mounted
+const settingsStore = useSettingsStore()
+settingsStore.applyTheme()
+settingsStore.applyAccessibilitySettings()
 
 // Initialize device mode detection early
 initDeviceMode()

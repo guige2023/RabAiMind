@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios'
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 import apiErrors from '../utils/apiErrors'
 import { apiCache, cacheKeys } from '../utils/cache'
 import type {
@@ -12,7 +12,57 @@ import type {
   Scene,
   Style,
   OutlineSaveData,
-  APIClient
+  APIClient,
+  // Additional types for eliminating 'any'
+  SlideAnnotation,
+  Checkpoint,
+  Version,
+  ActionLogEntry,
+  UndoStackEntry,
+  TimelineEntry,
+  CollabLock,
+  DiffResult,
+  MergeConflict,
+  AutoVersion,
+  ChangeDetails,
+  ChartAnnotation,
+  ColumnInfo,
+  TablePreview,
+  StickyNote,
+  ActivityEntry,
+  SuggestEdit,
+  VersionTag,
+  OutlineRevision,
+  ABTESTVariant,
+  ABTestResult,
+  SlideHistoryEntry,
+  Improvement,
+  AutoSaveState,
+  BackupInfo,
+  MasterSlide,
+  CustomTheme,
+  SecurityConfig,
+  DataSource,
+  ThresholdAlert,
+  TriggeredAlert,
+  Collaborator,
+  ShareLink,
+  AccessRequest,
+  ShortUrl,
+  Beacon,
+  Reminder,
+  Schedule,
+  SearchAnalytics,
+  Review,
+  Bundle,
+  EmailConfig,
+  VoiceResult,
+  TranslationResult,
+  TTSBatchResult,
+  SOC2Info,
+  CustomRole,
+  SSOProvider,
+  PresentationState
 } from '../utils/types'
 
 const { classifyError } = apiErrors
@@ -30,13 +80,13 @@ const CACHEABLE_PATTERNS = [
 ]
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000  // 5 minutes
 
-const isCacheable = (config: any): boolean => {
+const isCacheable = (config: AxiosRequestConfig): boolean => {
   if (!CACHEABLE_METHODS.includes(config.method?.toLowerCase())) return false
   const url = config.url || ''
   return CACHEABLE_PATTERNS.some(pattern => url.includes(pattern))
 }
 
-const getCacheKey = (config: any): string => {
+const getCacheKey = (config: AxiosRequestConfig): string => {
   const url = config.url || ''
   const params = config.params ? JSON.stringify(config.params) : ''
   return `api_${url}_${params}`
@@ -72,11 +122,11 @@ const createApiClient = (): AxiosInstance => {
         const cached = apiCache.get(key)
         if (cached !== null) {
           // Return cached data as a fake response
-          return Promise.resolve({
-            ...config,
-            cached: true,
-            __cachedResponse: cached
-          } as any)
+          // Use type assertion to extend AxiosRequestConfig with cache metadata
+          const cachedConfig = config as AxiosRequestConfig & { cached: boolean; __cachedResponse: unknown }
+          cachedConfig.cached = true
+          cachedConfig.__cachedResponse = cached
+          return Promise.resolve(cachedConfig)
         }
       }
       return config
@@ -228,7 +278,7 @@ export const api: APIClient = {
       return apiClient.post('/ppt/outline/commit', data)
     },
 
-    getOutline: (taskId: string): Promise<AxiosResponse<any>> => {
+    getOutline: (taskId: string): Promise<AxiosResponse<OutlineRevision>> => {
       return apiClient.get(`/ppt/outline/${taskId}`)
     },
 
@@ -279,10 +329,10 @@ export const api: APIClient = {
       // R62 新参数
       themeId?: string
       showTrendLine?: boolean
-      annotations?: Array<{ type: string; x: number; y: number; text: string; color: string }>
+      annotations?: ChartAnnotation[]
     }): Promise<AxiosResponse<{
       success: boolean
-      columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: any[] }
+      columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: TablePreview }
       charts: Array<{ index: number; svg_path: string; label_col: string; value_col: string; chart_type: string; theme_id?: string }>
       svg_urls: string[]
     }>> => {
@@ -305,7 +355,7 @@ export const api: APIClient = {
     // 预览图表列信息
     previewChart: (taskId: string, file: File): Promise<AxiosResponse<{
       success: boolean
-      columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: any[] }
+      columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: TablePreview }
     }>> => {
       const formData = new FormData()
       formData.append('file', file)
@@ -315,11 +365,11 @@ export const api: APIClient = {
     },
 
     // 版本管理
-    listVersions: (taskId: string): Promise<AxiosResponse<{ success: boolean; versions: Array<{ version_id: string; name: string; created_at: string; slide_count: number; tags?: string[]; branch_id?: string; branched_from?: string; auto_created?: boolean; auto_type?: string }> }>> => {
+    listVersions: (taskId: string): Promise<AxiosResponse<{ success: boolean; versions: Version[] }>> => {
       return apiClient.get(`/ppt/versions/${taskId}`)
     },
 
-    getVersion: (taskId: string, versionId: string): Promise<AxiosResponse<{ success: boolean; version: any }>> => {
+    getVersion: (taskId: string, versionId: string): Promise<AxiosResponse<{ success: boolean; version: Version }>> => {
       return apiClient.get(`/ppt/versions/${taskId}/${versionId}`)
     },
 
@@ -327,7 +377,7 @@ export const api: APIClient = {
       return apiClient.post(`/ppt/versions/${taskId}/${versionId}/rollback`)
     },
 
-    diffVersions: (taskId: string, versionA: string, versionB: string): Promise<AxiosResponse<{ success: boolean; version_a: string; version_b: string; diff: any[]; total_changes: number }>> => {
+    diffVersions: (taskId: string, versionA: string, versionB: string): Promise<AxiosResponse<DiffResult>> => {
       return apiClient.get(`/ppt/versions/${taskId}/diff`, {
         params: { version_a: versionA, version_b: versionB }
       })
@@ -340,14 +390,14 @@ export const api: APIClient = {
     },
 
     // 操作日志
-    getActionLog: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; action_log: Array<{ action_type: string; description: string; timestamp: string; undo_data?: any }> }>> => {
+    getActionLog: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; action_log: ActionLogEntry[] }>> => {
       return apiClient.get(`/ppt/action_log/${taskId}`, {
         params: { limit }
       })
     },
 
     // 撤销栈
-    getUndoStack: (taskId: string): Promise<AxiosResponse<{ success: boolean; undo_stack: Array<{ action_type: string; description: string; timestamp: string; undo_data?: any }> }>> => {
+    getUndoStack: (taskId: string): Promise<AxiosResponse<{ success: boolean; undo_stack: UndoStackEntry[] }>> => {
       return apiClient.get(`/ppt/undo_stack/${taskId}`)
     },
 
@@ -360,12 +410,12 @@ export const api: APIClient = {
       return apiClient.post(`/ppt/redo/${taskId}`)
     },
 
-    getRedoStack: (taskId: string): Promise<AxiosResponse<{ success: boolean; redo_stack: Array<{ action_type: string; description: string; timestamp: string; undo_data?: any }> }>> => {
+    getRedoStack: (taskId: string): Promise<AxiosResponse<{ success: boolean; redo_stack: UndoStackEntry[] }>> => {
       return apiClient.get(`/ppt/redo_stack/${taskId}`)
     },
 
     // 高级撤销/重做
-    getActionTimeline: (taskId: string, limit = 100): Promise<AxiosResponse<{ success: boolean; timeline: Array<{ action_id: string; action_type: string; description: string; timestamp: string; undo_data?: any; branch_id?: string }> }>> => {
+    getActionTimeline: (taskId: string, limit = 100): Promise<AxiosResponse<{ success: boolean; timeline: TimelineEntry[] }>> => {
       return apiClient.get(`/ppt/timeline/${taskId}`, { params: { limit } })
     },
 
@@ -374,11 +424,11 @@ export const api: APIClient = {
     },
 
     // 检查点系统
-    createCheckpoint: (taskId: string, name?: string, checkpointType = 'auto'): Promise<AxiosResponse<{ success: boolean; checkpoint_id: string; checkpoint?: any }>> => {
+    createCheckpoint: (taskId: string, name?: string, checkpointType = 'auto'): Promise<AxiosResponse<{ success: boolean; checkpoint_id: string; checkpoint: Checkpoint }>> => {
       return apiClient.post(`/ppt/checkpoints/${taskId}`, null, { params: { name, checkpoint_type: checkpointType } })
     },
 
-    getCheckpoints: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; checkpoints: Array<any> }>> => {
+    getCheckpoints: (taskId: string, limit = 20): Promise<AxiosResponse<{ success: boolean; checkpoints: Checkpoint[] }>> => {
       return apiClient.get(`/ppt/checkpoints/${taskId}`, { params: { limit } })
     },
 
@@ -395,7 +445,7 @@ export const api: APIClient = {
       return apiClient.delete(`/ppt/collaborative-lock/${taskId}`, { params: { user_id: userId, slide_index: slideIndex } })
     },
 
-    getCollaborativeLocks: (taskId: string): Promise<AxiosResponse<{ success: boolean; locks: Record<string, any> }>> => {
+    getCollaborativeLocks: (taskId: string): Promise<AxiosResponse<{ success: boolean; locks: Record<string, CollabLock> }>> => {
       return apiClient.get(`/ppt/collaborative-locks/${taskId}`)
     },
 
@@ -403,7 +453,7 @@ export const api: APIClient = {
       return apiClient.post(`/ppt/versions/${taskId}/${versionId}/branch`, null, { params: { name } })
     },
 
-    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy = 'branch_wins', slideResolutions?: Record<number, string>): Promise<AxiosResponse<{ success: boolean; version_id?: string; merged_from: string; merged_to: string; strategy: string; has_conflicts?: boolean; conflicts?: any[]; conflict_count?: number; requires_resolution?: boolean; message?: string; merged_slide_count?: number }>> => {
+    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy = 'branch_wins', slideResolutions?: Record<number, string>): Promise<AxiosResponse<{ success: boolean; version_id?: string; merged_from: string; merged_to: string; strategy: string; has_conflicts?: boolean; conflicts?: MergeConflict[]; conflict_count?: number; requires_resolution?: boolean; message?: string; merged_slide_count?: number }>> => {
       return apiClient.post(`/ppt/versions/${taskId}/merge`, {
         source_version_id: sourceVersionId,
         target_version_id: targetVersionId,
@@ -430,11 +480,11 @@ export const api: APIClient = {
       return apiClient.get(`/ppt/versions/${taskId}/auto-version/status`)
     },
 
-    recordSignificantChange: (taskId: string): Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_recorded_at?: string; auto_version: any }>> => {
+    recordSignificantChange: (taskId: string): Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_recorded_at?: string; auto_version: AutoVersion }>> => {
       return apiClient.post(`/ppt/versions/${taskId}/significant-change/record`)
     },
 
-    detectSignificantChange: (taskId: string, oldState: any, newState: any): Promise<AxiosResponse<{ significant: boolean; reasons: string[]; change_details: any }>> => {
+    detectSignificantChange: (taskId: string, oldState: PresentationState, newState: PresentationState): Promise<AxiosResponse<{ significant: boolean; reasons: string[]; change_details: ChangeDetails }>> => {
       return apiClient.post(`/ppt/versions/${taskId}/significant-change/detect`, oldState, { params: { new_state: newState } })
     },
 
@@ -443,15 +493,15 @@ export const api: APIClient = {
     },
 
     // ========== A/B Testing ==========
-    createABTest: (taskId: string, slideIndex: number, variantCount = 2): Promise<AxiosResponse<{ success: boolean; test_id: string; variants: any[] }>> => {
+    createABTest: (taskId: string, slideIndex: number, variantCount = 2): Promise<AxiosResponse<{ success: boolean; test_id: string; variants: ABTESTVariant[] }>> => {
       return apiClient.post(`/ppt/ab_test/${taskId}`, null, { params: { slide_index: slideIndex, variant_count: variantCount } })
     },
 
-    listABTests: (taskId: string): Promise<AxiosResponse<{ success: boolean; tests: any[] }>> => {
+    listABTests: (taskId: string): Promise<AxiosResponse<{ success: boolean; tests: ABTestResult[] }>> => {
       return apiClient.get(`/ppt/ab_test/${taskId}`)
     },
 
-    getABTest: (taskId: string, testId: string): Promise<AxiosResponse<{ success: boolean; test: any }>> => {
+    getABTest: (taskId: string, testId: string): Promise<AxiosResponse<{ success: boolean; test: ABTestResult }>> => {
       return apiClient.get(`/ppt/ab_test/${taskId}/${testId}`)
     },
 
@@ -472,20 +522,20 @@ export const api: APIClient = {
     },
 
     // ========== Slide Version History ==========
-    getSlideHistory: (taskId: string, slideIndex: number): Promise<AxiosResponse<{ success: boolean; history: any[] }>> => {
+    getSlideHistory: (taskId: string, slideIndex: number): Promise<AxiosResponse<{ success: boolean; history: SlideHistoryEntry[] }>> => {
       return apiClient.get(`/ppt/slide_history/${taskId}/${slideIndex}`)
     },
 
     // ========== Suggest Improvements ==========
-    suggestImprovements: (taskId: string): Promise<AxiosResponse<{ success: boolean; suggestions: any[]; total_slides: number; suggestion_count: number }>> => {
+    suggestImprovements: (taskId: string): Promise<AxiosResponse<{ success: boolean; suggestions: Improvement[]; total_slides: number; suggestion_count: number }>> => {
       return apiClient.get(`/ppt/suggest_improve/${taskId}`)
     },
 
-    autoSave: (taskId: string, state: any): Promise<AxiosResponse<{ success: boolean; saved_at: string }>> => {
+    autoSave: (taskId: string, state: PresentationState): Promise<AxiosResponse<{ success: boolean; saved_at: string }>> => {
       return apiClient.post(`/ppt/autosave/${taskId}`, state)
     },
 
-    getAutoSave: (taskId: string): Promise<AxiosResponse<{ success: boolean; state?: any; saved_at?: string; message?: string }>> => {
+    getAutoSave: (taskId: string): Promise<AxiosResponse<{ success: boolean; state?: PresentationState; saved_at?: string; message?: string }>> => {
       return apiClient.get(`/ppt/autosave/${taskId}`)
     },
 

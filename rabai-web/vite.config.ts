@@ -31,23 +31,45 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // Vue core - keep together
           if (id.includes('node_modules/vue') ||
               id.includes('node_modules/vue-router') ||
               id.includes('node_modules/pinia')) {
             return 'vue-vendor'
           }
+          // Three.js and its addons (AR/VR feature) - separate chunk
+          if (id.includes('node_modules/three') ||
+              id.includes('node_modules/three/')) {
+            return 'three-vendor'
+          }
+          // MediaPipe for hand gesture detection
+          if (id.includes('node_modules/@mediapipe')) {
+            return 'mediapipe-vendor'
+          }
+          // Tesseract.js for OCR - separate chunk
+          if (id.includes('node_modules/tesseract.js') ||
+              id.includes('node_modules/tesseract.js/')) {
+            return 'tesseract-vendor'
+          }
+          // Tauri APIs
+          if (id.includes('node_modules/@tauri-apps')) {
+            return 'tauri-vendor'
+          }
+          // VueUse utilities
+          if (id.includes('node_modules/@vueuse/core')) {
+            return 'vueuse-vendor'
+          }
+          // Chart.js
           if (id.includes('node_modules/chart.js') ||
               id.includes('node_modules/vue-chartjs')) {
             return 'charts'
           }
+          // Quill editor
           if (id.includes('node_modules/@vueup/vue-quill') ||
               id.includes('node_modules/quill')) {
             return 'editor'
           }
-          if (id.includes('node_modules/@vueuse') ||
-              id.includes('node_modules/naive-ui')) {
-            return 'vendor-ui'
-          }
+          // Remaining vendor modules (should be minimal)
           if (id.includes('node_modules')) {
             return 'vendor-other'
           }

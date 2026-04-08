@@ -4,7 +4,7 @@
 """
 import time
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from pathlib import Path
@@ -73,7 +73,7 @@ async def search_templates(
     q: str = "",
     category: Optional[str] = None,
     style: Optional[str] = None,
-    limit: int = Field(default=20, ge=1, le=100, description="返回数量限制")
+    limit: int = 20
 ):
     """
     搜索模板
@@ -255,12 +255,12 @@ async def get_template(template_id: str):
 
 @router.post("/upload")
 async def upload_template(
-    name: str = Field(..., min_length=1, max_length=100, description="模板名称"),
-    description: str = Field(..., min_length=1, max_length=500, description="模板描述"),
-    scene: str = Field(default="business", description="适用场景"),
-    style: str = Field(default="professional", description="风格"),
-    visibility: str = Field(default="private", description="可见性: private/public"),
-    file: UploadFile = File(None),
+    name: str = Form(..., min_length=1, max_length=100),
+    description: str = Form(..., min_length=1, max_length=500),
+    scene: str = Form(default="business"),
+    style: str = Form(default="professional"),
+    visibility: str = Form(default="private"),
+    file: UploadFile = File(...),
 ):
     """
     用户上传自己的模板

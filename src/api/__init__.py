@@ -7,7 +7,7 @@ API 路由初始化
 """
 
 from fastapi import APIRouter
-from .routes.ppt import router as ppt_router
+from .routes.ppt_routes import router as ppt_router
 from .routes.template import router as template_router
 from .routes.favorites import router as favorites_router
 from .routes.images import router as images_router

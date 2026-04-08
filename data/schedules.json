@@ -52,13 +52,14 @@
     "status": "active",
     "created_at": 1775314744.55679,
     "updated_at": 1775314744.55679,
-    "last_run_at": 1775437200.16692,
+    "last_run_at": 1775610000.420552,
     "next_run_at": 1775350800.0,
-    "run_count": 2,
+    "run_count": 3,
     "user_id": null,
     "task_ids": [
       "b2a67edc-61d6-484d-b5b4-19d5fe0072d5",
-      "b8f8275f-1618-4d0c-bec9-4f8a514ab57f"
+      "b8f8275f-1618-4d0c-bec9-4f8a514ab57f",
+      "c9ca8300-0756-49bb-8716-ffb41f167efd"
     ],
     "webhook_event": null
   }
