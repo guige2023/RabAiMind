@@ -63,13 +63,16 @@ class AuthManager:
             self._load_config()
     
     def _load_config(self):
-        auth_enabled = os.getenv("API_AUTH_ENABLED", "false").lower() == "true"
+        # P0 Fix: 强制启用认证，不再允许通过环境变量关闭
+        auth_enabled = True  # 始终启用认证
         jwt_secret = os.getenv("JWT_SECRET", "")
         api_key = os.getenv("API_KEY", "")
         
         if auth_enabled and not jwt_secret:
-            logger.warning("认证已启用但 JWT_SECRET 未设置，使用随机密钥（不安全）")
-            jwt_secret = secrets.token_hex(32)
+            raise ValueError(
+                "JWT_SECRET 环境变量未设置。请在 .env 中配置 JWT_SECRET（认证已启用）。"
+                "示例: JWT_SECRET=$(openssl rand -hex 32)"
+            )
         
         self._config = AuthConfig(
             auth_enabled=auth_enabled,

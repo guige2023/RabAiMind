@@ -152,22 +152,24 @@ class AIAnalysisService:
         Returns:
             文档分析结果
         """
-        # 保存到临时文件
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=os.path.splitext(file_name)[1]
-        ) as tmp:
-            tmp.write(file_content)
-            tmp_path = tmp.name
-
+        tmp_path = None
         try:
+            # 保存到临时文件
+            with tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=os.path.splitext(file_name)[1]
+            ) as tmp:
+                tmp_path = tmp.name
+                tmp.write(file_content)
+
             return self.analyzer.analyze_document(tmp_path)
         finally:
             # 清理临时文件
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
 
     def generate_outline(
         self,

@@ -54,14 +54,9 @@ from ...api.middleware.rate_limit import (
 # 创建路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])
 
-# Import and include routers from split modules
-from .chart_routes import router as chart_router
-from .template_routes import router as template_router
-from .export_routes import router as export_router
-
-router.include_router(chart_router)
-router.include_router(template_router)
-router.include_router(export_router)
+# Note: chart_routes, template_routes, and export_routes are now registered
+# directly in src/api/__init__.py (api_router) to avoid duplicate route registration.
+# Do NOT include them here - that would create /api/v1/ppt/ppt/chart/... paths.
 
 
 def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:

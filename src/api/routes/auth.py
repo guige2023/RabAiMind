@@ -8,7 +8,8 @@ from fastapi import HTTPException, Security
 from fastapi.security import APIKeyHeader
 
 API_KEY = os.getenv("API_KEY", "")
-AUTH_ENABLED = os.getenv("API_AUTH_ENABLED", "false").lower() == "true"
+# P0 Fix: 强制启用认证，不再允许通过环境变量关闭
+AUTH_ENABLED = True
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

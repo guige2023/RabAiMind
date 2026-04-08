@@ -80,7 +80,8 @@ class Settings(BaseSettings):
     # ========== API 服务配置 ==========
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    API_AUTH_ENABLED: bool = False
+    # P0 Fix: 强制开启认证（当 JWT_SECRET 已配置时自动启用，生产模式不可禁用）
+    API_AUTH_ENABLED: bool = Field(default=True)  # 不再允许通过环境变量关闭
     API_KEY: Optional[str] = None
     VERSION: str = "1.0.0"
     JWT_SECRET: str = Field(default="")

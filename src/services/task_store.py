@@ -13,10 +13,11 @@ import time
 import logging
 import threading
 import uuid
+import json
 from typing import Dict, Any, Optional, List
 
 from ..utils import generate_task_id, get_timestamp, ensure_dir
-from ..config import settings
+from ..config import settings, get_redis_url
 from ..constants import (
     MAX_TASKS,
     MAX_COMPLETED_CLEANUP,
@@ -35,20 +36,146 @@ class TaskStore:
     - Retrieving tasks by ID
     - Managing task lifecycle (history, sync)
     - Capacity management and cleanup
+    - Redis-backed persistence for crash recovery
     """
 
+    # Redis key prefix for task storage
+    _REDIS_TASK_PREFIX = "task:"
+    _REDIS_ALL_TASKS_KEY = "tasks:all_ids"
+    _REDIS_SYNC_LOCK_KEY = "tasks:sync_lock"
+
     def __init__(self):
-        self.tasks: Dict[str, Dict] = {}
+        self._memory_tasks: Dict[str, Dict] = {}  # Local cache
         self._task_lock = threading.Lock()
         self._cleanup_counter: int = 0
         self._cleanup_interval: int = 10
         self._max_task_age_minutes: int = MAX_TASK_AGE_MINUTES
         self._sync_service: HistorySyncService = get_history_sync_service()
         self._sync_initialized: bool = False
+        self._redis_client = None
+        self._redis_enabled = False
+        self._persist_thread: Optional[threading.Thread] = None
+        self._persist_stop_event = threading.Event()
         ensure_dir(settings.OUTPUT_DIR)
+
+        # Initialize Redis connection
+        self._init_redis()
 
         # Start cloud restore on initialization
         self._try_cloud_restore()
+
+        # Start periodic persistence thread
+        self._start_periodic_persist()
+
+    def _init_redis(self) -> None:
+        """Initialize Redis connection for task persistence."""
+        try:
+            import redis
+            redis_url = get_redis_url()
+            if redis_url:
+                self._redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5
+                )
+                # Test connection
+                self._redis_client.ping()
+                self._redis_enabled = True
+                logger.info(f"[TaskStore] Redis connected: {redis_url}")
+            else:
+                logger.warning("[TaskStore] Redis URL not configured, using memory-only storage")
+        except Exception as e:
+            logger.warning(f"[TaskStore] Redis connection failed: {e}, using memory-only storage")
+            self._redis_client = None
+            self._redis_enabled = False
+
+    def _start_periodic_persist(self) -> None:
+        """Start background thread for periodic Redis persistence."""
+        if not self._redis_enabled:
+            return
+        self._persist_stop_event.clear()
+        self._persist_thread = threading.Thread(
+            target=self._periodic_persist_worker,
+            daemon=True,
+            name="TaskStore-Persist"
+        )
+        self._persist_thread.start()
+        logger.info("[TaskStore] Periodic persistence thread started")
+
+    def _periodic_persist_worker(self) -> None:
+        """Background worker that periodically syncs tasks to Redis."""
+        while not self._persist_stop_event.wait(timeout=30):  # Sync every 30 seconds
+            try:
+                self._sync_all_to_redis()
+            except Exception as e:
+                logger.warning(f"[TaskStore] Periodic persist failed: {e}")
+
+    def _sync_all_to_redis(self) -> int:
+        """Sync all in-memory tasks to Redis. Returns count of synced tasks."""
+        if not self._redis_enabled:
+            return 0
+        count = 0
+        with self._task_lock:
+            task_ids = list(self._memory_tasks.keys())
+        for task_id in task_ids:
+            try:
+                with self._task_lock:
+                    task = self._memory_tasks.get(task_id)
+                if task:
+                    self._redis_client.hset(
+                        self._REDIS_TASK_PREFIX + task_id,
+                        mapping={"data": json.dumps(task)}
+                    )
+                    count += 1
+            except Exception as e:
+                logger.warning(f"[TaskStore] Failed to persist task {task_id}: {e}")
+        if count > 0:
+            logger.debug(f"[TaskStore] Persisted {count} tasks to Redis")
+        return count
+
+    def _load_from_redis(self) -> Dict[str, Dict]:
+        """Load all tasks from Redis into memory cache."""
+        if not self._redis_enabled:
+            return {}
+        result = {}
+        try:
+            keys = self._redis_client.keys(self._REDIS_TASK_PREFIX + "*")
+            for key in keys:
+                task_id = key.replace(self._REDIS_TASK_PREFIX, "")
+                data = self._redis_client.hget(key, "data")
+                if data:
+                    try:
+                        result[task_id] = json.loads(data)
+                    except json.JSONDecodeError:
+                        logger.warning(f"[TaskStore] Invalid JSON for task {task_id}")
+        except Exception as e:
+            logger.warning(f"[TaskStore] Failed to load from Redis: {e}")
+        return result
+
+    def _restore_from_redis(self) -> None:
+        """Restore tasks from Redis on startup."""
+        if not self._redis_enabled:
+            return
+        try:
+            redis_tasks = self._load_from_redis()
+            with self._task_lock:
+                for task_id, task_data in redis_tasks.items():
+                    if task_id not in self._memory_tasks:
+                        self._memory_tasks[task_id] = task_data
+            if redis_tasks:
+                logger.info(f"[TaskStore] Restored {len(redis_tasks)} tasks from Redis")
+        except Exception as e:
+            logger.warning(f"[TaskStore] Redis restore failed: {e}")
+
+    # ─── Property-based task access (for backward compatibility) ────────────────
+
+    @property
+    def tasks(self) -> Dict[str, Dict]:
+        """Return the in-memory tasks dict for backward compatibility."""
+        return self._memory_tasks
+
+    # ─── Core task operations ───────────────────────────────────────────────────
 
     def create_task(
         self,
@@ -156,23 +283,39 @@ class TaskStore:
             return dict(self.tasks)
 
     def force_sync_all(self) -> int:
-        """Force sync all current tasks to cloud storage.
+        """Force sync all current tasks to Redis and cloud storage.
 
         Returns:
             Number of tasks successfully synced.
         """
         count = 0
         with self._task_lock:
-            task_ids = list(self.tasks.keys())
+            task_ids = list(self._memory_tasks.keys())
 
+        # First, sync all to Redis
         for task_id in task_ids:
             with self._task_lock:
-                task = self.tasks.get(task_id)
+                task = self._memory_tasks.get(task_id)
+            if task and self._redis_enabled:
+                try:
+                    self._redis_client.hset(
+                        self._REDIS_TASK_PREFIX + task_id,
+                        mapping={"data": json.dumps(task)}
+                    )
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"[TaskStore] Redis sync failed for {task_id}: {e}")
+
+        # Then, sync to cloud (OSS) via HistorySyncService
+        cloud_count = 0
+        for task_id in task_ids:
+            with self._task_lock:
+                task = self._memory_tasks.get(task_id)
             if task:
                 if self._sync_service.push_task(task_id, task):
-                    count += 1
+                    cloud_count += 1
 
-        return count
+        return count if count > 0 else cloud_count
 
     def save_outline(self, task_id: str, outline: Dict) -> None:
         """Save presentation outline to a task.
@@ -228,8 +371,14 @@ class TaskStore:
             True if deleted, False if not found.
         """
         with self._task_lock:
-            if task_id in self.tasks:
-                del self.tasks[task_id]
+            if task_id in self._memory_tasks:
+                del self._memory_tasks[task_id]
+                # Also delete from Redis
+                if self._redis_enabled:
+                    try:
+                        self._redis_client.delete(self._REDIS_TASK_PREFIX + task_id)
+                    except Exception as e:
+                        logger.warning(f"[TaskStore] Redis delete failed for {task_id}: {e}")
                 return True
             return False
 
@@ -260,15 +409,19 @@ class TaskStore:
             logger.info(f"[TaskStore] Lazy cleanup removed {len(tasks_to_delete)} expired tasks")
 
     def _try_cloud_restore(self) -> None:
-        """Attempt to restore tasks from cloud storage on startup."""
+        """Attempt to restore tasks from Redis first, then cloud storage on startup."""
         try:
             if not self._sync_initialized:
+                # First, restore from Redis (fast local recovery)
+                self._restore_from_redis()
+
+                # Then, try cloud restore for multi-device sync
                 tasks = self._sync_service.pull_all_tasks()
                 if tasks:
                     with self._task_lock:
                         for task_id, task_data in tasks.items():
-                            if task_id not in self.tasks:
-                                self.tasks[task_id] = task_data
+                            if task_id not in self._memory_tasks:
+                                self._memory_tasks[task_id] = task_data
                     logger.info(f"[TaskStore] Restored {len(tasks)} tasks from cloud")
                 self._sync_initialized = True
         except Exception as e:

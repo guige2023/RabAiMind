@@ -9,253 +9,87 @@
           <p class="result-desc">你的演示文稿已准备就绪</p>
 
           <!-- 文件信息 -->
-          <div class="file-info">
-            <div class="info-item">
-              <span class="info-label">幻灯片</span>
-              <span class="info-value">{{ slideCount }} 页</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">文件大小</span>
-              <span class="info-value">{{ fileSize }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">格式</span>
-              <span class="info-value">PPTX</span>
-            </div>
-          </div>
+          <ResultViewStats :slide-count="slideCount" :file-size="fileSize" />
 
           <!-- PPT预览 -->
-          <div class="ppt-preview-section" ref="slidesContainerRef">
-            <!-- Swipe hint (mobile only) -->
-            <div class="swipe-hint" v-if="isMobile && previewSlides.length > 1">
-              <span>👆 左右滑动查看更多</span>
-            </div>
-            <h3 class="preview-title">PPT 预览</h3>
-            <div class="preview-loading" v-if="!previewLoaded">
-              <div class="loading-spinner"></div>
-              <p>加载预览中...</p>
-            </div>
-            <div v-else-if="previewLoadFailed" class="preview-load-failed">
-              <p>预览加载失败</p>
-              <button class="btn btn-sm" @click="loadPreview">🔄 重试</button>
-            </div>
-            <!-- R149: Lazy loading preview grid with IntersectionObserver -->
-            <div class="preview-grid" v-else ref="previewGridRef">
-              <template v-if="previewSlides.length > 0">
-                <div
-                  v-for="(slide, index) in previewSlides.slice(0, 6)"
-                  :key="slide.slideNum"
-                  class="preview-slide"
-                  :ref="el => setupPreviewLazy(el as HTMLElement, slide.slideNum)"
-                  :class="{ 'slide-visible': visiblePreviewSlides.has(slide.slideNum), 'slide-loading': visiblePreviewSlides.has(slide.slideNum) && !loadedPreviews.has(slide.slideNum) }"
-                >
-                  <div class="slide-number-badge">{{ slide.slideNum }}</div>
-                  <!-- R149: Lazy loaded image - only loads when in viewport -->
-                  <img
-                    v-if="visiblePreviewSlides.has(slide.slideNum)"
-                    :src="getCachedPreviewUrl(slide)"
-                    :alt="`第 ${slide.slideNum} 页`"
-                    class="preview-image"
-                    :class="{ 'image-loaded': loadedPreviews.has(slide.slideNum) }"
-                    @load="onPreviewLoaded(slide.slideNum)"
-                    @error="onPreviewError($event, slide.slideNum)"
-                  />
-                  <!-- Placeholder while not in viewport or loading -->
-                  <div v-else class="preview-image-placeholder">
-                    <div class="preview-skeleton"></div>
-                  </div>
-                  <!-- Loading spinner overlay -->
-                  <div v-if="visiblePreviewSlides.has(slide.slideNum) && !loadedPreviews.has(slide.slideNum) && !previewErrors.has(slide.slideNum)" class="preview-loading-overlay">
-                    <div class="loading-spinner small"></div>
-                  </div>
-                  <!-- BUG修复: 图片加载失败时显示占位符 -->
-                  <div v-if="previewErrors.has(slide.slideNum)" class="preview-error">
-                    <span>加载失败</span>
-                  </div>
-                  <div class="slide-actions">
-                    <button
-                      class="btn btn-sm btn-regenerate"
-                      @click="regenerateSingleSlide(index)"
-                      :disabled="regeneratingSlideIndex === index"
-                      :aria-label="`重生成第${slide.slideNum}页`"
-                    >
-                      {{ regeneratingSlideIndex === index ? '重生成中...' : '🔄 重生成' }}
-                    </button>
-                  </div>
-                </div>
-              </template>
-              <div v-else class="preview-empty">
-                <p>暂无预览数据</p>
-              </div>
-              <div v-if="slideCount > 6" class="preview-more">
-                +{{ slideCount - 6 }} 页
-              </div>
-              <!-- R149: Performance metrics badge -->
-              <div class="preview-perf-badge" v-if="perfMetrics.renderTime > 0">
-                ⚡ {{ perfMetrics.renderTime.toFixed(1) }}ms
-              </div>
-            </div>
-            <p class="preview-tip">点击"下载PPT"查看完整内容</p>
-          </div>
+          <SlidePreviewPanel
+            :preview-slides="previewSlides"
+            :visible-preview-slides="visiblePreviewSlides"
+            :loaded-previews="loadedPreviews"
+            :preview-errors="previewErrors"
+            :preview-loaded="previewLoaded"
+            :preview-load-failed="previewLoadFailed"
+            :regenerating-slide-index="regeneratingSlideIndex"
+            :slide-count="slideCount"
+            :is-mobile="isMobile"
+            :perf-metrics="perfMetrics"
+            @regenerate-single-slide="regenerateSingleSlide"
+            @preview-loaded="onPreviewLoaded"
+            @preview-error="onPreviewError"
+            @retry="loadPreview"
+          />
 
           <!-- 操作按钮 -->
-          <div class="result-actions">
-            <button class="btn btn-primary btn-lg" @click="handleDownload">
-              <span>⬇️</span> 下载 PPT
-            </button>
-            <button class="btn btn-lg btn-outline-edit" @click="toggleEditMode">
-              <span>📝</span> {{ isEditMode ? '完成编辑' : '编辑内容' }}
-            </button>
-            <button class="btn btn-lg btn-presentation" @click="showPresentation = true">
-              <span>🎬</span> 演示模式
-            </button>
-            <!-- 更多操作下拉菜单 -->
-            <div class="more-actions-dropdown">
-              <button class="btn btn-lg" @click="showMoreMenu = !showMoreMenu">
-                <span>⋯</span> 更多
-              </button>
-              <div v-if="showMoreMenu" class="more-menu">
-                <button @click="toggleFavorite">
-                  <span>{{ isFavorite ? '⭐' : '☆' }}</span> {{ isFavorite ? '已收藏' : '收藏' }}
-                </button>
-                <button @click="showExportMenu = !showMoreMenu; showMoreMenu = false">
-                  <span>📄</span> 导出其他格式
-                </button>
-                <button @click="showShareMenu = !showMoreMenu; showMoreMenu = false">
-                  <span>📤</span> 分享
-                </button>
-                <button @click="showSaveTemplateModal = true; showMoreMenu = false">
-                  <span>📁</span> 存为模板
-                </button>
-                <button @click="handleShareToTeam">
-                  <span>👥</span> 分享到团队模板
-                </button>
-                <button @click="showVersionPanel = true; showMoreMenu = false; loadVersionHistory()">
-                  <span>📜</span> 版本历史
-                </button>
-                <button @click="openRecordingPanel(); showMoreMenu = false">
-                  <span>🎬</span> 录制成视频
-                </button>
-                <!-- AR/VR 模式 -->
-                <div class="menu-separator">— AR/VR 沉浸模式 —</div>
-                <button @click="arvrMode = 'vr'; showARVR = true; showMoreMenu = false">
-                  <span>🕶</span> VR 沉浸演示
-                </button>
-                <button @click="arvrMode = 'panorama'; showARVR = true; showMoreMenu = false">
-                  <span>🌐</span> 360° 全景模式
-                </button>
-                <button @click="arvrMode = 'ar'; showARVR = true; showMoreMenu = false">
-                  <span>📷</span> AR 叠加演示
-                </button>
-                <button @click="arvrMode = 'hologram'; showARVR = true; showMoreMenu = false">
-                  <span>🔮</span> 全息投影模式
-                </button>
-                <button @click="arvrMode = 'auditorium'; showARVR = true; showMoreMenu = false">
-                  <span>🏛</span> 虚拟礼堂模式
-                </button>
-                <button @click="showEmbedCode = true; showMoreMenu = false">
-                  <span>🔗</span> 嵌入代码
-                </button>
-                <button @click="handleNew">
-                  <span>✨</span> 创建新的
-                </button>
-                <button @click="startReadAloud(); showMoreMenu = false">
-                  <span>🔊</span> 朗读当前页
-                </button>
-                <button @click="openVoicePanel(); showMoreMenu = false">
-                  <span>🎙️</span> 语音设置 / 配音
-                </button>
-                <button @click="openSecurityPanel()">
-                  <span>🔒</span> 安全设置
-                </button>
-                <button @click="showBackupPanel = true; showMoreMenu = false">
-                  <span>💾</span> 备份管理
-                </button>
-                <button @click="showScheduleModal = true; showMoreMenu = false">
-                  <span>📅</span> 定时发布
-                </button>
-              </div>
-            </div>
-          </div>
+          <SlideActionsPanel
+            :is-edit-mode="isEditMode"
+            :is-favorite="isFavorite"
+            :show-menu="showMoreMenu"
+            @download="handleDownload"
+            @toggle-edit-mode="toggleEditMode"
+            @start-presentation="showPresentation = true"
+            @toggle-favorite="toggleFavorite"
+            @open-export-menu="showExportMenu = true"
+            @open-share-menu="showShareMenu = true"
+            @open-save-template="showSaveTemplateModal = true"
+            @share-to-team="handleShareToTeam"
+            @open-version-history="showVersionPanel = true; loadVersionHistory()"
+            @open-recording="openRecordingPanel"
+            @open-arvr="(mode) => { arvrMode = mode; showARVR = true }"
+            @open-embed-code="showEmbedCode = true"
+            @create-new="handleNew"
+            @start-read-aloud="startReadAloud"
+            @open-voice-panel="openVoicePanel"
+            @open-security="openSecurityPanel"
+            @open-backup="showBackupPanel = true"
+            @open-schedule="showScheduleModal = true"
+          />
 
           <!-- 浮动工具栏 -->
-          <div class="function-toolbar" role="toolbar" aria-label="演示文稿工具栏">
-            <!-- R142: 字号调整 (A- / A+) -->
-            <div class="font-size-controls" role="group" aria-label="字体大小调整">
-              <button
-                class="toolbar-btn font-size-btn"
-                @click="adjustFontSize(-1)"
-                :disabled="currentSlideFontSize <= 12"
-                title="缩小字体 (A-)"
-                aria-label="缩小字体，当前字号"
-                :aria-valuenow="currentSlideFontSize"
-                aria-valuemin="12"
-                aria-valuemax="32"
-              >A-</button>
-              <span class="font-size-indicator" aria-hidden="true">{{ currentSlideFontSize }}</span>
-              <button
-                class="toolbar-btn font-size-btn"
-                @click="adjustFontSize(1)"
-                :disabled="currentSlideFontSize >= 32"
-                title="放大字体 (A+)"
-                aria-label="放大字体，当前字号"
-                :aria-valuenow="currentSlideFontSize"
-                aria-valuemin="12"
-                aria-valuemax="32"
-              >A+</button>
-            </div>
-            <button class="toolbar-btn ai-toolbar-btn" @click="showSmartDesignPanel = true" title="智能设计" :class="{ active: showSmartDesignPanel }" aria-label="智能设计面板" :aria-pressed="showSmartDesignPanel">
-              ✨
-            </button>
-            <button class="toolbar-btn ai-toolbar-btn" @click="showSmartContentSuggestions = true" title="智能内容建议" :class="{ active: showSmartContentSuggestions }" aria-label="智能内容建议面板" :aria-pressed="showSmartContentSuggestions">
-              💡
-            </button>
-            <button class="toolbar-btn" @click="showLayoutPanel = true" title="快速调优" aria-label="快速调优面板" :aria-pressed="showLayoutPanel">
-              🎨
-            </button>
-            <button class="toolbar-btn" @click="showChartEditor = true" title="图表编辑" aria-label="图表编辑器" :aria-pressed="showChartEditor">
-              📊
-            </button>
-            <button class="toolbar-btn" @click="showElementEditor = true" title="元素微调" aria-label="元素微调面板" :aria-pressed="showElementEditor">
-              🛠️
-            </button>
-            <button class="toolbar-btn" @click="showTransitionPanel = true" title="幻灯片过渡" aria-label="幻灯片过渡面板" :aria-pressed="showTransitionPanel">
-              🔀
-            </button>
-            <button class="toolbar-btn" @click="openMasterEditor()" title="母版编辑" aria-label="母版编辑器">
-              🎚️
-            </button>
-            <button class="toolbar-btn" @click="openAnimationComposer(currentEditingSlide - 1)" title="动画设置" aria-label="动画设置面板" :aria-pressed="false">
-              🎬
-            </button>
-            <button class="toolbar-btn" @click="replayCurrentSlideAnimation()" title="重播当前页动画" aria-label="重播当前页动画">
-              🔄
-            </button>
-            <button class="toolbar-btn" @click="showBatchThemeModal = true" title="批量主题" aria-label="批量主题面板" :aria-pressed="showBatchThemeModal">
-              🌈
-            </button>
-            <button class="toolbar-btn" @click="showTeamWorkspace = !showTeamWorkspace" title="团队协作" :class="{ active: showTeamWorkspace }" aria-label="团队协作面板" :aria-pressed="showTeamWorkspace">
-              👥
-            </button>
-            <button class="toolbar-btn" @click="showActivityFeed = !showActivityFeed" title="团队动态" :class="{ active: showActivityFeed }" aria-label="团队动态面板" :aria-pressed="showActivityFeed">
-              📋
-            </button>
-            <button class="toolbar-btn" @click="showCommentsPanel = !showCommentsPanel" title="评论/建议" :class="{ active: showCommentsPanel }" aria-label="评论建议面板" :aria-pressed="showCommentsPanel">
-              💬
-            </button>
-            <button class="toolbar-btn ai-toolbar-btn" @click="showAdvancedAIPanel = true" title="AI高级功能" :class="{ active: showAdvancedAIPanel }" aria-label="AI高级功能面板" :aria-pressed="showAdvancedAIPanel">
-              🤖
-            </button>
-            <button class="toolbar-btn ai-toolbar-btn" @click="openPresentationCoach" title="AI演讲教练" :class="{ active: showPresentationCoach }" aria-label="AI演讲教练面板" :aria-pressed="showPresentationCoach">
-              🎯
-            </button>
-            <button class="toolbar-btn" @click="showAccessibilityPanel = true" title="无障碍与通用设计" :class="{ active: showAccessibilityPanel }" aria-label="无障碍与通用设计面板" :aria-pressed="showAccessibilityPanel">
-              ♿
-            </button>
-            <button class="toolbar-btn ai-toolbar-btn" @click="showLocalizeModal = true" title="翻译演示文稿" :class="{ active: showLocalizeModal }" aria-label="翻译演示文稿面板" :aria-pressed="showLocalizeModal">
-              🌐
-            </button>
-          </div>
+          <SlideEditToolbar
+            :current-slide-font-size="currentSlideFontSize"
+            :show-smart-design-panel="showSmartDesignPanel"
+            :show-smart-content-suggestions="showSmartContentSuggestions"
+            :show-layout-panel="showLayoutPanel"
+            :show-chart-editor="showChartEditor"
+            :show-element-editor="showElementEditor"
+            :show-transition-panel="showTransitionPanel"
+            :show-batch-theme-modal="showBatchThemeModal"
+            :show-team-workspace="showTeamWorkspace"
+            :show-activity-feed="showActivityFeed"
+            :show-comments-panel="showCommentsPanel"
+            :show-advanced-a-i-panel="showAdvancedAIPanel"
+            :show-presentation-coach="showPresentationCoach"
+            :show-accessibility-panel="showAccessibilityPanel"
+            :show-localize-modal="showLocalizeModal"
+            @adjust-font-size="adjustFontSize"
+            @toggle-smart-design="showSmartDesignPanel = true"
+            @toggle-smart-content="showSmartContentSuggestions = true"
+            @toggle-layout-panel="showLayoutPanel = true"
+            @toggle-chart-editor="showChartEditor = true"
+            @toggle-element-editor="showElementEditor = true"
+            @toggle-transition-panel="showTransitionPanel = true"
+            @open-master-editor="openMasterEditor"
+            @open-animation-composer="openAnimationComposer(currentEditingSlide - 1)"
+            @replay-animation="replayCurrentSlideAnimation"
+            @toggle-batch-theme="showBatchThemeModal = true"
+            @toggle-team-workspace="showTeamWorkspace = !showTeamWorkspace"
+            @toggle-activity-feed="showActivityFeed = !showActivityFeed"
+            @toggle-comments-panel="showCommentsPanel = !showCommentsPanel"
+            @toggle-advanced-a-i="showAdvancedAIPanel = true"
+            @toggle-presentation-coach="openPresentationCoach"
+            @toggle-accessibility="showAccessibilityPanel = true"
+            @toggle-localize="showLocalizeModal = true"
+          />
 
           <!-- 存为模板弹窗 -->
           <div v-if="showSaveTemplateModal" class="modal-mask" @click.self="showSaveTemplateModal = false">
@@ -2539,6 +2373,11 @@ import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api/client'
 import PresentationMode from '../components/PresentationMode.vue'
 import ARVRMode from '../components/ARVRMode.vue'
+// Result view sub-components
+import SlidePreviewPanel from '../components/result/SlidePreviewPanel.vue'
+import SlideActionsPanel from '../components/result/SlideActionsPanel.vue'
+import SlideEditToolbar from '../components/result/SlideEditToolbar.vue'
+import ResultViewStats from '../components/result/ResultViewStats.vue'
 import SlideElementEditor from '../components/SlideElementEditor.vue'
 import ChartEditor from '../components/ChartEditor.vue'
 import TeamWorkspacePanel from '../components/TeamWorkspacePanel.vue'
