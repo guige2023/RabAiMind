@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 User API Route
 
@@ -8,12 +7,13 @@ Author: Claude
 Date: 2026-04-04
 """
 
-from fastapi import APIRouter, Request, Body
-from typing import Dict, Any
+from typing import Any
 
-from ...services.user_service import get_user_service
-from ...services.task_manager import get_task_manager
+from fastapi import APIRouter, Body, Request
+
 from ...api.middleware.rate_limit import get_user_id_from_request
+from ...services.task_manager import get_task_manager
+from ...services.user_service import get_user_service
 
 router = APIRouter(prefix="/api/v1/user", tags=["user"])
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/user", tags=["user"])
 # ── Preferences ──────────────────────────────────────────────────────────────
 
 @router.get("/preferences")
-async def get_preferences(request: Request) -> Dict[str, Any]:
+async def get_preferences(request: Request) -> dict[str, Any]:
     """Get all user preferences (theme, language, notifications, etc.)."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -29,7 +29,7 @@ async def get_preferences(request: Request) -> Dict[str, Any]:
 
 
 @router.put("/preferences")
-async def update_preferences(request: Request, updates: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+async def update_preferences(request: Request, updates: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Update user preferences (partial update)."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -38,7 +38,7 @@ async def update_preferences(request: Request, updates: Dict[str, Any] = Body(..
 
 
 @router.post("/preferences/reset")
-async def reset_preferences(request: Request) -> Dict[str, Any]:
+async def reset_preferences(request: Request) -> dict[str, Any]:
     """Reset all preferences to defaults."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -49,7 +49,7 @@ async def reset_preferences(request: Request) -> Dict[str, Any]:
 # ── Profile ─────────────────────────────────────────────────────────────────
 
 @router.get("/profile")
-async def get_profile(request: Request) -> Dict[str, Any]:
+async def get_profile(request: Request) -> dict[str, Any]:
     """Get user profile (name, email, avatar)."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -57,7 +57,7 @@ async def get_profile(request: Request) -> Dict[str, Any]:
 
 
 @router.put("/profile")
-async def update_profile(request: Request, updates: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+async def update_profile(request: Request, updates: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Update user profile."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -66,7 +66,7 @@ async def update_profile(request: Request, updates: Dict[str, Any] = Body(...)) 
 
 
 @router.put("/password")
-async def change_password(request: Request, payload: Dict[str, str] = Body(...)) -> Dict[str, Any]:
+async def change_password(request: Request, payload: dict[str, str] = Body(...)) -> dict[str, Any]:
     """Change password. Requires old_password and new_password."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -81,7 +81,7 @@ async def change_password(request: Request, payload: Dict[str, str] = Body(...))
 # ── Stats ───────────────────────────────────────────────────────────────────
 
 @router.get("/stats")
-async def get_user_stats(request: Request) -> Dict[str, Any]:
+async def get_user_stats(request: Request) -> dict[str, Any]:
     """Get personal usage statistics."""
     get_user_id_from_request(request)
     svc = get_user_service()
@@ -97,7 +97,7 @@ async def get_user_stats(request: Request) -> Dict[str, Any]:
 # ── Data Export ──────────────────────────────────────────────────────────────
 
 @router.get("/export")
-async def export_user_data(request: Request) -> Dict[str, Any]:
+async def export_user_data(request: Request) -> dict[str, Any]:
     """Export all user data as JSON (profile, preferences, stats, tasks)."""
     get_user_id_from_request(request)
     svc = get_user_service()

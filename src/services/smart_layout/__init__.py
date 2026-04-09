@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 智能布局生成模块
 
@@ -8,14 +7,14 @@
 日期: 2026-03-18
 """
 
-from .layout_strategy import LayoutStrategy
-from .layout_calculator import LayoutCalculator
+from .ai_visual_designer import AIVisualDesigner
 from .color_scheme import ColorSchemeGenerator
 from .content_analyzer import ContentAnalyzer
+from .creative_engine import PPTCreativeEngine
+from .layout_calculator import LayoutCalculator
+from .layout_strategy import LayoutStrategy
 from .svg_element_library import SVGElementLibrary
 from .visual_element_generator import VisualElementGenerator
-from .ai_visual_designer import AIVisualDesigner
-from .creative_engine import PPTCreativeEngine
 
 __all__ = [
     "LayoutStrategy",

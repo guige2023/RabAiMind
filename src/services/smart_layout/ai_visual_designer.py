@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AI 视觉设计器
 
@@ -9,10 +8,10 @@ AI 视觉设计器
 """
 
 import json
+import logging
 import re
 import threading
-from typing import Dict, Any, Optional, List
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -129,9 +128,9 @@ class AIVisualDesigner:
     async def design_slide(
         self,
         title: str,
-        content: List[Dict[str, Any]],
+        content: list[dict[str, Any]],
         slide_type: str,
-        colors: Dict[str, str],
+        colors: dict[str, str],
         style: str = "professional"
     ) -> str:
         """
@@ -164,9 +163,9 @@ class AIVisualDesigner:
     def _build_prompt(
         self,
         title: str,
-        content: List[Dict[str, Any]],
+        content: list[dict[str, Any]],
         slide_type: str,
-        colors: Dict[str, str],
+        colors: dict[str, str],
         style: str
     ) -> str:
         """构建设计提示词"""
@@ -255,9 +254,9 @@ class AIVisualDesigner:
     def _generate_fallback_svg(
         self,
         title: str,
-        content: List[Dict[str, Any]],
+        content: list[dict[str, Any]],
         slide_type: str,
-        colors: Dict[str, str]
+        colors: dict[str, str]
     ) -> str:
         """生成fallback SVG（当AI调用失败时）"""
         from .visual_element_generator import get_visual_element_generator
@@ -277,7 +276,7 @@ class AIVisualDesigner:
 
 
 # 单例实例
-_ai_visual_designer_instance: Optional[AIVisualDesigner] = None
+_ai_visual_designer_instance: AIVisualDesigner | None = None
 _manager_lock = threading.Lock()
 
 

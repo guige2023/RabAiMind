@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 API 路由初始化
 
@@ -7,40 +6,41 @@ API 路由初始化
 """
 
 from fastapi import APIRouter
-from .routes.ppt_routes import router as ppt_router
-from .routes.template import router as template_router
-from .routes.favorites import router as favorites_router
-from .routes.images import router as images_router
+
+from .routes.ai import router as ai_router
+from .routes.ai_analysis import router as ai_analysis_router
+from .routes.analytics import router as analytics_router
+from .routes.api_key_routes import router as api_key_router
 from .routes.brand import router as brand_router
 from .routes.brand_routes import router as brand_routes_router
-from .routes.status import router as status_router
-from .routes.ai import router as ai_router
-from .routes.user import router as user_router
-from .routes.analytics import router as analytics_router
-from .routes.security import router as security_router
-from .routes.gdpr import router as gdpr_router
-from .routes.sso import router as sso_router
-from .routes.tiers import router as tiers_router
-from .routes.webhook import router as webhook_router
-from .routes.zapier import router as zapier_router
-from .routes.engagement import router as engagement_router
-from .routes.scheduler import router as scheduler_router
-from .routes.data_source import router as data_source_router
-from .routes.workspace import router as workspace_router
-from .routes.notification import router as notification_router
-from .routes.presentation_analytics import router as presentation_analytics_router
-from .routes.developer import router as developer_router
+from .routes.chart_routes import router as chart_router
 from .routes.collaboration import router as collaboration_router
 from .routes.dashboard import router as dashboard_router
-from .routes.sharing import router as sharing_router
-from .routes.share_enhancements import router as share_enhancements_router
-from .routes.ai_analysis import router as ai_analysis_router
-from .routes.chart_routes import router as chart_router
-from .routes.template_routes import router as template_routes_router
+from .routes.data_source import router as data_source_router
+from .routes.developer import router as developer_router
+from .routes.engagement import router as engagement_router
 from .routes.export_routes import router as export_router
-from .routes.share_link_routes import router as share_link_router
-from .routes.api_key_routes import router as api_key_router
+from .routes.favorites import router as favorites_router
+from .routes.gdpr import router as gdpr_router
+from .routes.images import router as images_router
+from .routes.notification import router as notification_router
+from .routes.ppt_routes import router as ppt_router
+from .routes.presentation_analytics import router as presentation_analytics_router
 from .routes.publish import router as publish_router
+from .routes.scheduler import router as scheduler_router
+from .routes.security import router as security_router
+from .routes.share_enhancements import router as share_enhancements_router
+from .routes.share_link_routes import router as share_link_router
+from .routes.sharing import router as sharing_router
+from .routes.sso import router as sso_router
+from .routes.status import router as status_router
+from .routes.template import router as template_router
+from .routes.template_routes import router as template_routes_router
+from .routes.tiers import router as tiers_router
+from .routes.user import router as user_router
+from .routes.webhook import router as webhook_router
+from .routes.workspace import router as workspace_router
+from .routes.zapier import router as zapier_router
 
 # 创建主路由
 api_router = APIRouter()

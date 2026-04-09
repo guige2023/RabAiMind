@@ -2,13 +2,11 @@
 内容生成服务
 文本生成、图片生成等
 """
-import logging
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 import json
-from datetime import datetime
+import logging
+from dataclasses import dataclass
 
-from .volc_api import get_volc_api, VolcEngineAPI
+from .volc_api import VolcEngineAPI, get_volc_api
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +23,8 @@ class TextContent:
     """文本内容"""
     title: str
     content: str
-    bullet_points: List[str]
-    notes: Optional[str] = None
+    bullet_points: list[str]
+    notes: str | None = None
 
 
 @dataclass
@@ -34,7 +32,7 @@ class ImageContent:
     """图片内容"""
     description: str
     prompt: str
-    url: Optional[str] = None
+    url: str | None = None
 
 
 @dataclass
@@ -43,24 +41,24 @@ class SlideContent:
     slide_number: int
     title: str
     content: str
-    bullet_points: List[str]
-    image: Optional[ImageContent] = None
-    notes: Optional[str] = None
+    bullet_points: list[str]
+    image: ImageContent | None = None
+    notes: str | None = None
 
 
 class ContentGenerator:
     """内容生成器"""
-    
-    def __init__(self, volc_api: Optional[VolcEngineAPI] = None):
+
+    def __init__(self, volc_api: VolcEngineAPI | None = None):
         self.volc_api = volc_api or get_volc_api()
-        
+
     def generate_slide_content(
         self,
         topic: str,
-        slide_structure: List[Dict[str, str]],
+        slide_structure: list[dict[str, str]],
         style: str = "professional",
         audience: str = "business"
-    ) -> List[SlideContent]:
+    ) -> list[SlideContent]:
         """
         生成幻灯片内容
 
@@ -119,7 +117,7 @@ class ContentGenerator:
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"解析生成内容失败: {type(e).__name__}, 使用默认内容")
             return self._create_default_content(slide_structure)
-    
+
     def generate_image_prompt(
         self,
         slide_content: SlideContent,
@@ -165,12 +163,12 @@ class ContentGenerator:
             return response.get("content", "").strip()
 
         return ""
-    
+
     def generate_image(
         self,
         prompt: str,
-        model: Optional[str] = None
-    ) -> Optional[str]:
+        model: str | None = None
+    ) -> str | None:
         """
         生成图片
 
@@ -194,7 +192,7 @@ class ContentGenerator:
             return images[0] if images else None
 
         return None
-    
+
     def understand_image(self, image_url: str, question: str = "描述这张图片") -> str:
         """
         理解图片
@@ -210,23 +208,23 @@ class ContentGenerator:
             image_url=image_url,
             prompt=question
         )
-        
+
         if response.get("success"):
             return response.get("content", "")
-        
+
         return ""
-    
+
     def _build_content_prompt(
         self,
         topic: str,
-        slide_structure: List[Dict[str, str]],
+        slide_structure: list[dict[str, str]],
         style: str,
         audience: str
     ) -> str:
         """构建内容生成prompt"""
-        
+
         structure_str = json.dumps(slide_structure, ensure_ascii=False, indent=2)
-        
+
         prompt = f"""你是一个专业的PPT内容撰写专家。请为以下主题生成每页幻灯片的详细内容。
 
 主题：{topic}
@@ -257,13 +255,13 @@ class ContentGenerator:
 }}
 
 请只返回JSON，不要其他内容。"""
-        
+
         return prompt
-    
+
     def _create_default_content(
         self,
-        slide_structure: List[Dict[str, str]]
-    ) -> List[SlideContent]:
+        slide_structure: list[dict[str, str]]
+    ) -> list[SlideContent]:
         """创建默认内容"""
         result = []
         for i, slide in enumerate(slide_structure):

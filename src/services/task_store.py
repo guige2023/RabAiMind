@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Task Store Module - Task persistence and retrieval
 
@@ -9,21 +8,19 @@ Author: Claude
 Date: 2026-04-07
 """
 
-import time
+import json
 import logging
 import threading
-import uuid
-import json
-from typing import Dict, Any, Optional, List
+import time
 
-from ..utils import generate_task_id, get_timestamp, ensure_dir
-from ..config import settings, get_redis_url
+from ..config import get_redis_url, settings
 from ..constants import (
-    MAX_TASKS,
     MAX_COMPLETED_CLEANUP,
     MAX_TASK_AGE_MINUTES,
+    MAX_TASKS,
 )
-from .history_sync_service import get_history_sync_service, HistorySyncService
+from ..utils import ensure_dir, generate_task_id, get_timestamp
+from .history_sync_service import HistorySyncService, get_history_sync_service
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +42,7 @@ class TaskStore:
     _REDIS_SYNC_LOCK_KEY = "tasks:sync_lock"
 
     def __init__(self):
-        self._memory_tasks: Dict[str, Dict] = {}  # Local cache
+        self._memory_tasks: dict[str, dict] = {}  # Local cache
         self._task_lock = threading.Lock()
         self._cleanup_counter: int = 0
         self._cleanup_interval: int = 10
@@ -54,7 +51,7 @@ class TaskStore:
         self._sync_initialized: bool = False
         self._redis_client = None
         self._redis_enabled = False
-        self._persist_thread: Optional[threading.Thread] = None
+        self._persist_thread: threading.Thread | None = None
         self._persist_stop_event = threading.Event()
         ensure_dir(settings.OUTPUT_DIR)
 
@@ -134,7 +131,7 @@ class TaskStore:
             logger.debug(f"[TaskStore] Persisted {count} tasks to Redis")
         return count
 
-    def _load_from_redis(self) -> Dict[str, Dict]:
+    def _load_from_redis(self) -> dict[str, dict]:
         """Load all tasks from Redis into memory cache."""
         if not self._redis_enabled:
             return {}
@@ -171,7 +168,7 @@ class TaskStore:
     # ─── Property-based task access (for backward compatibility) ────────────────
 
     @property
-    def tasks(self) -> Dict[str, Dict]:
+    def tasks(self) -> dict[str, dict]:
         """Return the in-memory tasks dict for backward compatibility."""
         return self._memory_tasks
 
@@ -253,7 +250,7 @@ class TaskStore:
 
         return task_id
 
-    def get_task(self, task_id: str) -> Optional[Dict]:
+    def get_task(self, task_id: str) -> dict | None:
         """Retrieve a task by its ID.
 
         Args:
@@ -264,7 +261,7 @@ class TaskStore:
         """
         return self.tasks.get(task_id)
 
-    def get_history(self, status_filter: Optional[str] = None) -> Dict[str, Dict]:
+    def get_history(self, status_filter: str | None = None) -> dict[str, dict]:
         """Get history of tasks, optionally filtered by status.
 
         Args:
@@ -317,7 +314,7 @@ class TaskStore:
 
         return count if count > 0 else cloud_count
 
-    def save_outline(self, task_id: str, outline: Dict) -> None:
+    def save_outline(self, task_id: str, outline: dict) -> None:
         """Save presentation outline to a task.
 
         Args:
@@ -348,13 +345,13 @@ class TaskStore:
                     self.tasks[task_id]["undo_stack"].append(entry)
                     self.tasks[task_id]["redo_stack"] = []
 
-    def get_outline(self, task_id: str) -> Optional[Dict]:
+    def get_outline(self, task_id: str) -> dict | None:
         """Get outline for a task."""
         with self._task_lock:
             task = self.tasks.get(task_id)
             return task.get("outline") if task else None
 
-    def update_task_params(self, task_id: str, params: Dict) -> None:
+    def update_task_params(self, task_id: str, params: dict) -> None:
         """Update task parameters."""
         with self._task_lock:
             if task_id in self.tasks:
@@ -427,11 +424,11 @@ class TaskStore:
         except Exception as e:
             logger.warning(f"[TaskStore] Cloud restore failed: {e}")
 
-    def get_all_tasks(self) -> Dict[str, Dict]:
+    def get_all_tasks(self) -> dict[str, dict]:
         """Get all tasks (internal use)."""
         return self.tasks
 
-    def set_task(self, task_id: str, task_data: Dict) -> None:
+    def set_task(self, task_id: str, task_data: dict) -> None:
         """Set task data directly (internal use)."""
         with self._task_lock:
             self.tasks[task_id] = task_data

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Advanced Analytics Service
 
@@ -11,14 +10,14 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import os
 import json
-import time
 import logging
+import os
 import threading
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+import time
 from collections import defaultdict
+from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +38,11 @@ class RealtimeTracker:
     def __init__(self):
         self._lock = threading.Lock()
         # task_id -> {"user_id": str, "created_at": float, "status": str}
-        self._active_tasks: Dict[str, Dict] = {}
+        self._active_tasks: dict[str, dict] = {}
         # user_id -> last_seen timestamp (float)
-        self._user_last_seen: Dict[str, float] = {}
+        self._user_last_seen: dict[str, float] = {}
         # task_id -> created_at timestamp for pending/processing
-        self._pending_tasks: Dict[str, float] = {}
+        self._pending_tasks: dict[str, float] = {}
         self._cleanup_interval = 60  # seconds
         self._last_cleanup = time.time()
 
@@ -81,7 +80,7 @@ class RealtimeTracker:
             self._user_last_seen[user_id] = now
             self._maybe_cleanup(now)
 
-    def get_active_users(self, window_seconds: int = 300) -> List[str]:
+    def get_active_users(self, window_seconds: int = 300) -> list[str]:
         """Return list of user_ids active within the time window."""
         now = time.time()
         cutoff = now - window_seconds
@@ -91,7 +90,7 @@ class RealtimeTracker:
                 if ts >= cutoff
             ]
 
-    def get_realtime_stats(self) -> Dict[str, Any]:
+    def get_realtime_stats(self) -> dict[str, Any]:
         """Get real-time statistics."""
         now = time.time()
         with self._lock:
@@ -167,12 +166,12 @@ class CohortAnalytics:
     def __init__(self):
         self._lock = threading.Lock()
         os.makedirs(os.path.dirname(COHORT_STORAGE_FILE), exist_ok=True)
-        self._user_first_seen: Dict[str, str] = self._load()
+        self._user_first_seen: dict[str, str] = self._load()
         self._dirty = False
 
-    def _load(self) -> Dict[str, str]:
+    def _load(self) -> dict[str, str]:
         try:
-            with open(COHORT_STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(COHORT_STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
@@ -197,9 +196,9 @@ class CohortAnalytics:
 
     def get_cohort_retention(
         self,
-        tasks: List[Dict[str, Any]],
+        tasks: list[dict[str, Any]],
         cohort_period_days: int = 30
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Compute retention cohort analysis.
 
@@ -213,7 +212,7 @@ class CohortAnalytics:
         now = datetime.now()
 
         # Group users by their first-seen week
-        cohorts: Dict[str, Dict[str, str]] = defaultdict(
+        cohorts: dict[str, dict[str, str]] = defaultdict(
             lambda: {"user_ids": [], "first_seen_dates": {}}
         )
 
@@ -314,7 +313,7 @@ class RevenueAnalytics:
         # Also try file-based config
         try:
             if os.path.exists(REVENUE_CONFIG_FILE):
-                with open(REVENUE_CONFIG_FILE, "r") as f:
+                with open(REVENUE_CONFIG_FILE) as f:
                     overrides = json.load(f)
                     for tier, cfg in overrides.items():
                         if tier in self._pricing and "monthly_usd" in cfg:
@@ -322,7 +321,7 @@ class RevenueAnalytics:
         except Exception:
             pass
 
-    def get_revenue_analytics(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_revenue_analytics(self, tasks: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Compute revenue analytics from tier distribution and usage.
         """
@@ -331,7 +330,7 @@ class RevenueAnalytics:
         tier_storage_path = "./data/user_tiers.json"
         try:
             if os.path.exists(tier_storage_path):
-                with open(tier_storage_path, "r", encoding="utf-8") as f:
+                with open(tier_storage_path, encoding="utf-8") as f:
                     tiers_data = json.load(f)
                     for user_id, tier_str in tiers_data.items():
                         tier_key = tier_str.lower()
@@ -422,7 +421,7 @@ class AdvancedAnalyticsService:
         # Weekly email subscriptions: set of user_ids
         self._weekly_subscribers: set = set()
         # User email addresses: user_id -> email
-        self._user_email: Dict[str, str] = {}
+        self._user_email: dict[str, str] = {}
 
     # --- Real-time ---
     def track_task(self, task_id: str, user_id: str, status: str = "pending") -> None:
@@ -434,22 +433,22 @@ class AdvancedAnalyticsService:
     def track_request(self, user_id: str) -> None:
         self._realtime.track_request(user_id)
 
-    def get_realtime_stats(self) -> Dict[str, Any]:
+    def get_realtime_stats(self) -> dict[str, Any]:
         return self._realtime.get_realtime_stats()
 
     # --- Cohort ---
     def record_user(self, user_id: str) -> None:
         self._cohort.record_user(user_id)
 
-    def get_cohort_retention(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_cohort_retention(self, tasks: list[dict[str, Any]]) -> dict[str, Any]:
         return self._cohort.get_cohort_retention(tasks)
 
     # --- Revenue ---
-    def get_revenue_analytics(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_revenue_analytics(self, tasks: list[dict[str, Any]]) -> dict[str, Any]:
         return self._revenue.get_revenue_analytics(tasks)
 
     # --- Weekly Email Subscription ---
-    def get_weekly_email_status(self, user_id: str) -> Dict[str, Any]:
+    def get_weekly_email_status(self, user_id: str) -> dict[str, Any]:
         """Get weekly email subscription status for a user."""
         email = self._user_email.get(user_id, "")
         subscribed = user_id in self._weekly_subscribers
@@ -459,7 +458,7 @@ class AdvancedAnalyticsService:
             "message": "" if subscribed else "未订阅每周汇总邮件",
         }
 
-    def set_weekly_email(self, user_id: str, subscribed: bool, email: str = "") -> Dict[str, Any]:
+    def set_weekly_email(self, user_id: str, subscribed: bool, email: str = "") -> dict[str, Any]:
         """Set weekly email subscription for a user."""
         if email:
             self._user_email[user_id] = email
@@ -475,7 +474,7 @@ class AdvancedAnalyticsService:
             "message": message,
         }
 
-    def send_weekly_email(self, user_id: str) -> Dict[str, Any]:
+    def send_weekly_email(self, user_id: str) -> dict[str, Any]:
         """Send weekly summary email to user (or simulate for demo)."""
         if user_id not in self._weekly_subscribers:
             return {
@@ -513,7 +512,7 @@ class AdvancedAnalyticsService:
         }
 
     # --- Monthly Email Subscription ---
-    def get_monthly_email_status(self, user_id: str) -> Dict[str, Any]:
+    def get_monthly_email_status(self, user_id: str) -> dict[str, Any]:
         """Get monthly email subscription status for a user."""
         email = self._user_email.get(user_id, "")
         subscribed = user_id in getattr(self, '_monthly_subscribers', set())
@@ -523,7 +522,7 @@ class AdvancedAnalyticsService:
             "message": "" if subscribed else "未订阅每月汇总邮件",
         }
 
-    def set_monthly_email(self, user_id: str, subscribed: bool, email: str = "") -> Dict[str, Any]:
+    def set_monthly_email(self, user_id: str, subscribed: bool, email: str = "") -> dict[str, Any]:
         """Set monthly email subscription for a user."""
         if not hasattr(self, '_monthly_subscribers'):
             self._monthly_subscribers: set = set()
@@ -543,7 +542,7 @@ class AdvancedAnalyticsService:
 
 
 # Singleton accessor
-_advanced_analytics: Optional[AdvancedAnalyticsService] = None
+_advanced_analytics: AdvancedAnalyticsService | None = None
 
 
 def get_advanced_analytics_service() -> AdvancedAnalyticsService:

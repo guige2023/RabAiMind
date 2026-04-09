@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Analytics Service
 
@@ -10,9 +9,9 @@ Date: 2026-04-04
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
 from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class AnalyticsService:
             return
         self._initialized = True
 
-    def compute_analytics(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def compute_analytics(self, tasks: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Compute full analytics from task history.
         
@@ -53,75 +52,75 @@ class AnalyticsService:
 
         # Filter to completed tasks only for most metrics
         completed = [t for t in tasks if t.get("status") == "completed"]
-        
+
         # Summary stats
         total_generations = len(completed)
         total_slides = sum(t.get("slide_count", 0) or 0 for t in completed)
-        
+
         # Template usage
-        template_counts: Dict[str, int] = defaultdict(int)
-        style_counts: Dict[str, int] = defaultdict(int)
-        scene_counts: Dict[str, int] = defaultdict(int)
-        daily_generations: Dict[str, int] = defaultdict(int)
-        weekly_activity: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))  # day -> hour -> count
-        
+        template_counts: dict[str, int] = defaultdict(int)
+        style_counts: dict[str, int] = defaultdict(int)
+        scene_counts: dict[str, int] = defaultdict(int)
+        daily_generations: dict[str, int] = defaultdict(int)
+        weekly_activity: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))  # day -> hour -> count
+
         # Time tracking (estimate from created_at -> updated_at)
         total_time_seconds = 0
-        generation_times: List[float] = []
-        
+        generation_times: list[float] = []
+
         for task in completed:
             template = task.get("template", "default") or "default"
             style = task.get("style", "professional") or "professional"
             scene = task.get("scene", "business") or "business"
-            
+
             template_counts[template] += 1
             style_counts[style] += 1
             scene_counts[scene] += 1
-            
+
             # Parse timestamps
             created = self._parse_timestamp(task.get("created_at"))
             updated = self._parse_timestamp(task.get("updated_at"))
-            
+
             if created and updated:
                 delta = (updated - created).total_seconds()
                 if 0 < delta < 7200:  # sanity: max 2 hours
                     total_time_seconds += delta
                     generation_times.append(delta)
-            
+
             # Daily grouping (date key: YYYY-MM-DD)
             if created:
                 day_key = created.strftime("%Y-%m-%d")
                 daily_generations[day_key] += 1
-                
+
                 # Weekly activity: day of week (0=Mon, 6=Sun) + hour
                 dow = created.strftime("%w")  # 0=Sunday
                 hour = created.hour
                 weekly_activity[dow][str(hour)] += 1
-        
+
         # Average time per generation
         avg_time = total_time_seconds / len(completed) if completed else 0
-        
+
         # Popular templates (top 10)
         popular_templates = sorted(
             [{"name": k, "count": v} for k, v in template_counts.items()],
             key=lambda x: x["count"],
             reverse=True
         )[:10]
-        
+
         # Popular styles
         popular_styles = sorted(
             [{"name": k, "count": v} for k, v in style_counts.items()],
             key=lambda x: x["count"],
             reverse=True
         )[:10]
-        
+
         # Popular scenes
         popular_scenes = sorted(
             [{"name": k, "count": v} for k, v in scene_counts.items()],
             key=lambda x: x["count"],
             reverse=True
         )[:10]
-        
+
         # Weekly activity heatmap (7 days x 24 hours)
         days = ["0", "1", "2", "3", "4", "5", "6"]  # Sun to Sat
         day_labels = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
@@ -131,7 +130,7 @@ class AnalyticsService:
             for hour in range(24):
                 row[str(hour)] = weekly_activity[day].get(str(hour), 0)
             heatmap_data.append(row)
-        
+
         # Productivity score (0-100)
         productivity_score = self._compute_productivity_score(
             total_generations=total_generations,
@@ -139,7 +138,7 @@ class AnalyticsService:
             generation_times=generation_times,
             weekly_activity=weekly_activity
         )
-        
+
         # Daily stats for line chart (last 30 days)
         daily_stats = self._compute_daily_stats(daily_generations)
 
@@ -175,8 +174,8 @@ class AnalyticsService:
         self,
         total_generations: int,
         avg_time: float,
-        generation_times: List[float],
-        weekly_activity: Dict[str, Dict[str, int]]
+        generation_times: list[float],
+        weekly_activity: dict[str, dict[str, int]]
     ) -> int:
         """
         Compute productivity score 0-100 based on:
@@ -187,7 +186,7 @@ class AnalyticsService:
         # Volume score (max 40 points)
         # Cap at 100 generations for full points
         volume_score = min(40, int(40 * min(total_generations / 100, 1)))
-        
+
         # Speed score (max 30 points)
         # Ideal generation time is 60-180 seconds
         if avg_time > 0 and generation_times:
@@ -202,7 +201,7 @@ class AnalyticsService:
                 speed_score = 0
         else:
             speed_score = 15  # neutral if no data
-        
+
         # Consistency score (max 30 points)
         # Count days with at least one generation
         active_days = len(set(
@@ -211,15 +210,15 @@ class AnalyticsService:
         ))
         # Also factor in weekend vs weekday usage
         consistency_score = min(30, active_days * 3)
-        
+
         total = volume_score + speed_score + consistency_score
         return min(100, max(0, total))
 
-    def _compute_daily_stats(self, daily_generations: Dict[str, int]) -> List[Dict[str, Any]]:
+    def _compute_daily_stats(self, daily_generations: dict[str, int]) -> list[dict[str, Any]]:
         """Compute daily stats for the last 30 days."""
         result = []
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
+
         for i in range(29, -1, -1):
             day = today - timedelta(days=i)
             day_key = day.strftime("%Y-%m-%d")
@@ -233,7 +232,7 @@ class AnalyticsService:
             })
         return result
 
-    def _parse_timestamp(self, ts: Optional[str]) -> Optional[datetime]:
+    def _parse_timestamp(self, ts: str | None) -> datetime | None:
         """Parse various timestamp formats."""
         if not ts:
             return None
@@ -248,7 +247,7 @@ class AnalyticsService:
         except Exception:
             return None
 
-    def _compute_carbon_savings(self, total_slides: int) -> Dict[str, Any]:
+    def _compute_carbon_savings(self, total_slides: int) -> dict[str, Any]:
         """
         Compute carbon footprint savings.
 
@@ -287,12 +286,12 @@ class AnalyticsService:
             "liters_water_saved": liters_water_saved,
         }
 
-    def _compute_most_used_features(self, templates, styles, scenes) -> List[Dict[str, Any]]:
+    def _compute_most_used_features(self, templates, styles, scenes) -> list[dict[str, Any]]:
         """
         Compute most used features ranking (combined from templates, styles, scenes).
         Returns top 10 features with usage count and category.
         """
-        all_features: List[Dict[str, Any]] = []
+        all_features: list[dict[str, Any]] = []
 
         for item in templates[:5]:
             all_features.append({"name": item["name"], "count": item["count"], "category": "template"})
@@ -308,12 +307,12 @@ class AnalyticsService:
             f["rank"] = i + 1
         return ranked
 
-    def _empty_analytics(self) -> Dict[str, Any]:
+    def _empty_analytics(self) -> dict[str, Any]:
         """Return empty analytics structure."""
         empty_heatmap = []
         days = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
         for i, day in enumerate(days):
-            row: Dict[str, Any] = {"day": day, "day_idx": str(i)}
+            row: dict[str, Any] = {"day": day, "day_idx": str(i)}
             for h in range(24):
                 row[str(h)] = 0
             empty_heatmap.append(row)
@@ -346,7 +345,7 @@ class AnalyticsService:
 
 
 # Singleton accessor
-_analytics_service: Optional[AnalyticsService] = None
+_analytics_service: AnalyticsService | None = None
 
 
 def get_analytics_service() -> AnalyticsService:

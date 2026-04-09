@@ -2,12 +2,11 @@
 语义搜索服务
 基于 AI embeddings 的语义搜索能力
 """
-import json
-import time
 import hashlib
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from ..config import settings
 
@@ -24,7 +23,7 @@ def _load_json(path: Path) -> dict:
         try:
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
     return {}
 
@@ -34,7 +33,7 @@ def _save_json(path: Path, data: dict):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-async def get_embedding(text: str, client=None) -> Optional[List[float]]:
+async def get_embedding(text: str, client=None) -> list[float] | None:
     """使用 Volcano ARK API 获取文本 embedding"""
     try:
         import httpx
@@ -65,7 +64,7 @@ async def get_embedding(text: str, client=None) -> Optional[List[float]]:
         return None
 
 
-def cosine_similarity(a: List[float], b: List[float]) -> float:
+def cosine_similarity(a: list[float], b: list[float]) -> float:
     """计算余弦相似度"""
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -77,7 +76,7 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-def batch_cosine_similarity(query_emb: List[float], candidates: List[List[float]]) -> List[float]:
+def batch_cosine_similarity(query_emb: list[float], candidates: list[list[float]]) -> list[float]:
     """批量计算余弦相似度"""
     return [cosine_similarity(query_emb, c) for c in candidates]
 
@@ -96,7 +95,7 @@ class SemanticSearch:
         _save_json(SEMANTIC_INDEX_FILE, self.semantic_index)
 
     def index_template(self, template_id: str, name: str, description: str,
-                       category: str = "", style: str = "", tags: List[str] = None):
+                       category: str = "", style: str = "", tags: list[str] = None):
         """将模板加入语义索引"""
         tags = tags or []
         text = f"{name} {description} {category} {style} {' '.join(tags)}"
@@ -114,7 +113,7 @@ class SemanticSearch:
         }
         self._persist()
 
-    def index_ppt(self, task_id: str, title: str, slides: List[Dict[str, Any]]):
+    def index_ppt(self, task_id: str, title: str, slides: list[dict[str, Any]]):
         """将 PPT 加入语义索引"""
         self.semantic_index.setdefault("ppt", {})
 
@@ -138,10 +137,10 @@ class SemanticSearch:
         self,
         query: str,
         limit: int = 10,
-        category: Optional[str] = None,
-        style: Optional[str] = None,
+        category: str | None = None,
+        style: str | None = None,
         top_k: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         语义搜索模板
 
@@ -158,7 +157,7 @@ class SemanticSearch:
             return self._keyword_fallback_templates(query, limit, category, style)
 
         # 2. 获取候选模板的 embeddings
-        candidates: List[tuple] = []  # (template_id, embedding, metadata)
+        candidates: list[tuple] = []  # (template_id, embedding, metadata)
         templates_meta = self.semantic_index.get("templates", {})
 
         # 如果还没有预计算的 embeddings，动态生成
@@ -222,7 +221,7 @@ class SemanticSearch:
         self,
         query: str,
         limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         语义搜索 PPT 内容
         支持自然语言理解，如"查找包含图表的幻灯片"
@@ -259,9 +258,9 @@ class SemanticSearch:
         self,
         query: str,
         limit: int = 10,
-        category: Optional[str] = None,
-        style: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        category: str | None = None,
+        style: str | None = None
+    ) -> list[dict[str, Any]]:
         """关键词回退搜索"""
         from ..services.template_manager import get_template_manager
         manager = get_template_manager()
@@ -290,7 +289,7 @@ class SemanticSearch:
 
 
 # 全局实例
-_semantic_search: Optional[SemanticSearch] = None
+_semantic_search: SemanticSearch | None = None
 
 
 def get_semantic_search() -> SemanticSearch:

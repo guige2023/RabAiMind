@@ -3,16 +3,16 @@
 
 提供项目中通用的工具函数，避免代码重复
 """
-import re
 import json
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+import re
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_json_from_response(content: str) -> Optional[Dict[str, Any]]:
+def parse_json_from_response(content: str) -> dict[str, Any] | None:
     """
     从 API 响应中解析 JSON
     
@@ -23,22 +23,22 @@ def parse_json_from_response(content: str) -> Optional[Dict[str, Any]]:
     """
     if not content:
         return None
-    
+
     content = content.strip()
-    
+
     # 尝试直接解析
     if content.startswith('{') or content.startswith('['):
         try:
             return json.loads(content)
         except json.JSONDecodeError:
             pass
-    
+
     # 尝试提取 ```json ... ``` 或 ``` ... ``` 中的内容
     patterns = [
         r'```json\s*([\s\S]*?)\s*```',
         r'```\s*([\s\S]*?)\s*```',
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, content)
         if match:
@@ -50,11 +50,11 @@ def parse_json_from_response(content: str) -> Optional[Dict[str, Any]]:
                 return json.loads(json_str)
             except json.JSONDecodeError:
                 continue
-    
+
     return None
 
 
-def parse_slides_from_response(content: str) -> List[Dict[str, Any]]:
+def parse_slides_from_response(content: str) -> list[dict[str, Any]]:
     """
     从 LLM 响应中解析幻灯片结构
     
@@ -66,17 +66,17 @@ def parse_slides_from_response(content: str) -> List[Dict[str, Any]]:
     """
     # 尝试解析 JSON
     data = parse_json_from_response(content)
-    
+
     if data and isinstance(data, dict):
         slides = data.get("slides", [])
         if slides:
             return slides
-    
+
     # 尝试按行解析
     lines = [l.strip() for l in content.split("\n") if l.strip()]
     slides = []
     current = None
-    
+
     for line in lines:
         # 识别标题行（数字开头或 # 开头）
         if line and (line[0].isdigit() or line.startswith("#")):
@@ -86,13 +86,13 @@ def parse_slides_from_response(content: str) -> List[Dict[str, Any]]:
             current = {"type": "content", "title": title, "content": []}
         elif current and len(line) > 10:
             current["content"].append(line)
-    
+
     if current:
         slides.append(current)
-    
+
     if slides:
         return slides
-    
+
     # 返回默认结构
     logger.warning("无法解析幻灯片结构，使用默认值")
     return [
@@ -175,11 +175,11 @@ def calculate_brightness(hex_color: str) -> float:
     hex_color = hex_color.lstrip('#')
     if len(hex_color) != 6:
         return 128  # 默认中等亮度
-    
+
     r = int(hex_color[0:2], 16)
     g = int(hex_color[2:4], 16)
     b = int(hex_color[4:6], 16)
-    
+
     return (r * 299 + g * 587 + b * 114) / 1000
 
 
@@ -197,7 +197,7 @@ def get_contrast_color(hex_color: str) -> str:
     return "#000000" if brightness > 128 else "#FFFFFF"
 
 
-def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     """十六进制颜色转 RGB"""
     hex_color = hex_color.lstrip('#')
     if len(hex_color) != 6:
@@ -236,7 +236,7 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """设置日志记录器"""
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    
+
     if not logger.handlers:
         handler = logging.StreamHandler()
         handler.setLevel(level)
@@ -245,5 +245,5 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    
+
     return logger

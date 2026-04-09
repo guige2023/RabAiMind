@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 布局参数计算模块
 
@@ -9,8 +8,8 @@
 """
 
 import threading
-from typing import Dict, Any, List, Tuple, Optional
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -18,7 +17,7 @@ class CardLayout:
     """卡片布局参数"""
     card_width: int
     card_height: int
-    positions: List[Tuple[int, int]]
+    positions: list[tuple[int, int]]
     gap: int
 
 
@@ -37,7 +36,7 @@ class TwoColumnLayout:
 class TimelineLayout:
     """时间线布局参数"""
     direction: str  # "horizontal" or "vertical"
-    node_positions: List[Tuple[int, int]]
+    node_positions: list[tuple[int, int]]
     node_radius: int
     line_width: int
     spacing: int
@@ -49,9 +48,9 @@ class RadialLayout:
     center_x: int
     center_y: int
     center_radius: int
-    branch_angles: List[float]
-    branch_distances: List[int]
-    branch_positions: List[Tuple[int, int]]
+    branch_angles: list[float]
+    branch_distances: list[int]
+    branch_positions: list[tuple[int, int]]
 
 
 class LayoutCalculator:
@@ -70,7 +69,7 @@ class LayoutCalculator:
     }
 
     @classmethod
-    def get_safe_zone(cls) -> Tuple[int, int, int, int]:
+    def get_safe_zone(cls) -> tuple[int, int, int, int]:
         """获取安全区域 (x, y, width, height)"""
         x = cls.SAFE_MARGIN["left"]
         y = cls.SAFE_MARGIN["top"]
@@ -274,7 +273,7 @@ class LayoutCalculator:
         )
 
     @classmethod
-    def calculate_title_slide_layout(cls) -> Dict[str, Any]:
+    def calculate_title_slide_layout(cls) -> dict[str, Any]:
         """计算封面布局参数"""
         safe_zone = cls.get_safe_zone()
         return {
@@ -286,7 +285,7 @@ class LayoutCalculator:
         }
 
     @classmethod
-    def calculate_quote_layout(cls) -> Dict[str, Any]:
+    def calculate_quote_layout(cls) -> dict[str, Any]:
         """计算金句布局参数"""
         return {
             "quote_x": cls.SAFE_MARGIN["left"] + 100,
@@ -303,7 +302,7 @@ class LayoutCalculator:
 
 
 # 单例实例
-_layout_calculator_instance: Optional[LayoutCalculator] = None
+_layout_calculator_instance: LayoutCalculator | None = None
 _manager_lock = threading.Lock()
 
 

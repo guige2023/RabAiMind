@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Developer Platform Service — Webhook Event Log Storage
 
@@ -9,15 +8,14 @@ Author: Claude
 Date: 2026-04-04
 """
 
+import hashlib
 import json
 import os
 import threading
 import time
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-import hashlib
-
+from typing import Any
 
 # ── Data Models ───────────────────────────────────────────────
 
@@ -27,18 +25,18 @@ class WebhookDeliveryLog:
     delivery_id: str
     webhook_id: str
     event: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     url: str
     attempt: int
     max_attempts: int
-    response_status: Optional[int]
-    response_body: Optional[str]
-    error: Optional[str]
-    duration_ms: Optional[int]
+    response_status: int | None
+    response_body: str | None
+    error: str | None
+    duration_ms: int | None
     created_at: float = field(default_factory=time.time)
     delivered: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             **asdict(self),
             "created_at_iso": datetime.utcfromtimestamp(self.created_at).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -71,14 +69,14 @@ class DeveloperService:
         self,
         webhook_id: str,
         event: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         url: str,
         attempt: int = 1,
         max_attempts: int = 3,
-        response_status: Optional[int] = None,
-        response_body: Optional[str] = None,
-        error: Optional[str] = None,
-        duration_ms: Optional[int] = None,
+        response_status: int | None = None,
+        response_body: str | None = None,
+        error: str | None = None,
+        duration_ms: int | None = None,
     ) -> WebhookDeliveryLog:
         """Append a webhook delivery log entry."""
         delivery_id = hashlib.sha256(
@@ -108,23 +106,23 @@ class DeveloperService:
 
     def get_webhook_logs(
         self,
-        webhook_id: Optional[str] = None,
-        event: Optional[str] = None,
+        webhook_id: str | None = None,
+        event: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Retrieve webhook delivery logs with optional filters.
         Returns paginated results.
         """
-        logs: List[Dict[str, Any]] = []
+        logs: list[dict[str, Any]] = []
         total = 0
 
         with self._lock:
             if not os.path.exists(self.WEBHOOK_LOG_FILE):
                 return {"logs": [], "total": 0, "limit": limit, "offset": offset}
 
-            with open(self.WEBHOOK_LOG_FILE, "r", encoding="utf-8") as f:
+            with open(self.WEBHOOK_LOG_FILE, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -156,18 +154,18 @@ class DeveloperService:
             "has_more": offset + limit < len(logs),
         }
 
-    def get_webhook_stats(self) -> Dict[str, Any]:
+    def get_webhook_stats(self) -> dict[str, Any]:
         """Aggregate statistics for webhook deliveries."""
         total = 0
         success = 0
         failed = 0
-        events: Dict[str, int] = {}
+        events: dict[str, int] = {}
 
         with self._lock:
             if not os.path.exists(self.WEBHOOK_LOG_FILE):
                 return {"total": 0, "success": 0, "failed": 0, "success_rate": 100.0, "events": {}}
 
-            with open(self.WEBHOOK_LOG_FILE, "r", encoding="utf-8") as f:
+            with open(self.WEBHOOK_LOG_FILE, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
@@ -200,7 +198,7 @@ class DeveloperService:
             health = {}
             if os.path.exists(self.HEALTH_FILE):
                 try:
-                    with open(self.HEALTH_FILE, "r", encoding="utf-8") as f:
+                    with open(self.HEALTH_FILE, encoding="utf-8") as f:
                         health = json.load(f)
                 except (json.JSONDecodeError, FileNotFoundError):
                     health = {}
@@ -215,13 +213,13 @@ class DeveloperService:
             with open(self.HEALTH_FILE, "w", encoding="utf-8") as f:
                 json.dump(health, f, ensure_ascii=False, indent=2)
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get current health status snapshot."""
         with self._lock:
             if not os.path.exists(self.HEALTH_FILE):
                 return {}
             try:
-                with open(self.HEALTH_FILE, "r", encoding="utf-8") as f:
+                with open(self.HEALTH_FILE, encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, FileNotFoundError):
                 return {}
@@ -229,7 +227,7 @@ class DeveloperService:
 
 # ── Singleton ────────────────────────────────────────────────
 
-_developer_service: Optional[DeveloperService] = None
+_developer_service: DeveloperService | None = None
 
 
 def get_developer_service() -> DeveloperService:

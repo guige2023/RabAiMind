@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Advanced AI Features Service
 智能复制 / 内容扩展 / 演讲稿生成 / 设计一致性检查 / 一键专业优化
 """
-import logging
 import json
-import os
+import logging
 import re
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+from typing import Any
 
 from .volc_api import get_volc_api
 
@@ -63,11 +60,11 @@ class AdvancedAIFeatures:
 
     def smart_copy(
         self,
-        source_slides: List[Dict[str, Any]],
+        source_slides: list[dict[str, Any]],
         target_theme: str,
         target_style: str = "professional",
         target_page_count: int = 5
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         智能复制：分析源PPT内容，选择性迁移到目标主题
         source_slides: List[Dict], 每项包含 title, content, bullet_points
@@ -150,11 +147,11 @@ PPT主题：{topic}
 
     def extend_content(
         self,
-        outline: List[Dict[str, str]],
+        outline: list[dict[str, str]],
         topic: str,
         audience: str = "商务人士",
         style: str = "professional"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         AI内容扩展：将简略大纲扩展为详细的幻灯片内容
         outline: List[Dict], 每项包含 title 和 content（如有）
@@ -226,9 +223,9 @@ PPT主题：{topic}
 
     def generate_speaker_notes(
         self,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         total_duration: int = 10
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         自动生成演讲者备注
         slides: List[Dict], 每项包含 title, content, bullet_points
@@ -360,10 +357,10 @@ PPT主题：{topic}
 
     def check_design_consistency(
         self,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         style_theme: str = "business",
-        brand_colors: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+        brand_colors: list[str] | None = None
+    ) -> dict[str, Any]:
         """
         设计一致性检查：扫描幻灯片的设计违规问题
         slides: List[Dict], 每项包含 title, content, design_info（如有）
@@ -478,10 +475,10 @@ PPT主题：{topic}
 
     def professional_polish(
         self,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         target_style: str = "business",
         use_case: str = "商务演示"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         一键专业优化：对PPT进行全方位的专业级优化
         slides: List[Dict], 每项包含 title, content, bullet_points

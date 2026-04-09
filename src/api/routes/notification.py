@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Notification API Routes — 智能通知 API
 
@@ -14,19 +13,16 @@ Endpoints:
 日期: 2026-04-04
 """
 
-import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ...services.notification_service import (
-    get_notification_service,
-    AlertType,
-    ReminderStatus,
     _load_comment_email_prefs,
     _save_comment_email_prefs,
+    get_notification_service,
 )
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
@@ -46,8 +42,8 @@ def _uid(req: Request) -> str:
 
 class NotificationResponse(BaseModel):
     success: bool
-    data: Optional[Any] = None
-    error: Optional[str] = None
+    data: Any | None = None
+    error: str | None = None
 
 
 # ── Reminder Models ─────────────────────────────────────────────────────────────
@@ -61,11 +57,11 @@ class CreateReminderRequest(BaseModel):
 
 
 class UpdateReminderRequest(BaseModel):
-    title: Optional[str] = None
-    review_date: Optional[str] = None
-    remind_before_hours: Optional[int] = Field(None, ge=1, le=168)
-    notes: Optional[str] = None
-    status: Optional[str] = None
+    title: str | None = None
+    review_date: str | None = None
+    remind_before_hours: int | None = Field(None, ge=1, le=168)
+    notes: str | None = None
+    status: str | None = None
 
 
 # ── Smart Alert Models ─────────────────────────────────────────────────────────
@@ -85,7 +81,7 @@ class SendMentionRequest(BaseModel):
     from_user: str = Field(..., description="发送者")
     to_user: str = Field(..., description="接收者 (@目标)")
     message: str = Field(..., min_length=1, max_length=500, description="@提及内容")
-    slide_ref: Optional[str] = Field(None, description="关联的幻灯片引用")
+    slide_ref: str | None = Field(None, description="关联的幻灯片引用")
 
 
 # ── Deadline Models ─────────────────────────────────────────────────────────────
@@ -94,16 +90,16 @@ class CreateDeadlineRequest(BaseModel):
     task_id: str = Field(..., description="关联的PPT任务ID")
     title: str = Field(..., min_length=1, max_length=200)
     deadline: str = Field(..., description="截止日期 ISO8601")
-    notification_hours: List[int] = Field(
+    notification_hours: list[int] = Field(
         default=[24, 1],
         description="提前多少小时发送提醒列表，如 [24, 2, 1]"
     )
 
 
 class UpdateDeadlineRequest(BaseModel):
-    title: Optional[str] = None
-    deadline: Optional[str] = None
-    notification_hours: Optional[List[int]] = None
+    title: str | None = None
+    deadline: str | None = None
+    notification_hours: list[int] | None = None
 
 
 # ── Digest Models ───────────────────────────────────────────────────────────────
@@ -117,12 +113,12 @@ class SubscribeDigestRequest(BaseModel):
 
 
 class UpdateDigestRequest(BaseModel):
-    email: Optional[str] = None
-    name: Optional[str] = None
-    enabled: Optional[bool] = None
-    day_of_week: Optional[int] = Field(None, ge=0, le=6)
-    hour: Optional[int] = Field(None, ge=0, le=23)
-    minute: Optional[int] = Field(None, ge=0, le=59)
+    email: str | None = None
+    name: str | None = None
+    enabled: bool | None = None
+    day_of_week: int | None = Field(None, ge=0, le=6)
+    hour: int | None = Field(None, ge=0, le=23)
+    minute: int | None = Field(None, ge=0, le=59)
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -144,7 +140,7 @@ async def create_reminder(req: Request, body: CreateReminderRequest):
 
 
 @router.get("/reminders", summary="列出提醒列表")
-async def list_reminders(req: Request, status: Optional[str] = None):
+async def list_reminders(req: Request, status: str | None = None):
     svc = get_notification_service()
     user_id = _uid(req)
     reminders = svc.list_reminders(user_id=user_id, status=status)
@@ -446,8 +442,8 @@ class CreateGenerationNotifRequest(BaseModel):
     task_id: str = Field(..., description="关联的PPT任务ID")
     title: str = Field(..., min_length=1, max_length=200)
     message: str = Field(..., max_length=500)
-    task_title: Optional[str] = Field(None, max_length=200)
-    collaborator_name: Optional[str] = Field(None, max_length=100)
+    task_title: str | None = Field(None, max_length=200)
+    collaborator_name: str | None = Field(None, max_length=100)
 
 
 @router.post("/generation", summary="创建生成/协作者通知（内部调用）")
@@ -468,7 +464,7 @@ async def create_generation_notification(req: Request, body: CreateGenerationNot
 @router.get("/generation", summary="列出生成/协作者通知")
 async def list_generation_notifications(
     req: Request,
-    notif_type: Optional[str] = None,
+    notif_type: str | None = None,
     unread_only: bool = False,
 ):
     svc = get_notification_service()
@@ -515,11 +511,11 @@ async def get_notification_preferences(req: Request):
 
 
 class UpdateNotificationPrefsRequest(BaseModel):
-    email_on_complete: Optional[bool] = None
-    push_on_complete: Optional[bool] = None
-    weekly_summary: Optional[bool] = None
-    collab_joined_push: Optional[bool] = None
-    collab_joined_email: Optional[bool] = None
+    email_on_complete: bool | None = None
+    push_on_complete: bool | None = None
+    weekly_summary: bool | None = None
+    collab_joined_push: bool | None = None
+    collab_joined_email: bool | None = None
 
 
 @router.put("/preferences", summary="更新通知偏好设置")
@@ -543,9 +539,9 @@ class RegisterCommentEmailRequest(BaseModel):
 
 
 class UpdateCommentEmailRequest(BaseModel):
-    email: Optional[str] = None
-    name: Optional[str] = None
-    enabled: Optional[bool] = None
+    email: str | None = None
+    name: str | None = None
+    enabled: bool | None = None
 
 
 @router.put("/comment-email", summary="注册/更新评论邮件通知邮箱")

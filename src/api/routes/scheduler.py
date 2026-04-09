@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Scheduler API 路由
 
@@ -9,19 +8,17 @@ Scheduler API 路由
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from ...services.scheduler_service import (
-    get_scheduler_service,
-    ScheduleType,
-    ScheduleStatus,
     ScheduleAction,
-    GenerationParams,
+    ScheduleStatus,
+    ScheduleType,
+    get_scheduler_service,
 )
-from ...config import settings
 
 router = APIRouter(prefix="/api/v1/schedules", tags=["schedules"])
 
@@ -34,46 +31,46 @@ class CreateScheduleRequest(BaseModel):
     action: str = Field(..., description="动作类型: generate | export | webhook | email")
     schedule_type: str = Field(..., description="调度类型: once | daily | weekly | monthly")
     # 时间配置
-    run_at: Optional[str] = Field(None, description="执行时间 (ISO8601)，用于 once 类型")
-    cron_expression: Optional[str] = Field(None, description="Cron 表达式（保留字段）")
-    day_of_week: Optional[str] = Field(None, description="周几执行: mon,tue,wed,thu,fri,sat,sun")
-    day_of_month: Optional[int] = Field(None, ge=1, le=31, description="每月几号执行 (1-31)")
-    hour: Optional[int] = Field(None, ge=0, le=23, description="执行小时 (0-23)")
-    minute: Optional[int] = Field(None, ge=0, le=59, description="执行分钟 (0-59)")
+    run_at: str | None = Field(None, description="执行时间 (ISO8601)，用于 once 类型")
+    cron_expression: str | None = Field(None, description="Cron 表达式（保留字段）")
+    day_of_week: str | None = Field(None, description="周几执行: mon,tue,wed,thu,fri,sat,sun")
+    day_of_month: int | None = Field(None, ge=1, le=31, description="每月几号执行 (1-31)")
+    hour: int | None = Field(None, ge=0, le=23, description="执行小时 (0-23)")
+    minute: int | None = Field(None, ge=0, le=59, description="执行分钟 (0-59)")
     # 动作参数
-    generation: Optional[Dict[str, Any]] = Field(None, description="PPT生成参数（action=generate时）")
-    export_config: Optional[Dict[str, Any]] = Field(None, description="导出配置（action=export时）")
-    webhook_config: Optional[Dict[str, Any]] = Field(None, description="Webhook配置（action=webhook时）")
-    email_config: Optional[Dict[str, Any]] = Field(None, description="邮件配置（action=email时）")
-    user_id: Optional[str] = Field(None, description="所属用户ID")
+    generation: dict[str, Any] | None = Field(None, description="PPT生成参数（action=generate时）")
+    export_config: dict[str, Any] | None = Field(None, description="导出配置（action=export时）")
+    webhook_config: dict[str, Any] | None = Field(None, description="Webhook配置（action=webhook时）")
+    email_config: dict[str, Any] | None = Field(None, description="邮件配置（action=email时）")
+    user_id: str | None = Field(None, description="所属用户ID")
 
 
 class UpdateScheduleRequest(BaseModel):
     """更新定时任务请求"""
-    name: Optional[str] = None
-    status: Optional[str] = None  # active | paused
-    run_at: Optional[str] = None
-    day_of_week: Optional[str] = None
-    day_of_month: Optional[int] = None
-    hour: Optional[int] = None
-    minute: Optional[int] = None
-    generation: Optional[Dict[str, Any]] = None
-    export_config: Optional[Dict[str, Any]] = None
-    webhook_config: Optional[Dict[str, Any]] = None
-    email_config: Optional[Dict[str, Any]] = None
+    name: str | None = None
+    status: str | None = None  # active | paused
+    run_at: str | None = None
+    day_of_week: str | None = None
+    day_of_month: int | None = None
+    hour: int | None = None
+    minute: int | None = None
+    generation: dict[str, Any] | None = None
+    export_config: dict[str, Any] | None = None
+    webhook_config: dict[str, Any] | None = None
+    email_config: dict[str, Any] | None = None
 
 
 class ScheduleResponse(BaseModel):
     """定时任务响应"""
     success: bool
-    schedule: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    schedule: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class ScheduleListResponse(BaseModel):
     """定时任务列表响应"""
     success: bool
-    schedules: List[Dict[str, Any]]
+    schedules: list[dict[str, Any]]
     total: int
 
 
@@ -81,35 +78,35 @@ class ScheduleListResponse(BaseModel):
 
 class CreateEmailRequest(BaseModel):
     """创建邮件投递配置"""
-    schedule_id: Optional[str] = Field(None, description="关联的定时任务ID")
-    task_id: Optional[str] = Field(None, description="关联的PPT任务ID")
+    schedule_id: str | None = Field(None, description="关联的定时任务ID")
+    task_id: str | None = Field(None, description="关联的PPT任务ID")
     to_email: str = Field(..., description="收件人邮箱")
-    to_name: Optional[str] = Field(None, description="收件人姓名")
+    to_name: str | None = Field(None, description="收件人姓名")
     subject: str = Field(..., description="邮件主题")
     body_html: str = Field(default="<p>您的PPT已生成，请查收附件。</p>", description="HTML正文")
-    body_text: Optional[str] = Field(None, description="纯文本正文")
+    body_text: str | None = Field(None, description="纯文本正文")
     # SMTP配置（可选，从环境变量读取）
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    from_email: Optional[str] = None
-    from_name: Optional[str] = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    from_email: str | None = None
+    from_name: str | None = None
 
 
 class TestEmailRequest(BaseModel):
     """发送测试邮件"""
     to_email: str
-    to_name: Optional[str] = None
+    to_name: str | None = None
     subject: str = Field(default="Test Email from RabAiMind")
     body_html: str = Field(default="<p>This is a test email from RabAiMind.</p>")
-    body_text: Optional[str] = None
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    from_email: Optional[str] = None
-    from_name: Optional[str] = None
+    body_text: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    from_email: str | None = None
+    from_name: str | None = None
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
@@ -144,7 +141,7 @@ def _parse_status(status_str: str) -> ScheduleStatus:
         )
 
 
-def _format_schedule(sched) -> Dict[str, Any]:
+def _format_schedule(sched) -> dict[str, Any]:
     return {
         "id": sched.id,
         "name": sched.name,
@@ -231,7 +228,7 @@ async def create_schedule(request: Request, body: CreateScheduleRequest):
             detail="schedule_type=once 时必须提供 run_at 参数",
         )
 
-    params: Dict[str, Any] = {}
+    params: dict[str, Any] = {}
     if body.generation:
         params["generation"] = body.generation
     if body.export_config:
@@ -268,8 +265,8 @@ async def create_schedule(request: Request, body: CreateScheduleRequest):
 )
 async def list_schedules(
     request: Request,
-    status: Optional[str] = None,
-    user_id: Optional[str] = None,
+    status: str | None = None,
+    user_id: str | None = None,
 ):
     svc = get_scheduler_service()
     status_enum = _parse_status(status) if status else None
@@ -286,8 +283,8 @@ async def list_schedules(
 class WebhookTriggerRequest(BaseModel):
     """Webhook 触发请求"""
     event: str = Field(..., description="事件类型: generation.started | generation.completed | ...")
-    data: Dict[str, Any] = Field(default_factory=dict, description="事件数据")
-    task_id: Optional[str] = Field(None, description="关联的任务ID")
+    data: dict[str, Any] = Field(default_factory=dict, description="事件数据")
+    task_id: str | None = Field(None, description="关联的任务ID")
 
 
 @router.post(
@@ -307,7 +304,7 @@ class WebhookTriggerRequest(BaseModel):
 """,
 )
 async def trigger_webhook(request: Request, body: WebhookTriggerRequest):
-    from ...services.webhook_service import get_webhook_service, WebhookEvent
+    from ...services.webhook_service import WebhookEvent, get_webhook_service
 
     try:
         event = WebhookEvent(body.event)
@@ -326,7 +323,7 @@ async def trigger_webhook(request: Request, body: WebhookTriggerRequest):
 
 class BatchScheduledExportRequest(BaseModel):
     """批量定时导出请求"""
-    schedules: List[Dict[str, Any]] = Field(
+    schedules: list[dict[str, Any]] = Field(
         ...,
         description="导出配置列表，每个包含 task_ids, format, quality, schedule_type, hour, minute",
         min_length=1,
@@ -436,7 +433,7 @@ async def create_scheduled_email(request: Request, body: CreateEmailRequest):
     "/emails",
     summary="列出邮件投递配置",
 )
-async def list_emails(request: Request, schedule_id: Optional[str] = None):
+async def list_emails(request: Request, schedule_id: str | None = None):
     svc = get_scheduler_service()
     emails = svc.list_scheduled_emails(schedule_id=schedule_id)
     return {
@@ -492,15 +489,15 @@ async def send_test_email(request: Request, body: TestEmailRequest):
 class RecurringPresentationRequest(BaseModel):
     """创建循环演示文稿请求"""
     name: str = Field(..., description="任务名称")
-    generation: Dict[str, Any] = Field(..., description="PPT生成参数")
+    generation: dict[str, Any] = Field(..., description="PPT生成参数")
     recurrence: str = Field(..., description="循环类型: daily | weekly | monthly")
-    day_of_week: Optional[str] = Field(None, description="周几: mon,tue,wed,thu,fri,sat,sun")
-    day_of_month: Optional[int] = Field(None, ge=1, le=31)
+    day_of_week: str | None = Field(None, description="周几: mon,tue,wed,thu,fri,sat,sun")
+    day_of_month: int | None = Field(None, ge=1, le=31)
     hour: int = Field(default=9, ge=0, le=23)
     minute: int = Field(default=0, ge=0, le=59)
-    user_id: Optional[str] = None
+    user_id: str | None = None
     # 自动邮件配置（可选）
-    auto_email: Optional[Dict[str, Any]] = Field(None, description="生成完成后自动发送邮件")
+    auto_email: dict[str, Any] | None = Field(None, description="生成完成后自动发送邮件")
 
 
 @router.post(
@@ -536,7 +533,7 @@ async def create_recurring_presentation(request: Request, body: RecurringPresent
         )
 
     # 先创建定时生成任务
-    params: Dict[str, Any] = {"generation": body.generation}
+    params: dict[str, Any] = {"generation": body.generation}
 
     # 如果有自动邮件，创建邮件配置
     email_id = None
@@ -583,7 +580,7 @@ async def create_recurring_presentation(request: Request, body: RecurringPresent
     summary="列出循环演示文稿",
     description="返回所有循环演示文稿任务（action=generate 且非 once）",
 )
-async def list_recurring_presentations(request: Request, user_id: Optional[str] = None):
+async def list_recurring_presentations(request: Request, user_id: str | None = None):
     svc = get_scheduler_service()
     schedules = svc.list_schedules(user_id=user_id)
     recurring = [
@@ -656,7 +653,7 @@ async def update_schedule(schedule_id: str, body: UpdateScheduleRequest):
     if not sched:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
 
-    updates: Dict[str, Any] = {}
+    updates: dict[str, Any] = {}
     if body.name is not None:
         updates["name"] = body.name
     if body.status is not None:

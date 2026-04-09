@@ -1,22 +1,19 @@
-# -*- coding: utf-8 -*-
 """
 图片搜索与 AI 处理 API 路由
 
 提供图片搜索、AI 背景移除、AI 图片增强、AI 图标生成等功能
 """
-from fastapi import APIRouter, HTTPException, status, Query, UploadFile, File, Form
-from fastapi.responses import JSONResponse
-from typing import List, Optional
-from pydantic import BaseModel, Field
+import base64
+import io
 import logging
 import os
-import io
-import base64
-import uuid
 import random
+import uuid
+
 import httpx
-import asyncio
-from PIL import Image, ImageFilter, ImageEnhance, ImageOps
+from fastapi import APIRouter, Form, HTTPException, Query, status
+from PIL import Image, ImageEnhance, ImageFilter
+from pydantic import BaseModel, Field
 
 # Use shared HTTP client with connection pooling
 from src.core.http_client import http_client, is_safe_url
@@ -35,10 +32,10 @@ class ImageResult(BaseModel):
     thumbnail_url: str
     width: int
     height: int
-    description: Optional[str] = None
+    description: str | None = None
     source: str = "unsplash"
-    author: Optional[str] = None
-    author_url: Optional[str] = None
+    author: str | None = None
+    author_url: str | None = None
 
 
 class ImageSearchResponse(BaseModel):
@@ -47,13 +44,13 @@ class ImageSearchResponse(BaseModel):
     total: int
     page: int
     per_page: int
-    images: List[ImageResult]
+    images: list[ImageResult]
     message: str = ""
 
 
 class ImageProcessRequest(BaseModel):
     """图片处理请求"""
-    image_url: Optional[str] = None
+    image_url: str | None = None
     action: str = Field(..., description="操作: upscale|sharpen|denoise|all")
 
 
@@ -88,17 +85,17 @@ def _save_base64_image(base64_data: str, prefix: str = "img") -> str:
             header, data = base64_data.split(",", 1)
         else:
             data = base64_data
-        
+
         img_bytes = base64.b64decode(data)
         img = Image.open(io.BytesIO(img_bytes))
-        
+
         filename = f"{prefix}_{uuid.uuid4().hex[:8]}.png"
         # 保存到后端 static 目录
         static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
         os.makedirs(static_dir, exist_ok=True)
         filepath = os.path.join(static_dir, filename)
         img.save(filepath, "PNG")
-        
+
         # 返回相对 URL（前端会拼接后端地址）
         return f"/static/{filename}"
     except Exception as e:
@@ -126,14 +123,14 @@ def _detect_and_remove_background_pil(img: Image.Image) -> Image.Image:
     """使用 PIL 自动检测并移除背景（基于边缘检测 + 阈值）"""
     # 转换为 RGBA
     img = img.convert("RGBA")
-    
+
     # 缩小加速处理
     w, h = img.size
     scale = min(1.0, 800 / max(w, h))
     if scale < 1.0:
         nw, nh = int(w * scale), int(h * scale)
         img = img.resize((nw, nh), Image.LANCZOS)
-    
+
     # 获取角落颜色（背景色估计）
     corners = [
         img.getpixel((5, 5)),
@@ -141,29 +138,29 @@ def _detect_and_remove_background_pil(img: Image.Image) -> Image.Image:
         img.getpixel((5, nh - 5 if scale < 1 else h - 5)),
         img.getpixel((nw - 5 if scale < 1 else w - 5, nh - 5 if scale < 1 else h - 5)),
     ]
-    
+
     # 取平均背景色
     bg_r = sum(c[0] for c in corners) // 4
     bg_g = sum(c[1] for c in corners) // 4
     bg_b = sum(c[2] for c in corners) // 4
-    
+
     # 宽容度
     tolerance = 45
-    
+
     # 缩放回原始尺寸
     pixels = img.load()
     w, h = img.size
-    
+
     for y in range(h):
         for x in range(w):
             p = pixels[x, y]
             r, g, b, a = p
             # 如果像素接近背景色，设为透明
-            if (abs(r - bg_r) <= tolerance and 
-                abs(g - bg_g) <= tolerance and 
+            if (abs(r - bg_r) <= tolerance and
+                abs(g - bg_g) <= tolerance and
                 abs(b - bg_b) <= tolerance):
                 pixels[x, y] = (r, g, b, 0)
-    
+
     return img
 
 
@@ -183,10 +180,10 @@ async def search_images(
     """搜索图片，支持 Unsplash 和 Pexels"""
     if not q:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="搜索关键词不能为空")
-    
+
     images = []
     total = 0
-    
+
     # Pexels 搜索
     if source in ("all", "pexels") and PEXELS_API_KEY:
         try:
@@ -213,7 +210,7 @@ async def search_images(
                     ))
         except Exception as e:
             logger.warning(f"Pexels API 调用失败: {e}")
-    
+
     # Unsplash 搜索
     if source in ("all", "unsplash") and (not images or source == "unsplash") and UNSPLASH_ACCESS_KEY:
         try:
@@ -246,7 +243,7 @@ async def search_images(
                 logger.warning(f"Unsplash API 返回错误: {resp.status_code}")
         except Exception as e:
             logger.warning(f"Unsplash API 调用失败: {e}")
-    
+
     # 备用图片
     if not images:
         for i in range(min(limit, 10)):
@@ -263,7 +260,7 @@ async def search_images(
                 author_url="https://picsum.photos"
             ))
         total = limit
-    
+
     return ImageSearchResponse(
         success=True,
         total=total,
@@ -281,7 +278,7 @@ async def get_random_images(
 ):
     """获取随机图片"""
     images = []
-    
+
     if UNSPLASH_ACCESS_KEY:
         try:
             resp = await http_client.get(
@@ -305,7 +302,7 @@ async def get_random_images(
                     ))
         except Exception as e:
             logger.warning(f"Unsplash 随机图片 API 失败: {e}")
-    
+
     if not images:
         for i in range(count):
             seed = random.randint(1, 10000)
@@ -319,7 +316,7 @@ async def get_random_images(
                 author="Picsum Photos",
                 author_url="https://picsum.photos"
             ))
-    
+
     return ImageSearchResponse(
         success=True,
         total=len(images),
@@ -367,20 +364,20 @@ async def remove_background(
             b64 = _download_image_as_base64(image_url)
         else:
             raise HTTPException(status_code=400, detail="无效的图片地址")
-        
+
         img_bytes = base64.b64decode(b64)
         img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
-        
+
         # 背景移除处理
         result = _detect_and_remove_background_pil(img)
-        
+
         # 保存结果
         static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
         os.makedirs(static_dir, exist_ok=True)
         filename = f"nobg_{uuid.uuid4().hex[:8]}.png"
         filepath = os.path.join(static_dir, filename)
         result.save(filepath, "PNG")
-        
+
         return RemoveBgResponse(
             success=True,
             image_url=f"/static/{filename}",
@@ -418,35 +415,35 @@ async def enhance_image(
             b64 = _download_image_as_base64(image_url)
         else:
             raise HTTPException(status_code=400, detail="无效的图片地址")
-        
+
         img_bytes = base64.b64decode(b64)
         img = Image.open(io.BytesIO(img_bytes)).convert("RGBA" if img.mode == "RGBA" else "RGB")
-        
+
         if action in ("upscale", "all"):
             # 2倍放大
             w, h = img.size
             img = img.resize((w * 2, h * 2), Image.LANCZOS)
-        
+
         if action in ("denoise", "all"):
             # 降噪 - 中值滤波
             img = img.filter(ImageFilter.MedianFilter(size=3))
-        
+
         if action in ("sharpen", "all"):
             # 锐化
             enhancer = ImageEnhance.Sharpness(img)
             img = enhancer.enhance(1.8)
-        
+
         # 保存结果
         static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "static")
         os.makedirs(static_dir, exist_ok=True)
         filename = f"enhanced_{uuid.uuid4().hex[:8]}.png"
         filepath = os.path.join(static_dir, filename)
-        
+
         if img.mode == "RGBA":
             img.save(filepath, "PNG")
         else:
             img.save(filepath, "JPEG", quality=92)
-        
+
         return ImageProcessResponse(
             success=True,
             image_url=f"/static/{filename}",
@@ -471,12 +468,12 @@ async def generate_icon(request: IconGenerateRequest):
     基于文字描述生成图标，支持多种风格
     """
     try:
-        from src.services.volc_api import get_volc_api
         from src.services.ppt_planner import sanitize_prompt
-        
+        from src.services.volc_api import get_volc_api
+
         volc = get_volc_api()
         safe_prompt = sanitize_prompt(request.prompt)
-        
+
         # 风格化提示词
         style_hints = {
             "flat": "flat design icon, simple, clean, vector style, transparent background, professional",
@@ -485,18 +482,18 @@ async def generate_icon(request: IconGenerateRequest):
             "hand-drawn": "hand-drawn illustration, sketch style, doodle, pen strokes, playful"
         }
         style_hint = style_hints.get(request.style, style_hints["flat"])
-        
+
         # 添加主色调
         color_hint = f", primary color {request.color}" if request.color != "#165DFF" else ""
-        
+
         full_prompt = f"{safe_prompt}, {style_hint}{color_hint}, high quality icon, 1024x1024, PNG"
-        
+
         result = volc.image_generation(
             prompt=full_prompt,
             size="1024x1024",
             n=1
         )
-        
+
         if result.get("success") and result.get("images"):
             return ImageProcessResponse(
                 success=True,

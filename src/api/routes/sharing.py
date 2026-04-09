@@ -1,21 +1,22 @@
-# -*- coding: utf-8 -*-
 """
 Sharing Routes — Access Requests, Folders, Sharing Analytics, Permission Grants
 
 R126: Presentation Sharing & Permissions
 """
 
-from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, Request, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from ...api.middleware.auth import get_current_user
+from ...core.security import Role, User
 from ...services.sharing_service import (
-    get_access_request_service, get_folder_service,
-    get_sharing_analytics_service, get_permission_grant_service,
-    SharePermission, AccessRequestStatus,
+    AccessRequestStatus,
+    get_access_request_service,
+    get_folder_service,
+    get_permission_grant_service,
+    get_sharing_analytics_service,
 )
-from ...core.security import User, Role
-from ...api.middleware.auth import get_current_user, get_current_admin
 
 router = APIRouter(prefix="/api/v1/sharing", tags=["sharing"])
 
@@ -48,15 +49,15 @@ class FolderCreate(BaseModel):
 
 
 class FolderUpdate(BaseModel):
-    name: Optional[str] = None
-    parent_id: Optional[str] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    sort_order: Optional[int] = None
+    name: str | None = None
+    parent_id: str | None = None
+    color: str | None = None
+    icon: str | None = None
+    sort_order: int | None = None
 
 
 class FolderShare(BaseModel):
-    emails: List[str] = Field(default_factory=list)
+    emails: list[str] = Field(default_factory=list)
 
 
 class PermissionGrantRequest(BaseModel):
@@ -330,7 +331,7 @@ async def get_ppt_folders(
 @router.post("/folders/reorder")
 async def reorder_folders(
     workspace_id: str = "default",
-    folder_ids: List[str] = Query(default=[]),
+    folder_ids: list[str] = Query(default=[]),
     user: User = Depends(get_current_user),
 ):
     """Reorder folders in a workspace"""

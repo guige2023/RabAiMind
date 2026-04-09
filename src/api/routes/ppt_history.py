@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT History Routes - 历史记录、版本管理、协作编辑路由
 
@@ -6,17 +5,16 @@ PPT History Routes - 历史记录、版本管理、协作编辑路由
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query, Body, status
-from fastapi.responses import JSONResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
 import logging
-import re
+from typing import Any
+
+from fastapi import APIRouter, Body, HTTPException, Query, Request, status
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-from ...services.task_manager import get_task_manager
 from ...services.history_sync_service import get_history_sync_service
+from ...services.task_manager import get_task_manager
 
 router = APIRouter()
 
@@ -27,14 +25,14 @@ class HistoryResponse(BaseModel):
     """历史记录响应"""
     success: bool
     total: int
-    tasks: List[Dict[str, Any]]
+    tasks: list[dict[str, Any]]
     sync_enabled: bool
 
 
 # ==================== History Endpoints (Cloud Sync) ====================
 
 @router.get("/history", response_model=HistoryResponse)
-async def get_task_history(status: Optional[str] = None):
+async def get_task_history(status: str | None = None):
     """
     获取任务历史记录（支持云端同步）
     
@@ -45,15 +43,15 @@ async def get_task_history(status: Optional[str] = None):
     """
     manager = get_task_manager()
     sync_service = get_history_sync_service()
-    
+
     all_tasks = manager.get_history(status_filter=status)
-    
+
     # 转换为列表
     tasks_list = [
         {**task, "task_id": tid}
         for tid, task in all_tasks.items()
     ]
-    
+
     # 按 updated_at 降序排序
     tasks_list.sort(
         key=lambda x: x.get("updated_at", ""),
@@ -73,10 +71,10 @@ async def force_sync_history():
     """强制同步所有任务到云端"""
     manager = get_task_manager()
     sync_service = get_history_sync_service()
-    
+
     if not sync_service.is_enabled():
         return {"success": False, "message": "OSS 未启用，无法同步"}
-    
+
     count = manager.force_sync_all()
     return {"success": True, "message": f"已同步 {count} 个任务到云端", "synced_count": count}
 
@@ -271,11 +269,10 @@ async def get_version_slide_svg(
 ):
     """获取指定版本的指定幻灯片SVG内容（用于视觉diff）"""
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
         get_rate_limiter,
-        rate_limit_exceeded_response,
+        get_user_id_from_request,
     )
-    
+
     # 速率限制检查
     user_id = get_user_id_from_request(request)
     rate_limiter = get_rate_limiter()
@@ -286,8 +283,9 @@ async def get_version_slide_svg(
             detail="请求过于频繁，请稍后再试"
         )
 
-    from ...services.task_manager import get_task_manager
     from fastapi.responses import Response
+
+    from ...services.task_manager import get_task_manager
 
     tm = get_task_manager()
     result = tm.get_version_slide_svg(task_id, version_id, slide_index)

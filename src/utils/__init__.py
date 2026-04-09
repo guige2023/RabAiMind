@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 通用工具函数
 
@@ -6,17 +5,16 @@
 日期: 2026-03-17
 """
 
+import hashlib
+import html
+import json
+import logging
 import os
 import re
 import uuid
-import hashlib
-import json
-import logging
-import html
 from datetime import datetime
-from typing import Any, Dict, Optional
 from pathlib import Path
-
+from typing import Any, Dict, Optional
 
 # ==================== 日志配置 ====================
 
@@ -99,7 +97,7 @@ def safe_json_dumps(obj: Any, default: str = "{}") -> str:
         return default
 
 
-def parse_json_from_response(content: str) -> Optional[Dict]:
+def parse_json_from_response(content: str) -> dict | None:
     """从响应文本中解析 JSON，支持直接格式和 Markdown 代码块格式"""
     if not content:
         return None

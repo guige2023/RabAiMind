@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Additional Export Service
 Supports: ODP (OpenDocument), Keynote (.key), MP3 Audio Narration
 """
 
-import io
 import logging
 import os
 import shutil
 import subprocess
 import tempfile
 import zipfile
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +26,7 @@ class AdditionalExportService:
             self._edge_tts_available = shutil.which("edge-tts") is not None
         return self._edge_tts_available
 
-    def _get_libreoffice_path(self) -> Optional[str]:
+    def _get_libreoffice_path(self) -> str | None:
         if self._libreoffice_path is None:
             self._libreoffice_path = shutil.which("libreoffice") or shutil.which("soffice")
         return self._libreoffice_path
@@ -38,7 +36,7 @@ class AdditionalExportService:
         task_id: str,
         pptx_path: str,
         output_path: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export PPTX to ODP (OpenDocument Presentation) using LibreOffice.
         """
@@ -126,7 +124,7 @@ class AdditionalExportService:
         task_id: str,
         pptx_path: str,
         output_path: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export PPTX to Keynote (.key) format.
         
@@ -146,7 +144,7 @@ class AdditionalExportService:
             # First convert to ODP
             temp_dir = tempfile.mkdtemp(prefix="keynote_export_")
             temp_odp = os.path.join(temp_dir, "temp_export.odp")
-            
+
             # Convert PPTX to ODP
             result = subprocess.run(
                 [
@@ -187,7 +185,7 @@ class AdditionalExportService:
                 }
 
             temp_odp = os.path.join(temp_dir, odp_files[0])
-            
+
             # Create .key package (macOS app bundle format)
             # A .key file is essentially a package containing:
             # Index.zip (main content), preview.png, etc.
@@ -226,16 +224,16 @@ class AdditionalExportService:
             # Create a standard ZIP of the .key package
             # .key is typically not zipped itself - it's a directory/package
             # But for download, we can ZIP it or just provide as-is
-            
+
             # Copy to final destination
             final_key = os.path.join(os.path.dirname(output_path) or tempfile.gettempdir(), f"{key_name}.key")
-            
+
             # For simplicity, we'll copy the whole directory as a .zip
             # since True .key creation requires macOS APIs
             zip_path = output_path
             if not output_path.endswith(".zip"):
                 zip_path = output_path + ".zip"
-            
+
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for root, dirs, files in os.walk(key_package_dir):
                     for file in files:
@@ -274,17 +272,17 @@ class AdditionalExportService:
         """Create a placeholder preview image for the Keynote package"""
         try:
             from PIL import Image, ImageDraw, ImageFont
-            
+
             # Create a simple placeholder image
             img = Image.new('RGB', (256, 192), color=(240, 240, 240))
             draw = ImageDraw.Draw(img)
-            
+
             # Draw some text
             try:
                 font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
             except Exception:
                 font = ImageFont.load_default()
-            
+
             draw.text((20, 80), "Preview", fill=(100, 100, 100), font=font)
             img.save(preview_path, "PNG")
         except ImportError:
@@ -298,11 +296,11 @@ class AdditionalExportService:
         task_id: str,
         pptx_path: str,
         output_path: str,
-        slides_content: Optional[List[Dict[str, Any]]] = None,
+        slides_content: list[dict[str, Any]] | None = None,
         voice: str = "zh-CN-XiaoxiaoNeural",
         rate: str = "+0%",
         volume: str = "+0%"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export PPT narration as MP3 audio using edge-tts.
         Each slide becomes an audio segment, combined into one MP3.
@@ -325,20 +323,21 @@ class AdditionalExportService:
 
         try:
             import asyncio
+
             from edge_tts import Communicate
 
             # Build narration text for each slide
             slide_texts = []
-            
+
             if slides_content:
                 for i, slide in enumerate(slides_content):
                     slide_parts = []
-                    
+
                     # Title
                     title = slide.get("title", "")
                     if title:
                         slide_parts.append(f"第{i+1}页. {title}")
-                    
+
                     # Content items
                     content = slide.get("content", [])
                     if isinstance(content, list):
@@ -351,7 +350,7 @@ class AdditionalExportService:
                                 slide_parts.append(item)
                     elif isinstance(content, str):
                         slide_parts.append(content)
-                    
+
                     slide_text = "。".join(slide_parts)
                     slide_texts.append(slide_text)
             else:
@@ -388,15 +387,15 @@ class AdditionalExportService:
             async def generate_slide_audio(slide_idx: int, text: str, temp_dir: str) -> str:
                 """Generate audio for a single slide"""
                 output_file = os.path.join(temp_dir, f"slide_{slide_idx+1:03d}.mp3")
-                
+
                 try:
                     # Trim very long text (edge-tts has limits)
                     if len(text) > 2000:
                         text = text[:2000] + "..."
-                    
+
                     if not text.strip():
                         return None
-                    
+
                     communicate = Communicate(text, voice, rate=rate, volume=volume)
                     await communicate.save(output_file)
                     return output_file
@@ -409,8 +408,7 @@ class AdditionalExportService:
                 generate_slide_audio(i, text, temp_dir)
                 for i, text in enumerate(slide_texts)
             ]
-            
-            import asyncio
+
             results = await asyncio.gather(*tasks)
             audio_files = [f for f in results if f]
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 品牌资产 API 路由
 
@@ -10,12 +9,11 @@
 
 import base64
 import logging
-from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
-from ...services.brand_service import get_brand_service, BrandAsset
+from ...services.brand_service import get_brand_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +28,15 @@ class BrandCreateRequest(BaseModel):
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     font_family: str = "思源黑体"
-    logo_url: Optional[str] = None
+    logo_url: str | None = None
 
 
 class BrandUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    primary_color: Optional[str] = None
-    secondary_color: Optional[str] = None
-    font_family: Optional[str] = None
-    logo_url: Optional[str] = None
+    name: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    font_family: str | None = None
+    logo_url: str | None = None
 
 
 class LogoUploadResponse(BaseModel):
@@ -222,8 +220,8 @@ async def get_brand_preview(brand_id: str):
 # ========== 批量操作 ==========
 
 class BrandBatchApplyRequest(BaseModel):
-    brand_ids: List[str]
-    task_ids: List[str]
+    brand_ids: list[str]
+    task_ids: list[str]
 
 
 @router.post("/batch-apply")

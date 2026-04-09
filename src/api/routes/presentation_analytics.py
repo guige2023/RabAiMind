@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Presentation Analytics API Route
 
@@ -15,13 +14,13 @@ Author: Claude
 Date: 2026-04-04
 """
 
-from fastapi import APIRouter, Request, Query
-from pydantic import BaseModel
-from typing import List, Optional, Any
-from datetime import datetime
+from typing import Any
 
-from ...services.presentation_analytics_service import get_presentation_analytics_service
+from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel
+
 from ...api.middleware.rate_limit import get_user_id_from_request
+from ...services.presentation_analytics_service import get_presentation_analytics_service
 
 router = APIRouter(prefix="/api/v1/presentation-analytics", tags=["presentation-analytics"])
 
@@ -30,8 +29,8 @@ router = APIRouter(prefix="/api/v1/presentation-analytics", tags=["presentation-
 
 class ViewStartRequest(BaseModel):
     task_id: str
-    viewer_id: Optional[str] = None
-    viewer_name: Optional[str] = "Anonymous"
+    viewer_id: str | None = None
+    viewer_name: str | None = "Anonymous"
 
 
 class ViewStartResponse(BaseModel):
@@ -49,7 +48,7 @@ class HeartbeatRequest(BaseModel):
 class HeatmapRequest(BaseModel):
     session_id: str
     slide_index: int
-    points: List[dict]  # [{"x": 0.0-1.0, "y": 0.0-1.0, "weight": 1.0}, ...]
+    points: list[dict]  # [{"x": 0.0-1.0, "y": 0.0-1.0, "weight": 1.0}, ...]
 
 
 class ScrollRequest(BaseModel):
@@ -76,14 +75,14 @@ class AnalyticsResponse(BaseModel):
     task_id: str
     total_views: int = 0
     unique_viewers: int = 0
-    viewer_list: List[dict] = []
-    slide_stats: List[dict] = []
+    viewer_list: list[dict] = []
+    slide_stats: list[dict] = []
     avg_scroll_depth_percent: float = 0
     scroll_depth_reached_end_count: int = 0
     scroll_depth_samples: int = 0
     heatmap_grid_size: int = 8
     overview_heatmap: dict = {}
-    effectiveness_score: Optional[dict] = None
+    effectiveness_score: dict | None = None
 
 
 # ==================== Routes ====================
@@ -252,7 +251,7 @@ class ABVersionRequest(BaseModel):
     slide_index: int
     version_key: str  # "A" or "B"
     content_md5: str
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
 
 class ABAssignmentRequest(BaseModel):

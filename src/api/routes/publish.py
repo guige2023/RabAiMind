@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Publish Routes — One-Click Publish PPT as Web Page
 
@@ -16,23 +15,16 @@ Date: 2026-04-09
 """
 
 import json
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import httpx
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from ...config import settings
 from ...api.middleware.rate_limit import get_user_id_from_request
-from ...services.share_link_service import (
-    get_share_link_service,
-    SharePermission,
-)
 
 router = APIRouter(prefix="/api/v1/publish", tags=["publish"])
 
@@ -45,25 +37,25 @@ PUBLISH_DIR.mkdir(parents=True, exist_ok=True)
 PUBLISH_INDEX_FILE = PUBLISH_DIR / "publish_index.json"
 
 
-def _load_index() -> Dict[str, Any]:
+def _load_index() -> dict[str, Any]:
     try:
-        with open(PUBLISH_INDEX_FILE, "r", encoding="utf-8") as f:
+        with open(PUBLISH_INDEX_FILE, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return {}
 
 
-def _save_index(index: Dict[str, Any]) -> None:
+def _save_index(index: dict[str, Any]) -> None:
     with open(PUBLISH_INDEX_FILE, "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)
 
 
-def _load_publish(publish_id: str) -> Optional[Dict[str, Any]]:
+def _load_publish(publish_id: str) -> dict[str, Any] | None:
     index = _load_index()
     return index.get(publish_id)
 
 
-def _save_publish(publish_id: str, data: Dict[str, Any]) -> None:
+def _save_publish(publish_id: str, data: dict[str, Any]) -> None:
     index = _load_index()
     index[publish_id] = data
     _save_index(index)
@@ -146,7 +138,7 @@ PUBLISH_HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def _build_slides_html(slides: List[Dict[str, Any]]) -> str:
+def _build_slides_html(slides: list[dict[str, Any]]) -> str:
     """Build HTML for all slides."""
     html_parts = []
     for i, slide in enumerate(slides):
@@ -164,21 +156,21 @@ def _build_slides_html(slides: List[Dict[str, Any]]) -> str:
 
 class PublishRequest(BaseModel):
     task_id: str = Field(..., description="PPT task ID to publish")
-    title: Optional[str] = Field(None, description="Custom page title (optional)")
-    password: Optional[str] = Field(None, description="Password protection (optional)")
+    title: str | None = Field(None, description="Custom page title (optional)")
+    password: str | None = Field(None, description="Password protection (optional)")
     primary_color: str = Field(default="#6366f1", description="Primary brand color")
     bg_color: str = Field(default="#f8fafc", description="Background color")
     header_bg: str = Field(default="white", description="Header background")
     text_color: str = Field(default="#1e293b", description="Text color")
     accent_color: str = Field(default="#818cf8", description="Accent color")
     enable_embed: bool = Field(default=True, description="Include embed code")
-    custom_logo_url: Optional[str] = Field(None, description="Custom logo URL")
+    custom_logo_url: str | None = Field(None, description="Custom logo URL")
 
 
 class PublishResponse(BaseModel):
     publish_id: str
     page_url: str
-    qr_code_base64: Optional[str]
+    qr_code_base64: str | None
     embed_code: str
     title: str
     created_at: str
@@ -230,10 +222,10 @@ async def create_publish_page(request: Request, body: PublishRequest):
     # Generate QR code
     qr_b64 = None
     try:
-        from qrcode import QRCode
-        from PIL import Image
-        import io
         import base64
+        import io
+
+        from qrcode import QRCode
         qr = QRCode(version=1, box_size=10, border=4)
         qr.add_data(page_url)
         qr.make(fit=True)
@@ -344,7 +336,6 @@ async def view_published_page(request: Request, publish_id: str):
 async def get_publish_qr(request: Request, publish_id: str):
     """Return QR code PNG for the published page URL."""
     import io
-    import base64
 
     data = _load_publish(publish_id)
     if not data:
@@ -352,7 +343,6 @@ async def get_publish_qr(request: Request, publish_id: str):
 
     try:
         from qrcode import QRCode
-        from PIL import Image
 
         page_url = f"/p/{publish_id}"
         qr = QRCode(version=1, box_size=10, border=4)

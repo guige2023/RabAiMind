@@ -1,13 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 AI 增强功能路由
 R32: AI rephrase, translate, layout suggestion, auto-enhance, content score
 """
 
 import logging
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
 
 from src.services.volc_api import get_volc_api
 
@@ -47,20 +47,20 @@ class TranslateRequest(BaseModel):
 class LayoutSuggestionRequest(BaseModel):
     """布局建议请求"""
     slide_index: int = Field(..., ge=1, description="幻灯片序号（1-based）")
-    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
+    elements: list[dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
     slide_content: str = Field(default="", max_length=2000, description="幻灯片的整体文本内容")
 
 
 class AutoEnhanceRequest(BaseModel):
     """一键美化请求"""
     slide_index: int = Field(..., ge=1, description="幻灯片序号（1-based）")
-    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
-    color_scheme: Optional[str] = Field(default="#165DFF", description="主题强调色（hex格式）")
+    elements: list[dict[str, Any]] = Field(default_factory=list, description="幻灯片中的元素列表")
+    color_scheme: str | None = Field(default="#165DFF", description="主题强调色（hex格式）")
 
 
 class ContentScoreRequest(BaseModel):
     """内容评分请求"""
-    elements: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片元素列表")
+    elements: list[dict[str, Any]] = Field(default_factory=list, description="幻灯片元素列表")
     slide_content: str = Field(default="", max_length=3000, description="幻灯片文本内容")
 
 
@@ -133,9 +133,10 @@ def call_ai(prompt: str, system: str = "") -> str:
         )
 
 
-def safe_json_parse(text: str) -> Optional[dict]:
+def safe_json_parse(text: str) -> dict | None:
     """安全解析JSON"""
-    import re, json
+    import json
+    import re
     text = text.strip()
     # 尝试直接解析
     try:
@@ -185,16 +186,16 @@ async def rephrase_text(req: RephraseRequest):
         "concise": "简洁精炼"
     }
     style_desc = style_map.get(req.style, "自然流畅")
-    
+
     prompt = f"""请将以下文本改写为{style_desc}的表达方式，保持原意但改善表达。
 
 原文：
 {req.text}
 
 请直接返回改写后的文本，不要解释，不要加引号或其他标记。"""
-    
+
     system = "你是一个专业的文案改写专家。直接返回改写结果，不要添加任何前缀或解释。"
-    
+
     try:
         result = call_ai(prompt, system)
         return {"success": True, "rephrased": result.strip()}
@@ -297,16 +298,16 @@ async def translate_text(req: TranslateRequest):
         "mn": "蒙古文",
     }
     target = lang_map.get(req.target_lang, "英文")
-    
+
     prompt = f"""请将以下文本翻译成{target}，保持专业、地道的表达。
 
 原文：
 {req.text}
 
 请直接返回翻译结果，不要添加任何标记或解释。"""
-    
+
     system = f"你是一个专业的{target}翻译专家。直接返回翻译结果。"
-    
+
     try:
         result = call_ai(prompt, system)
         return {"success": True, "translated": result.strip(), "lang": req.target_lang}
@@ -338,7 +339,7 @@ async def layout_suggestion(req: LayoutSuggestionRequest):
         f"- {i+1}. 类型:{e.get('type')}, 内容:{e.get('content', e.get('fill', ''))[:50]}"
         for i, e in enumerate(req.elements)
     ])
-    
+
     prompt = f"""分析以下幻灯片内容，为其推荐最佳布局方案。
 
 幻灯片内容：
@@ -358,9 +359,9 @@ async def layout_suggestion(req: LayoutSuggestionRequest):
 }}
 
 只返回JSON，不要其他内容。"""
-    
+
     system = "你是一个专业的PPT设计专家，根据内容特点给出最佳布局建议。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -403,7 +404,7 @@ async def auto_enhance(req: AutoEnhanceRequest):
         f"- {e.get('type')}: {e.get('content', e.get('fill', ''))[:30]}"
         for e in req.elements[:5]
     ])
-    
+
     prompt = f"""分析以下幻灯片设计，一键优化配色、字体和视觉效果。
 
 当前元素（最多5个）：
@@ -422,9 +423,9 @@ async def auto_enhance(req: AutoEnhanceRequest):
 }}
 
 只返回JSON。"""
-    
+
     system = "你是一个专业的PPT视觉设计师，擅长一键美化设计。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -466,7 +467,7 @@ async def content_score(req: ContentScoreRequest):
     content_preview = req.slide_content[:500] if req.slide_content else "无内容"
     elements_count = len(req.elements)
     text_elements = sum(1 for e in req.elements if e.get("type") == "text")
-    
+
     prompt = f"""请对以下PPT幻灯片内容进行质量评分。
 
 幻灯片内容预览：
@@ -497,9 +498,9 @@ async def content_score(req: ContentScoreRequest):
 }}
 
 只返回JSON。"""
-    
+
     system = "你是一个专业的PPT内容评审专家，客观评估幻灯片质量。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -549,16 +550,16 @@ async def expand_shorten_text(req: ExpandShortenRequest):
         mode_desc = f"将以下文本扩展至{int(ratio * 100)}%，增加细节和论述"
     else:
         mode_desc = f"将以下文本压缩至{int(ratio * 100)}%，保留核心信息"
-    
+
     prompt = f"""{mode_desc}，使内容更加充实或简洁。
 
 原文：
 {req.text}
 
 请直接返回扩展/压缩后的文本，不要添加任何解释或标记。"""
-    
+
     system = "你是一个专业的文案写作专家，擅长扩展或精简文本内容。直接返回结果，不要添加前缀。"
-    
+
     try:
         result = call_ai(prompt, system)
         return {"success": True, "result": result.strip(), "ratio": ratio}
@@ -604,9 +605,9 @@ async def grammar_check(req: GrammarCheckRequest):
 }}
 
 只返回JSON，不要其他内容。"""
-    
+
     system = "你是一个专业的语言纠错专家，精确检查语法、拼写和标点错误。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -631,8 +632,8 @@ async def grammar_check(req: GrammarCheckRequest):
 
 class SmartFootnotesRequest(BaseModel):
     text: str
-    topic: Optional[str] = ""  # optional topic context
-    count: Optional[int] = 3   # number of footnotes to generate
+    topic: str | None = ""  # optional topic context
+    count: int | None = 3   # number of footnotes to generate
 
 class ToneAdjustRequest(BaseModel):
     text: str
@@ -658,7 +659,7 @@ async def smart_footnotes(req: SmartFootnotesRequest):
         footnotes: 脚注列表（citations, sources, references）
     """
     topic_hint = f"\n内容主题：{req.topic}" if req.topic else ""
-    
+
     prompt = f"""请为以下文本内容生成相关引用、来源和参考文献脚注。
 
 文本内容：
@@ -684,9 +685,9 @@ async def smart_footnotes(req: SmartFootnotesRequest):
 }}
 
 只返回JSON，不要其他内容。"""
-    
+
     system = "你是一个专业的学术写作助手，擅长为内容添加准确的引用和来源。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -729,7 +730,7 @@ async def tone_adjust(req: ToneAdjustRequest):
         "warm": "温暖友好语气，富有同理心，适合关怀场景"
     }
     tone_desc = tone_map.get(req.tone, "正式语气")
-    
+
     prompt = f"""请将以下文本改写为「{tone_desc}」的语气风格。
 
 原文：
@@ -749,9 +750,9 @@ async def tone_adjust(req: ToneAdjustRequest):
 }}
 
 只返回JSON，不要其他内容。"""
-    
+
     system = "你是一个专业的文案写作专家，擅长调整文本的语气风格。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -812,9 +813,9 @@ async def cliche_detect(req: ClicheDetectRequest):
 }}
 
 只返回JSON，不要其他内容。如果文本中没有发现明显的陈词滥调，返回空的detected数组。"""
-    
+
     system = "你是一个专业的文案编辑专家，擅长识别陈词滥调并提供创意替代方案。"
-    
+
     try:
         result = call_ai(prompt, system)
         parsed = safe_json_parse(result)
@@ -841,9 +842,9 @@ async def cliche_detect(req: ClicheDetectRequest):
 class ContentTemplateRequest(BaseModel):
     template_type: str  # title, agenda, bullet_points, comparison, process, data_chart, quote, summary, team_intro, case_study
     topic: str = ""  # 主题/话题
-    context: Optional[str] = ""  # 上下文/背景信息
-    slide_title: Optional[str] = ""  # 可选的幻灯片标题
-    count: Optional[int] = 3  # 内容条目数量（用于列表类模板）
+    context: str | None = ""  # 上下文/背景信息
+    slide_title: str | None = ""  # 可选的幻灯片标题
+    count: int | None = 3  # 内容条目数量（用于列表类模板）
 
 
 TEMPLATE_DESCRIPTIONS = {

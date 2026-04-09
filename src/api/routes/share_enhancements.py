@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 URL Shortener, QR Code Analytics & Beacon Routes
 R153: Presentation QR Code & NFC Integration
 """
 
-from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel, Field
-from typing import Optional, List
 
-from ...services.url_shortener import get_url_shortener_service
-from ...services.beacon_service import get_beacon_service
-from ...core.security import User
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
 from ...api.middleware.auth import get_current_user
+from ...core.security import User
+from ...services.beacon_service import get_beacon_service
+from ...services.url_shortener import get_url_shortener_service
 
 router = APIRouter(prefix="/api/v1/share", tags=["share-enhancements"])
 
@@ -49,13 +48,13 @@ class BeaconCreate(BaseModel):
 
 
 class BeaconUpdate(BaseModel):
-    name: Optional[str] = None
-    uuid: Optional[str] = None
-    major: Optional[int] = None
-    minor: Optional[int] = None
-    tx_power: Optional[int] = None
-    url: Optional[str] = None
-    active: Optional[bool] = None
+    name: str | None = None
+    uuid: str | None = None
+    major: int | None = None
+    minor: int | None = None
+    tx_power: int | None = None
+    url: str | None = None
+    active: bool | None = None
 
 
 # ==================== URL Shortener Routes ====================

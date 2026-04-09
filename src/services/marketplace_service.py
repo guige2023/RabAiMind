@@ -4,10 +4,10 @@ Template Marketplace Service
 """
 import json
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Any
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -58,7 +58,7 @@ class Bundle:
     id: str
     name: str
     description: str
-    template_ids: List[str]
+    template_ids: list[str]
     discount_percent: int  # e.g. 20 = 8折
     created_at: str
     active: bool = True
@@ -76,9 +76,9 @@ class BundlePurchase:
 class RatingsBreakdownData:
     """R128: 评分细分数据"""
     template_id: str
-    design_ratings: List[int]  # 各用户设计评分
-    usability_ratings: List[int]  # 各用户易用性评分
-    features_ratings: List[int]  # 各用户功能评分
+    design_ratings: list[int]  # 各用户设计评分
+    usability_ratings: list[int]  # 各用户易用性评分
+    features_ratings: list[int]  # 各用户功能评分
 
 
 @dataclass
@@ -87,9 +87,9 @@ class Collection:
     id: str
     name: str
     description: str
-    template_ids: List[str]
+    template_ids: list[str]
     cover_image: str
-    tags: List[str]  # e.g. ["热门", "商务首选"]
+    tags: list[str]  # e.g. ["热门", "商务首选"]
     created_at: str
     active: bool = True
 
@@ -98,15 +98,15 @@ class MarketplaceService:
     """模板市场服务"""
 
     def __init__(self):
-        self.reviews: Dict[str, List[dict]] = self._load_reviews()
-        self.featured_ids: List[str] = self._load_featured()
-        self.subscriptions: List[dict] = self._load_subscriptions()
-        self.bundles: List[dict] = self._load_bundles()
-        self.bundle_purchases: List[dict] = self._load_bundle_purchases()
+        self.reviews: dict[str, list[dict]] = self._load_reviews()
+        self.featured_ids: list[str] = self._load_featured()
+        self.subscriptions: list[dict] = self._load_subscriptions()
+        self.bundles: list[dict] = self._load_bundles()
+        self.bundle_purchases: list[dict] = self._load_bundle_purchases()
 
     # ─── Reviews ────────────────────────────────────────────────
 
-    def _load_reviews(self) -> Dict[str, List[dict]]:
+    def _load_reviews(self) -> dict[str, list[dict]]:
         data = _load_json(REVIEWS_FILE)
         return data or {}
 
@@ -117,7 +117,7 @@ class MarketplaceService:
         """添加或更新点评"""
         if template_id not in self.reviews:
             self.reviews[template_id] = []
-        
+
         # 检查是否已点评
         for r in self.reviews[template_id]:
             if r["user_id"] == user_id:
@@ -126,7 +126,7 @@ class MarketplaceService:
                 r["created_at"] = datetime.now().isoformat()
                 self._save_reviews()
                 return r
-        
+
         review = {
             "id": f"rev_{int(time.time())}_{user_id[:6]}",
             "template_id": template_id,
@@ -145,7 +145,7 @@ class MarketplaceService:
         reviews = self.reviews.get(template_id, [])
         if not reviews:
             return {"reviews": [], "count": 0, "average_rating": 0.0}
-        
+
         total = sum(r["rating"] for r in reviews)
         avg = total / len(reviews)
         return {
@@ -170,14 +170,14 @@ class MarketplaceService:
 
     # ─── Featured Templates ──────────────────────────────────────
 
-    def _load_featured(self) -> List[str]:
+    def _load_featured(self) -> list[str]:
         data = _load_json(FEATURED_FILE)
         return data or []
 
     def _save_featured(self):
         _save_json(FEATURED_FILE, self.featured_ids)
 
-    def get_featured_templates(self) -> List[str]:
+    def get_featured_templates(self) -> list[str]:
         return self.featured_ids
 
     def add_featured(self, template_id: str) -> bool:
@@ -198,7 +198,7 @@ class MarketplaceService:
 
     # ─── Subscriptions ──────────────────────────────────────────
 
-    def _load_subscriptions(self) -> List[dict]:
+    def _load_subscriptions(self) -> list[dict]:
         data = _load_json(SUBSCRIPTIONS_FILE)
         return data or []
 
@@ -213,7 +213,7 @@ class MarketplaceService:
                 s["active"] = True
                 self._save_subscriptions()
                 return Subscription(**s)
-        
+
         sub = Subscription(
             id=f"sub_{int(time.time())}_{user_id[:6]}",
             user_id=user_id,
@@ -233,7 +233,7 @@ class MarketplaceService:
                 return True
         return False
 
-    def get_user_subscriptions(self, user_id: str) -> List[str]:
+    def get_user_subscriptions(self, user_id: str) -> list[str]:
         """获取用户订阅的分类列表"""
         return [s["category"] for s in self.subscriptions if s["user_id"] == user_id and s["active"]]
 
@@ -242,7 +242,7 @@ class MarketplaceService:
 
     # ─── Bundles ─────────────────────────────────────────────────
 
-    def _load_bundles(self) -> List[dict]:
+    def _load_bundles(self) -> list[dict]:
         data = _load_json(BUNDLES_FILE)
         if data is None:
             # 初始化默认捆绑包
@@ -280,17 +280,17 @@ class MarketplaceService:
     def _save_bundles(self):
         _save_json(BUNDLES_FILE, self.bundles)
 
-    def _load_bundle_purchases(self) -> List[dict]:
+    def _load_bundle_purchases(self) -> list[dict]:
         data = _load_json(BUNDLE_PURCHASES_FILE)
         return data or []
 
     def _save_bundle_purchases(self):
         _save_json(BUNDLE_PURCHASES_FILE, self.bundle_purchases)
 
-    def get_bundles(self) -> List[dict]:
+    def get_bundles(self) -> list[dict]:
         return [b for b in self.bundles if b.get("active", True)]
 
-    def get_bundle(self, bundle_id: str) -> Optional[dict]:
+    def get_bundle(self, bundle_id: str) -> dict | None:
         for b in self.bundles:
             if b["id"] == bundle_id and b.get("active", True):
                 return b
@@ -301,7 +301,7 @@ class MarketplaceService:
         bundle = self.get_bundle(bundle_id)
         if not bundle:
             raise ValueError(f"捆绑包 {bundle_id} 不存在")
-        
+
         purchase = {
             "id": f"bp_{int(time.time())}_{user_id[:6]}",
             "bundle_id": bundle_id,
@@ -313,12 +313,12 @@ class MarketplaceService:
         self._save_bundle_purchases()
         return purchase
 
-    def get_user_bundle_purchases(self, user_id: str) -> List[dict]:
+    def get_user_bundle_purchases(self, user_id: str) -> list[dict]:
         return [p for p in self.bundle_purchases if p["user_id"] == user_id]
 
     # ─── R128: Ratings Breakdown ─────────────────────────────────
 
-    def _load_ratings(self) -> Dict[str, dict]:
+    def _load_ratings(self) -> dict[str, dict]:
         data = _load_json(RATINGS_FILE)
         return data or {}
 
@@ -329,25 +329,25 @@ class MarketplaceService:
         """R128: 获取模板评分细分（设计/易用性/功能）"""
         if not hasattr(self, 'ratings_data'):
             self.ratings_data = self._load_ratings()
-        
+
         data = self.ratings_data.get(template_id, {
             "design_ratings": [],
             "usability_ratings": [],
             "features_ratings": [],
         })
-        
+
         def avg(lst):
             return round(sum(lst) / len(lst), 1) if lst else 0.0
-        
+
         design_avg = avg(data.get("design_ratings", []))
         usability_avg = avg(data.get("usability_ratings", []))
         features_avg = avg(data.get("features_ratings", []))
         total_count = len(data.get("design_ratings", []))
-        
+
         # 综合评分 = 三项平均
         all_ratings = data.get("design_ratings", []) + data.get("usability_ratings", []) + data.get("features_ratings", [])
         total_avg = avg(all_ratings) if all_ratings else 0.0
-        
+
         return {
             "design": design_avg,
             "usability": usability_avg,
@@ -369,38 +369,38 @@ class MarketplaceService:
         """R128: 提交评分细分"""
         if not hasattr(self, 'ratings_data'):
             self.ratings_data = self._load_ratings()
-        
+
         # 限制评分范围
         design = min(5, max(1, design))
         usability = min(5, max(1, usability))
         features = min(5, max(1, features))
-        
+
         if template_id not in self.ratings_data:
             self.ratings_data[template_id] = {
                 "design_ratings": [],
                 "usability_ratings": [],
                 "features_ratings": [],
             }
-        
+
         # 更新评分（同一用户只保留最新评分，先移除旧评分）
         data = self.ratings_data[template_id]
-        
+
         # 这里简化处理：直接追加（生产环境应去重）
         data["design_ratings"].append(design)
         data["usability_ratings"].append(usability)
         data["features_ratings"].append(features)
-        
+
         self._save_ratings()
-        
+
         # 同时添加一条文字点评
         if content:
             self.add_review(template_id, user_id, user_name, int(round((design + usability + features) / 3)), content)
-        
+
         return self.get_ratings_breakdown(template_id)
 
     # ─── R128: Collections ────────────────────────────────────────
 
-    def _load_collections(self) -> List[dict]:
+    def _load_collections(self) -> list[dict]:
         data = _load_json(COLLECTIONS_FILE)
         if data is None:
             # 初始化默认精选合集
@@ -462,19 +462,19 @@ class MarketplaceService:
         _save_json(COLLECTIONS_FILE, self.collections)
 
     def __init__(self):
-        self.reviews: Dict[str, List[dict]] = self._load_reviews()
-        self.featured_ids: List[str] = self._load_featured()
-        self.subscriptions: List[dict] = self._load_subscriptions()
-        self.bundles: List[dict] = self._load_bundles()
-        self.bundle_purchases: List[dict] = self._load_bundle_purchases()
-        self.ratings_data: Dict[str, dict] = self._load_ratings()
-        self.collections: List[dict] = self._load_collections()
+        self.reviews: dict[str, list[dict]] = self._load_reviews()
+        self.featured_ids: list[str] = self._load_featured()
+        self.subscriptions: list[dict] = self._load_subscriptions()
+        self.bundles: list[dict] = self._load_bundles()
+        self.bundle_purchases: list[dict] = self._load_bundle_purchases()
+        self.ratings_data: dict[str, dict] = self._load_ratings()
+        self.collections: list[dict] = self._load_collections()
 
-    def get_collections(self) -> List[dict]:
+    def get_collections(self) -> list[dict]:
         """R128: 获取所有精选合集"""
         return [c for c in self.collections if c.get("active", True)]
 
-    def get_collection(self, collection_id: str) -> Optional[dict]:
+    def get_collection(self, collection_id: str) -> dict | None:
         """R128: 获取单个精选合集"""
         for c in self.collections:
             if c["id"] == collection_id and c.get("active", True):
@@ -482,7 +482,7 @@ class MarketplaceService:
         return None
 
 
-_marketplace_service: Optional[MarketplaceService] = None
+_marketplace_service: MarketplaceService | None = None
 
 
 def get_marketplace_service() -> MarketplaceService:

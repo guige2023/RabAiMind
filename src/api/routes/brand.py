@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 品牌中心 API 路由
 
@@ -13,18 +12,16 @@ R46: Custom Branding & White-label
 """
 
 import base64
-import io
 import json
 import logging
-import time
 import re
+import time
 from collections import Counter
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel
-from typing import List, Optional
 
-from ...services.brand_manager import get_brand_manager, BrandProfile, BrandKit
+from ...services.brand_manager import BrandKit, BrandProfile, get_brand_manager
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ class BrandSaveRequest(BaseModel):
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: Optional[List[str]] = None
+    fonts: list[str] | None = None
     logo_url: str = ""
     slogan: str = ""
     # R46 扩展字段
@@ -60,7 +57,7 @@ class BrandKitRequest(BaseModel):
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: Optional[List[str]] = None
+    fonts: list[str] | None = None
     logo_data: str = ""
     logo_position: str = "bottom-right"
 
@@ -81,7 +78,7 @@ class LogoUploadResponse(BaseModel):
 
 class ColorDetectionResponse(BaseModel):
     success: bool
-    colors: List[str] = []  # ["#RRGGBB", ...]
+    colors: list[str] = []  # ["#RRGGBB", ...]
     primary_color: str = ""
     secondary_color: str = ""
     accent_color: str = ""
@@ -150,22 +147,22 @@ async def upload_logo(user_id: str = "default", file: UploadFile = File(...)):
     """上传 LOGO 图片，返回 base64 编码"""
     if not file.content_type or not file.content_type.startswith("image/"):
         return LogoUploadResponse(success=False, message="仅支持图片文件（PNG/JPG/SVG）")
-    
+
     contents = await file.read()
-    
+
     # 限制 2MB
     if len(contents) > 2 * 1024 * 1024:
         return LogoUploadResponse(success=False, message="图片大小不能超过 2MB")
-    
+
     # 转为 base64
     b64 = base64.b64encode(contents).decode("utf-8")
     mime = file.content_type or "image/png"
     data_uri = f"data:{mime};base64,{b64}"
-    
+
     # 保存到文件
     bm = get_brand_manager()
     bm.save_logo(user_id, data_uri)
-    
+
     return LogoUploadResponse(
         success=True,
         logo_data=data_uri,
@@ -180,17 +177,17 @@ async def detect_colors(file: UploadFile = File(...)):
     """从 LOGO 图片自动提取品牌配色"""
     if not file.content_type or not file.content_type.startswith("image/"):
         return ColorDetectionResponse(success=False, message="仅支持图片文件")
-    
+
     contents = await file.read()
-    
+
     if len(contents) > 2 * 1024 * 1024:
         return ColorDetectionResponse(success=False, message="图片大小不能超过 2MB")
-    
+
     colors = _extract_colors_from_image(contents)
-    
+
     if not colors:
         return ColorDetectionResponse(success=False, message="无法从图片提取颜色，请手动设置")
-    
+
     return ColorDetectionResponse(
         success=True,
         colors=colors,
@@ -201,19 +198,20 @@ async def detect_colors(file: UploadFile = File(...)):
     )
 
 
-def _extract_colors_from_image(image_bytes: bytes) -> List[str]:
+def _extract_colors_from_image(image_bytes: bytes) -> list[str]:
     """从图片字节提取主要颜色"""
     try:
-        from PIL import Image
         import io
-        
+
+        from PIL import Image
+
         img = Image.open(io.BytesIO(image_bytes))
         img = img.convert("RGB")
         img.thumbnail((50, 50))
-        
+
         pixels = list(img.getdata())
         color_counts = Counter(pixels)
-        
+
         colors = []
         for (r, g, b), count in color_counts.most_common(20):
             brightness = (r * 299 + g * 587 + b * 114) / 1000
@@ -224,9 +222,9 @@ def _extract_colors_from_image(image_bytes: bytes) -> List[str]:
             colors.append(hex_color)
             if len(colors) >= 5:
                 break
-        
+
         return colors
-        
+
     except ImportError:
         return ["#165DFF", "#0E42D2", "#FF9500"]
     except Exception:
@@ -405,20 +403,21 @@ async def brand_consistency_check(request: BrandConsistencyCheckRequest):
 
 class AIExtractResponse(BaseModel):
     success: bool
-    colors: List[str] = []
+    colors: list[str] = []
     primary_color: str = ""
     secondary_color: str = ""
     accent_color: str = ""
-    color_names: List[str] = []
+    color_names: list[str] = []
     theme_description: str = ""
     message: str = ""
 
 
-def _call_volcano_vision(prompt: str, image_b64: str, max_retries: int = 2) -> Optional[str]:
+def _call_volcano_vision(prompt: str, image_b64: str, max_retries: int = 2) -> str | None:
     """调用火山引擎视觉理解 API"""
     try:
-        from ...config import settings
         import requests
+
+        from ...config import settings
 
         cfg = {
             "api_key": settings.VOLCANO_API_KEY,
@@ -464,11 +463,12 @@ def _call_volcano_vision(prompt: str, image_b64: str, max_retries: int = 2) -> O
         return None
 
 
-def _call_volcano_text(prompt: str, max_retries: int = 2) -> Optional[str]:
+def _call_volcano_text(prompt: str, max_retries: int = 2) -> str | None:
     """调用火山引擎文本 API 分析颜色描述"""
     try:
-        from ...config import settings
         import requests
+
+        from ...config import settings
 
         cfg = {
             "api_key": settings.VOLCANO_API_KEY,
@@ -510,7 +510,7 @@ def _call_volcano_text(prompt: str, max_retries: int = 2) -> Optional[str]:
         return None
 
 
-def _parse_ai_color_response(content: str, default_colors: List[str]) -> dict:
+def _parse_ai_color_response(content: str, default_colors: list[str]) -> dict:
     """解析 AI 返回的颜色响应"""
     result = {
         "colors": default_colors[:3],

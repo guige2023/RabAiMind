@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Task Versioning Module - Version management and diff
 
@@ -9,19 +8,17 @@ Author: Claude
 Date: 2026-04-07
 """
 
-import time
 import logging
-import uuid
-from typing import Dict, Any, Optional, List
+import time
 
-from ..utils import get_timestamp
 from ..constants import (
-    SIGNIFICANT_CHANGE_RATIO,
-    OUTLINE_DIFF_THRESHOLD,
     AUTO_VERSION_THRESHOLD,
     CONTENT_PREVIEW_LENGTH,
+    OUTLINE_DIFF_THRESHOLD,
+    SIGNIFICANT_CHANGE_RATIO,
     TEXT_DIFF_MAX_LINES,
 )
+from ..utils import get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -432,7 +429,7 @@ class TaskVersioning:
 
         version_result = self.get_version(task_id, version_id)
         if not version_result.get("success"):
-            return {"success": False, "message": f"Cannot rollback: version not found"}
+            return {"success": False, "message": "Cannot rollback: version not found"}
 
         v = version_result["version"]
 

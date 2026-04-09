@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 User Service
 
@@ -10,10 +9,10 @@ Date: 2026-04-04
 """
 
 import json
-import os
 import logging
-from typing import Dict, Any, Optional
+import os
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +84,7 @@ def _load_json(path: str, default: Any) -> Any:
     """Load JSON from file, return default if missing/error."""
     try:
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
         logger.warning(f"Failed to load {path}: {e}")
@@ -115,8 +114,8 @@ class UserService:
         if self._initialized:
             return
         self._initialized = True
-        self._preferences: Dict[str, Any] = _load_json(PREFS_FILE, DEFAULT_PREFERENCES.copy())
-        self._profile: Dict[str, Any] = _load_json(PROFILE_FILE, DEFAULT_PROFILE.copy())
+        self._preferences: dict[str, Any] = _load_json(PREFS_FILE, DEFAULT_PREFERENCES.copy())
+        self._profile: dict[str, Any] = _load_json(PROFILE_FILE, DEFAULT_PROFILE.copy())
         self._ensure_defaults()
 
     def _ensure_defaults(self):
@@ -127,11 +126,11 @@ class UserService:
 
     # ── Preferences ────────────────────────────────────────────────
 
-    def get_preferences(self) -> Dict[str, Any]:
+    def get_preferences(self) -> dict[str, Any]:
         """Get all user preferences."""
         return self._preferences.copy()
 
-    def update_preferences(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_preferences(self, updates: dict[str, Any]) -> dict[str, Any]:
         """Merge updates into preferences and save."""
         # Validate nested keys
         if "notifications" in updates:
@@ -169,7 +168,7 @@ class UserService:
         _save_json(PREFS_FILE, self._preferences)
         return self.get_preferences()
 
-    def reset_preferences(self) -> Dict[str, Any]:
+    def reset_preferences(self) -> dict[str, Any]:
         """Reset all preferences to defaults."""
         self._preferences = DEFAULT_PREFERENCES.copy()
         _save_json(PREFS_FILE, self._preferences)
@@ -177,11 +176,11 @@ class UserService:
 
     # ── Profile ─────────────────────────────────────────────────────
 
-    def get_profile(self) -> Dict[str, Any]:
+    def get_profile(self) -> dict[str, Any]:
         """Get user profile."""
         return self._profile.copy()
 
-    def update_profile(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_profile(self, updates: dict[str, Any]) -> dict[str, Any]:
         """Update profile fields (name, email, avatar)."""
         allowed = {"name", "email", "avatar"}
         for key, val in updates.items():
@@ -190,7 +189,7 @@ class UserService:
         _save_json(PROFILE_FILE, self._profile)
         return self.get_profile()
 
-    def update_password(self, old_password: str, new_password: str) -> Dict[str, str]:
+    def update_password(self, old_password: str, new_password: str) -> dict[str, str]:
         """
         Change password.
         For demo: simple check (old_password must be non-empty, new must be 6+ chars).
@@ -205,7 +204,7 @@ class UserService:
 
     # ── Stats ──────────────────────────────────────────────────────
 
-    def get_stats(self, tasks: list) -> Dict[str, Any]:
+    def get_stats(self, tasks: list) -> dict[str, Any]:
         """
         Compute personal usage stats from task history.
         Returns summary similar to analytics but scoped to user.
@@ -228,19 +227,19 @@ class UserService:
                     pass
 
         # Per-template count
-        templates: Dict[str, int] = {}
+        templates: dict[str, int] = {}
         for t in completed:
             tmpl = t.get("template", "default") or "default"
             templates[tmpl] = templates.get(tmpl, 0) + 1
 
         # Per-style count
-        styles: Dict[str, int] = {}
+        styles: dict[str, int] = {}
         for t in completed:
             style = t.get("style", "professional") or "professional"
             styles[style] = styles.get(style, 0) + 1
 
         # Recent 7 days activity
-        recent_days: Dict[str, int] = {}
+        recent_days: dict[str, int] = {}
         now = datetime.now()
         for i in range(7):
             day = (now - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
@@ -267,7 +266,7 @@ class UserService:
 
     # ── Data Export ─────────────────────────────────────────────────
 
-    def export_all_data(self, tasks: list) -> Dict[str, Any]:
+    def export_all_data(self, tasks: list) -> dict[str, Any]:
         """Export all user data as a JSON blob."""
         return {
             "exported_at": datetime.now().isoformat(),

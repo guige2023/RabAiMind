@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Export-related API routes.
 
@@ -6,17 +5,16 @@ Handles downloading PPT files and exporting to various formats
 (PDF, PNG, ODP, Keynote, Audio, Video).
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
 import logging
 import os
+from typing import Any
+
+from fastapi import HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from ._base_routes import (
     _check_rate_limit_middleware,
-    validate_task_id,
-    validate_output_path,
     create_router,
     settings,
 )
@@ -36,8 +34,8 @@ async def download_ppt(
     biometric_token: str = Query(default=""),
 ):
     """下载 PPT 文件（支持密码保护和生物认证）"""
+    from ...core.security import get_audit_logger, get_presentation_security_manager
     from ...services.task_manager import get_task_manager
-    from ...core.security import get_presentation_security_manager, get_audit_logger
 
     # 速率限制检查
     rate_error = _check_rate_limit_middleware(request)
@@ -220,8 +218,8 @@ async def export_pdf(request: Request, task_id: str):
         )
 
     try:
-        import subprocess
         import shutil
+        import subprocess
 
         pdf_path = pptx_path_abs.replace('.pptx', '.pdf')
         pdf_path_abs = os.path.realpath(pdf_path)
@@ -268,7 +266,7 @@ async def export_pdf(request: Request, task_id: str):
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500,
             detail="PDF转换失败，请稍后重试"
@@ -332,12 +330,8 @@ async def export_enhanced_pdf(
         )
 
     # Build watermark settings
-    from src.services.pdf_export_service import (
-        PdfExportOptions as ServicePdfOptions,
-        WatermarkSettings,
-        HeaderFooterSettings,
-        get_enhanced_pdf_export_service
-    )
+    from src.services.pdf_export_service import HeaderFooterSettings, WatermarkSettings, get_enhanced_pdf_export_service
+    from src.services.pdf_export_service import PdfExportOptions as ServicePdfOptions
 
     watermark = WatermarkSettings(
         enabled=options.watermark_enabled,
@@ -422,8 +416,8 @@ async def _fallback_export_pdf_libreoffice(
 ):
     """Fallback to LibreOffice PDF conversion"""
     try:
-        import subprocess
         import shutil
+        import subprocess
 
         libreoffice_path = shutil.which('libreoffice') or shutil.which('soffice')
 
@@ -488,8 +482,8 @@ async def export_png_sequence(
     watermark_color: str = Query("#888888", description="水印颜色"),
 ):
     """导出PNG图片序列（每页一张），支持水印功能"""
-    from ...services.task_manager import get_task_manager
     from ...core.http_client import http_client, is_safe_url
+    from ...services.task_manager import get_task_manager
 
     rate_error = _check_rate_limit_middleware(request)
     if rate_error:
@@ -531,8 +525,9 @@ async def export_png_sequence(
                                 wm_angle: int, wm_font_size: int, wm_color: str) -> bytes:
         """Apply diagonal watermark text to a PNG image using PIL."""
         try:
-            from PIL import Image, ImageDraw, ImageFont
             import io as pil_io
+
+            from PIL import Image, ImageDraw, ImageFont
 
             img = Image.open(pil_io.BytesIO(png_data)).convert("RGBA")
             overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
@@ -588,8 +583,9 @@ async def export_png_sequence(
             return png_data
 
     try:
-        import zipfile
         import io
+        import zipfile
+
         import httpx
 
         png_files = []
@@ -773,7 +769,7 @@ class ExportAudioRequest(BaseModel):
     voice: str = Field(default="zh-CN-XiaoxiaoNeural", description="edge-tts 语音")
     rate: str = Field(default="+0%", description="语速调整")
     volume: str = Field(default="+0%", description="音量调整")
-    slides_content: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片内容列表")
+    slides_content: list[dict[str, Any]] | None = Field(default=None, description="幻灯片内容列表")
 
 
 @router.post("/export/audio/{task_id}")
@@ -849,8 +845,8 @@ class ExportVideoRequest(BaseModel):
     transition: str = Field(default="fade", description="转场效果: fade, slide, none")
     include_audio: bool = Field(default=True, description="包含音频")
     voice: str = Field(default="zh-CN-XiaoxiaoNeural", description="语音")
-    slide_range: Optional[str] = Field(default=None, description="幻灯片范围，如 '1-5'")
-    slides_content: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片内容")
+    slide_range: str | None = Field(default=None, description="幻灯片范围，如 '1-5'")
+    slides_content: list[dict[str, Any]] | None = Field(default=None, description="幻灯片内容")
 
 
 @router.post("/export/video/{task_id}")

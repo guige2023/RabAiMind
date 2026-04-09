@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RabAi Mind API 主入口
 
@@ -10,17 +9,19 @@ CORS 配置从环境变量 CORS_ORIGINS 读取（逗号分隔）。
 """
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+
 from .api import api_router
-from .config import settings, get_cors_origins
-from .utils import setup_logger
 
 # Import auth middleware
 from .api.middleware.auth import AuthMiddleware
+from .config import get_cors_origins, settings
 
 # Import shared HTTP client for connection pooling
 from .core.http_client import http_client
+from .utils import setup_logger
 
 # 配置日志
 logger = setup_logger("api")
@@ -124,11 +125,9 @@ async def ws_ping(websocket: WebSocket):
 # 协议: JSON { type, command?, payload? }
 # 房间容量: 主持人1个 + 最多10个观众
 
-from typing import Optional
 import asyncio
 import json
 import random
-import string
 import time
 
 
@@ -142,7 +141,7 @@ class RemoteControlRoom:
     """单个远程控制房间"""
     def __init__(self, code: str):
         self.code = code
-        self.host_ws: Optional[WebSocket] = None
+        self.host_ws: WebSocket | None = None
         self.participants: list[WebSocket] = []
         self.created_at = time.time()
 
@@ -168,7 +167,7 @@ class RemoteControlRoom:
         if ws in self.participants:
             self.participants.remove(ws)
 
-    def broadcast_to_participants(self, msg: str, exclude: Optional[WebSocket] = None):
+    def broadcast_to_participants(self, msg: str, exclude: WebSocket | None = None):
         """主持人发送命令给所有观众"""
         for p in self.participants:
             if p != exclude:
@@ -177,7 +176,7 @@ class RemoteControlRoom:
                 except Exception:
                     pass
 
-    def broadcast_to_all(self, msg: str, exclude: Optional[WebSocket] = None):
+    def broadcast_to_all(self, msg: str, exclude: WebSocket | None = None):
         """广播给所有人（主持人+观众）"""
         if self.host_ws and self.host_ws != exclude:
             try:
@@ -220,7 +219,7 @@ class RemoteControlManager:
             return cls._rooms[code]
 
     @classmethod
-    async def get_room(cls, code: str) -> Optional[RemoteControlRoom]:
+    async def get_room(cls, code: str) -> RemoteControlRoom | None:
         async with cls._lock:
             return cls._rooms.get(code)
 

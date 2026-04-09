@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Rate Limit Tiers — Free/Pro/Enterprise
 
@@ -11,20 +10,18 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import os
 import json
-import threading
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, Tuple
-from dataclasses import dataclass
+import os
+import threading
 from enum import Enum
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ...core.security import Role, User
-from ...api.middleware.auth import get_current_user, get_current_admin
+from ...api.middleware.auth import get_current_admin, get_current_user
+from ...core.security import User
 
 logger = logging.getLogger("tiers")
 
@@ -111,14 +108,14 @@ class TierStorage:
         if not os.path.exists(TIER_STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, str]:
+    def _load(self) -> dict[str, str]:
         try:
-            with open(TIER_STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(TIER_STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict[str, str]):
+    def _save(self, data: dict[str, str]):
         tmp = TIER_STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -139,7 +136,7 @@ class TierStorage:
             self._save(data)
             return True
 
-    def list_tiers(self) -> Dict[str, str]:
+    def list_tiers(self) -> dict[str, str]:
         return self._load()
 
     def remove_tier(self, user_id: str) -> bool:
@@ -152,7 +149,7 @@ class TierStorage:
             return False
 
 
-_tier_storage: Optional[TierStorage] = None
+_tier_storage: TierStorage | None = None
 
 
 def get_tier_storage() -> TierStorage:
@@ -164,13 +161,13 @@ def get_tier_storage() -> TierStorage:
 
 # ==================== Tier-Aware Rate Limit Integration ====================
 
-def get_tier_limits(tier: Tier) -> Dict[str, Any]:
+def get_tier_limits(tier: Tier) -> dict[str, Any]:
     """Get rate limit and quota values for a given tier."""
     limits = TIER_LIMITS.get(tier, TIER_LIMITS[Tier.FREE]).copy()
     return limits
 
 
-def get_user_tier_limits(user_id: str) -> Tuple[Tier, Dict[str, Any]]:
+def get_user_tier_limits(user_id: str) -> tuple[Tier, dict[str, Any]]:
     """Get the tier and limits for a specific user."""
     storage = get_tier_storage()
     tier = storage.get_tier(user_id)
@@ -315,7 +312,7 @@ async def upgrade_tier(
 
 # ==================== Admin Tier Management ====================
 
-@router.get("/admin/users", response_model=Dict[str, str])
+@router.get("/admin/users", response_model=dict[str, str])
 async def list_user_tiers(admin: User = Depends(get_current_admin)):
     """
     List all user tier assignments (admin only).
@@ -421,7 +418,7 @@ async def reset_user_tier(
     return {
         "success": True,
         "user_id": user_id,
-        "message": f"已重置为免费版"
+        "message": "已重置为免费版"
     }
 
 

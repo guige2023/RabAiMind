@@ -2,11 +2,11 @@
 AI分析服务
 需求理解、任务分解、内容规划
 """
+import json
 import logging
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,8 @@ class Task:
     description: str
     status: str = "pending"  # pending, processing, completed, failed
     progress: int = 0
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -31,16 +31,16 @@ class AnalysisResult:
     target_audience: str
     style: str
     tone: str
-    key_points: List[str] = field(default_factory=list)
-    slides_structure: List[Dict[str, str]] = field(default_factory=list)
-    suggested_images: List[str] = field(default_factory=list)
-    tasks: List[Task] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    key_points: list[str] = field(default_factory=list)
+    slides_structure: list[dict[str, str]] = field(default_factory=list)
+    suggested_images: list[str] = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class PromptTemplate:
     """Prompt模板"""
-    
+
     REQUIREMENT_ANALYSIS = """你是一个专业的PPT内容策划专家。请分析用户的需求，并生成结构化的PPT大纲。
 
 用户需求：{requirement}
@@ -107,11 +107,11 @@ PPT主题：{topic}
 
 class AIAnalyzer:
     """AI分析器"""
-    
+
     def __init__(self, volc_api=None):
         self.volc_api = volc_api
         self.task_counter = 0
-        
+
     def analyze_requirement(self, requirement: str) -> AnalysisResult:
         """
         分析用户需求
@@ -123,13 +123,13 @@ class AIAnalyzer:
             分析结果
         """
         from .volc_api import get_volc_api
-        
+
         api = self.volc_api or get_volc_api()
-        
+
         # 调用API分析需求
         prompt = PromptTemplate.REQUIREMENT_ANALYSIS.format(requirement=requirement)
         response = api.text_generation(prompt=prompt)
-        
+
         if response.get("success"):
             content = response.get("content", "")
             # 解析JSON
@@ -139,12 +139,12 @@ class AIAnalyzer:
                     content = content.split("```json")[1].split("```")[0]
                 elif "```" in content:
                     content = content.split("```")[1].split("```")[0]
-                    
+
                 data = json.loads(content.strip())
-                
+
                 # 生成任务列表
                 tasks = self._generate_tasks(data, requirement)
-                
+
                 return AnalysisResult(
                     original_requirement=requirement,
                     understood_requirement=data.get("understood_requirement", ""),
@@ -167,8 +167,8 @@ class AIAnalyzer:
             # error已由volc_api脱敏，直接使用
             error_msg = response.get("error", "API调用失败")
             return self._create_default_result(requirement, error_msg)
-    
-    def generate_content(self, topic: str, outline: List[Dict], style: str, audience: str) -> Dict[str, Any]:
+
+    def generate_content(self, topic: str, outline: list[dict], style: str, audience: str) -> dict[str, Any]:
         """
         生成PPT内容
         
@@ -182,9 +182,9 @@ class AIAnalyzer:
             生成的内容
         """
         from .volc_api import get_volc_api
-        
+
         api = self.volc_api or get_volc_api()
-        
+
         outline_str = json.dumps(outline, ensure_ascii=False, indent=2)
         prompt = PromptTemplate.CONTENT_GENERATION.format(
             topic=topic,
@@ -192,9 +192,9 @@ class AIAnalyzer:
             audience=audience,
             outline=outline_str
         )
-        
+
         response = api.text_generation(prompt=prompt)
-        
+
         if response.get("success"):
             content = response.get("content", "")
             try:
@@ -202,7 +202,7 @@ class AIAnalyzer:
                     content = content.split("```json")[1].split("```")[0]
                 elif "```" in content:
                     content = content.split("```")[1].split("```")[0]
-                    
+
                 return {
                     "success": True,
                     "slides": json.loads(content.strip()).get("slides", []),
@@ -212,7 +212,7 @@ class AIAnalyzer:
                 return {"success": False, "error": "内容解析失败"}
         else:
             return {"success": False, "error": response.get("error", "API调用失败")}
-    
+
     def generate_image_prompt(self, content: str, style: str) -> str:
         """
         生成图片提示词
@@ -225,27 +225,27 @@ class AIAnalyzer:
             英文提示词
         """
         from .volc_api import get_volc_api
-        
+
         api = self.volc_api or get_volc_api()
-        
+
         prompt = PromptTemplate.IMAGE_PROMPT.format(
             content=content,
             style=style
         )
-        
+
         response = api.text_generation(prompt=prompt, max_tokens=512)
-        
+
         if response.get("success"):
             return response.get("content", "").strip()
         return ""
-    
-    def _generate_tasks(self, analysis_data: Dict, requirement: str) -> List[Task]:
+
+    def _generate_tasks(self, analysis_data: dict, requirement: str) -> list[Task]:
         """根据分析结果生成任务列表"""
         tasks = []
         self.task_counter += 1
-        
+
         slides = analysis_data.get("slides_structure", [])
-        
+
         # 任务1: 内容生成
         tasks.append(Task(
             id=f"task_{self.task_counter}_content",
@@ -253,7 +253,7 @@ class AIAnalyzer:
             description="根据分析结果生成每页幻灯片的详细内容",
             status="pending"
         ))
-        
+
         # 任务2: 图片生成（如果需要）
         if analysis_data.get("suggested_images"):
             self.task_counter += 1
@@ -263,7 +263,7 @@ class AIAnalyzer:
                 description="为幻灯片生成AI配图",
                 status="pending"
             ))
-        
+
         # 任务3: PPT组装
         self.task_counter += 1
         tasks.append(Task(
@@ -272,9 +272,9 @@ class AIAnalyzer:
             description="将内容和图片组装成完整的PPT",
             status="pending"
         ))
-        
+
         return tasks
-    
+
     def _create_default_result(self, requirement: str, error: str) -> AnalysisResult:
         """创建默认结果（当API调用失败时）"""
         return AnalysisResult(

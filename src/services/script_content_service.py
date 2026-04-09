@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Script Content Service - R148 AI Script & Content Generation 2.0
 
@@ -12,7 +11,7 @@ Script Content Service - R148 AI Script & Content Generation 2.0
 import json
 import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from .volc_api import get_volc_api
 
@@ -324,7 +323,7 @@ class ScriptContentService:
     def __init__(self):
         self.volc = get_volc_api()
 
-    def _parse_json_response(self, content: str) -> Optional[Dict]:
+    def _parse_json_response(self, content: str) -> dict | None:
         """健壮的JSON解析"""
         if not content:
             return None
@@ -354,7 +353,7 @@ class ScriptContentService:
         scene: str = "business",
         slide_count: int = 10,
         audience: str = "商务人士"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成故事弧线结构"""
         prompt = STORY_ARC_PROMPT.format(
             topic=topic,
@@ -382,7 +381,7 @@ class ScriptContentService:
         topic: str,
         scene: str = "business",
         slide_count: int = 10
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成数据故事"""
         prompt = DATA_STORY_PROMPT.format(
             topic=topic,
@@ -410,7 +409,7 @@ class ScriptContentService:
         scene: str = "business",
         slide_count: int = 10,
         audience: str = "商务人士"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成说服技巧内容"""
         prompt = PERSUASION_PROMPT.format(
             topic=topic,
@@ -439,7 +438,7 @@ class ScriptContentService:
         scene: str = "business",
         slide_count: int = 10,
         audience_description: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成受众画像定制内容"""
         prompt = AUDIENCE_PERSONA_PROMPT.format(
             topic=topic,
@@ -468,7 +467,7 @@ class ScriptContentService:
         scene: str = "business",
         slide_count: int = 10,
         brief_description: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成竞品分析幻灯片"""
         prompt = COMPETITOR_ANALYSIS_PROMPT.format(
             topic=topic,
@@ -499,7 +498,7 @@ class ScriptContentService:
         slide_count: int = 10,
         audience: str = "",
         brief_description: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """统一入口：根据content_type调用对应生成器"""
         if content_type == "story_arc":
             return self.generate_story_arc(topic, scene, slide_count, audience or "商务人士")

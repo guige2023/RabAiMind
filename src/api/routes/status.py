@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 API Status & Health Endpoint
 
@@ -8,19 +7,19 @@ Author: Claude
 Date: 2026-04-04
 """
 
-from fastapi import APIRouter, Request, Response
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Request, Response
 
 from ...api.middleware.rate_limit import (
-    get_user_id_from_request,
-    get_quota_status,
-    get_rate_limiter,
-    build_rate_limit_headers,
-    add_rate_limit_headers,
+    DAILY_QUOTA_GENERATIONS,
     RATE_LIMIT_MAX_REQUESTS,
     RATE_LIMIT_WINDOW_SECONDS,
-    DAILY_QUOTA_GENERATIONS,
+    add_rate_limit_headers,
+    get_quota_status,
+    get_rate_limiter,
+    get_user_id_from_request,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["status"])
@@ -32,8 +31,8 @@ class StatusResponse:
         self,
         success: bool,
         user_id: str,
-        rate_limit: Dict[str, Any],
-        quota: Dict[str, Any],
+        rate_limit: dict[str, Any],
+        quota: dict[str, Any],
         server_time: str,
         version: str = "1.0.0"
     ):

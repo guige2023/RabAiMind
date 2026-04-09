@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 动画管理器 - 处理动画效果
 
@@ -13,7 +12,7 @@
 """
 
 import threading
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 
 class AnimationManager:
@@ -67,7 +66,7 @@ class AnimationManager:
         self,
         transition_type: str = None,
         duration: int = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """获取幻灯片切换动画配置"""
         if transition_type is None:
             transition_type = self.default_transition
@@ -88,7 +87,7 @@ class AnimationManager:
         animation_type: str = None,
         delay: float = 0,
         duration: int = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """获取入场动画配置"""
         if animation_type is None:
             animation_type = self.default_entry
@@ -220,11 +219,11 @@ class AnimationManager:
 
     def apply_transition_effect(
         self,
-        from_slide: Dict[str, Any],
-        to_slide: Dict[str, Any],
+        from_slide: dict[str, Any],
+        to_slide: dict[str, Any],
         transition_type: str,
         duration: int = 500
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """应用切换效果"""
         transition_config = self.get_slide_transition(transition_type, duration)
 
@@ -237,10 +236,10 @@ class AnimationManager:
 
     def create_sequential_animations(
         self,
-        elements: List[Dict[str, Any]],
+        elements: list[dict[str, Any]],
         animation_type: str,
         stagger_delay: float = 0.1
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """创建序列动画（交错动画）"""
         animations = []
 
@@ -261,7 +260,7 @@ class AnimationManager:
     def get_animation_presets(
         self,
         preset_name: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """获取动画预设"""
         presets = {
             'professional': {
@@ -309,7 +308,7 @@ class AnimationManager:
 
 
 # 全局实例
-_animation_manager: Optional[AnimationManager] = None
+_animation_manager: AnimationManager | None = None
 _manager_lock = threading.Lock()
 
 

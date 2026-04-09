@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 """
@@ -15,7 +14,6 @@ Notification Service — 智能通知服务
 日期: 2026-04-04
 """
 
-import hashlib
 import json
 import logging
 import os
@@ -27,7 +25,7 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..config import settings
 from ..utils import ensure_dir
@@ -78,7 +76,7 @@ def _load_json(path: str, default: Any = None) -> Any:
     if not os.path.exists(path):
         return default if default is not None else {}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return default if default is not None else {}
@@ -106,12 +104,12 @@ class Reminder:
         title: str,
         review_date: str,       # ISO8601
         remind_before_hours: int = 24,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         notes: str = "",
         status: str = ReminderStatus.PENDING.value,
-        notified_at: Optional[str] = None,
-        created_at: Optional[str] = None,
-        id: Optional[str] = None,
+        notified_at: str | None = None,
+        created_at: str | None = None,
+        id: str | None = None,
     ):
         self.id = id or _gen_id("rem_")
         self.task_id = task_id
@@ -139,7 +137,7 @@ class Reminder:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Reminder":
+    def from_dict(cls, d: dict) -> Reminder:
         return cls(**{k: v for k, v in d.items() if k != "review_date_obj"})
 
 
@@ -154,12 +152,12 @@ class SmartAlert:
         title: str,
         message: str,
         trigger_after_days: int,
-        user_id: Optional[str] = None,
-        last_triggered: Optional[str] = None,
+        user_id: str | None = None,
+        last_triggered: str | None = None,
         notified: bool = False,
         dismissed: bool = False,
-        created_at: Optional[str] = None,
-        id: Optional[str] = None,
+        created_at: str | None = None,
+        id: str | None = None,
     ):
         self.id = id or _gen_id("alrt_")
         self.task_id = task_id
@@ -199,7 +197,7 @@ class SmartAlert:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "SmartAlert":
+    def from_dict(cls, d: dict) -> SmartAlert:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -213,10 +211,10 @@ class MentionNotification:
         from_user: str,
         to_user: str,
         message: str,
-        slide_ref: Optional[str] = None,
+        slide_ref: str | None = None,
         read: bool = False,
-        id: Optional[str] = None,
-        created_at: Optional[str] = None,
+        id: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or _gen_id("mnt_")
         self.task_id = task_id
@@ -240,7 +238,7 @@ class MentionNotification:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "MentionNotification":
+    def from_dict(cls, d: dict) -> MentionNotification:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -254,12 +252,12 @@ class GenerationNotification:
         task_id: str,
         title: str,
         message: str,
-        user_id: Optional[str] = None,
-        task_title: Optional[str] = None,
-        collaborator_name: Optional[str] = None,
+        user_id: str | None = None,
+        task_title: str | None = None,
+        collaborator_name: str | None = None,
         read: bool = False,
-        id: Optional[str] = None,
-        created_at: Optional[str] = None,
+        id: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or _gen_id("gntf_")
         self.notif_type = notif_type
@@ -287,7 +285,7 @@ class GenerationNotification:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "GenerationNotification":
+    def from_dict(cls, d: dict) -> GenerationNotification:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -304,9 +302,9 @@ class DigestSubscriber:
         day_of_week: int = 1,     # 0=Mon, 1=Tue ... 6=Sun
         hour: int = 9,
         minute: int = 0,
-        last_sent: Optional[str] = None,
-        id: Optional[str] = None,
-        created_at: Optional[str] = None,
+        last_sent: str | None = None,
+        id: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or _gen_id("sub_")
         self.user_id = user_id
@@ -334,7 +332,7 @@ class DigestSubscriber:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "DigestSubscriber":
+    def from_dict(cls, d: dict) -> DigestSubscriber:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -347,11 +345,11 @@ class DeadlineCountdown:
         task_id: str,
         title: str,
         deadline: str,           # ISO8601
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         reminded: bool = False,
-        notification_hours: List[int] = None,  # [24, 48, 1] hours before
-        id: Optional[str] = None,
-        created_at: Optional[str] = None,
+        notification_hours: list[int] = None,  # [24, 48, 1] hours before
+        id: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or _gen_id("ddl_")
         self.task_id = task_id
@@ -381,7 +379,7 @@ class DeadlineCountdown:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "DeadlineCountdown":
+    def from_dict(cls, d: dict) -> DeadlineCountdown:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -390,7 +388,7 @@ class DeadlineCountdown:
 class NotificationService:
     """统一通知服务"""
 
-    _instance: Optional["NotificationService"] = None
+    _instance: NotificationService | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -405,12 +403,12 @@ class NotificationService:
         self._lock = LOCK
 
         # In-memory caches
-        self._reminders: Dict[str, Reminder] = {}
-        self._smart_alerts: Dict[str, SmartAlert] = {}
-        self._mentions: Dict[str, MentionNotification] = {}
-        self._digest_subs: Dict[str, DigestSubscriber] = {}
-        self._deadlines: Dict[str, DeadlineCountdown] = {}
-        self._generation_notifs: Dict[str, GenerationNotification] = {}
+        self._reminders: dict[str, Reminder] = {}
+        self._smart_alerts: dict[str, SmartAlert] = {}
+        self._mentions: dict[str, MentionNotification] = {}
+        self._digest_subs: dict[str, DigestSubscriber] = {}
+        self._deadlines: dict[str, DeadlineCountdown] = {}
+        self._generation_notifs: dict[str, GenerationNotification] = {}
 
         self._load_all()
 
@@ -461,7 +459,7 @@ class NotificationService:
         title: str,
         review_date: str,
         remind_before_hours: int = 24,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         notes: str = "",
     ) -> Reminder:
         reminder = Reminder(
@@ -476,7 +474,7 @@ class NotificationService:
         self._persist_reminders()
         return reminder
 
-    def list_reminders(self, user_id: Optional[str] = None, status: Optional[str] = None) -> List[Reminder]:
+    def list_reminders(self, user_id: str | None = None, status: str | None = None) -> list[Reminder]:
         results = list(self._reminders.values())
         if user_id:
             results = [r for r in results if r.user_id == user_id]
@@ -485,10 +483,10 @@ class NotificationService:
         results.sort(key=lambda r: r.review_date)
         return results
 
-    def get_reminder(self, reminder_id: str) -> Optional[Reminder]:
+    def get_reminder(self, reminder_id: str) -> Reminder | None:
         return self._reminders.get(reminder_id)
 
-    def update_reminder(self, reminder_id: str, **updates) -> Optional[Reminder]:
+    def update_reminder(self, reminder_id: str, **updates) -> Reminder | None:
         r = self._reminders.get(reminder_id)
         if not r:
             return None
@@ -505,7 +503,7 @@ class NotificationService:
             return True
         return False
 
-    def trigger_reminder(self, reminder_id: str) -> Optional[Reminder]:
+    def trigger_reminder(self, reminder_id: str) -> Reminder | None:
         r = self._reminders.get(reminder_id)
         if not r:
             return None
@@ -514,7 +512,7 @@ class NotificationService:
         self._persist_reminders()
         return r
 
-    def check_due_reminders(self, user_id: Optional[str] = None) -> List[Reminder]:
+    def check_due_reminders(self, user_id: str | None = None) -> list[Reminder]:
         """返回所有已到期的提醒（未触发且在提醒时间之前）"""
         now = datetime.now()
         due = []
@@ -538,7 +536,7 @@ class NotificationService:
         title: str,
         message: str,
         trigger_after_days: int,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
     ) -> SmartAlert:
         alert = SmartAlert(
             task_id=task_id,
@@ -552,7 +550,7 @@ class NotificationService:
         self._persist_smart_alerts()
         return alert
 
-    def list_smart_alerts(self, user_id: Optional[str] = None, undismissed_only: bool = True) -> List[SmartAlert]:
+    def list_smart_alerts(self, user_id: str | None = None, undismissed_only: bool = True) -> list[SmartAlert]:
         results = list(self._smart_alerts.values())
         if user_id:
             results = [a for a in results if a.user_id == user_id]
@@ -576,7 +574,7 @@ class NotificationService:
             return True
         return False
 
-    def check_due_smart_alerts(self) -> List[SmartAlert]:
+    def check_due_smart_alerts(self) -> list[SmartAlert]:
         return [a for a in self._smart_alerts.values() if a.should_fire() and not a.dismissed]
 
     def acknowledge_smart_alert(self, alert_id: str) -> bool:
@@ -610,7 +608,7 @@ class NotificationService:
         from_user: str,
         to_user: str,
         message: str,
-        slide_ref: Optional[str] = None,
+        slide_ref: str | None = None,
     ) -> MentionNotification:
         mention = MentionNotification(
             task_id=task_id,
@@ -623,7 +621,7 @@ class NotificationService:
         self._persist_mentions()
         return mention
 
-    def list_mentions(self, to_user: str, unread_only: bool = False) -> List[MentionNotification]:
+    def list_mentions(self, to_user: str, unread_only: bool = False) -> list[MentionNotification]:
         mentions = [m for m in self._mentions.values() if m.to_user == to_user]
         if unread_only:
             mentions = [m for m in mentions if not m.read]
@@ -681,19 +679,19 @@ class NotificationService:
             return True
         return False
 
-    def list_digest_subscribers(self, enabled_only: bool = True) -> List[DigestSubscriber]:
+    def list_digest_subscribers(self, enabled_only: bool = True) -> list[DigestSubscriber]:
         subs = list(self._digest_subs.values())
         if enabled_only:
             subs = [s for s in subs if s.enabled]
         return subs
 
-    def get_user_digest_sub(self, user_id: str) -> Optional[DigestSubscriber]:
+    def get_user_digest_sub(self, user_id: str) -> DigestSubscriber | None:
         for s in self._digest_subs.values():
             if s.user_id == user_id:
                 return s
         return None
 
-    def update_digest_sub(self, subscriber_id: str, **updates) -> Optional[DigestSubscriber]:
+    def update_digest_sub(self, subscriber_id: str, **updates) -> DigestSubscriber | None:
         s = self._digest_subs.get(subscriber_id)
         if not s:
             return None
@@ -822,8 +820,8 @@ class NotificationService:
         task_id: str,
         title: str,
         deadline: str,
-        user_id: Optional[str] = None,
-        notification_hours: Optional[List[int]] = None,
+        user_id: str | None = None,
+        notification_hours: list[int] | None = None,
     ) -> DeadlineCountdown:
         ddl = DeadlineCountdown(
             task_id=task_id,
@@ -836,7 +834,7 @@ class NotificationService:
         self._persist_deadlines()
         return ddl
 
-    def list_deadlines(self, user_id: Optional[str] = None, active_only: bool = True) -> List[DeadlineCountdown]:
+    def list_deadlines(self, user_id: str | None = None, active_only: bool = True) -> list[DeadlineCountdown]:
         results = list(self._deadlines.values())
         if user_id:
             results = [d for d in results if d.user_id == user_id]
@@ -852,7 +850,7 @@ class NotificationService:
             return True
         return False
 
-    def update_deadline(self, deadline_id: str, **updates) -> Optional[DeadlineCountdown]:
+    def update_deadline(self, deadline_id: str, **updates) -> DeadlineCountdown | None:
         d = self._deadlines.get(deadline_id)
         if not d:
             return None
@@ -862,7 +860,7 @@ class NotificationService:
         self._persist_deadlines()
         return d
 
-    def get_upcoming_deadlines(self, user_id: Optional[str] = None, hours: int = 72) -> List[DeadlineCountdown]:
+    def get_upcoming_deadlines(self, user_id: str | None = None, hours: int = 72) -> list[DeadlineCountdown]:
         """获取接下来 N 小时内即将到期的截止日期"""
         results = []
         for d in self._deadlines.values():
@@ -882,9 +880,9 @@ class NotificationService:
         task_id: str,
         title: str,
         message: str,
-        user_id: Optional[str] = None,
-        task_title: Optional[str] = None,
-        collaborator_name: Optional[str] = None,
+        user_id: str | None = None,
+        task_title: str | None = None,
+        collaborator_name: str | None = None,
     ) -> GenerationNotification:
         """创建生成完成/协作者加入通知"""
         notif = GenerationNotification(
@@ -902,10 +900,10 @@ class NotificationService:
 
     def list_generation_notifications(
         self,
-        user_id: Optional[str] = None,
-        notif_type: Optional[str] = None,
+        user_id: str | None = None,
+        notif_type: str | None = None,
         unread_only: bool = False,
-    ) -> List[GenerationNotification]:
+    ) -> list[GenerationNotification]:
         """列出生成/协作者通知"""
         results = []
         for n in self._generation_notifs.values():
@@ -919,7 +917,7 @@ class NotificationService:
         results.sort(key=lambda x: x.created_at, reverse=True)
         return results
 
-    def get_unread_generation_count(self, user_id: Optional[str] = None) -> int:
+    def get_unread_generation_count(self, user_id: str | None = None) -> int:
         """获取未读的生成/协作者通知数量"""
         return sum(
             1 for n in self._generation_notifs.values()
@@ -934,7 +932,7 @@ class NotificationService:
             return True
         return False
 
-    def mark_all_generation_notifications_read(self, user_id: Optional[str] = None) -> int:
+    def mark_all_generation_notifications_read(self, user_id: str | None = None) -> int:
         """标记所有通知为已读，返回数量"""
         count = 0
         for n in self._generation_notifs.values():
@@ -973,7 +971,7 @@ class NotificationService:
         _save_comment_email_prefs(prefs)
         return CommentEmailPrefs.from_dict(prefs[user_id])
 
-    def get_comment_email_prefs(self, user_id: str) -> Optional[CommentEmailPrefs]:
+    def get_comment_email_prefs(self, user_id: str) -> CommentEmailPrefs | None:
         """获取用户评论邮件偏好"""
         prefs = _load_comment_email_prefs()
         data = prefs.get(user_id)
@@ -1059,11 +1057,11 @@ class NotificationService:
         slide_num: int,
         author_name: str,
         content: str,
-        mentions: List[Dict],
+        mentions: list[dict],
         is_reply: bool = False,
         reply_preview: str = "",
         thread_url: str = "",
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         当评论添加时，发送邮件通知给所有被 @提及 的用户。
         返回每用户的发送结果列表。
@@ -1088,7 +1086,7 @@ class NotificationService:
 
     # ==================== UNIFIED ALERTS LIST ====================
 
-    def get_all_active_alerts(self, user_id: Optional[str] = None) -> List[dict]:
+    def get_all_active_alerts(self, user_id: str | None = None) -> list[dict]:
         """返回所有未处理的提醒（统一视图）"""
         alerts = []
 
@@ -1179,11 +1177,11 @@ class NotificationService:
 COMMENT_EMAIL_PREFS_FILE = os.path.join(DATA_DIR, "comment_email_prefs.json")
 
 
-def _load_comment_email_prefs() -> Dict[str, dict]:
+def _load_comment_email_prefs() -> dict[str, dict]:
     return _load_json(COMMENT_EMAIL_PREFS_FILE, {})
 
 
-def _save_comment_email_prefs(prefs: Dict[str, dict]):
+def _save_comment_email_prefs(prefs: dict[str, dict]):
     _save_json(COMMENT_EMAIL_PREFS_FILE, prefs)
 
 
@@ -1196,8 +1194,8 @@ class CommentEmailPrefs:
         email: str = "",
         enabled: bool = True,
         name: str = "",
-        id: Optional[str] = None,
-        created_at: Optional[str] = None,
+        id: str | None = None,
+        created_at: str | None = None,
     ):
         self.id = id or _gen_id("cep_")
         self.user_id = user_id
@@ -1217,7 +1215,7 @@ class CommentEmailPrefs:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "CommentEmailPrefs":
+    def from_dict(cls, d: dict) -> CommentEmailPrefs:
         return cls(**{k: v for k, v in d.items()})
 
 
@@ -1281,7 +1279,7 @@ def _build_comment_email_html(
 
 # ── Singleton Access ────────────────────────────────────────────────────────────
 
-_notification_service: Optional[NotificationService] = None
+_notification_service: NotificationService | None = None
 
 def get_notification_service() -> NotificationService:
     global _notification_service

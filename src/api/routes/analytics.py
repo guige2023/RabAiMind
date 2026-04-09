@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Analytics API Route
 
@@ -13,18 +12,19 @@ Author: Claude
 Date: 2026-04-04
 """
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel
-from starlette.responses import StreamingResponse as CSVResponse, Response as StrResponse
-from typing import Any, Optional, List, Dict
 import csv
 import io
 from datetime import datetime
+from typing import Any
 
-from ...services.analytics_service import get_analytics_service
-from ...services.advanced_analytics_service import get_advanced_analytics_service
-from ...services.task_manager import get_task_manager
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+from starlette.responses import StreamingResponse as CSVResponse
+
 from ...api.middleware.rate_limit import get_user_id_from_request
+from ...services.advanced_analytics_service import get_advanced_analytics_service
+from ...services.analytics_service import get_analytics_service
+from ...services.task_manager import get_task_manager
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -335,16 +335,16 @@ async def export_datastudio(request: Request) -> CSVResponse:
 # ==================== Custom Report Builder ====================
 
 class CustomReportRequest(BaseModel):
-    metrics: List[str] = []  # e.g. ["summary", "popular_templates", "daily_stats", ...]
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    metrics: list[str] = []  # e.g. ["summary", "popular_templates", "daily_stats", ...]
+    start_date: str | None = None
+    end_date: str | None = None
     format: str = "json"  # json or csv
 
 
 class CustomReportResponse(BaseModel):
     success: bool
-    included_metrics: List[str]
-    data: Dict[str, Any]
+    included_metrics: list[str]
+    data: dict[str, Any]
     generated_at: str
 
 
@@ -384,7 +384,7 @@ async def build_custom_report(request: Request, body: CustomReportRequest) -> Cu
         "popular_scenes", "daily_stats", "productivity_score"
     }
 
-    report_data: Dict[str, Any] = {}
+    report_data: dict[str, Any] = {}
 
     if "summary" in included:
         report_data["summary"] = result.get("summary", {})

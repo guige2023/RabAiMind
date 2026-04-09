@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 历史记录云端同步服务
 
@@ -18,9 +17,8 @@
 import json
 import logging
 import threading
-import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from ..config import settings
 from ..utils import ensure_dir
@@ -64,7 +62,7 @@ class HistorySyncService:
 
         self._oss_client = None
         self._oss_bucket = None
-        self._local_cache: Dict[str, Dict] = {}  # task_id -> task data
+        self._local_cache: dict[str, dict] = {}  # task_id -> task data
         self._cache_lock = threading.Lock()
 
         # 本地缓存目录（fallback / 加速用）
@@ -96,7 +94,7 @@ class HistorySyncService:
 
     # ─── 公共 API ────────────────────────────────────────────────
 
-    def push_task(self, task_id: str, task_data: Dict[str, Any]) -> bool:
+    def push_task(self, task_id: str, task_data: dict[str, Any]) -> bool:
         """
         上传单个任务到 OSS
         
@@ -119,7 +117,7 @@ class HistorySyncService:
 
             # 2. 更新 manifest（获取远程版本，比对时间戳）
             manifest = self._get_manifest()
-            
+
             local_updated = task_data.get("updated_at", "")
             remote_updated = manifest.get(task_id, {}).get("updated_at", "")
 
@@ -147,7 +145,7 @@ class HistorySyncService:
             # OSS 失败时降级到本地缓存
             return self._cache_to_local(task_id, task_data)
 
-    def pull_tasks(self, since_updated_at: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    def pull_tasks(self, since_updated_at: str | None = None) -> dict[str, dict[str, Any]]:
         """
         从 OSS 拉取任务历史
         
@@ -157,16 +155,16 @@ class HistorySyncService:
         Returns:
             {task_id: task_data}
         """
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
 
         # 1. 先尝试 OSS
         if self._oss_enabled:
             try:
                 manifest = self._get_manifest()
-                
+
                 for task_id, meta in manifest.items():
                     updated_at = meta.get("updated_at", "")
-                    
+
                     if since_updated_at and not self._is_newer(updated_at, since_updated_at):
                         continue  # 跳过旧任务
 
@@ -183,15 +181,15 @@ class HistorySyncService:
         # 2. Fallback: 从本地缓存加载
         return self._load_local_cache()
 
-    def pull_all_tasks(self) -> Dict[str, Dict[str, Any]]:
+    def pull_all_tasks(self) -> dict[str, dict[str, Any]]:
         """拉取所有任务（不做时间过滤）"""
         return self.pull_tasks(since_updated_at=None)
 
     def resolve_and_merge(
         self,
-        local_tasks: Dict[str, Dict[str, Any]],
-        remote_tasks: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Dict[str, Any]]:
+        local_tasks: dict[str, dict[str, Any]],
+        remote_tasks: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         """
         合并本地和远程任务，解决冲突
         
@@ -203,7 +201,7 @@ class HistorySyncService:
         Returns:
             合并后的任务字典
         """
-        merged: Dict[str, Dict[str, Any]] = {}
+        merged: dict[str, dict[str, Any]] = {}
         all_task_ids = set(local_tasks.keys()) | set(remote_tasks.keys())
 
         for task_id in all_task_ids:
@@ -228,7 +226,7 @@ class HistorySyncService:
 
         return merged
 
-    def get_last_sync_time(self) -> Optional[str]:
+    def get_last_sync_time(self) -> str | None:
         """获取上次同步时间"""
         try:
             manifest = self._get_manifest()
@@ -238,7 +236,7 @@ class HistorySyncService:
 
     # ─── Manifest 操作 ────────────────────────────────────────────
 
-    def _get_manifest(self) -> Dict[str, Any]:
+    def _get_manifest(self) -> dict[str, Any]:
         """获取远程 manifest"""
         try:
             result = self._oss_bucket.get_object("history/manifest.json")
@@ -250,13 +248,13 @@ class HistorySyncService:
             logger.warning(f"[HistorySync] 读取 manifest 失败: {e}")
             return {}
 
-    def _put_manifest(self, manifest: Dict[str, Any]) -> None:
+    def _put_manifest(self, manifest: dict[str, Any]) -> None:
         """写入远程 manifest"""
         try:
             # 追加同步元信息
             manifest.setdefault("_sync_meta", {})
             manifest["_sync_meta"]["last_sync_at"] = datetime.now().isoformat()
-            
+
             data = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
             self._oss_bucket.put_object("history/manifest.json", data)
         except Exception as e:
@@ -264,7 +262,7 @@ class HistorySyncService:
 
     # ─── 文件操作 ────────────────────────────────────────────────
 
-    def _fetch_task_file(self, task_id: str) -> Optional[Dict[str, Any]]:
+    def _fetch_task_file(self, task_id: str) -> dict[str, Any] | None:
         """从 OSS 读取单个任务文件"""
         try:
             key = f"history/tasks/{task_id}.json"
@@ -279,14 +277,14 @@ class HistorySyncService:
 
     # ─── 本地缓存（离线支持）──────────────────────────────────────
 
-    def _cache_to_local(self, task_id: str, task_data: Dict[str, Any]) -> bool:
+    def _cache_to_local(self, task_id: str, task_data: dict[str, Any]) -> bool:
         """写本地缓存文件"""
         try:
             import os
             filepath = os.path.join(self._cache_dir, f"{task_id}.json")
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(task_data, f, ensure_ascii=False, indent=2)
-            
+
             with self._cache_lock:
                 self._local_cache[task_id] = task_data
             return True
@@ -294,7 +292,7 @@ class HistorySyncService:
             logger.warning(f"[HistorySync] 本地缓存写入失败: {e}")
             return False
 
-    def _load_local_cache(self) -> Dict[str, Dict[str, Any]]:
+    def _load_local_cache(self) -> dict[str, dict[str, Any]]:
         """加载所有本地缓存文件"""
         result = {}
         try:
@@ -339,7 +337,7 @@ class HistorySyncService:
 
 
 # 全局实例
-_history_sync_service: Optional[HistorySyncService] = None
+_history_sync_service: HistorySyncService | None = None
 _service_lock = threading.Lock()
 
 

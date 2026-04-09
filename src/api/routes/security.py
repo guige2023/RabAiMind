@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Security Routes — API Key Management, Audit Log, Secure Share, User Management
 
@@ -6,24 +5,25 @@ Author: Claude (R42)
 Date: 2026-04-04
 """
 
-import os
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
-
-from fastapi import APIRouter, HTTPException, Request, Body, Query, Depends
-from pydantic import BaseModel, Field
 from enum import Enum
 
-from ...core.security import (
-    Role, User, RBAC,
-    get_api_key_manager, get_audit_logger, get_secure_share_manager,
-    get_presentation_security_manager,
-    APIKeyManager, AuditLogger, SecureShareManager, PresentationSecurityManager,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+
+from ...api.middleware.auth import get_current_admin, get_current_user
 from ...core.auth import auth_manager
-from ...api.middleware.auth import get_current_user, get_current_admin
+from ...core.security import (
+    Role,
+    User,
+    get_api_key_manager,
+    get_audit_logger,
+    get_presentation_security_manager,
+    get_secure_share_manager,
+)
 
 router = APIRouter(prefix="/api/v1/security", tags=["security"])
 
@@ -39,9 +39,9 @@ class RoleEnum(str, Enum):
 class APIKeyCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     role: RoleEnum = RoleEnum.USER
-    expires_in_days: Optional[int] = Field(None, ge=1, le=365)
-    allowed_ips: Optional[List[str]] = None
-    rate_limit: Optional[int] = Field(None, ge=1)
+    expires_in_days: int | None = Field(None, ge=1, le=365)
+    allowed_ips: list[str] | None = None
+    rate_limit: int | None = Field(None, ge=1)
 
 
 class APIKeyCreateResponse(BaseModel):
@@ -50,15 +50,15 @@ class APIKeyCreateResponse(BaseModel):
     role: str
     raw_key: str  # Only shown once!
     created_at: str
-    expires_at: Optional[str]
+    expires_at: str | None
 
 
 class SecureShareCreateRequest(BaseModel):
     resource_type: str = Field(..., pattern="^(ppt|template)$")
     resource_id: str
-    password: Optional[str] = Field(None, min_length=4)
+    password: str | None = Field(None, min_length=4)
     expires_in_hours: int = Field(default=24, ge=1, le=720)
-    allowed_ips: Optional[List[str]] = None
+    allowed_ips: list[str] | None = None
     role: RoleEnum = RoleEnum.GUEST
     anonymous_access: bool = Field(default=False, description="允许匿名访问（无需登录即可查看）")
     encryption_enabled: bool = Field(default=False, description="启用端到端加密（内容传输加密）")
@@ -75,7 +75,7 @@ class SecureShareCreateResponse(BaseModel):
 class SecureShareAccessRequest(BaseModel):
     share_id: str
     access_token: str
-    password: Optional[str] = None
+    password: str | None = None
 
 
 class AuditLogQuery(BaseModel):
@@ -92,7 +92,7 @@ class UserCreateRequest(BaseModel):
     username: str = Field(..., min_length=2, max_length=50)
     email: str = ""
     role: RoleEnum = RoleEnum.USER
-    password: Optional[str] = Field(None, min_length=6)
+    password: str | None = Field(None, min_length=6)
 
 
 class LoginRequest(BaseModel):
@@ -175,7 +175,7 @@ async def create_user(
     return {k: v for k, v in user_info.items() if k != "password"}
 
 
-@router.get("/users", response_model=List[dict])
+@router.get("/users", response_model=list[dict])
 async def list_users(admin: User = Depends(get_current_admin)):
     """List all users (admin only)."""
     return [
@@ -223,7 +223,7 @@ async def create_api_key(
     )
 
 
-@router.get("/apikeys", response_model=List[dict])
+@router.get("/apikeys", response_model=list[dict])
 async def list_api_keys(user: User = Depends(get_current_user)):
     """List all API keys for the current user (admin sees all)."""
     manager = get_api_key_manager()
@@ -286,7 +286,7 @@ async def create_secure_share(
     )
 
 
-@router.get("/shares", response_model=List[dict])
+@router.get("/shares", response_model=list[dict])
 async def list_secure_shares(user: User = Depends(get_current_user)):
     """List all secure shares created by the current user (admin sees all)."""
     manager = get_secure_share_manager()
@@ -435,6 +435,7 @@ async def get_encrypted_share_content(
     Caller is responsible for client-side decryption.
     """
     from fastapi.responses import StreamingResponse
+
     from ...core.security import E2EEncryptionManager
 
     manager = get_secure_share_manager()
@@ -501,6 +502,7 @@ async def decrypt_share_content(
     For advanced use cases where decryption must happen server-side.
     """
     from fastapi.responses import StreamingResponse
+
     from ...core.security import E2EEncryptionManager
 
     try:
@@ -516,7 +518,7 @@ async def decrypt_share_content(
 
 # ==================== Audit Log ====================
 
-@router.get("/audit", response_model=List[dict])
+@router.get("/audit", response_model=list[dict])
 async def query_audit_log(
     user_id: str = Query("", description="Filter by user_id"),
     action: str = Query("", description="Filter by action/path"),
@@ -586,21 +588,21 @@ async def get_audit_dashboard(
     total_events = len(window_logs)
 
     # Events by action (top 20)
-    action_counts: Dict[str, int] = {}
+    action_counts: dict[str, int] = {}
     for log in window_logs:
         action = log.get("action", "unknown")
         action_counts[action] = action_counts.get(action, 0) + 1
     top_actions = sorted(action_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
     # Events by user (top 20)
-    user_counts: Dict[str, int] = {}
+    user_counts: dict[str, int] = {}
     for log in window_logs:
         uid = log.get("user_id", "unknown")
         user_counts[uid] = user_counts.get(uid, 0) + 1
     top_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
     # Events by role
-    role_counts: Dict[str, int] = {}
+    role_counts: dict[str, int] = {}
     for log in window_logs:
         role = log.get("role", "unknown")
         role_counts[role] = role_counts.get(role, 0) + 1
@@ -610,7 +612,7 @@ async def get_audit_dashboard(
     error_rate = error_count / max(total_events, 1) * 100
 
     # Events by day (last N days)
-    daily_counts: Dict[str, int] = {}
+    daily_counts: dict[str, int] = {}
     for log in window_logs:
         ts = log.get("timestamp", "")
         if ts:
@@ -624,7 +626,7 @@ async def get_audit_dashboard(
         daily_series.append({"date": day, "count": daily_counts.get(day, 0)})
 
     # Resource access breakdown
-    resource_counts: Dict[str, int] = {}
+    resource_counts: dict[str, int] = {}
     for log in window_logs:
         res = log.get("resource", "") or log.get("path", "")
         if res:
@@ -733,7 +735,7 @@ async def get_audit_chart_data(
     # Build time buckets
     if period == "24h":
         # Hourly buckets
-        buckets: Dict[str, Dict] = {}
+        buckets: dict[str, dict] = {}
         for i in range(24):
             h = (datetime.utcnow() - timedelta(hours=23 - i))
             key = h.strftime("%Y-%m-%dT%H:00")
@@ -754,7 +756,7 @@ async def get_audit_chart_data(
     else:
         # Daily or weekly buckets
         is_weekly = period == "90d"
-        buckets: Dict[str, Dict] = {}
+        buckets: dict[str, dict] = {}
         for i in range(period_days if not is_weekly else (period_days // 7 + 1)):
             d = datetime.utcnow() - timedelta(days=period_days - 1 - i if not is_weekly else (period_days - 1 - i * 7))
             if is_weekly:
@@ -825,7 +827,7 @@ class PresentationBiometricRequest(BaseModel):
 
 
 class PresentationIPAllowlistRequest(BaseModel):
-    allowed_ips: List[str] = Field(default_factory=list, description="允许的IP地址列表，空列表表示清除IP限制")
+    allowed_ips: list[str] = Field(default_factory=list, description="允许的IP地址列表，空列表表示清除IP限制")
 
 
 class PresentationWatermarkRequest(BaseModel):
@@ -1208,12 +1210,12 @@ async def verify_download_access(
 # ==================== Org-Level IP Allowlist Routes ====================
 
 class OrgIPAllowlistRequest(BaseModel):
-    allowed_ips: List[str] = Field(default_factory=list, description="允许的IP地址或CIDR列表，空列表表示清除限制")
+    allowed_ips: list[str] = Field(default_factory=list, description="允许的IP地址或CIDR列表，空列表表示清除限制")
     mode: str = Field(default="allow", pattern="^(allow|deny)$")
 
 
 class OrgIPDenyRequest(BaseModel):
-    denied_ips: List[str] = Field(default_factory=list, description="禁止的IP地址或CIDR列表")
+    denied_ips: list[str] = Field(default_factory=list, description="禁止的IP地址或CIDR列表")
 
 
 @router.post("/org/ip-allowlist")
@@ -1332,14 +1334,14 @@ async def check_my_ip_allowlist(
 class CustomRoleCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
     description: str = Field(default="", max_length=200)
-    permissions: List[str] = Field(..., min_items=1)
+    permissions: list[str] = Field(..., min_items=1)
 
 
 class CustomRoleUpdateRequest(BaseModel):
-    name: Optional[str] = Field(None, min_length=2, max_length=50)
-    description: Optional[str] = Field(None, max_length=200)
-    permissions: Optional[List[str]] = Field(None, min_items=1)
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=2, max_length=50)
+    description: str | None = Field(None, max_length=200)
+    permissions: list[str] | None = Field(None, min_items=1)
+    is_active: bool | None = None
 
 
 class CustomRoleAssignRequest(BaseModel):
@@ -1379,7 +1381,7 @@ async def create_custom_role(
         raise HTTPException(status_code=400, detail={"error": "INVALID_ROLE", "message": str(e)})
 
 
-@router.get("/roles", response_model=List[dict])
+@router.get("/roles", response_model=list[dict])
 async def list_custom_roles(
     include_inactive: bool = Query(False),
     current_user: User = Depends(get_current_admin),

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 配色方案生成模块
 
@@ -9,9 +8,7 @@
 """
 
 import threading
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-import random
 
 
 @dataclass
@@ -189,7 +186,7 @@ class ColorSchemeGenerator:
 
     def __init__(self):
         """初始化配色生成器"""
-        self.current_palette: Optional[ColorPalette] = None
+        self.current_palette: ColorPalette | None = None
 
     def get_palette(self, style: str) -> ColorPalette:
         """
@@ -227,11 +224,11 @@ class ColorSchemeGenerator:
 
         return ColorPalette(**base_palette)
 
-    def get_all_palettes(self) -> Dict[str, Dict[str, str]]:
+    def get_all_palettes(self) -> dict[str, dict[str, str]]:
         """获取所有配色方案"""
         return self.STYLE_PALETTES
 
-    def generate_gradient_colors(self, primary_color: str, steps: int = 5) -> List[str]:
+    def generate_gradient_colors(self, primary_color: str, steps: int = 5) -> list[str]:
         """
         生成渐变色系列
 
@@ -257,7 +254,7 @@ class ColorSchemeGenerator:
 
         return colors
 
-    def generate_complementary_colors(self, color: str) -> List[str]:
+    def generate_complementary_colors(self, color: str) -> list[str]:
         """
         生成互补色
 
@@ -272,7 +269,7 @@ class ColorSchemeGenerator:
         comp = (255 - rgb[0], 255 - rgb[1], 255 - rgb[2])
         return [color, self._rgb_to_hex(comp)]
 
-    def generate_analogous_colors(self, color: str, count: int = 3) -> List[str]:
+    def generate_analogous_colors(self, color: str, count: int = 3) -> list[str]:
         """
         生成类似色
 
@@ -303,7 +300,7 @@ class ColorSchemeGenerator:
 
     def _rgb_to_hex(self, rgb: tuple) -> str:
         """将RGB转换为十六进制颜色"""
-        return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+        return f'#{int(rgb[0]):02x}{int(rgb[1]):02x}{int(rgb[2]):02x}'
 
     def _rgb_to_hls(self, rgb: tuple) -> tuple:
         """将RGB转换为HLS"""
@@ -355,7 +352,7 @@ class ColorSchemeGenerator:
 
 
 # 单例实例
-_color_scheme_instance: Optional[ColorSchemeGenerator] = None
+_color_scheme_instance: ColorSchemeGenerator | None = None
 _manager_lock = threading.Lock()
 
 

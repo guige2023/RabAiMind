@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 幻灯片工厂 - 处理幻灯片创建逻辑
 
@@ -12,8 +11,7 @@
 """
 
 import threading
-from typing import Dict, Any, List, Optional
-import random
+from typing import Any
 
 
 class SlideFactory:
@@ -44,8 +42,8 @@ class SlideFactory:
         layout_type: str,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建幻灯片
 
         Args:
@@ -65,8 +63,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建封面布局"""
         palette = theme_config.get('palette', {})
         fonts = theme_config.get('fonts', {})
@@ -92,8 +90,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建卡片布局"""
         palette = theme_config.get('palette', {})
         fonts = theme_config.get('fonts', {})
@@ -120,8 +118,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建双栏布局"""
         palette = theme_config.get('palette', {})
         fonts = theme_config.get('fonts', {})
@@ -153,8 +151,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建中心辐射布局"""
         palette = theme_config.get('palette', {})
 
@@ -178,8 +176,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建时间线布局"""
         palette = theme_config.get('palette', {})
 
@@ -203,8 +201,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建数据可视化布局"""
         palette = theme_config.get('palette', {})
 
@@ -229,8 +227,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建金句布局"""
         palette = theme_config.get('palette', {})
 
@@ -259,8 +257,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建对比布局"""
         palette = theme_config.get('palette', {})
 
@@ -291,8 +289,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建全屏图布局"""
         palette = theme_config.get('palette', {})
 
@@ -315,8 +313,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建流程图布局"""
         palette = theme_config.get('palette', {})
 
@@ -340,8 +338,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建团队介绍布局"""
         palette = theme_config.get('palette', {})
 
@@ -364,8 +362,8 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建瀑布流布局"""
         palette = theme_config.get('palette', {})
 
@@ -389,12 +387,12 @@ class SlideFactory:
         self,
         title: str,
         content: Any,
-        theme_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        theme_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """创建默认布局"""
         return self._create_content_card_layout(title, content, theme_config)
 
-    def get_layout_options(self) -> List[Dict[str, str]]:
+    def get_layout_options(self) -> list[dict[str, str]]:
         """获取布局选项列表"""
         return [
             {'value': k, 'name': v}
@@ -403,7 +401,7 @@ class SlideFactory:
 
 
 # 全局实例
-_slide_factory: Optional[SlideFactory] = None
+_slide_factory: SlideFactory | None = None
 _manager_lock = threading.Lock()
 
 

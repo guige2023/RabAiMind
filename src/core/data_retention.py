@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data Retention Policy
 
@@ -14,14 +13,13 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import os
 import json
-import time
-import threading
 import logging
-import shutil
+import os
+import threading
+import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("data_retention")
 
@@ -44,14 +42,14 @@ class RetentionLogger:
     def __init__(self):
         os.makedirs(os.path.dirname(RETENTION_LOG_FILE), exist_ok=True)
 
-    def _load(self) -> List[Dict]:
+    def _load(self) -> list[dict]:
         try:
-            with open(RETENTION_LOG_FILE, "r", encoding="utf-8") as f:
+            with open(RETENTION_LOG_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return []
 
-    def _save(self, logs: List[Dict]):
+    def _save(self, logs: list[dict]):
         # Keep last 10000 entries
         if len(logs) > 10000:
             logs = logs[-10000:]
@@ -83,11 +81,11 @@ class RetentionLogger:
         self._save(logs)
         return entry
 
-    def get_recent_logs(self, limit: int = 100) -> List[Dict]:
+    def get_recent_logs(self, limit: int = 100) -> list[dict]:
         logs = self._load()
         return logs[-limit:]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         logs = self._load()
         deleted_count = sum(1 for l in logs if l["action"] == "delete" and l["success"])
         deleted_size = sum(l.get("file_size_bytes", 0) for l in logs if l["action"] == "delete" and l["success"])
@@ -101,7 +99,7 @@ class RetentionLogger:
         }
 
 
-_retention_logger: Optional[RetentionLogger] = None
+_retention_logger: RetentionLogger | None = None
 
 
 def get_retention_logger() -> RetentionLogger:
@@ -127,7 +125,7 @@ class DataRetentionPolicy:
         self._template_dir = self._get_template_dir()
         self._lock = threading.Lock()
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def _get_data_dir(self) -> str:
         # Navigate from src/core/ to project root
@@ -174,7 +172,7 @@ class DataRetentionPolicy:
                 return part
         return "unknown"
 
-    def _delete_file(self, filepath: str, secure: bool = False) -> Tuple[bool, str]:
+    def _delete_file(self, filepath: str, secure: bool = False) -> tuple[bool, str]:
         """
         Delete a file safely. Returns (success, error_message).
 
@@ -186,7 +184,6 @@ class DataRetentionPolicy:
 
             if secure and size > 0:
                 # NIST 800-88 compliant secure delete: 3-pass overwrite
-                import random
                 for pass_num in range(3):
                     with open(filepath, "r+b") as f:
                         file_size = os.fstat(f.fileno()).st_size
@@ -214,13 +211,13 @@ class DataRetentionPolicy:
         except OSError as e:
             return False, str(e)
 
-    def secure_delete_file(self, filepath: str) -> Tuple[bool, str]:
+    def secure_delete_file(self, filepath: str) -> tuple[bool, str]:
         """Permanently delete a file with secure overwrite (no recovery possible)."""
         return self._delete_file(filepath, secure=True)
 
     # ==================== Output/PPT Files ====================
 
-    def scan_output_dir(self, dry_run: bool = True) -> List[Dict[str, Any]]:
+    def scan_output_dir(self, dry_run: bool = True) -> list[dict[str, Any]]:
         """Scan output directory for expired PPT files."""
         results = []
         if not os.path.exists(self._output_dir):
@@ -257,14 +254,14 @@ class DataRetentionPolicy:
 
     # ==================== Deletion Queue (GDPR) ====================
 
-    def process_deletion_queue(self, dry_run: bool = True) -> List[Dict[str, Any]]:
+    def process_deletion_queue(self, dry_run: bool = True) -> list[dict[str, Any]]:
         """Process GDPR deletion requests from the queue."""
         results = []
         if not os.path.exists(DELETION_QUEUE_FILE):
             return results
 
         try:
-            with open(DELETION_QUEUE_FILE, "r", encoding="utf-8") as f:
+            with open(DELETION_QUEUE_FILE, encoding="utf-8") as f:
                 queue = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             queue = []
@@ -303,7 +300,7 @@ class DataRetentionPolicy:
 
         return results
 
-    def _delete_user_data(self, user_id: str, dry_run: bool = True, secure: bool = False) -> List[str]:
+    def _delete_user_data(self, user_id: str, dry_run: bool = True, secure: bool = False) -> list[str]:
         """
         Delete all data associated with a user_id.
 
@@ -338,7 +335,7 @@ class DataRetentionPolicy:
 
     # ==================== Full Policy Run ====================
 
-    def run(self, dry_run: bool = None) -> Dict[str, Any]:
+    def run(self, dry_run: bool = None) -> dict[str, Any]:
         """
         Run the full retention policy.
 
@@ -415,7 +412,7 @@ class DataRetentionPolicy:
 
 # ==================== Global Instance ====================
 
-_retention_policy: Optional[DataRetentionPolicy] = None
+_retention_policy: DataRetentionPolicy | None = None
 
 
 def get_retention_policy() -> DataRetentionPolicy:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Share Link Service — PPT分享链接生成与管理
 Phase 2.1: 分享链接功能
@@ -9,19 +8,19 @@ Phase 2.1: 分享链接功能
 - QR二维码生成
 """
 
-import uuid
-import json
 import base64
 import io
+import json
+import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass, asdict, field
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 try:
-    from qrcode import QRCode
     from PIL import Image
+    from qrcode import QRCode
     HAS_QRCODE = True
 except ImportError:
     HAS_QRCODE = False
@@ -76,27 +75,27 @@ def _generate_share_code() -> str:
     return uuid.uuid4().hex[:8]
 
 
-def _load_share_links() -> Dict[str, ShareLink]:
+def _load_share_links() -> dict[str, ShareLink]:
     """加载所有分享链接"""
     fpath = SHARE_LINK_DIR / "share_links.json"
     if not fpath.exists():
         return {}
     try:
-        with open(fpath, "r", encoding="utf-8") as f:
+        with open(fpath, encoding="utf-8") as f:
             data = json.load(f)
             return {k: ShareLink.from_dict(v) for k, v in data.items()}
     except (json.JSONDecodeError, FileNotFoundError):
         return {}
 
 
-def _save_share_links(links: Dict[str, ShareLink]) -> None:
+def _save_share_links(links: dict[str, ShareLink]) -> None:
     """保存分享链接到文件"""
     fpath = SHARE_LINK_DIR / "share_links.json"
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump({k: v.to_dict() for k, v in links.items()}, f, ensure_ascii=False, indent=2)
 
 
-def _generate_qr_code(data: str) -> Optional[str]:
+def _generate_qr_code(data: str) -> str | None:
     """生成QR码并返回Base64编码"""
     if not HAS_QRCODE:
         return None
@@ -121,7 +120,7 @@ class ShareLinkService:
         ppt_title: str,
         owner_id: str = "default",
         permission: str = SharePermission.VIEW.value,
-        expires_in_hours: Optional[int] = None,
+        expires_in_hours: int | None = None,
         password: str = "",
     ) -> ShareLink:
         """
@@ -141,14 +140,14 @@ class ShareLinkService:
         share_id = str(uuid.uuid4())
         share_code = _generate_share_code()
         created_at = datetime.now().isoformat()
-        
+
         expires_at = ""
         if expires_in_hours is not None and expires_in_hours > 0:
             expires_at = (datetime.now() + timedelta(hours=expires_in_hours)).isoformat()
-        
+
         # 生成分享URL
         share_url = f"/share/{share_code}"
-        
+
         link = ShareLink(
             share_id=share_id,
             ppt_id=ppt_id,
@@ -161,24 +160,24 @@ class ShareLinkService:
             is_active=True,
             password=password,
         )
-        
+
         # 生成QR码
         if HAS_QRCODE:
             link.qr_code_data = _generate_qr_code(share_url) or ""
-        
+
         # 保存
         links = _load_share_links()
         links[share_id] = link
         _save_share_links(links)
-        
+
         return link
 
-    def get_share_link(self, share_id: str) -> Optional[ShareLink]:
+    def get_share_link(self, share_id: str) -> ShareLink | None:
         """通过share_id获取分享链接"""
         links = _load_share_links()
         return links.get(share_id)
 
-    def get_by_code(self, share_code: str) -> Optional[ShareLink]:
+    def get_by_code(self, share_code: str) -> ShareLink | None:
         """通过分享码获取分享链接"""
         links = _load_share_links()
         for link in links.values():
@@ -187,10 +186,10 @@ class ShareLinkService:
         return None
 
     def verify_share_access(
-        self, 
-        share_code: str, 
+        self,
+        share_code: str,
         password: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         验证分享访问权限
         
@@ -204,36 +203,36 @@ class ShareLinkService:
             }
         """
         link = self.get_by_code(share_code)
-        
+
         if not link:
             return {"valid": False, "error": "分享链接不存在", "link": None, "ppt_id": "", "requires_password": False}
-        
+
         if not link.is_active:
             return {"valid": False, "error": "分享链接已被禁用", "link": None, "ppt_id": "", "requires_password": False}
-        
+
         if link.is_expired():
             return {"valid": False, "error": "分享链接已过期", "link": None, "ppt_id": "", "requires_password": False}
-        
+
         if link.password and link.password != password:
             return {
-                "valid": False, 
-                "error": "需要密码访问", 
-                "link": link, 
-                "ppt_id": link.ppt_id, 
+                "valid": False,
+                "error": "需要密码访问",
+                "link": link,
+                "ppt_id": link.ppt_id,
                 "requires_password": True
             }
-        
+
         # 增加访问计数
         link.access_count += 1
         links = _load_share_links()
         links[link.share_id] = link
         _save_share_links(links)
-        
+
         return {
-            "valid": True, 
-            "error": "", 
-            "link": link, 
-            "ppt_id": link.ppt_id, 
+            "valid": True,
+            "error": "",
+            "link": link,
+            "ppt_id": link.ppt_id,
             "requires_password": bool(link.password)
         }
 
@@ -246,7 +245,7 @@ class ShareLinkService:
             links[link.share_id] = link
             _save_share_links(links)
 
-    def list_user_links(self, owner_id: str) -> List[ShareLink]:
+    def list_user_links(self, owner_id: str) -> list[ShareLink]:
         """列出用户的所有分享链接"""
         links = _load_share_links()
         return [l for l in links.values() if l.owner_id == owner_id]
@@ -263,31 +262,31 @@ class ShareLinkService:
         return False
 
     def update_link(
-        self, 
-        share_id: str, 
+        self,
+        share_id: str,
         owner_id: str,
-        expires_in_hours: Optional[int] = None,
-        permission: Optional[str] = None,
-        password: Optional[str] = None,
-    ) -> Optional[ShareLink]:
+        expires_in_hours: int | None = None,
+        permission: str | None = None,
+        password: str | None = None,
+    ) -> ShareLink | None:
         """更新分享链接设置"""
         links = _load_share_links()
         link = links.get(share_id)
         if not link or link.owner_id != owner_id:
             return None
-        
+
         if expires_in_hours is not None:
             if expires_in_hours <= 0:
                 link.expires_at = ""
             else:
                 link.expires_at = (datetime.now() + timedelta(hours=expires_in_hours)).isoformat()
-        
+
         if permission is not None:
             link.permission = permission
-        
+
         if password is not None:
             link.password = password
-        
+
         links[share_id] = link
         _save_share_links(links)
         return link
@@ -302,13 +301,13 @@ class ShareLinkService:
             return True
         return False
 
-    def get_link_analytics(self, share_id: str, owner_id: str) -> Optional[Dict[str, Any]]:
+    def get_link_analytics(self, share_id: str, owner_id: str) -> dict[str, Any] | None:
         """获取分享链接统计"""
         links = _load_share_links()
         link = links.get(share_id)
         if not link or link.owner_id != owner_id:
             return None
-        
+
         return {
             "share_id": link.share_id,
             "share_code": link.share_code,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RabAi Mind 配置文件
 
@@ -12,12 +11,12 @@ config.yaml 仅作文档参考。
 import os
 import platform
 import shutil
-from typing import List, Optional
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
 
 # 加载 .env 文件
 from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
 load_dotenv()
 
 
@@ -33,7 +32,7 @@ def _get_okppt_server_path_default() -> str:
     # uvx is the preferred cross-platform approach (no install needed)
     if shutil.which("uvx"):
         return "uvx"
-    
+
     system = platform.system()
     if system == "Darwin":
         # macOS: check brew prefix first, then common paths
@@ -82,7 +81,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     # P0 Fix: 强制开启认证（当 JWT_SECRET 已配置时自动启用，生产模式不可禁用）
     API_AUTH_ENABLED: bool = Field(default=True)  # 不再允许通过环境变量关闭
-    API_KEY: Optional[str] = None
+    API_KEY: str | None = None
     VERSION: str = "1.0.0"
     JWT_SECRET: str = Field(default="")
     MAX_UPLOAD_SIZE: int = 52428800  # 50MB
@@ -107,16 +106,16 @@ class Settings(BaseSettings):
     # ========== Redis 配置 ==========
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
-    REDIS_PASSWORD: Optional[str] = None
-    REDIS_URL: Optional[str] = None
+    REDIS_PASSWORD: str | None = None
+    REDIS_URL: str | None = None
     REDIS_DB: int = 0
 
     # ========== OSS 配置 ==========
     OSS_ENABLED: bool = False
-    OSS_ENDPOINT: Optional[str] = None
-    OSS_BUCKET: Optional[str] = None
-    OSS_ACCESS_KEY: Optional[str] = None
-    OSS_SECRET_KEY: Optional[str] = None
+    OSS_ENDPOINT: str | None = None
+    OSS_BUCKET: str | None = None
+    OSS_ACCESS_KEY: str | None = None
+    OSS_SECRET_KEY: str | None = None
 
     # ========== PPT 生成配置 ==========
     PPT_WIDTH: int = 1600
@@ -207,11 +206,11 @@ def get_redis_url() -> str:
     return f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}"
 
 
-def get_cors_origins() -> List[str]:
+def get_cors_origins() -> list[str]:
     """解析 CORS_ORIGINS 环境变量（逗号分隔）"""
     return [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 
 
-def get_ppt_output_formats() -> List[str]:
+def get_ppt_output_formats() -> list[str]:
     """解析 PPT_OUTPUT_FORMATS 环境变量（逗号分隔）"""
     return [fmt.strip() for fmt in settings.PPT_OUTPUT_FORMATS.split(",") if fmt.strip()]

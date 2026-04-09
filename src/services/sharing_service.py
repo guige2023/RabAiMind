@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Sharing Service — Access Requests, Folders, Share Permissions & Sharing Analytics
 
@@ -12,11 +11,11 @@ R126: Presentation Sharing & Permissions
 
 import json
 import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict, field
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 SHARING_DIR = Path(__file__).parent.parent / "data" / "sharing"
 SHARING_DIR.mkdir(parents=True, exist_ok=True)
@@ -109,11 +108,11 @@ class PresentationFolder:
     workspace_id: str
     name: str
     parent_id: str = ""  # "" for root level
-    ppt_ids: List[str] = field(default_factory=list)
+    ppt_ids: list[str] = field(default_factory=list)
     color: str = "#165DFF"
     icon: str = "📁"
     is_shared: bool = False
-    shared_with: List[str] = field(default_factory=list)  # emails
+    shared_with: list[str] = field(default_factory=list)  # emails
     created_by: str = "default"
     created_at: str = ""
     updated_at: str = ""
@@ -133,7 +132,7 @@ def _sharing_file(name: str) -> Path:
     return SHARING_DIR / f"{name}.json"
 
 
-def _load_json(name: str) -> Dict[str, Any]:
+def _load_json(name: str) -> dict[str, Any]:
     f = _sharing_file(name)
     if not f.exists():
         return {}
@@ -143,7 +142,7 @@ def _load_json(name: str) -> Dict[str, Any]:
         return {}
 
 
-def _save_json(name: str, data: Dict):
+def _save_json(name: str, data: dict):
     f = _sharing_dir = SHARING_DIR / f"{name}.json"
     f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -159,7 +158,7 @@ class AccessRequestService:
     def _requests_file(self) -> Path:
         return _sharing_file(self.storage_key)
 
-    def _load_requests(self) -> List[AccessRequest]:
+    def _load_requests(self) -> list[AccessRequest]:
         f = self._requests_file()
         if not f.exists():
             return []
@@ -169,7 +168,7 @@ class AccessRequestService:
         except Exception:
             return []
 
-    def _save_requests(self, requests: List[AccessRequest]):
+    def _save_requests(self, requests: list[AccessRequest]):
         self._sharing_dir = SHARING_DIR
         self._sharing_dir.mkdir(parents=True, exist_ok=True)
         self._requests_file().write_text(
@@ -212,14 +211,14 @@ class AccessRequestService:
         self._save_requests(requests)
         return req
 
-    def get_request(self, request_id: str) -> Optional[AccessRequest]:
+    def get_request(self, request_id: str) -> AccessRequest | None:
         requests = self._load_requests()
         for r in requests:
             if r.id == request_id:
                 return r
         return None
 
-    def list_requests_for_owner(self, owner_id: str, status: str = "") -> List[AccessRequest]:
+    def list_requests_for_owner(self, owner_id: str, status: str = "") -> list[AccessRequest]:
         """List all access requests for a resource owner"""
         requests = self._load_requests()
         result = [r for r in requests if r.owner_id == owner_id]
@@ -227,7 +226,7 @@ class AccessRequestService:
             result = [r for r in result if r.status == status]
         return sorted(result, key=lambda r: r.created_at, reverse=True)
 
-    def list_requests_for_requester(self, requester_id: str) -> List[AccessRequest]:
+    def list_requests_for_requester(self, requester_id: str) -> list[AccessRequest]:
         """List all access requests made by a user"""
         requests = self._load_requests()
         return sorted(
@@ -235,7 +234,7 @@ class AccessRequestService:
             key=lambda r: r.created_at, reverse=True
         )
 
-    def list_requests_for_resource(self, resource_type: str, resource_id: str) -> List[AccessRequest]:
+    def list_requests_for_resource(self, resource_type: str, resource_id: str) -> list[AccessRequest]:
         """List all requests for a specific resource (for workspace context)"""
         requests = self._load_requests()
         return sorted(
@@ -243,7 +242,7 @@ class AccessRequestService:
             key=lambda r: r.created_at, reverse=True
         )
 
-    def approve_request(self, request_id: str, approver_id: str) -> Optional[AccessRequest]:
+    def approve_request(self, request_id: str, approver_id: str) -> AccessRequest | None:
         """Approve an access request"""
         requests = self._load_requests()
         for r in requests:
@@ -256,7 +255,7 @@ class AccessRequestService:
                 return r
         return None
 
-    def reject_request(self, request_id: str, rejecter_id: str, reason: str = "") -> Optional[AccessRequest]:
+    def reject_request(self, request_id: str, rejecter_id: str, reason: str = "") -> AccessRequest | None:
         """Reject an access request"""
         requests = self._load_requests()
         for r in requests:
@@ -297,7 +296,7 @@ class FolderService:
     def _folders_file(self) -> Path:
         return _sharing_file(self.storage_key)
 
-    def _load_folders(self) -> List[PresentationFolder]:
+    def _load_folders(self) -> list[PresentationFolder]:
         f = self._folders_file()
         if not f.exists():
             return []
@@ -307,7 +306,7 @@ class FolderService:
         except Exception:
             return []
 
-    def _save_folders(self, folders: List[PresentationFolder]):
+    def _save_folders(self, folders: list[PresentationFolder]):
         SHARING_DIR.mkdir(parents=True, exist_ok=True)
         self._folders_file().write_text(
             json.dumps([fo.to_dict() for fo in folders], ensure_ascii=False, indent=2),
@@ -341,14 +340,14 @@ class FolderService:
         self._save_folders(folders)
         return folder
 
-    def get_folder(self, folder_id: str) -> Optional[PresentationFolder]:
+    def get_folder(self, folder_id: str) -> PresentationFolder | None:
         folders = self._load_folders()
         for f in folders:
             if f.id == folder_id:
                 return f
         return None
 
-    def list_folders(self, workspace_id: str, parent_id: str = "") -> List[PresentationFolder]:
+    def list_folders(self, workspace_id: str, parent_id: str = "") -> list[PresentationFolder]:
         """List folders in a workspace, optionally filtered by parent"""
         folders = self._load_folders()
         return sorted(
@@ -364,7 +363,7 @@ class FolderService:
         color: str = None,
         icon: str = None,
         sort_order: int = None,
-    ) -> Optional[PresentationFolder]:
+    ) -> PresentationFolder | None:
         """Update a folder"""
         folders = self._load_folders()
         for f in folders:
@@ -423,7 +422,7 @@ class FolderService:
         self.remove_ppt_from_folder(from_folder_id, ppt_id)
         return self.add_ppt_to_folder(to_folder_id, ppt_id)
 
-    def share_folder(self, folder_id: str, emails: List[str]) -> Optional[PresentationFolder]:
+    def share_folder(self, folder_id: str, emails: list[str]) -> PresentationFolder | None:
         """Share a folder with specific emails"""
         folders = self._load_folders()
         for f in folders:
@@ -435,7 +434,7 @@ class FolderService:
                 return f
         return None
 
-    def unshare_folder(self, folder_id: str, email: str = "") -> Optional[PresentationFolder]:
+    def unshare_folder(self, folder_id: str, email: str = "") -> PresentationFolder | None:
         """Unshare a folder"""
         folders = self._load_folders()
         for f in folders:
@@ -452,12 +451,12 @@ class FolderService:
                 return f
         return None
 
-    def get_ppt_folders(self, ppt_id: str) -> List[PresentationFolder]:
+    def get_ppt_folders(self, ppt_id: str) -> list[PresentationFolder]:
         """Get all folders containing a specific PPT"""
         folders = self._load_folders()
         return [f for f in folders if ppt_id in f.ppt_ids]
 
-    def reorder_folders(self, workspace_id: str, folder_ids: List[str]):
+    def reorder_folders(self, workspace_id: str, folder_ids: list[str]):
         """Reorder folders in a workspace"""
         folders = self._load_folders()
         for i, fid in enumerate(folder_ids):
@@ -478,7 +477,7 @@ class SharingAnalyticsService:
     def _logs_file(self) -> Path:
         return _sharing_file(self.storage_key)
 
-    def _load_logs(self) -> List[ShareAccessLog]:
+    def _load_logs(self) -> list[ShareAccessLog]:
         f = self._logs_file()
         if not f.exists():
             return []
@@ -488,7 +487,7 @@ class SharingAnalyticsService:
         except Exception:
             return []
 
-    def _save_logs(self, logs: List[ShareAccessLog]):
+    def _save_logs(self, logs: list[ShareAccessLog]):
         SHARING_DIR.mkdir(parents=True, exist_ok=True)
         # Keep last 50k entries
         if len(logs) > 50_000:
@@ -530,7 +529,7 @@ class SharingAnalyticsService:
         self._save_logs(logs)
         return log
 
-    def get_share_access_history(self, share_id: str, limit: int = 100) -> List[ShareAccessLog]:
+    def get_share_access_history(self, share_id: str, limit: int = 100) -> list[ShareAccessLog]:
         """Get all access records for a specific share"""
         logs = self._load_logs()
         return sorted(
@@ -538,7 +537,7 @@ class SharingAnalyticsService:
             key=lambda l: l.access_time, reverse=True
         )[:limit]
 
-    def get_sharing_analytics(self, owner_id: str) -> Dict[str, Any]:
+    def get_sharing_analytics(self, owner_id: str) -> dict[str, Any]:
         """Get comprehensive sharing analytics for an owner"""
         from ..core.security import get_secure_share_manager
 
@@ -550,7 +549,7 @@ class SharingAnalyticsService:
         relevant = [l for l in logs if l.share_id in share_ids]
 
         # Aggregate by share
-        by_share: Dict[str, Dict] = {}
+        by_share: dict[str, dict] = {}
         for log in relevant:
             sid = log.share_id
             if sid not in by_share:
@@ -622,12 +621,12 @@ class SharingAnalyticsService:
             "by_share": sorted(result, key=lambda x: x["total_accesses"], reverse=True),
         }
 
-    def get_viewer_list(self, share_id: str) -> List[Dict[str, Any]]:
+    def get_viewer_list(self, share_id: str) -> list[dict[str, Any]]:
         """Get list of unique viewers for a share with access counts"""
         logs = self._load_logs()
         share_logs = [l for l in logs if l.share_id == share_id]
 
-        viewer_map: Dict[str, Dict] = {}
+        viewer_map: dict[str, dict] = {}
         for log in share_logs:
             key = log.viewer_email or log.viewer_ip or "anonymous"
             if key not in viewer_map:
@@ -682,7 +681,7 @@ class PermissionGrantService:
     def _grants_file(self) -> Path:
         return _sharing_file(self.storage_key)
 
-    def _load_grants(self) -> List[SharePermissionGrant]:
+    def _load_grants(self) -> list[SharePermissionGrant]:
         f = self._grants_file()
         if not f.exists():
             return []
@@ -692,7 +691,7 @@ class PermissionGrantService:
         except Exception:
             return []
 
-    def _save_grants(self, grants: List[SharePermissionGrant]):
+    def _save_grants(self, grants: list[SharePermissionGrant]):
         SHARING_DIR.mkdir(parents=True, exist_ok=True)
         self._grants_file().write_text(
             json.dumps([g.to_dict() for g in grants], ensure_ascii=False, indent=2),
@@ -730,7 +729,7 @@ class PermissionGrantService:
             return True
         return False
 
-    def get_permission(self, share_id: str, grantee_email: str) -> Optional[str]:
+    def get_permission(self, share_id: str, grantee_email: str) -> str | None:
         """Get the permission level for an email on a share"""
         grants = self._load_grants()
         for g in grants:
@@ -738,17 +737,17 @@ class PermissionGrantService:
                 return g.permission
         return None
 
-    def list_grants_for_share(self, share_id: str) -> List[SharePermissionGrant]:
+    def list_grants_for_share(self, share_id: str) -> list[SharePermissionGrant]:
         grants = self._load_grants()
         return [g for g in grants if g.share_id == share_id]
 
 
 # ===== Singleton factories =====
 
-_access_request_service: Optional[AccessRequestService] = None
-_folder_service: Optional[FolderService] = None
-_sharing_analytics: Optional[SharingAnalyticsService] = None
-_permission_grants: Optional[PermissionGrantService] = None
+_access_request_service: AccessRequestService | None = None
+_folder_service: FolderService | None = None
+_sharing_analytics: SharingAnalyticsService | None = None
+_permission_grants: PermissionGrantService | None = None
 
 
 def get_access_request_service() -> AccessRequestService:

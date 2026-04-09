@@ -1,31 +1,30 @@
-# -*- coding: utf-8 -*-
 """
 Beacon Service — Bluetooth beacon proximity trigger configuration
 R153: Presentation QR Code & NFC Integration
 """
 
-import uuid
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 BEACON_DIR = Path(__file__).parent.parent.parent / "data" / "beacons"
 BEACON_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _load_data() -> Dict[str, Dict[str, Any]]:
+def _load_data() -> dict[str, dict[str, Any]]:
     fpath = BEACON_DIR / "beacons.json"
     if fpath.exists():
         try:
-            with open(fpath, "r", encoding="utf-8") as f:
+            with open(fpath, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
     return {}
 
 
-def _save_data(data: Dict[str, Dict[str, Any]]) -> None:
+def _save_data(data: dict[str, dict[str, Any]]) -> None:
     fpath = BEACON_DIR / "beacons.json"
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -44,7 +43,7 @@ class BeaconService:
         minor: int = 1,
         tx_power: int = -59,
         url: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a beacon configuration for a presentation."""
         data = _load_data()
 
@@ -74,7 +73,7 @@ class BeaconService:
         _save_data(data)
         return entry
 
-    def list_beacons(self, owner_id: str = "", ppt_id: str = "") -> List[Dict[str, Any]]:
+    def list_beacons(self, owner_id: str = "", ppt_id: str = "") -> list[dict[str, Any]]:
         """List beacon configurations."""
         data = _load_data()
         result = []
@@ -86,12 +85,12 @@ class BeaconService:
             result.append(entry)
         return result
 
-    def get_beacon(self, beacon_id: str) -> Optional[Dict[str, Any]]:
+    def get_beacon(self, beacon_id: str) -> dict[str, Any] | None:
         """Get a beacon configuration."""
         data = _load_data()
         return data.get(beacon_id)
 
-    def update_beacon(self, beacon_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def update_beacon(self, beacon_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
         """Update a beacon configuration."""
         data = _load_data()
         if beacon_id not in data:

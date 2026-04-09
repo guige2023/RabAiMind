@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SmartLayout引擎 - 整合智能布局模块
 
@@ -18,7 +17,7 @@ SmartLayout引擎 - 整合智能布局模块
 """
 
 import threading
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 
 class SmartLayoutEngine:
@@ -103,14 +102,14 @@ class SmartLayoutEngine:
     def generate_layout(
         self,
         title: str,
-        content: List[Any],
+        content: list[Any],
         layout_type: str,
         style: str,
         theme_color: str,
         text_style: str = 'transparent_overlay',
         shadow_color: str = '#000000',
         overlay_transparency: int = 30,
-        fonts: Dict[str, str] = None
+        fonts: dict[str, str] = None
     ) -> str:
         """生成布局 - 统一入口
 
@@ -176,11 +175,11 @@ class SmartLayoutEngine:
     def _compose_svg(
         self,
         title: str,
-        content: List[Any],
-        layout: Dict[str, Any],
-        elements: Dict[str, Any],
-        visual: Dict[str, Any],
-        colors: Dict[str, str],
+        content: list[Any],
+        layout: dict[str, Any],
+        elements: dict[str, Any],
+        visual: dict[str, Any],
+        colors: dict[str, str],
         layout_type: str
     ) -> str:
         """组合SVG"""
@@ -210,7 +209,7 @@ class SmartLayoutEngine:
 
         return svg
 
-    def get_layout_suggestion(self, title: str, content: str) -> Dict[str, Any]:
+    def get_layout_suggestion(self, title: str, content: str) -> dict[str, Any]:
         """获取布局建议"""
         # 分析内容特征
         features = self.content_analyzer.extract_features(title, content)
@@ -220,7 +219,7 @@ class SmartLayoutEngine:
 
         return suggestion
 
-    def get_color_palette(self, style: str, base_color: str = None) -> Dict[str, str]:
+    def get_color_palette(self, style: str, base_color: str = None) -> dict[str, str]:
         """获取配色方案"""
         return self.color_scheme_manager.generate_palette(style, base_color)
 
@@ -229,13 +228,13 @@ class SmartLayoutEngine:
         title: str,
         content: str,
         style: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成AI设计"""
         return self.ai_designer.design(title, content, style)
 
 
 # 全局实例
-_smart_layout_engine: Optional[SmartLayoutEngine] = None
+_smart_layout_engine: SmartLayoutEngine | None = None
 _manager_lock = threading.Lock()
 
 

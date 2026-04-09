@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Template, layout, theme, and slide annotation related API routes.
 
@@ -6,16 +5,15 @@ Handles template management, layout suggestions, theme recommendations,
 slide notes, sticky notes, and notes templates.
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query, Body
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-import uuid
 import logging
+import uuid
+from datetime import datetime
+from typing import Any
+
+from fastapi import Body, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 
 from ._base_routes import (
-    _check_rate_limit_middleware,
     create_router,
 )
 
@@ -26,11 +24,11 @@ router = create_router(prefix="/api/v1/ppt", tags=["ppt-template"])
 
 # ==================== Search Analytics Helper ====================
 
-def _record_search(query: str, results_count: int, filters: Optional[Dict[str, Any]] = None) -> None:
+def _record_search(query: str, results_count: int, filters: dict[str, Any] | None = None) -> None:
     """Record a search for analytics."""
-    from pathlib import Path
     import json
     import os
+    from pathlib import Path
 
     analytics_file = Path("data/search_analytics.json")
     data = {"searches": [], "search_count": {}, "clicked_templates": [], "template_clicks": {}}
@@ -39,7 +37,7 @@ def _record_search(query: str, results_count: int, filters: Optional[Dict[str, A
         try:
             with open(analytics_file, encoding="utf-8") as f:
                 data = json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
 
     # Ensure structure
@@ -70,15 +68,15 @@ def _record_search(query: str, results_count: int, filters: Optional[Dict[str, A
         os.makedirs(os.path.dirname(analytics_file), exist_ok=True)
         with open(analytics_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    except IOError as e:
+    except OSError as e:
         logger.warning(f"Failed to record search analytics: {e}")
 
 
 def _record_template_click(template_id: str) -> None:
     """Record a template click for analytics."""
-    from pathlib import Path
     import json
     import os
+    from pathlib import Path
 
     analytics_file = Path("data/search_analytics.json")
     data = {"searches": [], "search_count": {}, "clicked_templates": [], "template_clicks": {}}
@@ -87,7 +85,7 @@ def _record_template_click(template_id: str) -> None:
         try:
             with open(analytics_file, encoding="utf-8") as f:
                 data = json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
 
     if "template_clicks" not in data:
@@ -99,7 +97,7 @@ def _record_template_click(template_id: str) -> None:
         os.makedirs(os.path.dirname(analytics_file), exist_ok=True)
         with open(analytics_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    except IOError as e:
+    except OSError as e:
         logger.warning(f"Failed to record template click: {e}")
 
 
@@ -265,9 +263,9 @@ async def update_template(template_id: str, request: dict):
 class TagSearchRequest(BaseModel):
     """标签搜索请求"""
     query: str = Field(default="", max_length=200, description="搜索关键词")
-    category: Optional[str] = Field(default=None, max_length=50, description="分类过滤")
-    style: Optional[str] = Field(default=None, max_length=50, description="风格过滤")
-    tags: Optional[List[str]] = Field(default_factory=list, description="标签列表（AND过滤）")
+    category: str | None = Field(default=None, max_length=50, description="分类过滤")
+    style: str | None = Field(default=None, max_length=50, description="风格过滤")
+    tags: list[str] | None = Field(default_factory=list, description="标签列表（AND过滤）")
     limit: int = Field(default=20, ge=1, le=100, description="返回数量")
 
 
@@ -372,15 +370,15 @@ async def remove_template_tags(template_id: str, request: dict):
 
 class AdvancedSearchRequest(BaseModel):
     """高级搜索请求"""
-    query: Optional[str] = Field(default="", max_length=200, description="搜索关键词")
-    category: Optional[str] = Field(default=None, max_length=50, description="分类过滤")
-    style: Optional[str] = Field(default=None, max_length=50, description="风格过滤")
-    author: Optional[str] = Field(default=None, max_length=100, description="作者过滤")
-    tags: Optional[List[str]] = Field(default_factory=list, description="标签列表（AND过滤）")
-    date_from: Optional[str] = Field(default=None, description="开始日期 YYYY-MM-DD")
-    date_to: Optional[str] = Field(default=None, description="结束日期 YYYY-MM-DD")
-    template_type: Optional[str] = Field(default="all", description="模板类型: all/ugc/system")
-    sort_by: Optional[str] = Field(default="relevance", description="排序: relevance/newest/popularity/name")
+    query: str | None = Field(default="", max_length=200, description="搜索关键词")
+    category: str | None = Field(default=None, max_length=50, description="分类过滤")
+    style: str | None = Field(default=None, max_length=50, description="风格过滤")
+    author: str | None = Field(default=None, max_length=100, description="作者过滤")
+    tags: list[str] | None = Field(default_factory=list, description="标签列表（AND过滤）")
+    date_from: str | None = Field(default=None, description="开始日期 YYYY-MM-DD")
+    date_to: str | None = Field(default=None, description="结束日期 YYYY-MM-DD")
+    template_type: str | None = Field(default="all", description="模板类型: all/ugc/system")
+    sort_by: str | None = Field(default="relevance", description="排序: relevance/newest/popularity/name")
     page: int = Field(default=1, ge=1, le=100, description="页码")
     limit: int = Field(default=20, ge=1, le=100, description="每页数量")
     use_semantic: bool = Field(default=False, description="是否使用AI语义搜索")
@@ -389,8 +387,9 @@ class AdvancedSearchRequest(BaseModel):
 @router.post("/templates/advanced-search")
 async def advanced_template_search(req: AdvancedSearchRequest):
     """高级模板搜索 - 支持多条件过滤和AI语义搜索"""
-    from ...services.template_manager import get_template_manager
     from datetime import datetime
+
+    from ...services.template_manager import get_template_manager
 
     manager = get_template_manager()
 
@@ -541,10 +540,10 @@ async def record_template_click(template_id: str):
 @router.get("/templates/search-analytics/dashboard")
 async def get_search_analytics_dashboard(days: int = Query(default=30, ge=1, le=365)):
     """搜索分析仪表盘 - 返回热门搜索词、搜索趋势等"""
-    from pathlib import Path
     import json
-    from datetime import datetime, timedelta
     from collections import Counter
+    from datetime import datetime, timedelta
+    from pathlib import Path
 
     analytics_file = Path("data/search_analytics.json")
     trending_queries = []
@@ -607,7 +606,7 @@ async def get_search_analytics_dashboard(days: int = Query(default=30, ge=1, le=
                 for tid, c in top_clicked
             ]
 
-        except (json.JSONDecodeError, IOError, ValueError) as e:
+        except (OSError, json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse search analytics: {e}")
 
     return {
@@ -637,7 +636,7 @@ class PPTSearchResponse(BaseModel):
     success: bool
     query: str
     total: int
-    results: List[PPTSearchResult]
+    results: list[PPTSearchResult]
 
 
 @router.post("/search", response_model=PPTSearchResponse)
@@ -661,7 +660,7 @@ async def search_ppt_content(
     manager = get_task_manager()
     all_tasks = manager.get_history()
 
-    results: List[PPTSearchResult] = []
+    results: list[PPTSearchResult] = []
     query_lower = query.lower().strip()
 
     for task_id, task in all_tasks.items():
@@ -932,8 +931,8 @@ async def suggest_theme(
 
     分析内容类型、行业领域和情感基调，返回推荐的主题配色方案
     """
-    from ...services.smart_layout.content_analyzer import get_content_analyzer
     from ...services.smart_layout.color_scheme import get_color_scheme_generator
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
 
     # 分析内容类型
     analyzer = get_content_analyzer()
@@ -1054,11 +1053,11 @@ def _get_theme_style_name_api(style: str) -> str:
 class SlideNotesUpdate(BaseModel):
     """幻灯片备注更新"""
     slide_index: int
-    notes: Optional[str] = None
-    rich_notes: Optional[str] = None
-    speaker_notes: Optional[str] = None
-    sticky_notes: Optional[List[Dict[str, Any]]] = None
-    annotations: List[Dict[str, Any]] = []
+    notes: str | None = None
+    rich_notes: str | None = None
+    speaker_notes: str | None = None
+    sticky_notes: list[dict[str, Any]] | None = None
+    annotations: list[dict[str, Any]] = []
 
 
 class StickyNoteItem(BaseModel):
@@ -1070,7 +1069,7 @@ class StickyNoteItem(BaseModel):
     color: str = Field(default="#FFE066", description="便签颜色")
     position_x: float = Field(default=0, description="X坐标")
     position_y: float = Field(default=0, description="Y坐标")
-    created_at: Optional[str] = Field(default=None, description="创建时间")
+    created_at: str | None = Field(default=None, description="创建时间")
 
 
 class StickyNoteCreate(BaseModel):
@@ -1133,7 +1132,7 @@ async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
 
 
 @router.post("/annotations/{task_id}/{slide_index}")
-async def save_slide_annotations(task_id: str, slide_index: int, annotations: List[Dict[str, Any]]):
+async def save_slide_annotations(task_id: str, slide_index: int, annotations: list[dict[str, Any]]):
     """R152: 保存幻灯片标注（演示模式涂鸦）"""
     from ...services.task_manager import get_task_manager
     tm = get_task_manager()
@@ -1289,7 +1288,7 @@ class NotesTemplateItem(BaseModel):
     description: str
     template_type: str  # business | education | tech | marketing |通用
     content: str
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class NotesTemplateCreate(BaseModel):
@@ -1301,7 +1300,7 @@ class NotesTemplateCreate(BaseModel):
 
 
 @router.get("/notes-templates")
-async def get_notes_templates(template_type: Optional[str] = None):
+async def get_notes_templates(template_type: str | None = None):
     """R152: 获取备注模板列表"""
     if template_type:
         filtered = [t for t in NOTES_TEMPLATES_STORE if t["template_type"] == template_type]

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Task Manager - Main entry point for task management
 
@@ -11,31 +10,29 @@ Date: 2026-04-07 (refactored)
 
 import logging
 import threading
-import uuid
 import time
-from typing import Dict, Any, Optional, List
+import uuid
+from typing import Any
 
-from ..utils import get_timestamp
 from ..constants import (
+    CONTENT_LAYOUT_MIN_LENGTH,
+    CONTENT_MAX_LENGTH,
+    CONTENT_MIN_LENGTH,
+    LANGUAGE_DETECTION_CONFIDENCE,
     MAX_ACTION_LOG,
-    MAX_UNDO_STACK,
     MAX_ACTION_TIMELINE,
     MAX_CHECKPOINTS,
     MAX_SLIDE_CHANGES,
-    MAX_TASK_AGE_MINUTES,
-    SLIDE_COUNT_MIN,
+    MAX_UNDO_STACK,
     SLIDE_COUNT_MAX,
+    SLIDE_COUNT_MIN,
     TITLE_MAX_LENGTH,
     TITLE_MIN_LENGTH,
     TITLE_TRUNCATE_LENGTH,
-    CONTENT_MIN_LENGTH,
-    CONTENT_MAX_LENGTH,
-    CONTENT_LAYOUT_MIN_LENGTH,
-    LANGUAGE_DETECTION_CONFIDENCE,
 )
-
-from .task_store import TaskStore
+from ..utils import get_timestamp
 from .task_queue import TaskQueue
+from .task_store import TaskStore
 from .task_versioning import TaskVersioning
 
 logger = logging.getLogger(__name__)
@@ -103,11 +100,11 @@ class TaskManager:
             color_scheme=color_scheme,
         )
 
-    def get_task(self, task_id: str) -> Optional[Dict]:
+    def get_task(self, task_id: str) -> dict | None:
         """Retrieve a task by its ID."""
         return self._task_store.get_task(task_id)
 
-    def get_history(self, status_filter: Optional[str] = None) -> Dict[str, Dict]:
+    def get_history(self, status_filter: str | None = None) -> dict[str, dict]:
         """Get history of tasks, optionally filtered by status."""
         return self._task_store.get_history(status_filter)
 
@@ -115,15 +112,15 @@ class TaskManager:
         """Force sync all current tasks to cloud storage."""
         return self._task_store.force_sync_all()
 
-    def save_outline(self, task_id: str, outline: Dict) -> None:
+    def save_outline(self, task_id: str, outline: dict) -> None:
         """Save presentation outline to a task."""
         self._task_store.save_outline(task_id, outline)
 
-    def get_outline(self, task_id: str) -> Optional[Dict]:
+    def get_outline(self, task_id: str) -> dict | None:
         """Get outline for a task."""
         return self._task_store.get_outline(task_id)
 
-    def update_task_params(self, task_id: str, params: Dict) -> None:
+    def update_task_params(self, task_id: str, params: dict) -> None:
         """Update task parameters."""
         self._task_store.update_task_params(task_id, params)
 
@@ -152,8 +149,8 @@ class TaskManager:
         compression_ratio: float = 0.0,
         quality: str = "standard",
         output_format: str = "pptx",
-        slides_summary: Optional[List[Dict]] = None,
-        svg_paths: Optional[List[str]] = None
+        slides_summary: list[dict] | None = None,
+        svg_paths: list[str] | None = None
     ) -> None:
         """Mark a task as completed with generated file information."""
         self._task_queue.complete_task(

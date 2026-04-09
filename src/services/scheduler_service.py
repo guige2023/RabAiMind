@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Scheduler Service — 定时任务调度服务
 
@@ -25,16 +24,16 @@ from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import BaseModel, Field
 
 from ..config import settings
 from ..utils import ensure_dir
-from .webhook_service import get_webhook_service, WebhookEvent
+from .webhook_service import WebhookEvent, get_webhook_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,82 +93,82 @@ class Schedule(BaseModel):
     action: ScheduleAction
     schedule_type: ScheduleType
     # 时间配置
-    run_at: Optional[str] = Field(None, description="执行时间 (ISO8601)，用于 once 类型")
-    cron_expression: Optional[str] = Field(None, description="Cron 表达式，用于 weekly/monthly")
+    run_at: str | None = Field(None, description="执行时间 (ISO8601)，用于 once 类型")
+    cron_expression: str | None = Field(None, description="Cron 表达式，用于 weekly/monthly")
     # 循环间隔（用于 daily/weekly/monthly）
-    day_of_week: Optional[str] = Field(None, description="周几执行 (0-6, mon-sun)，用于 weekly")
-    day_of_month: Optional[int] = Field(None, ge=1, le=31, description="每月几号，用于 monthly")
-    hour: Optional[int] = Field(None, ge=0, le=23)
-    minute: Optional[int] = Field(None, ge=0, le=59)
+    day_of_week: str | None = Field(None, description="周几执行 (0-6, mon-sun)，用于 weekly")
+    day_of_month: int | None = Field(None, ge=1, le=31, description="每月几号，用于 monthly")
+    hour: int | None = Field(None, ge=0, le=23)
+    minute: int | None = Field(None, ge=0, le=59)
     # 动作参数
-    params: Dict[str, Any] = Field(default_factory=dict, description="动作参数（如生成参数/导出配置）")
+    params: dict[str, Any] = Field(default_factory=dict, description="动作参数（如生成参数/导出配置）")
     # 元信息
     status: ScheduleStatus = ScheduleStatus.ACTIVE
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
-    last_run_at: Optional[float] = None
-    next_run_at: Optional[float] = None
+    last_run_at: float | None = None
+    next_run_at: float | None = None
     run_count: int = 0
     # 关联
-    user_id: Optional[str] = Field(None, description="所属用户")
-    task_ids: List[str] = Field(default_factory=list, description="关联的任务ID列表")
-    webhook_event: Optional[str] = Field(None, description="触发的 webhook 事件")
+    user_id: str | None = Field(None, description="所属用户")
+    task_ids: list[str] = Field(default_factory=list, description="关联的任务ID列表")
+    webhook_event: str | None = Field(None, description="触发的 webhook 事件")
 
 
 class ScheduledEmail(BaseModel):
     """邮件投递配置"""
     id: str
-    schedule_id: Optional[str] = Field(None, description="关联的定时任务ID")
-    task_id: Optional[str] = Field(None, description="关联的PPT任务ID")
+    schedule_id: str | None = Field(None, description="关联的定时任务ID")
+    task_id: str | None = Field(None, description="关联的PPT任务ID")
     # 收件人
     to_email: str
-    to_name: Optional[str] = None
+    to_name: str | None = None
     # 内容
     subject: str
     body_html: str
-    body_text: Optional[str] = None
+    body_text: str | None = None
     # SMTP 配置（从环境变量读取，不需要每次请求）
-    smtp_host: Optional[str] = None
-    smtp_port: Optional[int] = None
-    smtp_user: Optional[str] = None
-    smtp_password: Optional[str] = None
-    smtp_from_email: Optional[str] = None
-    smtp_from_name: Optional[str] = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
     # 状态
     status: ScheduleStatus = ScheduleStatus.ACTIVE
     created_at: float = Field(default_factory=time.time)
-    sent_at: Optional[float] = None
-    error: Optional[str] = None
+    sent_at: float | None = None
+    error: str | None = None
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
-def _load_schedules() -> List[Dict]:
+def _load_schedules() -> list[dict]:
     if os.path.exists(SCHEDULES_FILE):
         try:
-            with open(SCHEDULES_FILE, "r", encoding="utf-8") as f:
+            with open(SCHEDULES_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return []
     return []
 
 
-def _save_schedules(schedules: List[Dict]):
+def _save_schedules(schedules: list[dict]):
     with open(SCHEDULES_FILE, "w", encoding="utf-8") as f:
         json.dump(schedules, f, ensure_ascii=False, indent=2)
 
 
-def _load_emails() -> List[Dict]:
+def _load_emails() -> list[dict]:
     if os.path.exists(SCHEDULED_EMAILS_FILE):
         try:
-            with open(SCHEDULED_EMAILS_FILE, "r", encoding="utf-8") as f:
+            with open(SCHEDULED_EMAILS_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return []
     return []
 
 
-def _save_emails(emails: List[Dict]):
+def _save_emails(emails: list[dict]):
     with open(SCHEDULED_EMAILS_FILE, "w", encoding="utf-8") as f:
         json.dump(emails, f, ensure_ascii=False, indent=2)
 
@@ -190,12 +189,12 @@ class SchedulerService:
         return cls._instance
 
     def __init__(self):
-        self._schedules: Dict[str, Schedule] = {}
-        self._emails: Dict[str, ScheduledEmail] = {}
-        self._scheduler: Optional[BackgroundScheduler] = None
+        self._schedules: dict[str, Schedule] = {}
+        self._emails: dict[str, ScheduledEmail] = {}
+        self._scheduler: BackgroundScheduler | None = None
         self._scheduler_lock = threading.Lock()
         self._started = False
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         # Load persisted data
         self._load_all()
@@ -226,7 +225,7 @@ class SchedulerService:
 
     # ── Scheduler Lifecycle ──────────────────────────────────────────────────
 
-    def start(self, loop: Optional[asyncio.AbstractEventLoop] = None):
+    def start(self, loop: asyncio.AbstractEventLoop | None = None):
         """启动调度器（在 FastAPI startup 时调用）"""
         with self._scheduler_lock:
             if self._started:
@@ -270,14 +269,14 @@ class SchedulerService:
         name: str,
         action: ScheduleAction,
         schedule_type: ScheduleType,
-        params: Optional[Dict[str, Any]] = None,
-        run_at: Optional[str] = None,
-        cron_expression: Optional[str] = None,
-        day_of_week: Optional[str] = None,
-        day_of_month: Optional[int] = None,
-        hour: Optional[int] = None,
-        minute: Optional[int] = None,
-        user_id: Optional[str] = None,
+        params: dict[str, Any] | None = None,
+        run_at: str | None = None,
+        cron_expression: str | None = None,
+        day_of_week: str | None = None,
+        day_of_month: int | None = None,
+        hour: int | None = None,
+        minute: int | None = None,
+        user_id: str | None = None,
     ) -> Schedule:
         """创建定时任务"""
         sid = self._generate_id()
@@ -311,10 +310,10 @@ class SchedulerService:
         logger.info(f"创建定时任务: id={sid} name={name} action={action.value} type={schedule_type.value}")
         return sched
 
-    def get_schedule(self, schedule_id: str) -> Optional[Schedule]:
+    def get_schedule(self, schedule_id: str) -> Schedule | None:
         return self._schedules.get(schedule_id)
 
-    def list_schedules(self, user_id: Optional[str] = None, status: Optional[ScheduleStatus] = None) -> List[Schedule]:
+    def list_schedules(self, user_id: str | None = None, status: ScheduleStatus | None = None) -> list[Schedule]:
         """列出所有定时任务"""
         results = list(self._schedules.values())
         if user_id:
@@ -323,7 +322,7 @@ class SchedulerService:
             results = [s for s in results if s.status == status]
         return sorted(results, key=lambda s: s.created_at, reverse=True)
 
-    def update_schedule(self, schedule_id: str, **kwargs) -> Optional[Schedule]:
+    def update_schedule(self, schedule_id: str, **kwargs) -> Schedule | None:
         """更新定时任务"""
         sched = self._schedules.get(schedule_id)
         if not sched:
@@ -396,7 +395,7 @@ class SchedulerService:
         logger.info(f"恢复定时任务: id={schedule_id}")
         return True
 
-    def trigger_now(self, schedule_id: str) -> Dict[str, Any]:
+    def trigger_now(self, schedule_id: str) -> dict[str, Any]:
         """立即触发一个定时任务"""
         sched = self._schedules.get(schedule_id)
         if not sched:
@@ -409,12 +408,12 @@ class SchedulerService:
     def _calc_next_run(
         self,
         schedule_type: ScheduleType,
-        run_at: Optional[str],
-        day_of_week: Optional[str],
-        day_of_month: Optional[int],
+        run_at: str | None,
+        day_of_week: str | None,
+        day_of_month: int | None,
         hour: int,
         minute: int,
-    ) -> Optional[float]:
+    ) -> float | None:
         """计算下次执行时间戳"""
         now = datetime.now()
         h = hour if hour is not None else 9
@@ -533,7 +532,7 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"定时任务执行失败: id={schedule_id} error={e}")
 
-    def _execute_schedule_by_id(self, schedule_id: str) -> Dict[str, Any]:
+    def _execute_schedule_by_id(self, schedule_id: str) -> dict[str, Any]:
         """根据 ID 执行调度任务"""
         sched = self._schedules.get(schedule_id)
         if not sched:
@@ -541,7 +540,7 @@ class SchedulerService:
 
         return self._execute_schedule(sched)
 
-    def _execute_schedule(self, sched: Schedule) -> Dict[str, Any]:
+    def _execute_schedule(self, sched: Schedule) -> dict[str, Any]:
         """执行一个调度任务"""
         sched.last_run_at = time.time()
         sched.run_count += 1
@@ -566,7 +565,7 @@ class SchedulerService:
         else:
             return {"success": False, "error": f"Unknown action: {action}"}
 
-    def _do_generate(self, sched: Schedule) -> Dict[str, Any]:
+    def _do_generate(self, sched: Schedule) -> dict[str, Any]:
         """执行 PPT 生成"""
         from .ppt_generator import get_ppt_generator
         from .task_manager import get_task_manager
@@ -625,10 +624,10 @@ class SchedulerService:
 
         return {"success": True, "task_id": task_id, "action": "generate"}
 
-    def _do_export(self, sched: Schedule) -> Dict[str, Any]:
+    def _do_export(self, sched: Schedule) -> dict[str, Any]:
         """执行批量导出"""
+
         from .task_manager import get_task_manager
-        import glob
 
         params = sched.params or {}
         task_ids = params.get("task_ids", [])
@@ -661,7 +660,7 @@ class SchedulerService:
             "total": len(exported),
         }
 
-    def _do_webhook(self, sched: Schedule) -> Dict[str, Any]:
+    def _do_webhook(self, sched: Schedule) -> dict[str, Any]:
         """触发 Webhook 事件"""
         params = sched.params or {}
         event_name = params.get("event", "schedule.triggered")
@@ -683,7 +682,7 @@ class SchedulerService:
 
         return {"success": True, "action": "webhook", "event": event_name}
 
-    def _do_email_delivery(self, sched: Schedule) -> Dict[str, Any]:
+    def _do_email_delivery(self, sched: Schedule) -> dict[str, Any]:
         """执行邮件发送"""
         from .task_manager import get_task_manager
 
@@ -715,7 +714,7 @@ class SchedulerService:
             from_name=email_config.get("from_name") or os.getenv("SMTP_FROM_NAME", "RabAiMind"),
         )
 
-    def _dispatch_webhook(self, event: WebhookEvent, task_id: str, data: Dict[str, Any]):
+    def _dispatch_webhook(self, event: WebhookEvent, task_id: str, data: dict[str, Any]):
         """分发 Webhook 事件（异步）"""
         ws = get_webhook_service()
         loop = asyncio.new_event_loop()
@@ -732,18 +731,18 @@ class SchedulerService:
     def _send_email(
         self,
         to_email: str,
-        to_name: Optional[str] = None,
+        to_name: str | None = None,
         subject: str = "",
         body_html: str = "",
-        body_text: Optional[str] = None,
-        pptx_path: Optional[str] = None,
-        smtp_host: Optional[str] = None,
+        body_text: str | None = None,
+        pptx_path: str | None = None,
+        smtp_host: str | None = None,
         smtp_port: int = 587,
-        smtp_user: Optional[str] = None,
-        smtp_password: Optional[str] = None,
-        from_email: Optional[str] = None,
+        smtp_user: str | None = None,
+        smtp_password: str | None = None,
+        from_email: str | None = None,
         from_name: str = "RabAiMind",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """发送邮件"""
         if not smtp_host or not smtp_user or not smtp_password:
             return {"success": False, "error": "SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD env vars."}
@@ -768,8 +767,8 @@ class SchedulerService:
 
             # 附件：PPTX
             if pptx_path and os.path.exists(pptx_path):
-                from email.mime.base import MIMEBase
                 from email import encoders
+                from email.mime.base import MIMEBase
 
                 with open(pptx_path, "rb") as f:
                     part = MIMEBase("application", "octet-stream")
@@ -797,19 +796,19 @@ class SchedulerService:
 
     def create_scheduled_email(
         self,
-        schedule_id: Optional[str] = None,
-        task_id: Optional[str] = None,
+        schedule_id: str | None = None,
+        task_id: str | None = None,
         to_email: str = "",
-        to_name: Optional[str] = None,
+        to_name: str | None = None,
         subject: str = "",
         body_html: str = "",
-        body_text: Optional[str] = None,
-        smtp_host: Optional[str] = None,
-        smtp_port: Optional[int] = None,
-        smtp_user: Optional[str] = None,
-        smtp_password: Optional[str] = None,
-        from_email: Optional[str] = None,
-        from_name: Optional[str] = None,
+        body_text: str | None = None,
+        smtp_host: str | None = None,
+        smtp_port: int | None = None,
+        smtp_user: str | None = None,
+        smtp_password: str | None = None,
+        from_email: str | None = None,
+        from_name: str | None = None,
     ) -> ScheduledEmail:
         """创建邮件投递配置"""
         eid = self._generate_id()
@@ -834,10 +833,10 @@ class SchedulerService:
         logger.info(f"创建邮件投递配置: id={eid} to={to_email}")
         return email
 
-    def get_scheduled_email(self, email_id: str) -> Optional[ScheduledEmail]:
+    def get_scheduled_email(self, email_id: str) -> ScheduledEmail | None:
         return self._emails.get(email_id)
 
-    def list_scheduled_emails(self, schedule_id: Optional[str] = None) -> List[ScheduledEmail]:
+    def list_scheduled_emails(self, schedule_id: str | None = None) -> list[ScheduledEmail]:
         results = list(self._emails.values())
         if schedule_id:
             results = [e for e in results if e.schedule_id == schedule_id]
@@ -850,7 +849,7 @@ class SchedulerService:
             return True
         return False
 
-    def send_test_email(self, email_config: Dict[str, Any]) -> Dict[str, Any]:
+    def send_test_email(self, email_config: dict[str, Any]) -> dict[str, Any]:
         """发送测试邮件"""
         return self._send_email(
             to_email=email_config.get("to_email", ""),
@@ -869,7 +868,7 @@ class SchedulerService:
 
 # ── Global Singleton ───────────────────────────────────────────────────────────
 
-_scheduler_service: Optional[SchedulerService] = None
+_scheduler_service: SchedulerService | None = None
 
 
 def get_scheduler_service() -> SchedulerService:

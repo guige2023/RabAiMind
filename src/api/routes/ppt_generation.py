@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT Generation Routes - 生成相关路由
 
@@ -6,44 +5,41 @@ PPT Generation Routes - 生成相关路由
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, status, Query, Body
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, field_validator
-import asyncio
 import logging
 import re
-import threading
 import time
+
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
-from ...models import (
-    GenerateRequest,
-    GenerateResponse,
-    TaskStatusResponse,
-    TaskStatus,
-    TaskResult,
-    TaskError,
-    HealthResponse,
-    APIInfo,
-)
-from ...services.task_manager import get_task_manager
-from ...services.ppt_generator import get_ppt_generator
-from ...services.advanced_analytics_service import get_advanced_analytics_service
-from ...config import settings
-
 from ...api.middleware.rate_limit import (
-    get_user_id_from_request,
-    get_rate_limiter,
     check_quota,
+    get_rate_limiter,
+    get_user_id_from_request,
     rate_limit_exceeded_response,
 )
+from ...config import settings
+from ...models import (
+    APIInfo,
+    GenerateRequest,
+    GenerateResponse,
+    HealthResponse,
+    TaskError,
+    TaskResult,
+    TaskStatus,
+    TaskStatusResponse,
+)
+from ...services.advanced_analytics_service import get_advanced_analytics_service
+from ...services.ppt_generator import get_ppt_generator
+from ...services.task_manager import get_task_manager
 
 router = APIRouter()
 
 
-def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:
+def _check_rate_limit_middleware(request: Request) -> JSONResponse | None:
     """Check rate limit, return error response if exceeded, else None."""
     user_id = get_user_id_from_request(request)
     rate_limiter = get_rate_limiter()
@@ -58,7 +54,6 @@ def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """健康检查"""
-    from ...config import settings
     _server_start_time = time.time()
     return HealthResponse(
         status="healthy",
@@ -220,7 +215,7 @@ async def generate_ppt(http_request: Request, request: GenerateRequest):
             estimated_time=120
         )
 
-    except Exception as e:
+    except Exception:
         # 错误信息脱敏，不泄露内部细节
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -274,7 +269,6 @@ async def get_task_preview(request: Request, task_id: str):
         )
 
     import os
-    from ...config import settings
 
     # 验证task_id格式
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
@@ -329,7 +323,6 @@ async def get_svg_file(request: Request, task_id: str, slide_num: int):
         )
 
     import os
-    from ...config import settings
 
     # 防止路径遍历攻击：严格验证task_id格式
     if not task_id or not slide_num or not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
@@ -351,7 +344,7 @@ async def get_svg_file(request: Request, task_id: str, slide_num: int):
     if not os.path.exists(filepath):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"SVG文件不存在"
+            detail="SVG文件不存在"
         )
 
     return FileResponse(
@@ -365,7 +358,6 @@ async def get_svg_file(request: Request, task_id: str, slide_num: int):
 async def get_task_image_file(task_id: str, filename: str):
     """获取任务目录下的图片文件"""
     import os
-    from ...config import settings
 
     # 防止路径遍历攻击
     if not re.match(r'^[a-zA-Z0-9_-]+\.(jpg|jpeg|png|gif|webp)$', filename, re.IGNORECASE):
@@ -455,7 +447,7 @@ class ImageGenerationRequest(BaseModel):
 class ImageGenerationResponse(BaseModel):
     """AI生图响应"""
     success: bool
-    images: List[str]
+    images: list[str]
     message: str = ""
 
 
@@ -471,8 +463,8 @@ async def generate_image(http_request: Request, request: ImageGenerationRequest)
         )
 
     try:
-        from src.services.volc_api import get_volc_api
         from src.services.ppt_planner import sanitize_prompt
+        from src.services.volc_api import get_volc_api
         volc = get_volc_api()
         safe_prompt = sanitize_prompt(request.prompt)
 

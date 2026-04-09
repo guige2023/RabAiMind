@@ -1,13 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 收藏API路由
 """
+
 from fastapi import APIRouter, HTTPException, status
-from typing import List, Optional
 from pydantic import BaseModel
 
 from ...services.favorites_manager import get_favorites_manager
-
 
 router = APIRouter(prefix="/api/v1/favorites", tags=["favorites"])
 
@@ -18,8 +16,8 @@ class FavoriteItemResponse(BaseModel):
     type: str
     name: str
     description: str
-    thumbnail: Optional[str]
-    added_at: Optional[str]
+    thumbnail: str | None
+    added_at: str | None
 
 
 class FavoriteRequest(BaseModel):
@@ -28,13 +26,13 @@ class FavoriteRequest(BaseModel):
     item_type: str  # "template" or "task"
     name: str
     description: str = ""
-    thumbnail: Optional[str] = None
+    thumbnail: str | None = None
 
 
 class FavoriteListResponse(BaseModel):
     """收藏列表响应"""
     success: bool
-    items: List[FavoriteItemResponse]
+    items: list[FavoriteItemResponse]
     total: int
 
 
@@ -119,7 +117,7 @@ async def check_favorite(
 @router.get("/list/{user_id}", response_model=FavoriteListResponse)
 async def list_favorites(
     user_id: str,
-    item_type: Optional[str] = None
+    item_type: str | None = None
 ):
     """
     获取用户收藏列表

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Phase 2.1 AI Analysis Routes - AI分析接口
 
@@ -10,10 +9,10 @@ Phase 2.1 AI Analysis Routes - AI分析接口
 
 import logging
 import os
-import tempfile
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
 
 from src.services.ai_analysis_service import get_ai_analysis_service
 
@@ -31,42 +30,42 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     """文档分析响应"""
     success: bool
-    title: Optional[str] = None
-    summary: Optional[str] = None
-    key_points: Optional[List[str]] = None
-    keywords: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    title: str | None = None
+    summary: str | None = None
+    key_points: list[str] | None = None
+    keywords: list[str] | None = None
+    metadata: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class OutlineRequest(BaseModel):
     """PPT大纲生成请求"""
-    key_info: Dict[str, Any]
+    key_info: dict[str, Any]
     scene: str = "business"
 
 
 class OutlineResponse(BaseModel):
     """PPT大纲生成响应"""
     success: bool
-    outline: Optional[List[Dict[str, Any]]] = None
-    error: Optional[str] = None
+    outline: list[dict[str, Any]] | None = None
+    error: str | None = None
 
 
 class CompetitorRequest(BaseModel):
     """竞品分析请求"""
     url: str
-    name: Optional[str] = None
+    name: str | None = None
 
 
 class CompetitorResponse(BaseModel):
     """竞品分析响应"""
     success: bool
-    competitor_name: Optional[str] = None
-    strengths: Optional[List[str]] = None
-    weaknesses: Optional[List[str]] = None
-    market_position: Optional[str] = None
-    comparison_data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    competitor_name: str | None = None
+    strengths: list[str] | None = None
+    weaknesses: list[str] | None = None
+    market_position: str | None = None
+    comparison_data: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class AudienceRequest(BaseModel):
@@ -77,14 +76,14 @@ class AudienceRequest(BaseModel):
 class AudienceResponse(BaseModel):
     """受众画像响应"""
     success: bool
-    name: Optional[str] = None
-    age_range: Optional[str] = None
-    occupation: Optional[str] = None
-    pain_points: Optional[List[str]] = None
-    interests: Optional[List[str]] = None
-    preferred_content_style: Optional[str] = None
-    demographics: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    name: str | None = None
+    age_range: str | None = None
+    occupation: str | None = None
+    pain_points: list[str] | None = None
+    interests: list[str] | None = None
+    preferred_content_style: str | None = None
+    demographics: dict[str, Any] | None = None
+    error: str | None = None
 
 
 # ==================== Helper ====================

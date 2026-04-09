@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 团队工作空间服务
 
@@ -12,10 +11,10 @@ R79: Multi-brand & Workspace Management
 
 import json
 import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict, field
+from typing import Any
 
 WORKSPACE_DIR = Path(__file__).parent.parent / "data" / "workspaces"
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,20 +64,20 @@ class Workspace:
     name: str
     description: str = ""
     owner_id: str = "default"
-    members: List[WorkspaceMember] = field(default_factory=list)
-    invitations: List[WorkspaceInvitation] = field(default_factory=list)
+    members: list[WorkspaceMember] = field(default_factory=list)
+    invitations: list[WorkspaceInvitation] = field(default_factory=list)
     is_public: bool = False
     created_at: str = ""
     updated_at: str = ""
     # 配额配置
-    quotas: Dict[str, Any] = field(default_factory=lambda: {
+    quotas: dict[str, Any] = field(default_factory=lambda: {
         "ppt_generations": {"limit": 100, "period": "monthly"},
         "storage_mb": {"limit": 500, "period": "monthly"},
         "members": {"limit": 10, "period": "constant"},
         "templates": {"limit": 50, "period": "constant"},
     })
     # 已用配额
-    usage: Dict[str, int] = field(default_factory=lambda: {
+    usage: dict[str, int] = field(default_factory=lambda: {
         "ppt_generations": 0,
         "storage_mb": 0,
     })
@@ -128,7 +127,7 @@ class BrandProfile:
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: List[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
+    fonts: list[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
     logo_url: str = ""
     slogan: str = ""
     logo_data: str = ""
@@ -151,8 +150,8 @@ class BrandProfile:
 @dataclass
 class QuotaInfo:
     workspace_id: str
-    quotas: Dict[str, Any] = field(default_factory=dict)
-    usage: Dict[str, int] = field(default_factory=dict)
+    quotas: dict[str, Any] = field(default_factory=dict)
+    usage: dict[str, int] = field(default_factory=dict)
     reset_at: str = ""
 
 
@@ -187,7 +186,7 @@ class WorkspaceService:
     def _team_templates_file(self, workspace_id: str) -> Path:
         return self.team_templates_dir / f"{workspace_id}_templates.json"
 
-    def list_workspaces(self, user_id: str) -> List[Workspace]:
+    def list_workspaces(self, user_id: str) -> list[Workspace]:
         """列出用户所有工作空间"""
         workspaces = []
         if not self.workspaces_dir.exists():
@@ -229,13 +228,13 @@ class WorkspaceService:
         self._save_workspace(ws)
         return ws
 
-    def get_workspace(self, workspace_id: str) -> Optional[Workspace]:
+    def get_workspace(self, workspace_id: str) -> Workspace | None:
         f = self._workspace_file(workspace_id)
         if not f.exists():
             return None
         return Workspace.from_dict(json.loads(f.read_text()))
 
-    def update_workspace(self, workspace_id: str, name=None, description=None, is_public=None) -> Optional[Workspace]:
+    def update_workspace(self, workspace_id: str, name=None, description=None, is_public=None) -> Workspace | None:
         ws = self.get_workspace(workspace_id)
         if not ws:
             return None
@@ -266,7 +265,7 @@ class WorkspaceService:
 
     # ===== 成员管理 =====
 
-    def invite_member(self, workspace_id: str, email: str, role: str) -> Optional[WorkspaceInvitation]:
+    def invite_member(self, workspace_id: str, email: str, role: str) -> WorkspaceInvitation | None:
         ws = self.get_workspace(workspace_id)
         if not ws:
             return None
@@ -309,7 +308,7 @@ class WorkspaceService:
 
     # ===== 品牌 Profile =====
 
-    def list_brand_profiles(self, workspace_id: str) -> List[BrandProfile]:
+    def list_brand_profiles(self, workspace_id: str) -> list[BrandProfile]:
         f = self._brand_file(workspace_id)
         if not f.exists():
             return []
@@ -323,7 +322,7 @@ class WorkspaceService:
                            profile_name: str, profile_type: str, brand_data: dict) -> BrandProfile:
         """保存品牌配置（新建或更新）"""
         profiles = self.list_brand_profiles(workspace_id)
-        
+
         if profile_id:
             # 更新
             for p in profiles:
@@ -374,7 +373,7 @@ class WorkspaceService:
             return True
         return False
 
-    def _save_brand_profiles(self, workspace_id: str, profiles: List[BrandProfile]):
+    def _save_brand_profiles(self, workspace_id: str, profiles: list[BrandProfile]):
         self.brand_profiles_dir.mkdir(parents=True, exist_ok=True)
         self._brand_file(workspace_id).write_text(
             json.dumps([p.to_dict() for p in profiles], ensure_ascii=False, indent=2)
@@ -382,7 +381,7 @@ class WorkspaceService:
 
     # ===== 品牌包导出/导入 =====
 
-    def export_brand_kit(self, workspace_id: str, profile_id: str) -> Optional[Dict[str, Any]]:
+    def export_brand_kit(self, workspace_id: str, profile_id: str) -> dict[str, Any] | None:
         profiles = self.list_brand_profiles(workspace_id)
         for p in profiles:
             if p.profile_id == profile_id:
@@ -393,7 +392,7 @@ class WorkspaceService:
                 }
         return None
 
-    def import_brand_kit(self, workspace_id: str, brand_kit: Dict[str, Any]) -> Optional[BrandProfile]:
+    def import_brand_kit(self, workspace_id: str, brand_kit: dict[str, Any]) -> BrandProfile | None:
         try:
             if "profile" not in brand_kit:
                 return None
@@ -412,7 +411,7 @@ class WorkspaceService:
 
     # ===== 团队模板 =====
 
-    def list_team_templates(self, workspace_id: str, user_id: str) -> List[Dict[str, Any]]:
+    def list_team_templates(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
         f = self._team_templates_file(workspace_id)
         if not f.exists():
             return []
@@ -426,13 +425,13 @@ class WorkspaceService:
         from .template_manager import get_template_manager
         tm = get_template_manager()
         user_templates = tm.get_user_templates(user_id)
-        
+
         template = None
         for t in user_templates:
             if t.get("id") == template_id:
                 template = dict(t)
                 break
-        
+
         if not template:
             return False
 
@@ -440,7 +439,7 @@ class WorkspaceService:
         template["shared_by"] = user_id
         template["shared_at"] = datetime.now().isoformat()
         template["visibility"] = "workspace"
-        
+
         templates = self.list_team_templates(workspace_id, user_id)
         # 避免重复分享
         if not any(t.get("id") == template_id for t in templates):
@@ -491,7 +490,7 @@ class WorkspaceService:
         if not ws:
             return False
         if quota_type == "all":
-            ws.usage = {k: 0 for k in ws.usage}
+            ws.usage = dict.fromkeys(ws.usage, 0)
         elif quota_type in ws.usage:
             ws.usage[quota_type] = 0
         self._save_workspace(ws)

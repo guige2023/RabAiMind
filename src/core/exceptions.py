@@ -3,26 +3,26 @@
 
 定义项目中所有自定义异常类型，便于错误处理和调试
 """
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class RabAiMindError(Exception):
     base_error: bool = True
     error_code: str = "UNKNOWN_ERROR"
     http_status: int = 500
-    
+
     def __init__(
         self,
         message: str,
-        error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         self.message = message
         self.error_code = error_code or self.error_code
         self.details = details or {}
         super().__init__(self.message)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": False,
             "error": {
@@ -179,14 +179,14 @@ def sanitize_error(e: Exception) -> str:
     """
     if isinstance(e, RabAiMindError):
         return e.message
-    
+
     error_mapping = {
         "ConnectionError": "网络连接失败，请检查网络后重试",
         "Timeout": "请求超时，请稍后重试",
         "HTTPError": "服务暂时不可用，请稍后重试",
         "JSONDecodeError": "数据解析失败，请稍后重试",
     }
-    
+
     error_type = type(e).__name__
     return error_mapping.get(error_type, "服务暂时不可用，请稍后重试")
 

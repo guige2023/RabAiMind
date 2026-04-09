@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 API Key Management Routes — Developer Platform v2.2
 
@@ -13,16 +12,12 @@ Date: 2026-04-09
 """
 
 import time
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from ...config import settings
-from ...core.security import get_api_key_manager, Role
 from ...api.middleware.rate_limit import get_user_id_from_request
-
+from ...core.security import Role, get_api_key_manager
 
 router = APIRouter(prefix="/api/v1/developer/api-keys", tags=["developer"])
 
@@ -32,9 +27,9 @@ router = APIRouter(prefix="/api/v1/developer/api-keys", tags=["developer"])
 class CreateAPIKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Human-readable name for this key")
     role: str = Field(default="user", description="Role: 'user', 'admin', or 'developer'")
-    expires_in_days: Optional[int] = Field(default=None, ge=1, le=365, description="Days until expiration (optional)")
-    allowed_ips: Optional[List[str]] = Field(default=None, description="Whitelist of IP addresses (optional)")
-    rate_limit: Optional[int] = Field(default=None, ge=1, description="Custom rate limit (req/min, optional)")
+    expires_in_days: int | None = Field(default=None, ge=1, le=365, description="Days until expiration (optional)")
+    allowed_ips: list[str] | None = Field(default=None, description="Whitelist of IP addresses (optional)")
+    rate_limit: int | None = Field(default=None, ge=1, description="Custom rate limit (req/min, optional)")
 
 
 class APIKeyResponse(BaseModel):
@@ -43,11 +38,11 @@ class APIKeyResponse(BaseModel):
     role: str
     owner_id: str
     created_at: str
-    expires_at: Optional[str]
-    allowed_ips: List[str]
-    rate_limit: Optional[int]
+    expires_at: str | None
+    allowed_ips: list[str]
+    rate_limit: int | None
     is_active: bool
-    last_used: Optional[str]
+    last_used: str | None
     use_count: int
 
 
@@ -132,7 +127,7 @@ async def create_api_key(request: Request, body: CreateAPIKeyRequest):
 
 @router.get(
     "",
-    response_model=List[APIKeyResponse],
+    response_model=list[APIKeyResponse],
     summary="List API Keys",
     description="List all API keys for the authenticated user. Raw keys are never returned.",
 )

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Security Module — RBAC, API Key Management, Audit Logging, Secure Share
 
@@ -6,20 +5,18 @@ Author: Claude (R42)
 Date: 2026-04-04
 """
 
-import os
-import json
-import time
-import uuid
 import hashlib
+import json
+import logging
+import os
 import secrets
 import threading
-import logging
+import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Literal
-from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from functools import wraps
+from typing import Any
 
 logger = logging.getLogger("security")
 
@@ -42,7 +39,7 @@ class Role(str, Enum):
 # ==================== RBAC ====================
 
 # Permission map: role -> set of allowed actions
-ROLE_PERMISSIONS: Dict[Role, set] = {
+ROLE_PERMISSIONS: dict[Role, set] = {
     Role.ADMIN: {
         # Full access
         "ppt:generate", "ppt:edit", "ppt:delete", "ppt:export",
@@ -80,15 +77,15 @@ class User:
     email: str = ""
     is_active: bool = True
     created_at: str = ""
-    last_login: Optional[str] = None
+    last_login: str | None = None
     # For API keys
     is_api_key: bool = False
-    api_key_name: Optional[str] = None
+    api_key_name: str | None = None
     # For secure share
-    allowed_ips: Optional[List[str]] = None
+    allowed_ips: list[str] | None = None
 
     @classmethod
-    def from_dict(cls, d: Dict) -> "User":
+    def from_dict(cls, d: dict) -> "User":
         return cls(
             user_id=d.get("user_id", ""),
             role=Role.from_string(d.get("role", "guest")),
@@ -144,7 +141,7 @@ class APIKeyManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._cache: Dict[str, Dict] = {}
+        self._cache: dict[str, dict] = {}
         self._ensure_storage()
 
     def _ensure_storage(self):
@@ -152,14 +149,14 @@ class APIKeyManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Dict]:
+    def _load(self) -> dict[str, dict]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -180,10 +177,10 @@ class APIKeyManager:
         name: str,
         role: Role = Role.USER,
         owner_id: str = "",
-        expires_in_days: Optional[int] = None,
-        allowed_ips: Optional[List[str]] = None,
-        rate_limit: Optional[int] = None,
-    ) -> tuple[Dict, str]:
+        expires_in_days: int | None = None,
+        allowed_ips: list[str] | None = None,
+        rate_limit: int | None = None,
+    ) -> tuple[dict, str]:
         """
         Create a new API key.
         Returns (key_info, raw_key) — raw_key must be shown to user ONCE.
@@ -223,7 +220,7 @@ class APIKeyManager:
 
         return key_info, raw_key
 
-    def verify_key(self, raw_key: str) -> Optional[Dict]:
+    def verify_key(self, raw_key: str) -> dict | None:
         """Verify a raw API key. Returns key_info if valid, None otherwise."""
         hashed = self._hash_key(raw_key)
         data = self._load()
@@ -248,7 +245,7 @@ class APIKeyManager:
                 return True
             return False
 
-    def list_keys(self, owner_id: str = "") -> List[Dict]:
+    def list_keys(self, owner_id: str = "") -> list[dict]:
         """List all API keys (without raw key or hash)."""
         data = self._load()
         keys = []
@@ -284,16 +281,16 @@ class AuditLogger:
         self._lock = threading.Lock()
         os.makedirs(os.path.dirname(self.LOG_FILE), exist_ok=True)
 
-    def _load(self) -> List[Dict]:
+    def _load(self) -> list[dict]:
         try:
             if os.path.exists(self.LOG_FILE):
-                with open(self.LOG_FILE, "r", encoding="utf-8") as f:
+                with open(self.LOG_FILE, encoding="utf-8") as f:
                     return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             pass
         return []
 
-    def _save(self, logs: List[Dict]):
+    def _save(self, logs: list[dict]):
         # Enforce size limit
         if len(logs) > 100_000:
             logs = logs[-80_000:]
@@ -315,7 +312,7 @@ class AuditLogger:
         user_agent: str = "",
         status_code: int = 200,
         duration_ms: int = 0,
-        extra: Optional[Dict] = None,
+        extra: dict | None = None,
         auth_method: str = "unknown",
         api_key_id: str = "",
         error: str = "",
@@ -354,7 +351,7 @@ class AuditLogger:
         end_time: str = "",
         limit: int = 100,
         offset: int = 0,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Query audit logs with filters."""
         logs = self._load()
         filtered = []
@@ -387,12 +384,12 @@ class E2EEncryptionManager:
     @staticmethod
     def _get_fernet_key(access_token: str) -> bytes:
         """Derive a Fernet-compatible key from the access token."""
+        import base64
+        import secrets
+
+        from cryptography.hazmat.backends import default_backend
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-        from cryptography.hazmat.backends import default_backend
-        import base64
-
-        import secrets
         salt = secrets.token_bytes(16)  # Random salt for key derivation
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -402,7 +399,6 @@ class E2EEncryptionManager:
             backend=default_backend(),
         )
         key = base64.urlsafe_b64encode(kdf.derive(access_token.encode()))
-        from cryptography.fernet import Fernet
         return key
 
     @staticmethod
@@ -428,7 +424,6 @@ class E2EEncryptionManager:
         Read a PPTX file and return an encrypted package.
         The package format: version(1B) || IV(16B) || encrypted_pptx
         """
-        import struct
 
         with open(pptx_path, "rb") as f:
             content = f.read()
@@ -458,14 +453,14 @@ class SecureShareManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Dict]:
+    def _load(self) -> dict[str, dict]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -476,13 +471,13 @@ class SecureShareManager:
         resource_type: str,   # "ppt", "template"
         resource_id: str,
         created_by: str,
-        password: Optional[str] = None,
+        password: str | None = None,
         expires_in_hours: int = 24,
-        allowed_ips: Optional[List[str]] = None,
+        allowed_ips: list[str] | None = None,
         role: Role = Role.GUEST,
         anonymous_access: bool = False,
         encryption_enabled: bool = False,
-    ) -> tuple[Dict, str]:
+    ) -> tuple[dict, str]:
         """
         Create a secure share link.
         Returns (share_info, access_token).
@@ -533,7 +528,7 @@ class SecureShareManager:
         access_token: str = "",
         password: str = "",
         client_ip: str = "",
-    ) -> tuple[bool, str, Optional[Dict]]:
+    ) -> tuple[bool, str, dict | None]:
         """
         Verify access to a secure share.
         Returns (allowed, reason, share_info).
@@ -595,7 +590,7 @@ class SecureShareManager:
                 return True
             return False
 
-    def list_shares(self, owner_id: str = "") -> List[Dict]:
+    def list_shares(self, owner_id: str = "") -> list[dict]:
         """List all shares (without sensitive fields)."""
         data = self._load()
         shares = []
@@ -613,9 +608,9 @@ class SecureShareManager:
 
 # ==================== Globals ====================
 
-_api_key_manager: Optional[APIKeyManager] = None
-_audit_logger: Optional[AuditLogger] = None
-_secure_share: Optional[SecureShareManager] = None
+_api_key_manager: APIKeyManager | None = None
+_audit_logger: AuditLogger | None = None
+_secure_share: SecureShareManager | None = None
 
 
 def get_api_key_manager() -> APIKeyManager:
@@ -663,14 +658,14 @@ class PresentationSecurityManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Dict]:
+    def _load(self) -> dict[str, dict]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -678,7 +673,7 @@ class PresentationSecurityManager:
 
     # ---- Password Protection ----
 
-    def set_password(self, task_id: str, password: str, user_id: str = "") -> Dict[str, Any]:
+    def set_password(self, task_id: str, password: str, user_id: str = "") -> dict[str, Any]:
         """Set or update password protection for a presentation."""
         hashed = hashlib.sha256(password.encode()).hex()
         with self._lock:
@@ -694,7 +689,7 @@ class PresentationSecurityManager:
             self._save(data)
         return {"success": True, "task_id": task_id, "has_password": True}
 
-    def remove_password(self, task_id: str) -> Dict[str, Any]:
+    def remove_password(self, task_id: str) -> dict[str, Any]:
         """Remove password protection."""
         with self._lock:
             data = self._load()
@@ -718,7 +713,7 @@ class PresentationSecurityManager:
         data = self._load()
         return data.get(task_id, {}).get("has_password", False)
 
-    def get_password_info(self, task_id: str) -> Dict[str, Any]:
+    def get_password_info(self, task_id: str) -> dict[str, Any]:
         """Get password protection status (no secrets exposed)."""
         data = self._load()
         sec = data.get(task_id, {})
@@ -730,7 +725,7 @@ class PresentationSecurityManager:
 
     # ---- Biometric Authentication ----
 
-    def set_biometric_required(self, task_id: str, required: bool, user_id: str = "") -> Dict[str, Any]:
+    def set_biometric_required(self, task_id: str, required: bool, user_id: str = "") -> dict[str, Any]:
         """Enable or disable biometric authentication requirement."""
         with self._lock:
             data = self._load()
@@ -749,7 +744,7 @@ class PresentationSecurityManager:
         data = self._load()
         return data.get(task_id, {}).get("biometric_required", False)
 
-    def get_biometric_info(self, task_id: str) -> Dict[str, Any]:
+    def get_biometric_info(self, task_id: str) -> dict[str, Any]:
         """Get biometric auth status."""
         data = self._load()
         sec = data.get(task_id, {})
@@ -761,7 +756,7 @@ class PresentationSecurityManager:
 
     # ---- IP Allowlisting ----
 
-    def set_allowed_ips(self, task_id: str, allowed_ips: List[str], user_id: str = "") -> Dict[str, Any]:
+    def set_allowed_ips(self, task_id: str, allowed_ips: list[str], user_id: str = "") -> dict[str, Any]:
         """Set IP allowlist for a presentation."""
         with self._lock:
             data = self._load()
@@ -782,7 +777,7 @@ class PresentationSecurityManager:
             return True  # No restriction
         return client_ip in allowed
 
-    def get_ip_allowlist_info(self, task_id: str) -> Dict[str, Any]:
+    def get_ip_allowlist_info(self, task_id: str) -> dict[str, Any]:
         """Get IP allowlist status."""
         data = self._load()
         sec = data.get(task_id, {})
@@ -798,7 +793,7 @@ class PresentationSecurityManager:
     def set_auto_watermark(self, task_id: str, enabled: bool, text: str = "",
                             opacity: float = 0.15, angle: int = -45,
                             font_size: int = 48, color: str = "#888888",
-                            user_id: str = "") -> Dict[str, Any]:
+                            user_id: str = "") -> dict[str, Any]:
         """Configure auto-watermark for a presentation's exports."""
         with self._lock:
             data = self._load()
@@ -817,7 +812,7 @@ class PresentationSecurityManager:
             self._save(data)
         return {"success": True, "task_id": task_id, "auto_watermark": data[task_id]["auto_watermark"]}
 
-    def get_auto_watermark(self, task_id: str) -> Dict[str, Any]:
+    def get_auto_watermark(self, task_id: str) -> dict[str, Any]:
         """Get auto-watermark configuration."""
         data = self._load()
         sec = data.get(task_id, {})
@@ -834,7 +829,7 @@ class PresentationSecurityManager:
 
     def log_access(self, task_id: str, user_id: str, action: str,
                    client_ip: str = "", user_agent: str = "",
-                   metadata: Optional[Dict] = None) -> None:
+                   metadata: dict | None = None) -> None:
         """Log an access event for a presentation."""
         # Delegate to global audit logger
         audit = get_audit_logger()
@@ -850,7 +845,7 @@ class PresentationSecurityManager:
             }
         )
 
-    def get_access_log(self, task_id: str, limit: int = 100, offset: int = 0) -> List[Dict]:
+    def get_access_log(self, task_id: str, limit: int = 100, offset: int = 0) -> list[dict]:
         """Get access log for a specific presentation."""
         audit = get_audit_logger()
         logs = audit.query(resource=task_id, limit=limit, offset=offset)
@@ -858,7 +853,7 @@ class PresentationSecurityManager:
 
     # ---- Full Security Config ----
 
-    def get_security_config(self, task_id: str) -> Dict[str, Any]:
+    def get_security_config(self, task_id: str) -> dict[str, Any]:
         """Get all security settings for a presentation (no secrets)."""
         data = self._load()
         sec = data.get(task_id, {})
@@ -878,7 +873,7 @@ class PresentationSecurityManager:
             "created_at": sec.get("created_at"),
         }
 
-    def delete_security_config(self, task_id: str) -> Dict[str, Any]:
+    def delete_security_config(self, task_id: str) -> dict[str, Any]:
         """Remove all security settings for a presentation."""
         with self._lock:
             data = self._load()
@@ -888,7 +883,7 @@ class PresentationSecurityManager:
         return {"success": True, "task_id": task_id}
 
 
-_presentation_security: Optional[PresentationSecurityManager] = None
+_presentation_security: PresentationSecurityManager | None = None
 
 
 def get_presentation_security_manager() -> PresentationSecurityManager:

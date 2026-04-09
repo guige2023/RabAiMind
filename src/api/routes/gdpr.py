@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 GDPR Data Export Compliance Routes
 
@@ -9,21 +8,20 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import os
-from pydantic import BaseModel, Field
-import json
-import zipfile
-import io
 import hashlib
+import io
+import json
+import os
+import zipfile
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from ...core.security import get_audit_logger, Role, User
 from ...api.middleware.auth import get_current_user
+from ...core.security import Role, User, get_audit_logger
 
 router = APIRouter(prefix="/api/v1/gdpr", tags=["gdpr"])
 
@@ -70,7 +68,7 @@ class GDPRDeleteRequest(BaseModel):
 
 # ==================== Data Collectors ====================
 
-def collect_user_ppts(user_id: str) -> List[Dict[str, Any]]:
+def collect_user_ppts(user_id: str) -> list[dict[str, Any]]:
     """Collect all PPT data for a user."""
     output_dir = _get_output_dir()
     user_data = []
@@ -98,7 +96,7 @@ def collect_user_ppts(user_id: str) -> List[Dict[str, Any]]:
                     })
                 elif filename.endswith(".json"):
                     try:
-                        with open(filepath, "r", encoding="utf-8") as f:
+                        with open(filepath, encoding="utf-8") as f:
                             meta = json.load(f)
                             if meta.get("user_id") == user_id or meta.get("owner") == user_id:
                                 user_data.append({
@@ -115,7 +113,7 @@ def collect_user_ppts(user_id: str) -> List[Dict[str, Any]]:
     return user_data
 
 
-def collect_user_templates(user_id: str) -> List[Dict[str, Any]]:
+def collect_user_templates(user_id: str) -> list[dict[str, Any]]:
     """Collect user's saved templates."""
     from ...services.template_manager import TemplateManager
     try:
@@ -136,7 +134,7 @@ def collect_user_templates(user_id: str) -> List[Dict[str, Any]]:
         return []
 
 
-def collect_user_favorites(user_id: str) -> List[Dict[str, Any]]:
+def collect_user_favorites(user_id: str) -> list[dict[str, Any]]:
     """Collect user's favorites."""
     from ...services.favorites_manager import FavoritesManager
     try:
@@ -155,7 +153,7 @@ def collect_user_favorites(user_id: str) -> List[Dict[str, Any]]:
         return []
 
 
-def collect_user_brands(user_id: str) -> List[Dict[str, Any]]:
+def collect_user_brands(user_id: str) -> list[dict[str, Any]]:
     """Collect user's brand assets."""
     brands_dir = os.path.join(_get_data_dir(), "brands", user_id)
     brands = []
@@ -172,7 +170,7 @@ def collect_user_brands(user_id: str) -> List[Dict[str, Any]]:
     return brands
 
 
-def collect_user_audit_logs(user_id: str) -> List[Dict[str, Any]]:
+def collect_user_audit_logs(user_id: str) -> list[dict[str, Any]]:
     """Collect user's own audit log entries."""
     logger_ = get_audit_logger()
     logs = logger_.query(user_id=user_id, limit=1000)
@@ -200,7 +198,7 @@ def build_gdpr_report(
     include_brand_assets: bool = True,
     include_audit_logs: bool = False,
     include_settings: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build a complete GDPR data report for a user."""
 
     report = {
@@ -442,7 +440,7 @@ def _mark_user_for_deletion(user_id: str, secure: bool = False):
     os.makedirs(os.path.dirname(queue_file), exist_ok=True)
 
     try:
-        with open(queue_file, "r", encoding="utf-8") as f:
+        with open(queue_file, encoding="utf-8") as f:
             queue = json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         queue = []

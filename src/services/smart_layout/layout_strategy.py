@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 布局策略选择模块
 
@@ -9,10 +8,9 @@
 """
 
 import threading
-from typing import Dict, Any, Optional
+from typing import Any
 
 # 从统一模型导入布局类型
-from ...models import LayoutType
 
 
 class LayoutStrategy:
@@ -88,9 +86,9 @@ class LayoutStrategy:
 
     def __init__(self):
         """初始化布局策略"""
-        self.current_layout: Optional[str] = None
+        self.current_layout: str | None = None
 
-    def select_layout(self, content_analysis: Dict[str, Any]) -> str:
+    def select_layout(self, content_analysis: dict[str, Any]) -> str:
         """
         根据内容分析选择最佳布局
 
@@ -138,7 +136,7 @@ class LayoutStrategy:
             # 默认使用卡片布局
             return "content_card"
 
-    def get_layout_template(self, layout_type: str) -> Dict[str, Any]:
+    def get_layout_template(self, layout_type: str) -> dict[str, Any]:
         """
         获取指定布局类型的模板
 
@@ -150,11 +148,11 @@ class LayoutStrategy:
         """
         return self.LAYOUT_TEMPLATES.get(layout_type, self.LAYOUT_TEMPLATES["content_card"])
 
-    def get_all_layouts(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_layouts(self) -> dict[str, dict[str, Any]]:
         """获取所有布局模板"""
         return self.LAYOUT_TEMPLATES
 
-    def suggest_layouts_for_content(self, content_analysis: Dict[str, Any]) -> list:
+    def suggest_layouts_for_content(self, content_analysis: dict[str, Any]) -> list:
         """
         为内容推荐多个可选布局
 
@@ -187,7 +185,7 @@ class LayoutStrategy:
 
 
 # 单例实例
-_layout_strategy_instance: Optional[LayoutStrategy] = None
+_layout_strategy_instance: LayoutStrategy | None = None
 _manager_lock = threading.Lock()
 
 

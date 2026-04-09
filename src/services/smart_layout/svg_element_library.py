@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SVG 视觉元素库
 
@@ -9,8 +8,6 @@ SVG 视觉元素库
 """
 
 import threading
-from typing import Dict, Any, Optional
-import math
 
 
 class SVGElementLibrary:
@@ -289,13 +286,13 @@ class SVGElementLibrary:
         return element["template"].format(**params)
 
     @classmethod
-    def get_icon(cls, icon_name: str) -> Optional[str]:
+    def get_icon(cls, icon_name: str) -> str | None:
         """获取图标SVG"""
         icon = cls.ICONS.get(icon_name)
         return icon["svg"] if icon else None
 
     @classmethod
-    def get_all_icons(cls) -> Dict[str, str]:
+    def get_all_icons(cls) -> dict[str, str]:
         """获取所有图标"""
         return {name: icon["svg"] for name, icon in cls.ICONS.items()}
 
@@ -306,7 +303,7 @@ class SVGElementLibrary:
 
 
 # 单例实例
-_svg_element_library_instance: Optional[SVGElementLibrary] = None
+_svg_element_library_instance: SVGElementLibrary | None = None
 _manager_lock = threading.Lock()
 
 

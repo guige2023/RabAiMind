@@ -1,37 +1,36 @@
-# -*- coding: utf-8 -*-
 """
 URL Shortener Service — Short codes for presentation links
 R153: Presentation QR Code & NFC Integration
 """
 
-import uuid
-import hashlib
 import base64
+import hashlib
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 SHORT_URL_DIR = Path(__file__).parent.parent.parent / "data" / "short_urls"
 SHORT_URL_DIR.mkdir(parents=True, exist_ok=True)
 
 # In-memory cache
-_short_url_cache: Dict[str, Dict[str, Any]] = {}
-_code_to_url_cache: Dict[str, Dict[str, Any]] = {}
+_short_url_cache: dict[str, dict[str, Any]] = {}
+_code_to_url_cache: dict[str, dict[str, Any]] = {}
 
 
-def _load_data() -> Dict[str, Dict[str, Any]]:
+def _load_data() -> dict[str, dict[str, Any]]:
     fpath = SHORT_URL_DIR / "urls.json"
     if fpath.exists():
         try:
-            with open(fpath, "r", encoding="utf-8") as f:
+            with open(fpath, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return {}
     return {}
 
 
-def _save_data(data: Dict[str, Dict[str, Any]]) -> None:
+def _save_data(data: dict[str, dict[str, Any]]) -> None:
     fpath = SHORT_URL_DIR / "urls.json"
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -55,7 +54,7 @@ class UrlShortenerService:
         owner_id: str = "default",
         ppt_id: str = "",
         title: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a short URL for a presentation."""
         data = _load_data()
 
@@ -96,7 +95,7 @@ class UrlShortenerService:
             "created_at": created_at,
         }
 
-    def resolve_short_url(self, short_code: str) -> Optional[Dict[str, Any]]:
+    def resolve_short_url(self, short_code: str) -> dict[str, Any] | None:
         """Resolve a short code back to original URL."""
         data = _load_data()
         entry = data.get(short_code)
@@ -133,7 +132,7 @@ class UrlShortenerService:
             data[short_code]["beacon_count"] = data[short_code].get("beacon_count", 0) + 1
             _save_data(data)
 
-    def get_url_analytics(self, short_code: str) -> Optional[Dict[str, Any]]:
+    def get_url_analytics(self, short_code: str) -> dict[str, Any] | None:
         """Get analytics for a short URL."""
         data = _load_data()
         entry = data.get(short_code)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Zapier / Make 集成路由
 
@@ -19,41 +18,39 @@ Zapier / Make 集成路由
 
 import secrets
 import time
-from typing import Dict, Any, Optional, List
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Header, Query, status, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
-
-from ...config import settings
 
 router = APIRouter(prefix="/api/v1/zapier", tags=["zapier-integration"])
 
 
 # ── Mock API Key 存储（生产环境应使用数据库） ───────────────────────────────
 
-_api_keys: Dict[str, Dict[str, Any]] = {}  # key → {user_id, scopes, created_at, label}
+_api_keys: dict[str, dict[str, Any]] = {}  # key → {user_id, scopes, created_at, label}
 
 
 # ── Models ──────────────────────────────────────────────────
 
 class APIKeyCreateRequest(BaseModel):
     label: str = "Zapier Integration"
-    scopes: List[str] = ["ppt:read", "ppt:write", "webhook:manage"]
+    scopes: list[str] = ["ppt:read", "ppt:write", "webhook:manage"]
 
 
 class APIKeyCreateResponse(BaseModel):
     api_key: str
     label: str
-    scopes: List[str]
+    scopes: list[str]
     created_at: float
 
 
 class APIKeyInfo(BaseModel):
     key_id: str  # 只显示后4位
     label: str
-    scopes: List[str]
+    scopes: list[str]
     created_at: float
-    last_used: Optional[float] = None
+    last_used: float | None = None
 
 
 class ZapierTriggerPayload(BaseModel):
@@ -61,12 +58,12 @@ class ZapierTriggerPayload(BaseModel):
     event: str
     timestamp: int
     task_id: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 # ── API Key 认证依赖 ────────────────────────────────────────
 
-async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> Dict[str, Any]:
+async def verify_api_key(x_api_key: str | None = Header(None)) -> dict[str, Any]:
     """验证 API Key，返回关联的 key info"""
     if not x_api_key:
         raise HTTPException(
@@ -189,7 +186,7 @@ async def oauth_authorize(
     response_type: str = Query(...),
     client_id: str = Query(...),
     redirect_uri: str = Query(...),
-    state: Optional[str] = Query(None),
+    state: str | None = Query(None),
 ):
     if response_type != "code":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="response_type 必须是 code")
@@ -212,9 +209,9 @@ async def oauth_authorize(
 )
 async def oauth_token(
     grant_type: str = Query(...),
-    code: Optional[str] = Query(None),
+    code: str | None = Query(None),
     client_id: str = Query(...),
-    client_secret: Optional[str] = Query(None),
+    client_secret: str | None = Query(None),
 ):
     if grant_type == "authorization_code":
         if not code:
@@ -298,7 +295,6 @@ async def action_generate_ppt(
     await verify_api_key(x_api_key)
     body = await request.json()
     # 转发到主 API
-    from ...api.routes.ppt_routes import router as ppt_router
     # 简化：返回 task_id，实际转发逻辑在主 API
     return {
         "task_id": f"zapier_{int(time.time())}",
@@ -348,7 +344,7 @@ Make.com Search 模块兼容端点。
 )
 async def search_ppt_tasks(
     x_api_key: str = Header(..., alias="X-API-Key"),
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status_filter: str | None = Query(None, alias="status"),
     limit: int = Query(20, ge=1, le=100),
 ):
     await verify_api_key(x_api_key)

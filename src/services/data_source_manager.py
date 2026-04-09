@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data Source Manager Service (R75)
 管理数据源：Excel/CSV 文件和 Google Sheets
@@ -9,10 +8,9 @@ import io
 import json
 import logging
 import os
-import time
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
+from typing import Any
 
 import httpx
 from openpyxl import load_workbook
@@ -23,7 +21,7 @@ from src.core.http_client import http_client
 logger = logging.getLogger(__name__)
 
 # 全局数据源存储（生产环境应使用数据库）
-_data_sources: Dict[str, Dict[str, Any]] = {}
+_data_sources: dict[str, dict[str, Any]] = {}
 _storage_path = os.path.join(os.path.dirname(__file__), "..", "data", "data_sources.json")
 
 
@@ -32,7 +30,7 @@ def _load_storage() -> None:
     global _data_sources
     try:
         if os.path.exists(_storage_path):
-            with open(_storage_path, "r", encoding="utf-8") as f:
+            with open(_storage_path, encoding="utf-8") as f:
                 _data_sources = json.load(f)
     except Exception as e:
         logger.warning(f"Failed to load data sources storage: {e}")
@@ -74,7 +72,7 @@ class DataSourceManager:
 
     # ==================== 通用 ====================
 
-    def list_data_sources(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_data_sources(self, user_id: str | None = None) -> list[dict[str, Any]]:
         """列出所有数据源"""
         _load_storage()
         sources = list(_data_sources.values())
@@ -82,7 +80,7 @@ class DataSourceManager:
             sources = [s for s in sources if s.get("user_id") == user_id]
         return sorted(sources, key=lambda x: x.get("created_at", ""), reverse=True)
 
-    def get_data_source(self, source_id: str) -> Optional[Dict[str, Any]]:
+    def get_data_source(self, source_id: str) -> dict[str, Any] | None:
         """获取单个数据源"""
         _load_storage()
         return _data_sources.get(source_id)
@@ -91,15 +89,15 @@ class DataSourceManager:
         self,
         name: str,
         source_type: str,
-        user_id: Optional[str] = None,
-        file_path: Optional[str] = None,
-        file_name: Optional[str] = None,
-        spreadsheet_url: Optional[str] = None,
-        spreadsheet_id: Optional[str] = None,
-        sheet_name: Optional[str] = None,
-        extracted_data: Optional[Dict[str, Any]] = None,
+        user_id: str | None = None,
+        file_path: str | None = None,
+        file_name: str | None = None,
+        spreadsheet_url: str | None = None,
+        spreadsheet_id: str | None = None,
+        sheet_name: str | None = None,
+        extracted_data: dict[str, Any] | None = None,
         auto_update: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建新数据源"""
         source_id = str(uuid.uuid4())[:16]
         now = datetime.now().isoformat()
@@ -131,11 +129,11 @@ class DataSourceManager:
     def update_data_source(
         self,
         source_id: str,
-        name: Optional[str] = None,
-        auto_update: Optional[bool] = None,
-        sync_interval_minutes: Optional[int] = None,
-        status: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        name: str | None = None,
+        auto_update: bool | None = None,
+        sync_interval_minutes: int | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any] | None:
         """更新数据源"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -181,8 +179,8 @@ class DataSourceManager:
         sheet_index: int = 0,
         has_header: bool = True,
         max_rows: int = 1000,
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
         """导入 Excel 文件"""
         ext = os.path.splitext(filename)[-1].lower()
         if ext not in self.SUPPORTED_EXCEL:
@@ -287,8 +285,8 @@ class DataSourceManager:
         has_header: bool = True,
         max_rows: int = 1000,
         delimiter: str = ",",
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
         """导入 CSV 文件"""
         ext = os.path.splitext(filename)[-1].lower()
         if ext not in self.SUPPORTED_CSV:
@@ -390,7 +388,7 @@ class DataSourceManager:
             "outline": outline,
         }
 
-    def _detect_table_type(self, headers: List[str], data_rows: List[List]) -> str:
+    def _detect_table_type(self, headers: list[str], data_rows: list[list]) -> str:
         """智能检测表格类型"""
         header_text = " ".join(headers).lower()
 
@@ -421,11 +419,11 @@ class DataSourceManager:
 
     def _table_to_slides(
         self,
-        headers: List[str],
-        data_rows: List[List],
+        headers: list[str],
+        data_rows: list[list],
         table_type: str,
         max_slides: int = 10,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """将表格数据转换为 PPT 大纲"""
         total_rows = len(data_rows)
         rows_per_slide = max(1, total_rows // max_slides)
@@ -476,8 +474,8 @@ class DataSourceManager:
 
     def _generate_overview_text(
         self,
-        headers: List[str],
-        data_rows: List[List],
+        headers: list[str],
+        data_rows: list[list],
         table_type: str,
     ) -> str:
         """生成数据概览文本"""
@@ -507,8 +505,8 @@ class DataSourceManager:
 
     def _generate_summary_text(
         self,
-        headers: List[str],
-        data_rows: List[List],
+        headers: list[str],
+        data_rows: list[list],
         table_type: str,
     ) -> str:
         """生成关键发现文本"""
@@ -556,12 +554,12 @@ class DataSourceManager:
     async def import_google_sheets(
         self,
         spreadsheet_url: str,
-        sheet_name: Optional[str] = None,
-        access_token: Optional[str] = None,
-        user_id: Optional[str] = None,
+        sheet_name: str | None = None,
+        access_token: str | None = None,
+        user_id: str | None = None,
         has_header: bool = True,
         max_rows: int = 1000,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """从 Google Sheets 导入数据"""
         # 解析 spreadsheet ID
         spreadsheet_id = self._parse_spreadsheet_id(spreadsheet_url)
@@ -684,7 +682,7 @@ class DataSourceManager:
             "outline": outline,
         }
 
-    def _parse_spreadsheet_id(self, url: str) -> Optional[str]:
+    def _parse_spreadsheet_id(self, url: str) -> str | None:
         """从 URL 解析 spreadsheet ID"""
         import re
         patterns = [
@@ -703,7 +701,7 @@ class DataSourceManager:
         self,
         source_id: str,
         access_token: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """同步 Google Sheets 数据"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -809,8 +807,8 @@ def get_data_source_manager() -> DataSourceManager:
     def check_threshold_alerts(
         self,
         source_id: str,
-        alerts: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        alerts: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """检查阈值告警，返回触发的告警列表"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -873,7 +871,7 @@ def get_data_source_manager() -> DataSourceManager:
 
         return triggered
 
-    def update_threshold_alerts(self, source_id: str, alerts: List[Dict[str, Any]]) -> None:
+    def update_threshold_alerts(self, source_id: str, alerts: list[dict[str, Any]]) -> None:
         """更新阈值告警规则"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -889,9 +887,9 @@ def get_data_source_manager() -> DataSourceManager:
         self,
         source_id: str,
         compare_column: str,
-        group_by_column: Optional[str] = None,
-        periods: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        group_by_column: str | None = None,
+        periods: list[str] | None = None,
+    ) -> dict[str, Any]:
         """分析数据：聚合、对比、趋势"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -1020,10 +1018,10 @@ def get_data_source_manager() -> DataSourceManager:
         self,
         source_id: str,
         value_column: str,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         forecast_periods: int = 3,
         chart_type: str = "line",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成预测图表数据（线性回归趋势 + 未来预测）"""
         _load_storage()
         source = _data_sources.get(source_id)
@@ -1138,14 +1136,14 @@ def get_data_source_manager() -> DataSourceManager:
     def generate_ppt_from_data_source(
         self,
         source_id: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         include_charts: bool = True,
         include_threshold_alerts: bool = True,
         include_forecast: bool = False,
         forecast_periods: int = 3,
         slide_count: int = 10,
-        user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+    ) -> dict[str, Any]:
         """使用数据源生成 PPT 大纲"""
         _load_storage()
         source = _data_sources.get(source_id)

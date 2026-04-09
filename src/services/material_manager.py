@@ -2,15 +2,12 @@
 素材管理服务
 处理用户上传的素材（图片、PDF、文本等）
 """
+import hashlib
 import logging
 import os
-import json
-import hashlib
 import re
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from ..config import settings
 from ..utils import ensure_dir, get_timestamp
@@ -32,17 +29,17 @@ class Material:
     path: str
     size: int
     upload_time: datetime
-    content: Optional[str] = None  # 提取的文本内容
-    description: Optional[str] = None
+    content: str | None = None  # 提取的文本内容
+    description: str | None = None
 
 
 class MaterialManager:
     """素材管理器"""
-    
+
     def __init__(self):
         self.material_dir = settings.MATERIAL_DIR
         ensure_dir(self.material_dir)
-        
+
     def save_material(
         self,
         file_data: bytes,
@@ -101,8 +98,8 @@ class MaterialManager:
             size=len(file_data),
             upload_time=datetime.now()
         )
-    
-    def get_material(self, material_id: str) -> Optional[Material]:
+
+    def get_material(self, material_id: str) -> Material | None:
         """获取素材"""
         # 验证material_id格式（只允许字母数字）
         if not re.match(r'^[a-f0-9]+$', material_id):
@@ -141,18 +138,18 @@ class MaterialManager:
                 logger.error(f"删除素材失败: id={material_id}, error={e}")
                 return False
         return False
-    
-    def list_materials(self, material_type: Optional[str] = None) -> List[Material]:
+
+    def list_materials(self, material_type: str | None = None) -> list[Material]:
         """列出素材"""
         materials = []
         for path in self.material_dir.iterdir():
             if path.is_file():
                 ext = path.suffix.lower()
                 m_type = self._get_type_by_extension(ext)
-                
+
                 if material_type and m_type != material_type:
                     continue
-                    
+
                 stat = path.stat()
                 materials.append(Material(
                     id=path.stem,
@@ -162,9 +159,9 @@ class MaterialManager:
                     size=stat.st_size,
                     upload_time=datetime.fromtimestamp(stat.st_ctime)
                 ))
-        
+
         return sorted(materials, key=lambda m: m.upload_time, reverse=True)
-    
+
     def extract_text_from_image(self, material_id: str) -> str:
         """从图片提取文本（OCR）
         
@@ -184,12 +181,12 @@ class MaterialManager:
         material = self.get_material(material_id)
         if not material or material.type != "image":
             return ""
-        
+
         # OCR 功能待集成，当前返回空字符串
         # 可通过 material.file_path 读取图片文件进行 OCR
         logger.debug("OCR extraction called for material %s (not implemented)", material_id)
         return ""
-    
+
     def _get_extension_by_type(self, material_type: str) -> str:
         """根据类型获取扩展名"""
         mapping = {
@@ -199,7 +196,7 @@ class MaterialManager:
             "document": ".docx"
         }
         return mapping.get(material_type, ".bin")
-    
+
     def _get_type_by_extension(self, ext: str) -> str:
         """根据扩展名获取类型"""
         ext = ext.lower()

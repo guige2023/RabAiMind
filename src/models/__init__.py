@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 数据模型定义
 
@@ -6,12 +5,13 @@
 日期: 2026-03-17
 """
 
-import re
 import logging
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, field_validator, AliasChoices
-from enum import Enum
+import re
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +123,10 @@ class SlideBackground(BaseModel):
     """单页背景设置"""
     slide_index: int = Field(..., ge=0, description="页码索引 (0-based)")
     background_type: str = Field(default="color", description="背景类型: color(颜色), image(图片), gradient(渐变)")
-    background_color: Optional[str] = Field(default=None, description="背景颜色 (hex)")
-    background_image: Optional[str] = Field(default=None, description="背景图片URL")
-    gradient_start: Optional[str] = Field(default=None, description="渐变起始颜色")
-    gradient_end: Optional[str] = Field(default=None, description="渐变结束颜色")
+    background_color: str | None = Field(default=None, description="背景颜色 (hex)")
+    background_image: str | None = Field(default=None, description="背景图片URL")
+    gradient_start: str | None = Field(default=None, description="渐变起始颜色")
+    gradient_end: str | None = Field(default=None, description="渐变结束颜色")
 
     @field_validator('background_color', 'gradient_start', 'gradient_end')
     @classmethod
@@ -203,33 +203,33 @@ class GenerateRequest(BaseModel):
 
     overlay_transparency: int = Field(default=30, ge=0, le=100, description="遮罩透明度百分比")
     use_smart_layout: bool = Field(default=False, description="是否使用智能布局模式")
-    slide_backgrounds: Optional[List[SlideBackground]] = Field(default=None, description="每页背景设置")
-    slide_layouts: Optional[List[SlideLayout]] = Field(default=None, description="每页布局设置")
+    slide_backgrounds: list[SlideBackground] | None = Field(default=None, description="每页背景设置")
+    slide_layouts: list[SlideLayout] | None = Field(default=None, description="每页布局设置")
     include_charts: bool = Field(default=False, description="是否包含数据图表")
     include_pie_chart: bool = Field(default=True, description="是否包含饼图")
     include_bar_chart: bool = Field(default=True, description="是否包含柱状图")
     include_line_chart: bool = Field(default=False, description="是否包含折线图")
     add_watermark: bool = Field(default=False, description="是否添加水印")
     # 字体系统4级设置
-    font_title: Optional[str] = Field(default="思源黑体", description="一级字体（标题）")
-    font_subtitle: Optional[str] = Field(default="思源黑体", description="二级字体（副标题）")
-    font_content: Optional[str] = Field(default="思源宋体", description="三级字体（正文）")
-    font_caption: Optional[str] = Field(default="思源黑体", description="四级字体（注释）")
+    font_title: str | None = Field(default="思源黑体", description="一级字体（标题）")
+    font_subtitle: str | None = Field(default="思源黑体", description="二级字体（副标题）")
+    font_content: str | None = Field(default="思源宋体", description="三级字体（正文）")
+    font_caption: str | None = Field(default="思源黑体", description="四级字体（注释）")
     # 生成模式
-    generation_mode: Optional[str] = Field(default="standard", description="生成模式: standard/fast/quality/stream")
-    output_format: Optional[str] = Field(default="pptx", description="输出格式: pptx/pdf/svg/png")
-    quality: Optional[str] = Field(default="standard", description="输出质量: standard/high/ultra")
+    generation_mode: str | None = Field(default="standard", description="生成模式: standard/fast/quality/stream")
+    output_format: str | None = Field(default="pptx", description="输出格式: pptx/pdf/svg/png")
+    quality: str | None = Field(default="standard", description="输出质量: standard/high/ultra")
     # 布局设置
-    layout_mode: Optional[str] = Field(default="auto", description="布局模式: auto/manual")
-    unified_layout: Optional[bool] = Field(default=True, description="是否统一布局")
+    layout_mode: str | None = Field(default="auto", description="布局模式: auto/manual")
+    unified_layout: bool | None = Field(default=True, description="是否统一布局")
     # 两阶段生成：预生成的内容（来自 OutlineEditView 用户确认后的大纲）
-    pre_generated_slides: Optional[List[Dict[str, Any]]] = Field(
+    pre_generated_slides: list[dict[str, Any]] | None = Field(
         default=None,
         description="预生成的大纲内容，用于两阶段模式跳过 AI 内容规划步骤",
         validation_alias=AliasChoices("pre_generated_slides", "pre-generated-slides")
     )
     # R148: AI 脚本内容生成类型
-    script_content_type: Optional[ScriptContentType] = Field(
+    script_content_type: ScriptContentType | None = Field(
         default=None,
         description="AI 脚本内容生成类型: story_arc/data_story/persuasion/audience_persona/competitor_analysis"
     )
@@ -289,7 +289,7 @@ class TaskError(BaseModel):
     """任务错误"""
     code: str
     message: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class GenerateResponse(BaseModel):
@@ -298,8 +298,8 @@ class GenerateResponse(BaseModel):
     task_id: str
     status: TaskStatus
     message: str
-    request_id: Optional[str] = None
-    estimated_time: Optional[int] = None
+    request_id: str | None = None
+    estimated_time: int | None = None
 
 
 class TaskStatusResponse(BaseModel):
@@ -311,9 +311,9 @@ class TaskStatusResponse(BaseModel):
     current_step: str = ""
     created_at: str
     updated_at: str
-    result: Optional[TaskResult] = None
-    error: Optional[TaskError] = None
-    user_request: Optional[str] = Field(default=None, description="用户原始需求，用于重新生成时保留")
+    result: TaskResult | None = None
+    error: TaskError | None = None
+    user_request: str | None = Field(default=None, description="用户原始需求，用于重新生成时保留")
 
 
 # ==================== 数据模型 ====================
@@ -323,21 +323,21 @@ class SlideData(BaseModel):
     index: int
     title: str
     content: str
-    image_url: Optional[str] = None
-    svg_content: Optional[str] = None
+    image_url: str | None = None
+    svg_content: str | None = None
     # R152: Advanced Slide Notes & Annotations
-    notes: Optional[str] = Field(default=None, description="备注（纯文本）")
-    rich_notes: Optional[str] = Field(default=None, description="富文本备注（HTML格式）")
-    speaker_notes: Optional[str] = Field(default=None, description="演讲者私有备注")
-    annotations: Optional[List[Dict[str, Any]]] = Field(default=None, description="幻灯片标注数据")
-    sticky_notes: Optional[List[Dict[str, Any]]] = Field(default=None, description="便签协作数据")
+    notes: str | None = Field(default=None, description="备注（纯文本）")
+    rich_notes: str | None = Field(default=None, description="富文本备注（HTML格式）")
+    speaker_notes: str | None = Field(default=None, description="演讲者私有备注")
+    annotations: list[dict[str, Any]] | None = Field(default=None, description="幻灯片标注数据")
+    sticky_notes: list[dict[str, Any]] | None = Field(default=None, description="便签协作数据")
 
 
 class PPTData(BaseModel):
     """PPT数据"""
     task_id: str
     user_request: str
-    slides: List[SlideData]
+    slides: list[SlideData]
     scene: SceneType
     style: StyleType
     template: TemplateType
@@ -358,7 +358,7 @@ class APIInfo(BaseModel):
     """API信息"""
     name: str
     version: str
-    features: List[str]
+    features: list[str]
 
 # ==================== Social Engagement Models ====================
 
@@ -383,7 +383,7 @@ class ReactionResponse(BaseModel):
     total_likes: int = 0
     total_fires: int = 0
     total_hearts: int = 0
-    user_reaction: Optional[ReactionType] = None
+    user_reaction: ReactionType | None = None
 
 
 class ShareLinkRequest(BaseModel):
@@ -391,7 +391,7 @@ class ShareLinkRequest(BaseModel):
     task_id: str = Field(..., description="PPT任务ID")
     title: str = Field(default="", max_length=200, description="分享标题")
     description: str = Field(default="", max_length=500, description="分享描述")
-    thumbnail: Optional[str] = Field(default=None, description="缩略图URL")
+    thumbnail: str | None = Field(default=None, description="缩略图URL")
 
 
 class ShareLinkResponse(BaseModel):
@@ -401,7 +401,7 @@ class ShareLinkResponse(BaseModel):
     share_url: str
     title: str
     description: str
-    thumbnail: Optional[str] = None
+    thumbnail: str | None = None
 
 
 class ViewCountResponse(BaseModel):
@@ -448,48 +448,48 @@ class DataSource(BaseModel):
     source_type: DataSourceType = Field(..., description="数据源类型")
     status: DataSourceStatus = Field(default=DataSourceStatus.ACTIVE, description="状态")
     # Excel/CSV fields
-    file_path: Optional[str] = Field(default=None, description="本地文件路径")
-    file_name: Optional[str] = Field(default=None, description="原始文件名")
+    file_path: str | None = Field(default=None, description="本地文件路径")
+    file_name: str | None = Field(default=None, description="原始文件名")
     # Google Sheets fields
-    spreadsheet_url: Optional[str] = Field(default=None, description="Google Sheets URL")
-    spreadsheet_id: Optional[str] = Field(default=None, description="Google Sheets ID")
-    sheet_name: Optional[str] = Field(default=None, description="工作表名称")
-    access_token: Optional[str] = Field(default=None, description="Google OAuth access token")
-    refresh_token: Optional[str] = Field(default=None, description="Google OAuth refresh token")
+    spreadsheet_url: str | None = Field(default=None, description="Google Sheets URL")
+    spreadsheet_id: str | None = Field(default=None, description="Google Sheets ID")
+    sheet_name: str | None = Field(default=None, description="工作表名称")
+    access_token: str | None = Field(default=None, description="Google OAuth access token")
+    refresh_token: str | None = Field(default=None, description="Google OAuth refresh token")
     # Sync settings
     auto_update: bool = Field(default=False, description="自动更新开关")
-    last_synced_at: Optional[str] = Field(default=None, description="最后同步时间 ISO8601")
+    last_synced_at: str | None = Field(default=None, description="最后同步时间 ISO8601")
     sync_interval_minutes: int = Field(default=60, ge=5, le=1440, description="同步间隔(分钟)")
     # Extracted data
-    extracted_data: Optional[Dict[str, Any]] = Field(default=None, description="提取的数据内容")
-    table_preview: Optional[List[List[Any]]] = Field(default=None, description="表格预览(前20行)")
-    column_info: Optional[List[Dict[str, Any]]] = Field(default=None, description="列信息")
+    extracted_data: dict[str, Any] | None = Field(default=None, description="提取的数据内容")
+    table_preview: list[list[Any]] | None = Field(default=None, description="表格预览(前20行)")
+    column_info: list[dict[str, Any]] | None = Field(default=None, description="列信息")
     # Metadata
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="创建时间")
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="更新时间")
-    user_id: Optional[str] = Field(default=None, description="用户ID")
+    user_id: str | None = Field(default=None, description="用户ID")
 
 
 class DataSourceCreateRequest(BaseModel):
     """创建数据源请求"""
     name: str = Field(..., max_length=200, description="数据源名称")
     source_type: DataSourceType = Field(..., description="数据源类型")
-    spreadsheet_url: Optional[str] = Field(default=None, description="Google Sheets URL")
+    spreadsheet_url: str | None = Field(default=None, description="Google Sheets URL")
     auto_update: bool = Field(default=False, description="自动更新")
 
 
 class DataSourceUpdateRequest(BaseModel):
     """更新数据源请求"""
-    name: Optional[str] = Field(default=None, max_length=200, description="数据源名称")
-    auto_update: Optional[bool] = Field(default=None, description="自动更新")
-    sync_interval_minutes: Optional[int] = Field(default=None, ge=5, le=1440, description="同步间隔")
-    status: Optional[DataSourceStatus] = Field(default=None, description="状态")
+    name: str | None = Field(default=None, max_length=200, description="数据源名称")
+    auto_update: bool | None = Field(default=None, description="自动更新")
+    sync_interval_minutes: int | None = Field(default=None, ge=5, le=1440, description="同步间隔")
+    status: DataSourceStatus | None = Field(default=None, description="状态")
 
 
 class DataSourceListResponse(BaseModel):
     """数据源列表响应"""
     success: bool
-    data_sources: List[DataSource] = []
+    data_sources: list[DataSource] = []
 
 
 class DataSourceSyncResponse(BaseModel):
@@ -510,8 +510,8 @@ class ExcelImportRequest(BaseModel):
 
 class TableToSlidesOptions(BaseModel):
     """表格转幻灯片选项"""
-    title_col: Optional[int] = Field(default=None, description="标题列索引")
-    value_cols: Optional[List[int]] = Field(default=None, description="数值列索引列表")
+    title_col: int | None = Field(default=None, description="标题列索引")
+    value_cols: list[int] | None = Field(default=None, description="数值列索引列表")
     chart_type: str = Field(default="auto", description="图表类型: auto/bar/line/pie/table")
     include_summary: bool = Field(default=True, description="包含汇总页")
     max_slides: int = Field(default=10, ge=1, le=20, description="最大幻灯片数")
@@ -535,8 +535,8 @@ class FolderModel(BaseModel):
     """文件夹模型 - 支持层级结构"""
     id: str = Field(..., description="文件夹唯一ID")
     name: str = Field(..., max_length=100, description="文件夹名称")
-    parent_id: Optional[str] = Field(default=None, description="父文件夹ID，null表示根目录")
-    color: Optional[str] = Field(default=None, description="文件夹颜色 hex")
+    parent_id: str | None = Field(default=None, description="父文件夹ID，null表示根目录")
+    color: str | None = Field(default=None, description="文件夹颜色 hex")
     icon: str = Field(default="📁", description="文件夹图标 emoji")
     sort_order: int = Field(default=0, description="排序顺序")
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat(), description="创建时间")
@@ -546,80 +546,80 @@ class FolderModel(BaseModel):
 class FolderCreateRequest(BaseModel):
     """创建文件夹请求"""
     name: str = Field(..., max_length=100, description="文件夹名称")
-    parent_id: Optional[str] = Field(default=None, description="父文件夹ID")
-    color: Optional[str] = Field(default=None, description="文件夹颜色")
+    parent_id: str | None = Field(default=None, description="父文件夹ID")
+    color: str | None = Field(default=None, description="文件夹颜色")
     icon: str = Field(default="📁", description="文件夹图标")
 
 
 class FolderUpdateRequest(BaseModel):
     """更新文件夹请求"""
-    name: Optional[str] = Field(default=None, max_length=100, description="文件夹名称")
-    parent_id: Optional[str] = Field(default=None, description="父文件夹ID")
-    color: Optional[str] = Field(default=None, description="文件夹颜色")
-    icon: Optional[str] = Field(default=None, description="文件夹图标")
-    sort_order: Optional[int] = Field(default=None, description="排序顺序")
+    name: str | None = Field(default=None, max_length=100, description="文件夹名称")
+    parent_id: str | None = Field(default=None, description="父文件夹ID")
+    color: str | None = Field(default=None, description="文件夹颜色")
+    icon: str | None = Field(default=None, description="文件夹图标")
+    sort_order: int | None = Field(default=None, description="排序顺序")
 
 
 class FolderListResponse(BaseModel):
     """文件夹列表响应"""
     success: bool
-    folders: List[FolderModel]
+    folders: list[FolderModel]
 
 
 class LabelUpdateRequest(BaseModel):
     """更新标签颜色请求"""
-    label_color: Optional[str] = Field(default=None, description="标签颜色 hex，null表示清除")
+    label_color: str | None = Field(default=None, description="标签颜色 hex，null表示清除")
 
 
 class SmartTagResponse(BaseModel):
     """智能标签响应"""
     success: bool
     task_id: str
-    auto_tags: List[str] = Field(default_factory=list, description="AI自动生成的标签")
+    auto_tags: list[str] = Field(default_factory=list, description="AI自动生成的标签")
 
 
 class RecentlyViewedItem(BaseModel):
     """最近浏览项目"""
     task_id: str
     title: str
-    thumbnail_url: Optional[str] = None
+    thumbnail_url: str | None = None
     viewed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
-    folder_id: Optional[str] = None
-    label_color: Optional[str] = None
+    folder_id: str | None = None
+    label_color: str | None = None
 
 
 class RecentlyViewedResponse(BaseModel):
     """最近浏览响应"""
     success: bool
-    items: List[RecentlyViewedItem]
+    items: list[RecentlyViewedItem]
     limit: int = 10
 
 
 class OrganizationUpdateRequest(BaseModel):
     """组织更新请求 - 移动到文件夹/更新标签"""
-    folder_id: Optional[str] = Field(default=None, description="目标文件夹ID，null表示移到根目录")
-    label_color: Optional[str] = Field(default=None, description="标签颜色 hex")
-    tags: Optional[List[str]] = Field(default=None, description="标签列表（手动+AI标签）")
+    folder_id: str | None = Field(default=None, description="目标文件夹ID，null表示移到根目录")
+    label_color: str | None = Field(default=None, description="标签颜色 hex")
+    tags: list[str] | None = Field(default=None, description="标签列表（手动+AI标签）")
 
 
 # ==================== R108: Custom Widgets & Embeddable Components ====================
 
 class PollWidgetConfig(BaseModel):
     """投票组件配置"""
-    poll_id: Optional[str] = Field(default=None, description="投票ID")
+    poll_id: str | None = Field(default=None, description="投票ID")
     question: str = Field(default="", description="投票问题")
-    options: List[str] = Field(default_factory=list, description="投票选项列表")
+    options: list[str] = Field(default_factory=list, description="投票选项列表")
     is_active: bool = Field(default=True, description="投票是否激活")
     show_results: bool = Field(default=False, description="是否显示实时结果")
 
 
 class QAWidgetConfig(BaseModel):
     """问答组件配置"""
-    qa_id: Optional[str] = Field(default=None, description="问答ID")
+    qa_id: str | None = Field(default=None, description="问答ID")
     question: str = Field(default="", description="问题内容")
     asker: str = Field(default="匿名用户", description="提问者")
     is_answered: bool = Field(default=False, description="是否已回答")
-    created_at: Optional[str] = Field(default=None, description="创建时间")
+    created_at: str | None = Field(default=None, description="创建时间")
 
 
 class PollVoteRequest(BaseModel):
@@ -633,14 +633,14 @@ class PollVoteResponse(BaseModel):
     success: bool
     poll_id: str
     total_votes: int
-    option_results: Dict[str, int]  # option_index -> vote_count
-    user_voted_option: Optional[int] = None
+    option_results: dict[str, int]  # option_index -> vote_count
+    user_voted_option: int | None = None
 
 
 class QASubmitRequest(BaseModel):
     """Q&A提交请求"""
     question: str = Field(..., min_length=1, max_length=500, description="问题内容")
-    asker_name: Optional[str] = Field(default="匿名用户", description="提问者名称")
+    asker_name: str | None = Field(default="匿名用户", description="提问者名称")
 
 
 class QASubmitResponse(BaseModel):
@@ -656,17 +656,17 @@ class LivePollResult(BaseModel):
     """实时投票结果"""
     poll_id: str
     question: str
-    options: List[str]
-    option_votes: Dict[str, int]  # option_index -> vote_count
+    options: list[str]
+    option_votes: dict[str, int]  # option_index -> vote_count
     total_votes: int
-    percentage: Dict[str, float]  # option_index -> percentage
+    percentage: dict[str, float]  # option_index -> percentage
     is_active: bool
 
 
 class EmbedSlideConfigRequest(BaseModel):
     """单页嵌入配置"""
     slide_index: int = Field(default=1, ge=1, description="幻灯片索引（1-based）")
-    width: Optional[str] = "100%"
-    height: Optional[str] = "600px"
-    theme: Optional[str] = "light"
-    interactive: Optional[bool] = True
+    width: str | None = "100%"
+    height: str | None = "600px"
+    theme: str | None = "light"
+    interactive: bool | None = True

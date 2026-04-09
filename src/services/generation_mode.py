@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 生成模式处理器 - 处理不同生成模式的逻辑
 
@@ -14,9 +13,8 @@
 """
 
 import threading
-
-from typing import Dict, Any, List, Optional, Callable, Generator
-import asyncio
+from collections.abc import Callable, Generator
+from typing import Any
 
 
 class GenerationModeHandler:
@@ -109,40 +107,40 @@ class GenerationModeHandler:
         self.current_format = 'pptx'
         self.current_quality = 'standard'
 
-    def set_mode(self, mode: str) -> Dict[str, Any]:
+    def set_mode(self, mode: str) -> dict[str, Any]:
         """设置生成模式"""
         if mode not in self.MODE_CONFIGS:
             mode = 'standard'
         self.current_mode = mode
         return self.get_mode_config()
 
-    def set_format(self, format_type: str) -> Dict[str, Any]:
+    def set_format(self, format_type: str) -> dict[str, Any]:
         """设置输出格式"""
         if format_type not in self.FORMAT_CONFIGS:
             format_type = 'pptx'
         self.current_format = format_type
         return self.get_format_config()
 
-    def set_quality(self, quality: str) -> Dict[str, Any]:
+    def set_quality(self, quality: str) -> dict[str, Any]:
         """设置输出质量"""
         if quality not in self.QUALITY_CONFIGS:
             quality = 'standard'
         self.current_quality = quality
         return self.get_quality_config()
 
-    def get_mode_config(self) -> Dict[str, Any]:
+    def get_mode_config(self) -> dict[str, Any]:
         """获取当前模式配置"""
         return self.MODE_CONFIGS.get(self.current_mode, self.MODE_CONFIGS['standard'])
 
-    def get_format_config(self) -> Dict[str, Any]:
+    def get_format_config(self) -> dict[str, Any]:
         """获取当前格式配置"""
         return self.FORMAT_CONFIGS.get(self.current_format, self.FORMAT_CONFIGS['pptx'])
 
-    def get_quality_config(self) -> Dict[str, Any]:
+    def get_quality_config(self) -> dict[str, Any]:
         """获取当前质量配置"""
         return self.QUALITY_CONFIGS.get(self.current_quality, self.QUALITY_CONFIGS['standard'])
 
-    def get_generation_config(self) -> Dict[str, Any]:
+    def get_generation_config(self) -> dict[str, Any]:
         """获取完整生成配置"""
         return {
             'mode': self.get_mode_config(),
@@ -191,7 +189,7 @@ class GenerationModeHandler:
         """是否是高清模式"""
         return self.current_mode == 'quality'
 
-    def get_svg_quality_params(self) -> Dict[str, Any]:
+    def get_svg_quality_params(self) -> dict[str, Any]:
         """获取SVG质量参数"""
         quality = self.get_quality_config()
 
@@ -205,8 +203,8 @@ class GenerationModeHandler:
     def apply_mode_to_generation(
         self,
         generate_func: Callable,
-        slides: List[Dict[str, Any]]
-    ) -> List[Any]:
+        slides: list[dict[str, Any]]
+    ) -> list[Any]:
         """应用生成模式处理
 
         Args:
@@ -232,8 +230,8 @@ class GenerationModeHandler:
     def _standard_generation(
         self,
         generate_func: Callable,
-        slides: List[Dict[str, Any]]
-    ) -> List[Any]:
+        slides: list[dict[str, Any]]
+    ) -> list[Any]:
         """标准生成"""
         from concurrent.futures import ThreadPoolExecutor
 
@@ -250,8 +248,8 @@ class GenerationModeHandler:
     def _fast_generation(
         self,
         generate_func: Callable,
-        slides: List[Dict[str, Any]]
-    ) -> List[Any]:
+        slides: list[dict[str, Any]]
+    ) -> list[Any]:
         """快速生成 - 减少并行数"""
         from concurrent.futures import ThreadPoolExecutor
 
@@ -268,8 +266,8 @@ class GenerationModeHandler:
     def _quality_generation(
         self,
         generate_func: Callable,
-        slides: List[Dict[str, Any]]
-    ) -> List[Any]:
+        slides: list[dict[str, Any]]
+    ) -> list[Any]:
         """高质量生成 - 串行"""
         results = []
         for slide in slides:
@@ -280,7 +278,7 @@ class GenerationModeHandler:
     def _stream_generation(
         self,
         generate_func: Callable,
-        slides: List[Dict[str, Any]]
+        slides: list[dict[str, Any]]
     ) -> Generator:
         """流式生成"""
         for slide in slides:
@@ -294,7 +292,7 @@ class GenerationModeHandler:
 
 
 # 全局实例
-_generation_mode_handler: Optional[GenerationModeHandler] = None
+_generation_mode_handler: GenerationModeHandler | None = None
 _manager_lock = threading.Lock()
 
 

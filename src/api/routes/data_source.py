@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 Data Source API Routes (R75)
 提供数据源的 CRUD、同步、管理接口
 """
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, Query, Body
-from fastapi.responses import JSONResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
 import logging
+from typing import Any
+
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ from ...services.data_source_manager import get_data_source_manager
 router = APIRouter(prefix="/api/v1/data-sources", tags=["data-sources"])
 
 
-def _get_user_id(request: Request) -> Optional[str]:
+def _get_user_id(request: Request) -> str | None:
     """从请求中获取用户ID（如果有认证）"""
     # 简化实现：没有认证时返回 None（匿名用户）
     try:
@@ -100,7 +99,7 @@ async def get_data_source(source_id: str):
 
 
 @router.put("/{source_id}")
-async def update_data_source(source_id: str, body: Dict[str, Any]):
+async def update_data_source(source_id: str, body: dict[str, Any]):
     """更新数据源（名称、自动更新、同步间隔）"""
     mgr = get_data_source_manager()
     source = mgr.update_data_source(
@@ -211,7 +210,7 @@ async def import_csv(
 
 class GoogleSheetsImportRequest(BaseModel):
     spreadsheet_url: str
-    sheet_name: Optional[str] = None
+    sheet_name: str | None = None
     access_token: str
     has_header: bool = True
     max_rows: int = 1000
@@ -305,7 +304,7 @@ class ThresholdAlertItem(BaseModel):
 
 
 class ThresholdAlertsRequest(BaseModel):
-    alerts: List[ThresholdAlertItem]
+    alerts: list[ThresholdAlertItem]
 
 
 @router.post("/{source_id}/threshold-alerts")
@@ -354,8 +353,8 @@ async def get_threshold_alerts(source_id: str):
 
 class CompareRequest(BaseModel):
     compare_column: str
-    group_by_column: Optional[str] = None
-    periods: Optional[List[str]] = None  # 时间周期列表
+    group_by_column: str | None = None
+    periods: list[str] | None = None  # 时间周期列表
 
 
 @router.post("/{source_id}/analyze")
@@ -385,7 +384,7 @@ async def analyze_data(source_id: str, body: CompareRequest):
 
 class ForecastRequest(BaseModel):
     value_column: str
-    label_column: Optional[str] = None
+    label_column: str | None = None
     forecast_periods: int = 3
     chart_type: str = "line"  # "line" | "bar"
 
@@ -418,7 +417,7 @@ async def get_forecast(source_id: str, body: ForecastRequest):
 
 class GenerateFromDataSourceRequest(BaseModel):
     source_id: str
-    title: Optional[str] = None
+    title: str | None = None
     include_charts: bool = True
     include_threshold_alerts: bool = True
     include_forecast: bool = False

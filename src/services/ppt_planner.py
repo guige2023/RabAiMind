@@ -1,21 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 智能PPT规划器 - 让AI真正参与PPT构思
 """
 import json
 import logging
-import requests
-import time
 import re
+import time
+from collections.abc import Generator
+
 import certifi
-from typing import Dict, Any, List, Optional, Generator
+import requests
 
 logger = logging.getLogger(__name__)
 
 # 火山引擎API配置 - 延迟读取，避免模块加载时 .env 未就绪
 from ..config import settings
 from ..models import LayoutType
-
 
 # ===== 场景化 Prompt 模板 =====
 SCENE_PROMPTS = {
@@ -141,7 +140,7 @@ def sanitize_prompt(user_input: str) -> str:
     return result.strip()
 
 
-def _parse_json_response(content: str) -> Optional[Dict]:
+def _parse_json_response(content: str) -> dict | None:
     """P0修复: 健壮的JSON解析"""
     if not content:
         return None
@@ -190,7 +189,7 @@ def _parse_json_response(content: str) -> Optional[Dict]:
 
 
 def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int = 3000,
-                         stream: bool = False, max_retries: int = 3) -> Optional[Dict]:
+                         stream: bool = False, max_retries: int = 3) -> dict | None:
     """P1修复: 带重试机制的API调用"""
     cfg = _get_volc_config()
     headers = {
@@ -245,7 +244,7 @@ def _call_api_with_retry(prompt: str, temperature: float = 0.7, max_tokens: int 
     return None
 
 
-def _convert_script_to_slides(data: Dict, script_type: str) -> List[Dict]:
+def _convert_script_to_slides(data: dict, script_type: str) -> list[dict]:
     """R148: 将脚本内容服务生成的数据转换为PPT大纲格式"""
     if not data:
         return []
@@ -484,7 +483,7 @@ def _framework_to_layout(framework: str) -> str:
 
 def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
               style: str = "professional", temperature: float = 0.7,
-              script_content_type: str = None) -> List[Dict]:
+              script_content_type: str = None) -> list[dict]:
     """
     让AI规划PPT的完整结构
 
@@ -611,7 +610,7 @@ def plan_ppt(user_request: str, slide_count: int = 5, scene: str = "business",
     return _get_default_plan(user_request, slide_count)
 
 
-def _get_default_plan(user_request: str, slide_count: int) -> List[Dict]:
+def _get_default_plan(user_request: str, slide_count: int) -> list[dict]:
     """P0修复: 默认规划方案 - 现在会结合用户需求生成相关内容"""
     slides = []
 
@@ -792,7 +791,7 @@ OpenClaw 是一款 AI Agent 开发与运行平台，主要功能：
 避免"行业概述、市场分析"这类万能空洞标题，要具体到这个主题的核心知识、关键方法、真实案例。"""
 
 
-def _extract_keywords(user_request: str) -> Dict:
+def _extract_keywords(user_request: str) -> dict:
     """P0修复: 从用户请求中提取关键词，生成相关内容"""
     user_request = user_request.lower()
 

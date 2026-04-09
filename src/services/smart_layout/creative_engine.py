@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT 创意引擎
 
@@ -8,18 +7,17 @@ PPT 创意引擎
 日期: 2026-03-18
 """
 
-import json
 import logging
 import threading
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from .layout_strategy import LayoutStrategy, get_layout_strategy
-from .layout_calculator import LayoutCalculator, get_layout_calculator
-from .color_scheme import ColorSchemeGenerator, get_color_scheme_generator
-from .content_analyzer import ContentAnalyzer, get_content_analyzer
-from .svg_element_library import SVGElementLibrary, get_svg_element_library
-from .visual_element_generator import VisualElementGenerator, get_visual_element_generator
-from .ai_visual_designer import AIVisualDesigner, get_ai_visual_designer
+from .ai_visual_designer import get_ai_visual_designer
+from .color_scheme import get_color_scheme_generator
+from .content_analyzer import get_content_analyzer
+from .layout_calculator import get_layout_calculator
+from .layout_strategy import get_layout_strategy
+from .svg_element_library import get_svg_element_library
+from .visual_element_generator import get_visual_element_generator
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +44,9 @@ class PPTCreativeEngine:
     async def create_slide_svg(
         self,
         title: str,
-        content: List[Dict[str, Any]],
+        content: list[dict[str, Any]],
         slide_type: str,
-        colors: Dict[str, str],
+        colors: dict[str, str],
         use_ai: bool = True
     ) -> str:
         """
@@ -81,9 +79,9 @@ class PPTCreativeEngine:
     def _create_slide_from_template(
         self,
         title: str,
-        content: List[Dict[str, Any]],
+        content: list[dict[str, Any]],
         slide_type: str,
-        colors: Dict[str, str]
+        colors: dict[str, str]
     ) -> str:
         """使用模板创建幻灯片"""
         if slide_type == "title_slide":
@@ -111,7 +109,7 @@ class PPTCreativeEngine:
         else:
             return self.visual_generator.generate_content_slide(title, content, colors, layout="card")
 
-    def get_layout_suggestion(self, title: str, content: str) -> Dict[str, Any]:
+    def get_layout_suggestion(self, title: str, content: str) -> dict[str, Any]:
         """
         获取布局建议
 
@@ -136,7 +134,7 @@ class PPTCreativeEngine:
         self,
         style: str = "professional",
         theme_color: str = None
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """
         生成配色方案
 
@@ -165,11 +163,11 @@ class PPTCreativeEngine:
 
     def create_presentation(
         self,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         style: str = "professional",
         theme_color: str = None,
         use_ai: bool = False
-    ) -> List[str]:
+    ) -> list[str]:
         """
         创建完整演示文稿的SVG列表
 
@@ -217,7 +215,7 @@ class PPTCreativeEngine:
 
 
 # 单例实例
-_creative_engine_instance: Optional[PPTCreativeEngine] = None
+_creative_engine_instance: PPTCreativeEngine | None = None
 _manager_lock = threading.Lock()
 
 

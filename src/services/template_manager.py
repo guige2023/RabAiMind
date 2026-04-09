@@ -2,12 +2,10 @@
 模板系统
 PPT模板管理和选择
 """
-import os
 import json
-import time
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 USER_TEMPLATES_FILE = Path("data/user_templates.json")
 DOWNLOAD_COUNTS_FILE = Path("data/template_download_counts.json")
@@ -32,20 +30,20 @@ class Template:
     category: str  # business, education, creative, tech
     style: str  # professional, minimal, modern, classic
     thumbnail: str
-    colors: List[str]  # 主题色
-    fonts: List[str]  # 字体
-    layout: Dict[str, Any]  # 布局配置
-    applicable_scenes: List[str]  # 适用场景
+    colors: list[str]  # 主题色
+    fonts: list[str]  # 字体
+    layout: dict[str, Any]  # 布局配置
+    applicable_scenes: list[str]  # 适用场景
     example: str  # 示例描述
     # R128: 新增字段
     subcategory: str = ""  # 子分类，如 "季度报告", "会议议程"
     download_count: int = 0  # 下载次数
-    rating_breakdown: Optional[RatingBreakdown] = None  # 评分细分
+    rating_breakdown: RatingBreakdown | None = None  # 评分细分
     is_ugc: bool = False
     author: str = "system"
     visibility: str = "public"
     created_at: str = ""
-    tags: List[str] = None  # 标签列表，如 ["免费", "热门", "新品"]
+    tags: list[str] = None  # 标签列表，如 ["免费", "热门", "新品"]
     use_count: int = 0  # 使用次数（生成PPT次数）
 
     def __post_init__(self):
@@ -98,7 +96,7 @@ class Template:
 
 
 # ─── 分类+子分类定义 ────────────────────────────────────────────────────────
-CATEGORY_SUBCATEGORIES: Dict[str, List[str]] = {
+CATEGORY_SUBCATEGORIES: dict[str, list[str]] = {
     "business": ["年度总结", "季度报告", "项目提案", "公司介绍", "投资路演", "会议议程", "销售提案", "市场分析", "团队建设", "商务谈判"],
     "education": ["培训课件", "学术答辩", "教学教案", "校园活动", "毕业典礼", "课程介绍", "考试复习", "学术报告"],
     "tech": ["产品发布", "技术分享", "AI演示", "科技大会", "互联网峰会", "产品介绍", "技术文档", "开发者大会"],
@@ -111,7 +109,7 @@ CATEGORY_SUBCATEGORIES: Dict[str, List[str]] = {
 }
 
 
-def _load_download_counts() -> Dict[str, int]:
+def _load_download_counts() -> dict[str, int]:
     """加载下载计数"""
     if DOWNLOAD_COUNTS_FILE.exists():
         with open(DOWNLOAD_COUNTS_FILE, encoding="utf-8") as f:
@@ -119,7 +117,7 @@ def _load_download_counts() -> Dict[str, int]:
     return {}
 
 
-def _save_download_counts(counts: Dict[str, int]):
+def _save_download_counts(counts: dict[str, int]):
     """保存下载计数"""
     DOWNLOAD_COUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(DOWNLOAD_COUNTS_FILE, "w", encoding="utf-8") as f:
@@ -139,7 +137,7 @@ class TemplateManager:
         """加载用户模板"""
         if USER_TEMPLATES_FILE.exists():
             with open(USER_TEMPLATES_FILE, encoding="utf-8") as f:
-                self.user_templates: List[dict] = json.load(f)
+                self.user_templates: list[dict] = json.load(f)
         else:
             self.user_templates = []
 
@@ -167,7 +165,7 @@ class TemplateManager:
     def get_user_templates(self, user_id: str = "current_user") -> list:
         return [t for t in self.user_templates if t.get("author") == user_id or t.get("visibility") == "public"]
 
-    def _load_templates(self) -> Dict[str, Template]:
+    def _load_templates(self) -> dict[str, Template]:
         """加载模板"""
         templates = {}
 
@@ -705,16 +703,16 @@ class TemplateManager:
 
         return templates
 
-    def get_template(self, template_id: str) -> Optional[Template]:
+    def get_template(self, template_id: str) -> Template | None:
         """获取模板"""
         return self._templates.get(template_id)
 
     def list_templates(
         self,
-        category: Optional[str] = None,
-        style: Optional[str] = None,
-        subcategory: Optional[str] = None,
-    ) -> List[Template]:
+        category: str | None = None,
+        style: str | None = None,
+        subcategory: str | None = None,
+    ) -> list[Template]:
         """列出模板"""
         result = list(self._templates.values())
 
@@ -732,12 +730,12 @@ class TemplateManager:
     def search_templates(
         self,
         query: str = "",
-        category: Optional[str] = None,
-        style: Optional[str] = None,
-        subcategory: Optional[str] = None,
-        tags: Optional[List[str]] = None,
+        category: str | None = None,
+        style: str | None = None,
+        subcategory: str | None = None,
+        tags: list[str] | None = None,
         limit: int = 20
-    ) -> List[Template]:
+    ) -> list[Template]:
         """搜索模板，支持标签过滤"""
         result = list(self._templates.values())
 
@@ -763,25 +761,25 @@ class TemplateManager:
 
         return result[:limit]
 
-    def get_all_tags(self) -> List[str]:
+    def get_all_tags(self) -> list[str]:
         """获取所有模板标签及其使用次数"""
-        tag_counts: Dict[str, int] = {}
+        tag_counts: dict[str, int] = {}
         for t in self._templates.values():
             for tag in t.tags:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
         return sorted(tag_counts.keys())
 
-    def get_categories(self) -> List[str]:
+    def get_categories(self) -> list[str]:
         """获取所有分类"""
         return list(set(t.category for t in self._templates.values()))
 
-    def get_subcategories(self, category: Optional[str] = None) -> Dict[str, List[str]]:
+    def get_subcategories(self, category: str | None = None) -> dict[str, list[str]]:
         """获取子分类映射"""
         if category:
             return {category: CATEGORY_SUBCATEGORIES.get(category, [])}
         return CATEGORY_SUBCATEGORIES
 
-    def get_styles(self) -> List[str]:
+    def get_styles(self) -> list[str]:
         """获取所有风格"""
         return list(set(t.style for t in self._templates.values()))
 

@@ -5,12 +5,11 @@ R24优化: 添加超时重试机制
 """
 import logging
 import os
-import json
-import requests
-import certifi
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import time
+from typing import Any
+
+import certifi
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def _sanitize_error(e: Exception) -> str:
     elif isinstance(e, requests.exceptions.Timeout):
         return "请求超时，请稍后重试"
     elif isinstance(e, requests.exceptions.HTTPError):
-        return f"HTTP错误，请稍后重试"
+        return "HTTP错误，请稍后重试"
     else:
         return "服务暂时不可用，请稍后重试"
 
@@ -40,8 +39,8 @@ def _is_retryable(e: Exception) -> bool:
 
 class VolcEngineAPI:
     """火山引擎API客户端"""
-    
-    def __init__(self, api_key: Optional[str] = None, endpoint: Optional[str] = None):
+
+    def __init__(self, api_key: str | None = None, endpoint: str | None = None):
         # 从 Settings 读取配置（唯一配置来源）
         # 支持两种导入方式：正常包导入 和 importlib 直载（agents 层用）
         try:
@@ -61,15 +60,15 @@ class VolcEngineAPI:
         self.text_model = os.getenv("VOLCANO_TEXT_MODEL", settings.VOLCANO_TEXT_MODEL)
         self.image_model = os.getenv("VOLCANO_IMAGE_MODEL", settings.VOLCANO_IMAGE_MODEL)
         self.vision_model = os.getenv("VOLCANN_VISION_MODEL", self.text_model)
-        
-    def _get_headers(self) -> Dict[str, str]:
+
+    def _get_headers(self) -> dict[str, str]:
         """获取请求头"""
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-    
-    def _do_request(self, url: str, payload: Dict, timeout: float) -> requests.Response:
+
+    def _do_request(self, url: str, payload: dict, timeout: float) -> requests.Response:
         """执行 HTTP POST 请求（供重试机制调用）"""
         return requests.post(
             url,
@@ -78,14 +77,14 @@ class VolcEngineAPI:
             timeout=timeout,
             verify=certifi.where()
         )
-    
+
     def text_generation(
         self,
         prompt: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 4096
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         文本生成（R24优化: 超时自动重试，最多重试2次）
 
@@ -129,7 +128,7 @@ class VolcEngineAPI:
                 response = self._do_request(url, payload, self.timeout)
                 response.raise_for_status()
                 result = response.json()
-                
+
                 return {
                     "success": True,
                     "content": result.get("choices", [{}])[0].get("message", {}).get("content", ""),
@@ -149,7 +148,7 @@ class VolcEngineAPI:
                     "error": _sanitize_error(e),
                     "model": model
                 }
-        
+
         # 所有重试均失败
         return {
             "success": False,
@@ -161,8 +160,8 @@ class VolcEngineAPI:
         self,
         image_url: str,
         prompt: str = "描述这张图片的内容",
-        model: Optional[str] = None
-    ) -> Dict[str, Any]:
+        model: str | None = None
+    ) -> dict[str, Any]:
         """
         图片理解（图生文）
 
@@ -200,7 +199,7 @@ class VolcEngineAPI:
             "temperature": 0.7,
             "max_tokens": 2048
         }
-        
+
         # R24优化: 超时重试机制
         last_error = None
         for attempt in range(MAX_RETRIES + 1):
@@ -208,7 +207,7 @@ class VolcEngineAPI:
                 response = self._do_request(url, payload, self.timeout)
                 response.raise_for_status()
                 result = response.json()
-                
+
                 return {
                     "success": True,
                     "content": result.get("choices", [{}])[0].get("message", {}).get("content", ""),
@@ -228,7 +227,7 @@ class VolcEngineAPI:
                     "error": _sanitize_error(e),
                     "model": model
                 }
-        
+
         return {
             "success": False,
             "error": _sanitize_error(last_error) if last_error else "服务暂时不可用，请稍后重试",
@@ -238,11 +237,11 @@ class VolcEngineAPI:
     def image_generation(
         self,
         prompt: str,
-        model: Optional[str] = None,
+        model: str | None = None,
         size: str = "2048x2048",  # 最小 1920x1920 (3686400px)，火山引擎要求至少 3686400 像素
         quality: str = "standard",
         n: int = 1
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         图片生成（文生图）
 
@@ -293,7 +292,7 @@ class VolcEngineAPI:
             "quality": quality,
             "n": n
         }
-        
+
         # R24优化: 图片生成超时较长，但仍支持重试
         last_error = None
         img_timeout = 180.0
@@ -302,7 +301,7 @@ class VolcEngineAPI:
                 response = self._do_request(url, payload, img_timeout)
                 response.raise_for_status()
                 result = response.json()
-                
+
                 # 获取所有生成的图片
                 images = []
                 for item in result.get("data", []):
@@ -327,7 +326,7 @@ class VolcEngineAPI:
                     "error": _sanitize_error(e),
                     "model": model
                 }
-        
+
         return {
             "success": False,
             "error": _sanitize_error(last_error) if last_error else "服务暂时不可用，请稍后重试",

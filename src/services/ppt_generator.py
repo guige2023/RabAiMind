@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT 生成器服务 - 使用 okppt 方式 (AI生成SVG)
 
@@ -6,25 +5,22 @@ PPT 生成器服务 - 使用 okppt 方式 (AI生成SVG)
 日期: 2026-03-18
 """
 
-import time
 import asyncio
+import concurrent.futures
 import os
 import re
-import json
 import threading
-import numpy as np
-import concurrent.futures
-from typing import Optional, Dict, Any, List
+import time
 from pathlib import Path
-from io import BytesIO
+from typing import Any
 
-# 导入工具函数
-from ..utils import ensure_dir, get_timestamp, setup_logger
-from ..config import settings
+from pptx.dml.color import RGBColor
 
 # 导入pptx相关
-from pptx.util import Inches, Pt
-from pptx.dml.color import RGBColor
+from ..config import settings
+
+# 导入工具函数
+from ..utils import ensure_dir, setup_logger
 
 logger = setup_logger("ppt_generator")
 
@@ -120,8 +116,8 @@ class PPTGenerator:
         shadow_color: str = "#000000",
         overlay_transparency: int = 30,
         use_smart_layout: bool = False,
-        slide_backgrounds: Optional[List] = None,
-        slide_layouts: Optional[List] = None,
+        slide_backgrounds: list | None = None,
+        slide_layouts: list | None = None,
         include_charts: bool = False,
         include_pie_chart: bool = True,
         include_bar_chart: bool = True,
@@ -138,10 +134,10 @@ class PPTGenerator:
         layout_mode: str = "auto",  # auto/manual
         unified_layout: bool = True,  # 是否统一布局
         # 两阶段生成：预生成的内容（跳过 AI 内容规划步骤）
-        pre_generated_slides: Optional[List[Dict]] = None,  # [{title, content, slide_type, layout}, ...]
+        pre_generated_slides: list[dict] | None = None,  # [{title, content, slide_type, layout}, ...]
         # R148: AI 脚本内容生成类型
-        script_content_type: Optional[str] = None  # story_arc/data_story/persuasion/audience_persona/competitor_analysis
-    ) -> Dict[str, Any]:
+        script_content_type: str | None = None  # story_arc/data_story/persuasion/audience_persona/competitor_analysis
+    ) -> dict[str, Any]:
         """Generate a PowerPoint presentation using AI-generated SVG layouts.
 
         This method orchestrates the complete PPT generation workflow including
@@ -281,7 +277,7 @@ class PPTGenerator:
                 if user_specified_layouts and not use_smart_layout:
                     logger.info(f"[SmartLayout] 两阶段模式检测到{len(user_specified_layouts)}个指定布局，自动启用smart_layout")
                     use_smart_layout = True
-                task_manager.update_progress(task_id, 20, f"内容已确认，开始渲染设计...", "processing")
+                task_manager.update_progress(task_id, 20, "内容已确认，开始渲染设计...", "processing")
             else:
                 # 一次性模式：AI 内容规划 5%~20%
                 logger.info(f"开始智能规划 PPT, request={user_request[:50]}...")
@@ -501,7 +497,7 @@ class PPTGenerator:
 
             # 5. 完成
             task_manager.update_progress(task_id, 100, "生成完成!", "completed")
-            
+
             # 完成任务
             task_manager.complete_task(
                 task_id=task_id,
@@ -563,18 +559,18 @@ class PPTGenerator:
                 "error": "PPT生成失败，请稍后重试"
             }
 
-    def _plan_ppt(self, user_request: str, slide_count: int, scene: str = "business", style: str = "professional", script_content_type: str = None) -> List[Dict]:
+    def _plan_ppt(self, user_request: str, slide_count: int, scene: str = "business", style: str = "professional", script_content_type: str = None) -> list[dict]:
         """AI规划PPT内容，透传 scene/style/script_content_type"""
         from .ppt_planner import plan_ppt
         return plan_ppt(user_request, slide_count, scene=scene, style=style, script_content_type=script_content_type)
 
     def _enhance_with_charts(
         self,
-        slides_content: List[Dict],
+        slides_content: list[dict],
         include_pie: bool = True,
         include_bar: bool = True,
         include_line: bool = False
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         根据场景自动在合适页面插入图表类型说明
 
@@ -616,7 +612,7 @@ class PPTGenerator:
         slides_content.insert(insert_pos, chart_slide)
         return slides_content
 
-    def _generate_image(self, slide: Dict, slide_num: int = 1) -> Optional[str]:
+    def _generate_image(self, slide: dict, slide_num: int = 1) -> str | None:
         """生成AI图片，如果失败则返回备用图片URL"""
         from .content_generator import get_content_generator
 
@@ -673,7 +669,7 @@ class PPTGenerator:
             content_lines = [c for c in content if c and isinstance(c, str) and c.strip()]
         else:
             content_lines = []
-        
+
         # 中文标题转英文
         title_en = self._translate_to_english(title)
 
@@ -736,7 +732,7 @@ class PPTGenerator:
         # 如果没有匹配，返回原文（作为后备）
         return text
 
-    def _get_fallback_image_url(self, slide: Dict, slide_num: int = 1) -> str:
+    def _get_fallback_image_url(self, slide: dict, slide_num: int = 1) -> str:
         """获取备用图片URL - 多级 Fallback 策略
 
         Level 1: Unsplash（带可达性检查）
@@ -817,7 +813,7 @@ class PPTGenerator:
         logger.info("所有 Unsplash URL 均不可达，使用本地 SVG 占位图")
         return self._generate_svg_placeholder(slide, slide_num)
 
-    def _generate_svg_placeholder(self, slide: Dict, slide_num: int = 1) -> str:
+    def _generate_svg_placeholder(self, slide: dict, slide_num: int = 1) -> str:
         """生成本地 SVG 占位图 - 纯色背景 + 类别图标
 
         这是一个内嵌的 data URI，不依赖任何外部网络。
@@ -877,11 +873,10 @@ class PPTGenerator:
             ...     chart_description="Revenue growth by region"
             ... )
         """
-        from pathlib import Path
         import os
-        
+
         chart_filename = Path(chart_svg_path).name
-        
+
         # 根据场景获取主题色
         theme_colors = {
             "business": ("#1e3a5f", "#60a5fa", "#165DFF"),
@@ -890,12 +885,12 @@ class PPTGenerator:
             "minimal": ("#2d3748", "#718096", "#4a5568"),
         }
         bg_color, accent_color, primary_color = theme_colors.get(scene, ("#1e3a5f", "#60a5fa", "#165DFF"))
-        
+
         # 标题最多 30 字符
         display_title = (slide_title[:30] + "…") if len(slide_title) > 30 else slide_title
         safe_title = self._escape_html(display_title)
         safe_desc = self._escape_html(chart_description[:100] if chart_description else "")
-        
+
         W, H = 1600, 900
         svg_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">
@@ -922,22 +917,21 @@ class PPTGenerator:
   <circle cx="{W-100}" cy="{H-100}" r="80" fill="{primary_color}" opacity="0.1"/>
   <circle cx="{W-60}" cy="{H-60}" r="40" fill="{accent_color}" opacity="0.15"/>
 </svg>'''
-        
+
         # 生成 slide index
         slide_index = self._get_next_slide_index(task_id)
-        
+
         # 保存 SVG 文件到任务目录
         task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
         os.makedirs(task_output_dir, exist_ok=True)
         svg_path = os.path.join(task_output_dir, f"slide_{slide_index}.svg")
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_content)
-        
+
         return svg_path
-    
+
     def _get_next_slide_index(self, task_id: str) -> int:
         """获取下一个幻灯片序号（递增）"""
-        import threading
         with self._layout_lock:
             key = f"_slide_index_{task_id}"
             if not hasattr(self, '_slide_index_cache'):
@@ -946,15 +940,15 @@ class PPTGenerator:
             self._slide_index_cache[key] = current
             return current
 
-    def _generate_svg(self, slide: Dict, slide_num: int) -> str:
+    def _generate_svg(self, slide: dict, slide_num: int) -> str:
         """AI生成SVG代码"""
         from .volc_api import get_volc_api
-        
+
         volc = get_volc_api()
-        
+
         # 检查火山引擎API是否可用
         api_available = self._check_volc_api_available(volc)
-        
+
         if api_available:
             # 使用AI生成SVG
             logger.info("火山引擎API可用，使用AI生成SVG")
@@ -963,7 +957,7 @@ class PPTGenerator:
             # 使用智能文字模式（备用方案）
             logger.info("火山引擎API不可用，使用智能文字模式")
             return self._generate_svg_smart_text(slide, slide_num)
-    
+
     def _check_volc_api_available(self, volc) -> bool:
         """检查火山引擎API是否可用（带5分钟缓存）"""
         # 缓存检测结果，5分钟内不重复调用真实API
@@ -987,28 +981,28 @@ class PPTGenerator:
 
         self._api_check_cache = {'available': available, 'time': time.time()}
         return available
-    
-    def _generate_svg_with_ai(self, slide: Dict, slide_num: int, volc) -> str:
+
+    def _generate_svg_with_ai(self, slide: dict, slide_num: int, volc) -> str:
         """使用AI生成SVG代码"""
         # 构建SVG提示词
         prompt = self._build_svg_prompt(slide, slide_num)
-        
+
         # 调用AI生成SVG (同步调用)
         response = volc.text_generation(prompt)
-        
+
         # 提取SVG代码 - text_generation返回dict，需要取content
         if isinstance(response, dict):
             content = response.get("content", "")
         else:
             content = str(response)
-        
+
         svg_code = self._extract_svg_code(content)
 
         return svg_code
 
     def _generate_svg_smart_layout(
         self,
-        slide: Dict,
+        slide: dict,
         slide_num: int,
         theme_color: str = "#165DFF",
         style: str = "professional",
@@ -1115,7 +1109,7 @@ class PPTGenerator:
         logger.info(f"[SmartLayout] slide_{slide_num} layout={slide_type} text_style={text_style} generated successfully")
         return svg
 
-    def _generate_svg_smart_text(self, slide: Dict, slide_num: int) -> str:
+    def _generate_svg_smart_text(self, slide: dict, slide_num: int) -> str:
         """智能文字模式 - 不依赖AI生成SVG，使用纯代码生成美观SVG"""
         # DEBUG日志
         logger.debug(f"[slide_{slide_num}] title={slide.get('title', '')[:30]}... content={slide.get('content', [])}")
@@ -1123,11 +1117,11 @@ class PPTGenerator:
         subtitle = slide.get("subtitle", "")
         content = slide.get("content", [])
         image_url = slide.get("image_url", "")
-        
+
         # 16:9 比例
         width = 1600
         height = 900
-        
+
         # 构建内容列表HTML
         content_html = ""
         if content and len(content) > 0:
@@ -1138,12 +1132,12 @@ class PPTGenerator:
                 items_html += f'''<text x="150" y="{380 + i * 70}" fill="rgba(255,255,255,0.9)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">
               <tspan x="150">{i+1}. </tspan><tspan>{escaped_item}</tspan>
             </text>'''
-            
+
             content_html = f'''
 <g id="content">
 {items_html}
 </g>'''
-        
+
         # 副标题处理
         subtitle_html = ""
         if subtitle:
@@ -1152,17 +1146,17 @@ class PPTGenerator:
 <text x="800" y="180" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="32" font-family="Microsoft YaHei, PingFang SC, sans-serif">
   {escaped_subtitle}
 </text>'''
-        
+
         # 标题处理
         escaped_title = self._escape_html(title)
-        
+
         # 背景图片处理（如果有）- URL转义防止XSS
         bg_image = ""
         if image_url:
             escaped_url = self._escape_url(image_url)
             bg_image = f'''
 <image href="{escaped_url}" x="0" y="0" width="1600" height="900" preserveAspectRatio="xMidYMid slice" opacity="0.4"/>'''
-        
+
         svg_code = f'''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
   <defs>
@@ -1220,9 +1214,9 @@ class PPTGenerator:
     RabAi Mind - AI Generated
   </text>
 </svg>'''
-        
+
         return svg_code
-    
+
     def _escape_html(self, text: str) -> str:
         """转义HTML特殊字符，防止XSS"""
         return (text
@@ -1246,9 +1240,9 @@ class PPTGenerator:
 
     def _validate_url(self, url: str) -> bool:
         """验证URL是否安全，防止SSRF攻击（含DNS Rebinding防护）"""
-        from urllib.parse import urlparse
         import ipaddress
         import socket
+        from urllib.parse import urlparse
 
         try:
             parsed = urlparse(url)
@@ -1311,12 +1305,12 @@ class PPTGenerator:
         except Exception:
             return False
 
-    def _build_svg_prompt(self, slide: Dict, slide_num: int) -> str:
+    def _build_svg_prompt(self, slide: dict, slide_num: int) -> str:
         """构建SVG生成提示词"""
         title = slide.get("title", "")
         content = slide.get("content", [])
         slide_type = slide.get("slide_type", "content")
-        
+
         # 根据类型选择不同提示词
         if slide_num == 1:
             prompt = f"""# PPT页面SVG设计宗师
@@ -1384,14 +1378,14 @@ class PPTGenerator:
             r'```\s*(.*?)```',
             r'<svg[^>]*>.*?</svg>',
         ]
-        
+
         for pattern in patterns:
             matches = re.findall(pattern, response, re.DOTALL)
             if matches:
                 code = matches[0].strip()
                 if code.startswith('<svg'):
                     return code
-        
+
         # 如果没有找到，返回默认SVG
         return self._default_svg()
 
@@ -1411,7 +1405,7 @@ class PPTGenerator:
   <text x="800" y="520" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="28" font-family="Microsoft YaHei, PingFang SC, sans-serif">第 {slide_num} 页</text>
 </svg>'''
 
-    def _svg_to_ppt(self, svg_files: List[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None, font_title: str = "微软雅黑", font_subtitle: str = "微软雅黑", font_content: str = "微软雅黑", font_caption: str = "微软雅黑", progress_callback=None, task_id: str = None) -> bool:
+    def _svg_to_ppt(self, svg_files: list[str], output_path: str, text_style: str = "transparent_overlay", shadow_color: str = "#000000", overlay_transparency: int = 30, use_smart_layout: bool = False, slide_backgrounds: list = None, font_title: str = "微软雅黑", font_subtitle: str = "微软雅黑", font_content: str = "微软雅黑", font_caption: str = "微软雅黑", progress_callback=None, task_id: str = None) -> bool:
         """SVG转PPT - 支持三种文字样式方案和智能布局模式
 
         兼容性说明:
@@ -1420,13 +1414,14 @@ class PPTGenerator:
         - 确保使用兼容的命名空间和元素
         """
         try:
-            from pptx import Presentation
-            from pptx.util import Inches, Pt
-            from pptx.enum.shapes import MSO_SHAPE
-            from pptx.dml.color import RGBColor
-            import requests
             import uuid
+
+            import requests
             from PIL import Image
+            from pptx import Presentation
+            from pptx.dml.color import RGBColor
+            from pptx.enum.shapes import MSO_SHAPE
+            from pptx.util import Inches, Pt
 
             # 创建演示文稿
             prs = Presentation()
@@ -1455,7 +1450,7 @@ class PPTGenerator:
                     continue
 
                 # 读取SVG
-                with open(svg_file, 'r', encoding='utf-8') as f:
+                with open(svg_file, encoding='utf-8') as f:
                     svg_content = f.read()
 
                 # 提取背景图片URL
@@ -1495,8 +1490,9 @@ class PPTGenerator:
                     if set_image_bg:
                         try:
                             import base64
-                            from pathlib import Path
                             from io import BytesIO
+                            from pathlib import Path
+
                             from lxml import etree
                             from pptx.dml.fill import _BlipFill
                             from pptx.oxml.ns import qn
@@ -1505,7 +1501,7 @@ class PPTGenerator:
                             if bg_image.startswith('data:'):
                                 _header, _b64 = bg_image.split(',', 1)
                                 img_bytes = base64.b64decode(_b64)
-                                logger.info(f"图片背景: 使用base64数据")
+                                logger.info("图片背景: 使用base64数据")
                             elif bg_image.startswith('http'):
                                 import requests as _req
                                 _r = _req.get(bg_image, timeout=15)
@@ -1518,14 +1514,14 @@ class PPTGenerator:
                                 _p = Path(bg_image)
                                 if _p.exists():
                                     img_bytes = _p.read_bytes()
-                                    logger.info(f"图片背景: 本地文件")
+                                    logger.info("图片背景: 本地文件")
 
                             if img_bytes:
                                 # 使用 get_or_add_image_part 添加图片（返回 ImagePart 和 rId）
                                 _img_io = BytesIO(img_bytes)
                                 _img_result = slide.part.get_or_add_image_part(_img_io)
                                 if _img_result is None:
-                                    logger.warning(f"图片背景: get_or_add_image_part返回None")
+                                    logger.warning("图片背景: get_or_add_image_part返回None")
                                     set_bg_done = False
                                 else:
                                     _img_part, _rId = _img_result
@@ -1684,7 +1680,7 @@ class PPTGenerator:
                                 p.space_before = Pt(12)
                         logger.info(f"已添加 {len(contents)} 条内容")
 
-                    logger.info(f"智能布局模式：已添加文字")
+                    logger.info("智能布局模式：已添加文字")
 
                     # 发送进度回调
                     if progress_callback:
@@ -1911,14 +1907,14 @@ class PPTGenerator:
 
             return True
 
-        except Exception as e:
+        except Exception:
             logger.exception("SVG转PPT失败")
             return False
 
     def _compress_pptx(self, file_path: str) -> bool:
         """压缩PPTX文件"""
-        import zipfile
         import os
+        import zipfile
 
         if not os.path.exists(file_path):
             return False
@@ -1968,7 +1964,7 @@ class PPTGenerator:
             return RGBColor(r, g, b)
         return RGBColor(0, 0, 0)
 
-    def _extract_svg_background_color(self, svg_content: str) -> Optional[str]:
+    def _extract_svg_background_color(self, svg_content: str) -> str | None:
         """从SVG中提取背景颜色（从stop-color或fill属性）"""
         import re
 
@@ -2007,7 +2003,7 @@ class PPTGenerator:
             grad_match = re.search(r'linearGradient[^>]+x1="([^"]+)"[^>]+y1="([^"]+)"[^>]+x2="([^"]+)"[^>]+y2="([^"]+)"', svg_content)
             if not grad_match:
                 grad_match = re.search(r'linearGradient[^>]+x2="([^"]+)"[^>]+y2="([^"]+)"', svg_content)
-            
+
             angle = 45  # 默认45度
             if grad_match:
                 try:
@@ -2019,11 +2015,11 @@ class PPTGenerator:
                     angle = int(abs(y2) * 90 / max(abs(x2), 0.01))
                 except (ValueError, TypeError):
                     angle = 45
-            
+
             # 取第一个和最后一个stop的颜色
             first_color = stops[0][0].strip()
             last_color = stops[-1][0].strip()
-            
+
             if first_color.startswith('#') and len(first_color) == 7:
                 first_hex = first_color[1:]
             elif first_color.startswith('#') and len(first_color) == 4:
@@ -2031,20 +2027,20 @@ class PPTGenerator:
                 first_hex = first_color[1] * 2 + first_color[2] * 2 + first_color[3] * 2
             else:
                 first_hex = None
-            
+
             if last_color.startswith('#') and len(last_color) == 7:
                 last_hex = last_color[1:]
             elif last_color.startswith('#') and len(last_color) == 4:
                 last_hex = last_color[1] * 2 + last_color[2] * 2 + last_color[3] * 2
             else:
                 last_hex = None
-            
+
             if first_hex and last_hex:
                 logger.info(f"提取SVG渐变: {first_hex} → {last_hex} (angle={angle})")
                 return (first_hex, last_hex, angle)
         return None
 
-    def _extract_image_url(self, svg_content: str) -> Optional[str]:
+    def _extract_image_url(self, svg_content: str) -> str | None:
         """从SVG中提取图片URL"""
         patterns = [
             # 匹配 href="URL" - 支持URL参数
@@ -2071,19 +2067,19 @@ class PPTGenerator:
     def _extract_text_from_svg(self, svg_content: str):
         """从SVG中提取文字（包括tspan内的文字）"""
         import re
-        
+
         # 方法1: 使用正则提取所有text和tspan元素的内容
         # 先提取所有tspan内容
         tspan_contents = re.findall(r'<tspan[^>]*>([^<]*)</tspan>', svg_content)
         tspan_contents = [t.strip() for t in tspan_contents if t.strip()]
-        
+
         # 提取所有text元素的直接内容（不含tspan）
         text_contents = re.findall(r'<text[^>]*>([^<]*)</text>', svg_content)
         text_contents = [t.strip() for t in text_contents if t.strip()]
-        
+
         # 合并所有文本内容
         all_texts = tspan_contents + text_contents
-        
+
         # 过滤掉页码数字、装饰文字等
         filtered_texts = []
         exclude_patterns = [
@@ -2100,7 +2096,7 @@ class PPTGenerator:
             # 过滤太短的文字（允许如"AI"这样的短词）
             if len(text) >= 2 and not is_excluded:
                 filtered_texts.append(text)
-        
+
         # 识别标题：通常是大字体、在页面顶部(y < 200)
         title = ""
         contents = []
@@ -2122,7 +2118,7 @@ class PPTGenerator:
                 text = text.strip()
             if text and len(text) > 2:
                 text_with_y.append((y, text))
-        
+
         # 按y坐标排序
         text_with_y.sort(key=lambda x: x[0])
 
@@ -2147,18 +2143,18 @@ class PPTGenerator:
                 contents.append(text)
 
         logger.info(f"[SVG提取] 提取结果: title='{title}', contents={contents}")
-        
+
         # 如果上述方法失败，使用备用逻辑
         if not title and filtered_texts:
             # 取第一个最长的作为标题
             title = max(filtered_texts, key=len) if filtered_texts else ""
             # 其余作为内容
             contents = [t for t in filtered_texts if t != title]
-        
+
         return title, contents
 
 
-    def _convert_svg_to_png(self, svg_files: List[str], output_dir: str, quality: str = "standard") -> List[str]:
+    def _convert_svg_to_png(self, svg_files: list[str], output_dir: str, quality: str = "standard") -> list[str]:
         """将SVG转换为PNG图片
 
         Args:
@@ -2194,11 +2190,9 @@ class PPTGenerator:
                     logger.info(f"SVG转PNG成功: {png_path}")
                 except ImportError:
                     # 备用方案：使用PIL
-                    from PIL import Image
-                    import io
 
                     # 读取SVG
-                    with open(svg_file, 'r', encoding='utf-8') as f:
+                    with open(svg_file, encoding='utf-8') as f:
                         svg_content = f.read()
 
                     # 创建临时PNG
@@ -2212,7 +2206,7 @@ class PPTGenerator:
 
         return png_paths
 
-    def _svg_to_pdf(self, svg_files: List[str], output_path: str) -> bool:
+    def _svg_to_pdf(self, svg_files: list[str], output_path: str) -> bool:
         """将SVG转换为PDF
 
         Args:
@@ -2227,10 +2221,9 @@ class PPTGenerator:
             try:
                 from reportlab.graphics import renderPDF
                 from reportlab.lib.pagesizes import landscape
-                from svglib.svglib import svg2rlg
-
-                from reportlab.pdfgen import canvas
                 from reportlab.lib.units import inch
+                from reportlab.pdfgen import canvas
+                from svglib.svglib import svg2rlg
 
                 c = canvas.Canvas(output_path, pagesize=landscape((16*inch, 9*inch)))
 
@@ -2285,12 +2278,13 @@ class PPTGenerator:
         R46: Custom Branding & White-label
         """
         try:
-            from pptx import Presentation
-            from pptx.util import Inches, Pt
-            from pptx.dml.color import RGBColor
-            from PIL import Image
-            import io
             import base64
+            import io
+
+            from PIL import Image
+            from pptx import Presentation
+            from pptx.dml.color import RGBColor
+            from pptx.util import Inches, Pt
 
             if not os.path.exists(pptx_path):
                 logger.warning(f"PPT文件不存在，跳过品牌注入: {pptx_path}")
@@ -2415,7 +2409,7 @@ class PPTGenerator:
 
 
 # 全局实例
-_ppt_generator: Optional[PPTGenerator] = None
+_ppt_generator: PPTGenerator | None = None
 _generator_lock = threading.Lock()  # 保护单例创建
 
 

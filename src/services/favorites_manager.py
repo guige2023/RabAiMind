@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 收藏服务
 管理用户收藏的PPT模板和生成任务
 """
 import threading
-from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,8 +14,8 @@ class FavoriteItem:
     type: str  # "template" or "task"
     name: str
     description: str
-    thumbnail: Optional[str] = None
-    added_at: Optional[datetime] = None
+    thumbnail: str | None = None
+    added_at: datetime | None = None
 
 
 class FavoritesManager:
@@ -36,8 +34,8 @@ class FavoritesManager:
     def __init__(self):
         if not hasattr(self, '_initialized'):
             # 使用Set存储收藏，按用户ID组织
-            self._favorites: Dict[str, Set[str]] = {}
-            self._favorite_data: Dict[str, Dict[str, FavoriteItem]] = {}
+            self._favorites: dict[str, set[str]] = {}
+            self._favorite_data: dict[str, dict[str, FavoriteItem]] = {}
             self._fav_lock = threading.Lock()
             self._initialized = True
 
@@ -48,7 +46,7 @@ class FavoritesManager:
         item_type: str,
         name: str,
         description: str = "",
-        thumbnail: Optional[str] = None
+        thumbnail: str | None = None
     ) -> bool:
         """
         添加收藏
@@ -129,8 +127,8 @@ class FavoritesManager:
     def get_favorites(
         self,
         user_id: str,
-        item_type: Optional[str] = None
-    ) -> List[FavoriteItem]:
+        item_type: str | None = None
+    ) -> list[FavoriteItem]:
         """
         获取用户收藏列表
 
@@ -159,7 +157,7 @@ class FavoritesManager:
         self,
         user_id: str,
         item_type: str
-    ) -> List[str]:
+    ) -> list[str]:
         """获取用户收藏的ID列表（用于前端选中状态）"""
         with self._fav_lock:
             if user_id not in self._favorites:
@@ -173,7 +171,7 @@ class FavoritesManager:
 
 
 # 全局实例
-_favorites_manager: Optional[FavoritesManager] = None
+_favorites_manager: FavoritesManager | None = None
 _manager_lock = threading.Lock()
 
 

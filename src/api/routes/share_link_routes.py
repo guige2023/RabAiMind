@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Share Link Routes — PPT分享链接功能
 Phase 2.1: 分享链接功能
@@ -9,17 +8,17 @@ GET /share/{share_code}/qr - 获取二维码
 DELETE /share/{share_id} - 删除分享链接
 """
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
 
-from ...services.share_link_service import (
-    get_share_link_service, 
-    SharePermission,
-)
-from ...core.security import User
 from ...api.middleware.auth import get_current_user
+from ...core.security import User
+from ...services.share_link_service import (
+    SharePermission,
+    get_share_link_service,
+)
 
 router = APIRouter(prefix="/api/v1/share-link", tags=["share-link"])
 
@@ -31,15 +30,15 @@ class ShareLinkCreate(BaseModel):
     ppt_id: str = Field(..., description="PPT任务ID")
     ppt_title: str = Field(default="", description="PPT标题")
     permission: str = Field(default="view", description="权限: view, comment, edit, download")
-    expires_in_hours: Optional[int] = Field(None, description="过期小时数 (None=永不过期)")
-    password: Optional[str] = Field(None, description="密码保护 (可选)")
+    expires_in_hours: int | None = Field(None, description="过期小时数 (None=永不过期)")
+    password: str | None = Field(None, description="密码保护 (可选)")
 
 
 class ShareLinkUpdate(BaseModel):
     """更新分享链接请求"""
-    permission: Optional[str] = Field(None, description="权限级别")
-    expires_in_hours: Optional[int] = Field(None, description="过期小时数 (None=永不过期, 0=立即过期)")
-    password: Optional[str] = Field(None, description="密码 (空字符串=清除密码)")
+    permission: str | None = Field(None, description="权限级别")
+    expires_in_hours: int | None = Field(None, description="过期小时数 (None=永不过期, 0=立即过期)")
+    password: str | None = Field(None, description="密码 (空字符串=清除密码)")
 
 
 class ShareLinkResponse(BaseModel):
@@ -55,7 +54,7 @@ class ShareLinkResponse(BaseModel):
     access_count: int
     is_active: bool
     has_password: bool
-    qr_code_data: Optional[str] = None
+    qr_code_data: str | None = None
 
 
 class ShareLinkVerify(BaseModel):
@@ -79,12 +78,12 @@ async def create_share_link(
     - 自动生成二维码
     """
     svc = get_share_link_service()
-    
+
     # 验证权限级别
     valid_permissions = [p.value for p in SharePermission]
     if req.permission not in valid_permissions:
         raise HTTPException(status_code=400, detail=f"无效的权限级别，可选值: {valid_permissions}")
-    
+
     # 创建分享链接
     link = svc.create_share_link(
         ppt_id=req.ppt_id,
@@ -94,7 +93,7 @@ async def create_share_link(
         expires_in_hours=req.expires_in_hours,
         password=req.password or "",
     )
-    
+
     return ShareLinkResponse(
         share_id=link.share_id,
         share_code=link.share_code,
@@ -123,16 +122,16 @@ async def get_share_link(
     """
     svc = get_share_link_service()
     link = svc.get_by_code(share_code)
-    
+
     if not link:
         raise HTTPException(status_code=404, detail="分享链接不存在")
-    
+
     if not link.is_active:
         raise HTTPException(status_code=410, detail="分享链接已失效")
-    
+
     if link.is_expired():
         raise HTTPException(status_code=410, detail="分享链接已过期")
-    
+
     return ShareLinkResponse(
         share_id=link.share_id,
         share_code=link.share_code,
@@ -164,7 +163,7 @@ async def verify_share_access(
     """
     svc = get_share_link_service()
     result = svc.verify_share_access(share_code, body.password)
-    
+
     if not result["valid"]:
         if result.get("requires_password"):
             return JSONResponse(
@@ -176,7 +175,7 @@ async def verify_share_access(
                 }
             )
         raise HTTPException(status_code=400, detail=result["error"])
-    
+
     return {
         "valid": True,
         "ppt_id": result["ppt_id"],
@@ -196,16 +195,16 @@ async def get_share_qr_code(
     """
     svc = get_share_link_service()
     link = svc.get_by_code(share_code)
-    
+
     if not link:
         raise HTTPException(status_code=404, detail="分享链接不存在")
-    
+
     if not link.is_active or link.is_expired():
         raise HTTPException(status_code=410, detail="分享链接已失效或过期")
-    
+
     if not link.qr_code_data:
         raise HTTPException(status_code=404, detail="二维码不存在")
-    
+
     return {
         "share_code": share_code,
         "qr_code_data": link.qr_code_data,
@@ -220,7 +219,7 @@ async def list_my_share_links(
     """列出当前用户的所有分享链接"""
     svc = get_share_link_service()
     links = svc.list_user_links(user.user_id)
-    
+
     return {
         "success": True,
         "count": len(links),
@@ -252,13 +251,13 @@ async def update_share_link(
 ):
     """更新分享链接设置"""
     svc = get_share_link_service()
-    
+
     # 验证权限级别
     if req.permission is not None:
         valid_permissions = [p.value for p in SharePermission]
         if req.permission not in valid_permissions:
-            raise HTTPException(status_code=400, detail=f"无效的权限级别")
-    
+            raise HTTPException(status_code=400, detail="无效的权限级别")
+
     link = svc.update_link(
         share_id=share_id,
         owner_id=user.user_id,
@@ -266,10 +265,10 @@ async def update_share_link(
         permission=req.permission,
         password=req.password,
     )
-    
+
     if not link:
         raise HTTPException(status_code=404, detail="分享链接不存在或无权限")
-    
+
     return {
         "success": True,
         "share_id": link.share_id,
@@ -288,10 +287,10 @@ async def delete_share_link(
     """删除分享链接"""
     svc = get_share_link_service()
     success = svc.delete_link(share_id, user.user_id)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="分享链接不存在或无权限")
-    
+
     return {"success": True}
 
 
@@ -303,10 +302,10 @@ async def deactivate_share_link(
     """禁用分享链接"""
     svc = get_share_link_service()
     success = svc.deactivate_link(share_id, user.user_id)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="分享链接不存在或无权限")
-    
+
     return {"success": True}
 
 
@@ -318,8 +317,8 @@ async def get_share_analytics(
     """获取分享链接统计"""
     svc = get_share_link_service()
     analytics = svc.get_link_analytics(share_id, user.user_id)
-    
+
     if not analytics:
         raise HTTPException(status_code=404, detail="分享链接不存在或无权限")
-    
+
     return {"success": True, **analytics}

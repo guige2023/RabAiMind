@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Smart Content Suggestions Service
 智能内容增强：内容建议、引用查找、图片建议、引用语推荐、相关演示文稿
 """
-import logging
 import json
+import logging
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from .volc_api import get_volc_api
 
@@ -183,10 +182,10 @@ PPT主题：{topic}
     def content_boost(
         self,
         topic: str,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         style: str = "professional",
         scene: str = "business"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         AI suggests relevant content to add to the presentation.
         """
@@ -229,8 +228,8 @@ PPT主题：{topic}
     def citation_finder(
         self,
         topic: str,
-        slides: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        slides: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Automatically find sources for claims in the presentation.
         """
@@ -271,8 +270,8 @@ PPT主题：{topic}
     def image_suggestions(
         self,
         topic: str,
-        slides: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        slides: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Suggest relevant images based on slide content.
         """
@@ -322,10 +321,10 @@ PPT主题：{topic}
     def quote_suggestions(
         self,
         topic: str,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         style: str = "professional",
         scene: str = "business"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Suggest relevant quotes from a knowledge base.
         """
@@ -368,11 +367,11 @@ PPT主题：{topic}
     def related_presentations(
         self,
         topic: str,
-        slides: List[Dict[str, Any]],
+        slides: list[dict[str, Any]],
         style: str = "professional",
         scene: str = "business",
         page_count: int = 10
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Link to related presentations based on content.
         """

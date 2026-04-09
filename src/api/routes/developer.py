@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 API Developer Platform — Routes
 
@@ -13,22 +12,19 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import asyncio
 import time
-import hashlib
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel
 
-from ...config import settings
-from ...services.developer_service import get_developer_service
 from ...api.middleware.rate_limit import (
-    get_user_id_from_request,
     get_quota_status,
     get_rate_limiter,
+    get_user_id_from_request,
 )
+from ...config import settings
+from ...services.developer_service import get_developer_service
 
 router = APIRouter(prefix="/api/v1/developer", tags=["developer"])
 
@@ -39,10 +35,10 @@ def _make_code_example(
     lang: str,
     method: str,
     path: str,
-    headers: Dict[str, str],
-    body: Optional[str],
+    headers: dict[str, str],
+    body: str | None,
     description: str,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Build a code example dict for one language."""
     snippet = ""
     if lang == "curl":
@@ -76,7 +72,7 @@ def _make_code_example(
     return {"lang": lang, "description": description, "code": snippet}
 
 
-def _build_examples() -> Dict[str, List[Dict[str, str]]]:
+def _build_examples() -> dict[str, list[dict[str, str]]]:
     """Build code examples for all main API endpoints."""
     h = {"Content-Type": "application/json", "Accept": "application/json"}
     body_gen = '{"user_request":"创建一个关于AI发展趋势的演示文稿","scene":"tech","style":"modern","slide_count":10}'
@@ -101,7 +97,7 @@ def _build_examples() -> Dict[str, List[Dict[str, str]]]:
         ("撤销 API Key", "DELETE", "/api/v1/developer/api-keys/{key_id}", {}, None),
     ]
 
-    result: Dict[str, List[Dict[str, str]]] = {}
+    result: dict[str, list[dict[str, str]]] = {}
     for lang in ["python", "javascript", "curl"]:
         result[lang] = []
         for desc, method, path, headers, body in endpoints:
@@ -116,7 +112,7 @@ def _build_examples() -> Dict[str, List[Dict[str, str]]]:
 class HealthCheckItem(BaseModel):
     component: str
     status: str  # "ok" | "degraded" | "error"
-    latency_ms: Optional[float] = None
+    latency_ms: float | None = None
     detail: str = ""
 
 
@@ -124,8 +120,8 @@ class RateLimitDashboard(BaseModel):
     user_id: str
     tier: str
     tier_name: str
-    rate_limit: Dict[str, Any]
-    quota: Dict[str, Any]
+    rate_limit: dict[str, Any]
+    quota: dict[str, Any]
 
 
 # ── Routes ───────────────────────────────────────────────────
@@ -263,7 +259,7 @@ async def get_api_health(request: Request):
     - Webhook service
     - AI API (Volcano Engine) connectivity
     """
-    components: List[HealthCheckItem] = []
+    components: list[HealthCheckItem] = []
     overall_status = "ok"
 
     # 1. API self-check
@@ -404,8 +400,8 @@ async def get_api_health(request: Request):
 )
 async def get_webhook_logs(
     request: Request,
-    webhook_id: Optional[str] = Query(None, description="Filter by webhook ID"),
-    event: Optional[str] = Query(None, description="Filter by event type"),
+    webhook_id: str | None = Query(None, description="Filter by webhook ID"),
+    event: str | None = Query(None, description="Filter by event type"),
     limit: int = Query(50, ge=1, le=500, description="Number of logs to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
 ):

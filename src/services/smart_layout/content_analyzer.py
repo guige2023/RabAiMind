@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 内容分析模块
 
@@ -8,10 +7,9 @@
 日期: 2026-03-18
 """
 
-import threading
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 import re
+import threading
+from dataclasses import dataclass
 
 
 @dataclass
@@ -24,7 +22,7 @@ class ContentAnalysisResult:
     has_comparison: bool         # 是否需要对比
     has_quote: bool              # 是否为引用内容
     is_title_slide: bool         # 是否为封面
-    keywords: List[str]          # 关键词列表
+    keywords: list[str]          # 关键词列表
     recommended_layout: str      # 推荐的布局
 
 
@@ -178,7 +176,7 @@ class ContentAnalyzer:
 
         return False
 
-    def _extract_keywords(self, text: str) -> List[str]:
+    def _extract_keywords(self, text: str) -> list[str]:
         """提取关键词"""
         keywords = []
 
@@ -238,7 +236,7 @@ class ContentAnalyzer:
         has_quote: bool,
         has_timeline: bool,
         has_comparison: bool,
-        keywords: List[str]
+        keywords: list[str]
     ) -> str:
         """确定内容类型"""
         if is_title_slide:
@@ -252,7 +250,7 @@ class ContentAnalyzer:
         else:
             return "content"
 
-    def batch_analyze(self, slides: List[Dict[str, str]]) -> List[ContentAnalysisResult]:
+    def batch_analyze(self, slides: list[dict[str, str]]) -> list[ContentAnalysisResult]:
         """
         批量分析多个幻灯片
 
@@ -274,7 +272,7 @@ class ContentAnalyzer:
 
 
 # 单例实例
-_content_analyzer_instance: Optional[ContentAnalyzer] = None
+_content_analyzer_instance: ContentAnalyzer | None = None
 _manager_lock = threading.Lock()
 
 

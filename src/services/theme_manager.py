@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 主题管理器 - 处理主题配色和字体
 
@@ -13,9 +12,9 @@
 """
 
 import logging
-import threading
-from typing import Dict, Any, List, Optional
 import re
+import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -158,13 +157,13 @@ class ThemeManager:
         self.current_theme = 'professional'
         self.current_color = '#165DFF'
 
-    def set_theme(self, style: str, theme_color: str = '#165DFF') -> Dict[str, Any]:
+    def set_theme(self, style: str, theme_color: str = '#165DFF') -> dict[str, Any]:
         """设置当前主题"""
         self.current_theme = style
         self.current_color = theme_color
         return self.get_theme_config()
 
-    def get_theme_config(self) -> Dict[str, Any]:
+    def get_theme_config(self) -> dict[str, Any]:
         """获取当前主题配置"""
         palette = self.STYLE_PALETTES.get(self.current_theme, self.STYLE_PALETTES['professional'])
 
@@ -175,7 +174,7 @@ class ThemeManager:
             'fonts': self.DEFAULT_FONTS.copy()
         }
 
-    def generate_color_palette(self, style: str, base_color: str = None) -> Dict[str, str]:
+    def generate_color_palette(self, style: str, base_color: str = None) -> dict[str, str]:
         """根据风格生成配色方案
 
         Args:
@@ -193,7 +192,7 @@ class ThemeManager:
         palette = self.STYLE_PALETTES.get(style, self.STYLE_PALETTES['professional'])
         return palette.copy()
 
-    def _generate_from_base_color(self, base_color: str) -> Dict[str, str]:
+    def _generate_from_base_color(self, base_color: str) -> dict[str, str]:
         """从基础颜色生成配色方案"""
         # 解析基础颜色
         rgb = self._hex_to_rgb(base_color)
@@ -216,7 +215,7 @@ class ThemeManager:
         font_subtitle: str = '思源黑体',
         font_content: str = '思源宋体',
         font_caption: str = '思源黑体'
-    ) -> Dict[str, Dict[str, Any]]:
+    ) -> dict[str, dict[str, Any]]:
         """获取字体配置"""
         fonts = self.DEFAULT_FONTS.copy()
         fonts['title']['family'] = font_title
@@ -226,7 +225,7 @@ class ThemeManager:
         return fonts
 
     def get_text_style_config(self, text_style: str, shadow_color: str = '#000000',
-                             overlay_transparency: int = 30) -> Dict[str, Any]:
+                             overlay_transparency: int = 30) -> dict[str, Any]:
         """获取文字样式配置
 
         Args:
@@ -299,11 +298,7 @@ class ThemeManager:
 
     def _rgb_to_hex(self, rgb: tuple) -> str:
         """RGB转Hex颜色"""
-        return '#{:02x}{:02x}{:02x}'.format(
-            max(0, min(255, rgb[0])),
-            max(0, min(255, rgb[1])),
-            max(0, min(255, rgb[2]))
-        )
+        return f'#{max(0, min(255, rgb[0])):02x}{max(0, min(255, rgb[1])):02x}{max(0, min(255, rgb[2])):02x}'
 
     def _adjust_brightness(self, rgb: tuple, adjustment: int) -> tuple:
         """调整颜色亮度"""
@@ -316,7 +311,7 @@ class ThemeManager:
         luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
         return '#000000' if luminance > 0.5 else '#FFFFFF'
 
-    def parse_color_from_css(self, css: str) -> Optional[str]:
+    def parse_color_from_css(self, css: str) -> str | None:
         """从CSS中解析颜色"""
         # 匹配hex颜色
         hex_match = re.search(r'#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})', css)
@@ -333,7 +328,7 @@ class ThemeManager:
 
 
 # 全局实例
-_theme_manager: Optional[ThemeManager] = None
+_theme_manager: ThemeManager | None = None
 _manager_lock = threading.Lock()  # 保护单例创建
 
 

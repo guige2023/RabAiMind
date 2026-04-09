@@ -1,15 +1,25 @@
-# -*- coding: utf-8 -*-
 """
 Social Engagement API Routes
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query
-from typing import Optional, List, Dict
 import logging
+
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from ...models import (
+    EngagementStats,
+    PollVoteRequest,
+    PollVoteResponse,
+    QASubmitRequest,
+    QASubmitResponse,
+    ReactionRequest,
+    ReactionResponse,
+    ShareLinkRequest,
+    ShareLinkResponse,
+    ViewCountResponse,
+)
 from ...services.engagement_service import get_engagement_service
-from ...models import ReactionType, ReactionRequest, ReactionResponse, ShareLinkRequest, ShareLinkResponse, ViewCountResponse, EngagementStats, PollVoteRequest, PollVoteResponse, QASubmitRequest, QASubmitResponse
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +69,7 @@ async def add_reaction(req: ReactionRequest, request: Request):
     """Add or update a reaction"""
     service = get_engagement_service()
     user_id = _get_user_id(request)
-    
+
     # If same reaction type is sent, toggle (remove)
     current = service.get_user_reaction(req.task_id, user_id)
     if current == req.reaction_type.value:
@@ -67,7 +77,7 @@ async def add_reaction(req: ReactionRequest, request: Request):
         result = service.remove_reaction(req.task_id, user_id)
     else:
         result = service.add_reaction(req.task_id, user_id, req.reaction_type.value)
-    
+
     return ReactionResponse(**result)
 
 
@@ -145,10 +155,10 @@ async def get_public_status(task_id: str):
 
 class CreatePollRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=300)
-    options: List[str] = Field(..., min_items=2, max_items=10)
+    options: list[str] = Field(..., min_items=2, max_items=10)
 
 
-@router.post("/polls/{task_id}", response_model=Dict)
+@router.post("/polls/{task_id}", response_model=dict)
 async def create_poll(task_id: str, req: CreatePollRequest, request: Request):
     """Create a new poll for a slide"""
     service = get_engagement_service()
@@ -227,11 +237,11 @@ async def answer_qa(task_id: str, qa_id: str, answer_text: str = Query(...), req
 
 class LeadCaptureRequest(BaseModel):
     email: str = Field(..., description="Email address")
-    name: Optional[str] = Field("", description="Name")
-    company: Optional[str] = Field("", description="Company")
+    name: str | None = Field("", description="Name")
+    company: str | None = Field("", description="Company")
 
 
-@router.post("/leads/{task_id}", response_model=Dict)
+@router.post("/leads/{task_id}", response_model=dict)
 async def capture_lead(task_id: str, req: LeadCaptureRequest, request: Request):
     """Capture a lead (email collection) from embedded presentation"""
     import re
@@ -239,7 +249,7 @@ async def capture_lead(task_id: str, req: LeadCaptureRequest, request: Request):
     email = req.email.strip()
     if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
         return {"success": False, "error": "Invalid email format"}
-    
+
     service = get_engagement_service()
     result = service.add_lead_capture(
         task_id,
@@ -250,21 +260,21 @@ async def capture_lead(task_id: str, req: LeadCaptureRequest, request: Request):
     return result
 
 
-@router.get("/leads/{task_id}", response_model=Dict)
+@router.get("/leads/{task_id}", response_model=dict)
 async def get_leads(task_id: str):
     """Get all captured leads for a task"""
     service = get_engagement_service()
     return service.get_lead_captures(task_id)
 
 
-@router.get("/leads/{task_id}/stats", response_model=Dict)
+@router.get("/leads/{task_id}/stats", response_model=dict)
 async def get_lead_stats(task_id: str):
     """Get lead capture statistics"""
     service = get_engagement_service()
     return service.get_lead_stats(task_id)
 
 
-@router.post("/pixel/{task_id}/track", response_model=Dict)
+@router.post("/pixel/{task_id}/track", response_model=dict)
 async def track_pixel_view(task_id: str, request: Request):
     """Track a pixel view event from external website"""
     service = get_engagement_service()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AI Analysis Service - Phase 2.1 AI分析服务层
 
@@ -14,7 +13,7 @@ Agent 层负责编排决策，Service 层负责具体业务逻辑。
 import logging
 import os
 import tempfile
-from typing import Dict, Any, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +27,9 @@ class Slide:
         slide_number: int,
         title: str,
         content: str,
-        bullet_points: Optional[List[str]] = None,
+        bullet_points: list[str] | None = None,
         layout_type: str = "content_card",
-        notes: Optional[str] = None
+        notes: str | None = None
     ):
         self.slide_number = slide_number
         self.title = title
@@ -46,9 +45,9 @@ class KeyInfo:
         self,
         title: str,
         summary: str,
-        key_points: List[str],
-        keywords: List[str],
-        metadata: Optional[Dict[str, Any]] = None
+        key_points: list[str],
+        keywords: list[str],
+        metadata: dict[str, Any] | None = None
     ):
         self.title = title
         self.summary = summary
@@ -64,10 +63,10 @@ class AudiencePersona:
         name: str,
         age_range: str,
         occupation: str,
-        pain_points: List[str],
-        interests: List[str],
+        pain_points: list[str],
+        interests: list[str],
         preferred_content_style: str,
-        demographics: Optional[Dict[str, Any]] = None
+        demographics: dict[str, Any] | None = None
     ):
         self.name = name
         self.age_range = age_range
@@ -83,10 +82,10 @@ class CompetitorAnalysis:
     def __init__(
         self,
         competitor_name: str,
-        strengths: List[str],
-        weaknesses: List[str],
+        strengths: list[str],
+        weaknesses: list[str],
         market_position: str,
-        comparison_data: Optional[Dict[str, Any]] = None
+        comparison_data: dict[str, Any] | None = None
     ):
         self.competitor_name = competitor_name
         self.strengths = strengths
@@ -125,7 +124,7 @@ class AIAnalysisService:
             self._analyzer = get_ai_analyzer()
         return self._analyzer
 
-    def analyze_document(self, file_path: str) -> Dict[str, Any]:
+    def analyze_document(self, file_path: str) -> dict[str, Any]:
         """
         分析文档
 
@@ -141,7 +140,7 @@ class AIAnalysisService:
         self,
         file_content: bytes,
         file_name: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         从上传的文件内容分析文档
 
@@ -173,9 +172,9 @@ class AIAnalysisService:
 
     def generate_outline(
         self,
-        key_info: Dict[str, Any],
+        key_info: dict[str, Any],
         scene: str = "business"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         生成PPT大纲
 
@@ -205,7 +204,7 @@ class AIAnalysisService:
         self,
         file_path: str,
         scene: str = "business"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         从文档直接生成PPT大纲（一步完成）
 
@@ -233,7 +232,7 @@ class AIAnalysisService:
             "outline": outline
         }
 
-    def competitor_analysis(self, url: str, name: Optional[str] = None) -> Dict[str, Any]:
+    def competitor_analysis(self, url: str, name: str | None = None) -> dict[str, Any]:
         """
         竞品分析
 
@@ -246,7 +245,7 @@ class AIAnalysisService:
         """
         return self.analyzer.competitor_analysis(url, name)
 
-    def audience_profiling(self, description: str) -> Dict[str, Any]:
+    def audience_profiling(self, description: str) -> dict[str, Any]:
         """
         受众画像生成
 
@@ -260,9 +259,9 @@ class AIAnalysisService:
 
     def create_presentation_from_analysis(
         self,
-        key_info: Dict[str, Any],
-        outline: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        key_info: dict[str, Any],
+        outline: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         根据分析和大纲创建演示文稿数据
 
@@ -286,7 +285,7 @@ class AIAnalysisService:
 
 # ==================== Global Instance ====================
 
-_ai_analysis_service_instance: Optional[AIAnalysisService] = None
+_ai_analysis_service_instance: AIAnalysisService | None = None
 
 
 def get_ai_analysis_service() -> AIAnalysisService:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT Advanced Routes - AI功能、布局、主题、嵌入、教练、A/B测试等高级路由
 
@@ -6,15 +5,16 @@ PPT Advanced Routes - AI功能、布局、主题、嵌入、教练、A/B测试�
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query, Body, UploadFile, File, Form
-from fastapi.responses import JSONResponse, StreamingResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+import io
 import logging
+import os
 import re
 import zipfile
-import io
-import os
+from typing import Any
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +35,12 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         request: 包含 scene, style, content, layout 等参数
     """
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
         get_rate_limiter,
-        rate_limit_exceeded_response,
+        get_user_id_from_request,
     )
-    from ...services.task_manager import get_task_manager
-    from ...services.ppt_generator import PPTGenerator
     from ...config import settings
+    from ...services.ppt_generator import PPTGenerator
+    from ...services.task_manager import get_task_manager
 
     # 速率限制检查
     user_id = get_user_id_from_request(request)
@@ -113,7 +112,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
     # 关键修复: 当 layout_mode='manual' 时，必须启用 smart_layout 才能使布局参数生效
     if layout_mode == 'manual' and not use_smart_layout:
         use_smart_layout = True
-        logger.info(f"[regenerateSlide] layout_mode=manual, 强制启用 use_smart_layout")
+        logger.info("[regenerateSlide] layout_mode=manual, 强制启用 use_smart_layout")
 
     # 重置首页布局状态（applyTuning 时需要）
     if reset_first_layout:
@@ -139,7 +138,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
             )
         else:
             svg_code = gen._generate_svg(slide_data, slide_index)
-        
+
         # 保存SVG文件到任务目录
         task_output_dir = os.path.join(settings.OUTPUT_DIR, task_id)
         os.makedirs(task_output_dir, exist_ok=True)
@@ -147,7 +146,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
         # 读取旧SVG内容用于撤销
         old_svg_content = None
         if os.path.exists(svg_path):
-            with open(svg_path, 'r', encoding='utf-8') as f:
+            with open(svg_path, encoding='utf-8') as f:
                 old_svg_content = f.read()
         with open(svg_path, 'w', encoding='utf-8') as f:
             f.write(svg_code)
@@ -158,7 +157,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
             description=f"重生成第{slide_index}页",
             undo_data={"old_svg_content": old_svg_content, "slide_index": slide_index, "svg_path": svg_path}
         )
-        
+
         # 重建PPTX（布局变化后需要更新）
         try:
             import glob
@@ -179,7 +178,7 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
                 logger.info(f"PPTX已重建: {pptx_path}")
         except Exception as e:
             logger.warning(f"PPTX重建失败（SVG已更新）: {e}")
-        
+
         return {
             "success": True,
             "data": {
@@ -200,23 +199,23 @@ async def regenerate_single_slide(task_id: str, slide_index: int, request: Reque
 
 class SlideImageRequest(BaseModel):
     """单页图片请求"""
-    image_url: Optional[str] = Field(None, description="图片URL（用户上传或外部链接）")
+    image_url: str | None = Field(None, description="图片URL（用户上传或外部链接）")
     action: str = Field("set", description="操作类型: set=设置图片, remove=移除图片, regenerate=重新生成")
 
 
 class SlideImageResponse(BaseModel):
     """单页图片响应"""
     success: bool
-    image_url: Optional[str] = None
+    image_url: str | None = None
     message: str = ""
 
 
 @router.put("/image/{task_id}/{slide_index}", response_model=SlideImageResponse)
 async def update_slide_image(task_id: str, slide_index: int, request: SlideImageRequest):
     """更新单页幻灯片的图片"""
-    from ...services.task_manager import get_task_manager
-    from ...services.ppt_generator import PPTGenerator
     from ...config import settings
+    from ...services.ppt_generator import PPTGenerator
+    from ...services.task_manager import get_task_manager
 
     # 验证task_id格式
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
@@ -351,9 +350,10 @@ async def update_slide_image(task_id: str, slide_index: int, request: SlideImage
 @router.post("/image/{task_id}/{slide_index}/upload", response_model=SlideImageResponse)
 async def upload_slide_image(task_id: str, slide_index: int, request: Request):
     """上传单页幻灯片的图片"""
-    from ...services.task_manager import get_task_manager
-    from ...config import settings
     import uuid
+
+    from ...config import settings
+    from ...services.task_manager import get_task_manager
 
     # 验证task_id格式
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
@@ -423,17 +423,17 @@ async def upload_slide_image(task_id: str, slide_index: int, request: Request):
 # ==================== Batch Operations ====================
 
 class BatchExportRequest(BaseModel):
-    task_ids: List[str]
+    task_ids: list[str]
     format: str = Field(default="pptx", description="导出格式: pptx, pdf, png")
     quality: str = Field(default="high", description="导出质量: low, medium, high")
 
 
 class BatchDeleteRequest(BaseModel):
-    task_ids: List[str]
+    task_ids: list[str]
 
 
 class BatchThemeRequest(BaseModel):
-    task_ids: List[str]
+    task_ids: list[str]
     theme_primary: str = Field(default="#165DFF")
     theme_secondary: str = Field(default="#0E42D2")
     theme_accent: str = Field(default="#00C6FF")
@@ -441,7 +441,7 @@ class BatchThemeRequest(BaseModel):
 
 
 class BatchGenerateRequest(BaseModel):
-    outlines: List[Any] = Field(..., description="多个大纲配置，并行生成")
+    outlines: list[Any] = Field(..., description="多个大纲配置，并行生成")
 
 
 @router.post("/batch/export")
@@ -450,11 +450,6 @@ async def batch_export_ppt(
     request: BatchExportRequest
 ):
     """批量导出多个PPT为ZIP文件"""
-    from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
-        get_rate_limiter,
-        rate_limit_exceeded_response,
-    )
 
     rate_error = _check_rate_limit_middleware(http_request)
     if rate_error:
@@ -513,11 +508,6 @@ async def batch_delete_tasks(
     request: BatchDeleteRequest
 ):
     """批量删除任务"""
-    from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
-        get_rate_limiter,
-        rate_limit_exceeded_response,
-    )
 
     rate_error = _check_rate_limit_middleware(http_request)
     if rate_error:
@@ -562,11 +552,6 @@ async def batch_apply_theme(
 ):
     """批量应用主题颜色到多个任务"""
     from ...services.theme_applier import apply_theme_to_task
-    from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
-        get_rate_limiter,
-        rate_limit_exceeded_response,
-    )
 
     rate_error = _check_rate_limit_middleware(http_request)
     if rate_error:
@@ -609,10 +594,9 @@ async def generate_parallel_ppt(
 ):
     """并行生成多个PPT（接受多个大纲配置）"""
     import threading
+
     from ...api.middleware.rate_limit import (
         get_user_id_from_request,
-        get_rate_limiter,
-        rate_limit_exceeded_response,
     )
     from ...services.ppt_generator import get_ppt_generator
 
@@ -703,11 +687,11 @@ async def generate_parallel_ppt(
     }
 
 
-def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:
+def _check_rate_limit_middleware(request: Request) -> JSONResponse | None:
     """Check rate limit, return error response if exceeded, else None."""
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
         get_rate_limiter,
+        get_user_id_from_request,
         rate_limit_exceeded_response,
     )
     user_id = get_user_id_from_request(request)
@@ -789,7 +773,7 @@ async def import_url(
 
 class ImportGoogleSlidesRequest(BaseModel):
     presentation_url: str = Field(..., description="Google Slides 分享链接或 presentation ID")
-    access_token: Optional[str] = Field(None, description="OAuth access token (可选，有则用API导入)")
+    access_token: str | None = Field(None, description="OAuth access token (可选，有则用API导入)")
 
 
 @router.post("/import/google-slides")
@@ -814,7 +798,7 @@ async def import_google_slides(
 
 class ImportPinterestRequest(BaseModel):
     board_url: str = Field(..., description="Pinterest board URL or user profile URL")
-    access_token: Optional[str] = Field(None, description="Pinterest OAuth access token")
+    access_token: str | None = Field(None, description="Pinterest OAuth access token")
 
 
 @router.post("/import/pinterest")
@@ -839,7 +823,7 @@ async def import_pinterest(
 
 class ImportNotionRequest(BaseModel):
     page_url: str = Field(..., description="Notion 页面分享链接或 page ID")
-    access_token: Optional[str] = Field(None, description="Notion Integration Token (ntn_xxx)")
+    access_token: str | None = Field(None, description="Notion Integration Token (ntn_xxx)")
 
 
 @router.post("/import/notion")
@@ -867,7 +851,7 @@ async def import_notion(
 
 class ImportGoogleDocsRequest(BaseModel):
     doc_url: str = Field(..., description="Google Docs 文档链接或 document ID")
-    access_token: Optional[str] = Field(None, description="Google OAuth access token")
+    access_token: str | None = Field(None, description="Google OAuth access token")
 
 
 @router.post("/import/google-docs")
@@ -895,7 +879,7 @@ async def import_google_docs(
 
 class ImportLarkRequest(BaseModel):
     doc_url: str = Field(..., description="飞书文档分享链接或 doc ID")
-    access_token: Optional[str] = Field(None, description="飞书 access token (可选)")
+    access_token: str | None = Field(None, description="飞书 access token (可选)")
 
 @router.post("/import/lark")
 async def import_lark(
@@ -922,7 +906,7 @@ async def import_lark(
 
 class ImportMarkdownRequest(BaseModel):
     content: str = Field(..., description="Markdown 格式的文本内容")
-    title: Optional[str] = Field(None, description="文档标题（可选，默认从内容提取）")
+    title: str | None = Field(None, description="文档标题（可选，默认从内容提取）")
 
 @router.post("/import/markdown")
 async def import_markdown(
@@ -948,8 +932,8 @@ async def import_markdown(
 # ==================== Images Import ====================
 
 class ImportImagesRequest(BaseModel):
-    titles: Optional[List[str]] = Field(None, description="每张图片对应的标题列表")
-    captions: Optional[List[str]] = Field(None, description="每张图片对应的描述列表")
+    titles: list[str] | None = Field(None, description="每张图片对应的标题列表")
+    captions: list[str] | None = Field(None, description="每张图片对应的描述列表")
     layout: str = Field(default="center", description="布局: center, left_image_right_text, left_text_right_image")
     scene: str = Field(default="general", description="场景类型")
     style: str = Field(default="professional", description="风格类型")
@@ -958,9 +942,9 @@ class ImportImagesRequest(BaseModel):
 @router.post("/import/images")
 async def import_images(
     request: Request,
-    files: List[UploadFile] = File(...),
-    titles: Optional[List[str]] = Form(None),
-    captions: Optional[List[str]] = Form(None),
+    files: list[UploadFile] = File(...),
+    titles: list[str] | None = Form(None),
+    captions: list[str] | None = Form(None),
     layout: str = Form("center"),
     scene: str = Form("general"),
     style: str = Form("professional"),
@@ -1008,7 +992,7 @@ async def import_images(
 # ==================== Advanced AI Features ====================
 
 class SmartCopyRequest(BaseModel):
-    source_slides: List[Dict[str, Any]] = Field(..., description="源PPT幻灯片列表")
+    source_slides: list[dict[str, Any]] = Field(..., description="源PPT幻灯片列表")
     target_theme: str = Field(..., description="目标PPT主题")
     target_style: str = Field("professional", description="目标风格")
     target_page_count: int = Field(5, description="目标页数")
@@ -1032,7 +1016,7 @@ async def smart_copy(request: Request, body: SmartCopyRequest):
 
 
 class ExtendContentRequest(BaseModel):
-    outline: List[Dict[str, Any]] = Field(..., description="简略大纲")
+    outline: list[dict[str, Any]] = Field(..., description="简略大纲")
     topic: str = Field(..., description="PPT主题")
     audience: str = Field("商务人士", description="目标受众")
     style: str = Field("professional", description="风格")
@@ -1056,7 +1040,7 @@ async def extend_content(request: Request, body: ExtendContentRequest):
 
 
 class SpeakerNotesRequest(BaseModel):
-    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
+    slides: list[dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
     total_duration: int = Field(10, description="总演讲时长（分钟）")
 
 
@@ -1079,9 +1063,9 @@ async def generate_speaker_notes(request: Request, body: SpeakerNotesRequest):
 
 
 class DesignCheckRequest(BaseModel):
-    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多30页）")
+    slides: list[dict[str, Any]] = Field(..., description="幻灯片列表（最多30页）")
     style_theme: str = Field("business", description="风格主题")
-    brand_colors: Optional[List[str]] = Field(None, description="品牌配色")
+    brand_colors: list[str] | None = Field(None, description="品牌配色")
 
 
 @router.post("/ai/design-check")
@@ -1104,7 +1088,7 @@ async def check_design_consistency(request: Request, body: DesignCheckRequest):
 
 
 class ProfessionalPolishRequest(BaseModel):
-    slides: List[Dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
+    slides: list[dict[str, Any]] = Field(..., description="幻灯片列表（最多20页）")
     target_style: str = Field("business", description="目标风格")
     use_case: str = Field("商务演示", description="使用场景")
 
@@ -1237,7 +1221,7 @@ async def get_all_layouts():
     from ...services.smart_layout.layout_strategy import get_layout_strategy
     strategy = get_layout_strategy()
     all_layouts = strategy.get_all_layouts()
-    
+
     layout_list = []
     for layout_type, info in all_layouts.items():
         layout_list.append({
@@ -1247,7 +1231,7 @@ async def get_all_layouts():
             "typical_use": info.get("typical_use", []),
             "elements": info.get("elements", []),
         })
-    
+
     return {"success": True, "layouts": layout_list}
 
 
@@ -1263,8 +1247,8 @@ async def suggest_theme(
     """
     智能主题推荐：根据内容上下文自动推荐最佳主题配色
     """
-    from ...services.smart_layout.content_analyzer import get_content_analyzer
     from ...services.smart_layout.color_scheme import get_color_scheme_generator
+    from ...services.smart_layout.content_analyzer import get_content_analyzer
 
     analyzer = get_content_analyzer()
     analysis = analyzer.analyze(title or "", content or "")
@@ -1372,16 +1356,16 @@ def _get_theme_style_name_api(style: str) -> str:
 
 class EmbedConfigRequest(BaseModel):
     embed_type: str = Field(..., description="Type: iframe, floating_button, inline_preview, analytics, pixel, lead_capture")
-    width: Optional[str] = "100%"
-    height: Optional[str] = "600px"
-    theme: Optional[str] = "light"
-    position: Optional[str] = "bottom-right"
-    analytics_token: Optional[str] = None
-    show_controls: Optional[bool] = True
-    auto_slide: Optional[int] = 0
-    start_slide: Optional[int] = 1
-    lead_form_title: Optional[str] = "订阅更新"
-    lead_button_text: Optional[str] = "立即订阅"
+    width: str | None = "100%"
+    height: str | None = "600px"
+    theme: str | None = "light"
+    position: str | None = "bottom-right"
+    analytics_token: str | None = None
+    show_controls: bool | None = True
+    auto_slide: int | None = 0
+    start_slide: int | None = 1
+    lead_form_title: str | None = "订阅更新"
+    lead_button_text: str | None = "立即订阅"
 
 
 @router.get("/embed/{task_id}")
@@ -1390,7 +1374,7 @@ async def get_embed_config(request: Request, task_id: str):
     from ...api.middleware.rate_limit import get_user_id_from_request
     user_id = get_user_id_from_request(request) or "anonymous"
     base_url = str(request.base_url).rstrip("/")
-    
+
     return JSONResponse({
         "success": True,
         "embed_url": f"{base_url}/embed/{task_id}/viewer",
@@ -1412,10 +1396,10 @@ async def generate_embed_code(request: Request, task_id: str, config: EmbedConfi
     from ...api.middleware.rate_limit import get_user_id_from_request
     user_id = get_user_id_from_request(request) or "anonymous"
     base_url = str(request.base_url).rstrip("/")
-    
+
     embed_url = f"{base_url}/embed/{task_id}/viewer"
     full_url = f"{base_url}/result?taskId={task_id}"
-    
+
     if config.embed_type == "iframe":
         code = f'''<iframe 
   src="{embed_url}?theme={config.theme or "light"}&controls={str(config.show_controls).lower()}&auto_slide={config.auto_slide or 0}&start={config.start_slide or 1}"
@@ -1493,7 +1477,7 @@ async def generate_embed_code(request: Request, task_id: str, config: EmbedConfi
 </div>'''
     else:
         return JSONResponse({"success": False, "error": "Unknown embed type"}, status_code=400)
-    
+
     return JSONResponse({
         "success": True,
         "embed_type": config.embed_type,
@@ -1535,31 +1519,31 @@ async def get_embed_analytics(request: Request, task_id: str):
 
 class CoachAnalyzeRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
-    focus_areas: Optional[List[str]] = None
+    slides: list[dict[str, Any]]
+    focus_areas: list[str] | None = None
 
 
 class CoachPracticeRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     difficulty: str = "mixed"
     count: int = 10
 
 
 class CoachTimingRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     total_minutes: float = 15.0
 
 
 class CoachDeliveryRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
 
 
 class CoachAudienceRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     audience_profile: str = ""
 
 
@@ -1634,22 +1618,22 @@ async def coach_quick_score(request: Request, task_id: str):
     try:
         from ...services.presentation_coach import get_presentation_coach_service
         from ...services.task_manager import get_task_manager
-        
+
         tm = get_task_manager()
         task = tm.get_task(task_id)
-        
+
         if not task:
             return JSONResponse({"success": False, "error": "任务不存在"}, status_code=404)
-        
+
         slides = []
         if task.result and hasattr(task.result, 'outline'):
             outline = task.result.outline
             if isinstance(outline, dict) and 'slides' in outline:
                 slides = outline['slides']
-        
+
         coach = get_presentation_coach_service()
         score = coach.quick_score(slides)
-        
+
         return JSONResponse({
             "success": True,
             "task_id": task_id,
@@ -1749,7 +1733,7 @@ async def delete_ab_test(task_id: str, test_id: str):
 
 class SmartContentRequest(BaseModel):
     topic: str = Field(default="", description="PPT主题")
-    slides: List[Dict[str, Any]] = Field(default_factory=list, description="幻灯片列表")
+    slides: list[dict[str, Any]] = Field(default_factory=list, description="幻灯片列表")
     style: str = Field(default="professional", description="风格")
     scene: str = Field(default="business", description="场景")
     page_count: int = Field(default=10, description="页数")
@@ -1826,39 +1810,39 @@ async def suggest_related_presentations(request: SmartContentRequest):
 
 class CoachSpeakingPaceRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     total_minutes: float = 15.0
-    actual_words: Optional[int] = None
+    actual_words: int | None = None
 
 
 class CoachContentDimensionsRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
 
 
 class CoachVisualDesignRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
 
 
 class CoachEngagementRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     audience_profile: str = ""
 
 
 class CoachPersonalizedRequest(BaseModel):
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     user_id: str = "default"
 
 
 class CoachLiveSessionRequest(BaseModel):
     """R138: AI演讲教练 3.0 - 实时演讲分析请求"""
     task_id: str
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     speech_transcript: str = ""
-    filler_words_detected: List[Dict[str, Any]] = []
+    filler_words_detected: list[dict[str, Any]] = []
     current_wpm: float = 0.0
     total_words_spoken: int = 0
     speaking_duration_seconds: float = 0.0
@@ -1867,7 +1851,7 @@ class CoachLiveSessionRequest(BaseModel):
     filler_word_ratio: float = 0.0
     pace_score: float = 0.0
     confidence_score: float = 0.0
-    delivery_session_id: Optional[str] = ""
+    delivery_session_id: str | None = ""
 
 
 @router.post("/coach/speaking-pace")
@@ -2005,7 +1989,7 @@ async def detect_content_language(task_id: str):
 async def localize_presentation(
     task_id: str,
     target_locale: str = Query(..., description="目标语言代码，如 en, zh, ar, he"),
-    source_locale: Optional[str] = Query(None, description="源语言代码，如不提供则自动检测"),
+    source_locale: str | None = Query(None, description="源语言代码，如不提供则自动检测"),
     apply_rtl: bool = Query(False, description="是否应用RTL布局"),
 ):
     """将演示文稿翻译为指定语言"""

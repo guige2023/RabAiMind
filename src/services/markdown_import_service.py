@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Markdown Import Service
 Supports: Parse Markdown content and convert to PPT outline
@@ -6,7 +5,7 @@ Supports: Parse Markdown content and convert to PPT outline
 
 import logging
 import re
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 class MarkdownImportService:
     """Parse Markdown content and convert to PPT outline format"""
 
-    def parse_markdown(self, content: str) -> Dict[str, Any]:
+    def parse_markdown(self, content: str) -> dict[str, Any]:
         """
         Parse Markdown content and extract structured data.
 
@@ -193,9 +192,9 @@ class MarkdownImportService:
 
     def convert_to_outline(
         self,
-        parsed_content: Dict[str, Any],
+        parsed_content: dict[str, Any],
         title: str = "Markdown 文档"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Convert parsed Markdown blocks to PPT outline format.
 
@@ -386,8 +385,8 @@ class MarkdownImportService:
     async def import_markdown(
         self,
         markdown_content: str,
-        title: Optional[str] = None
-    ) -> Dict[str, Any]:
+        title: str | None = None
+    ) -> dict[str, Any]:
         """
         Import Markdown content and convert to PPT outline.
 

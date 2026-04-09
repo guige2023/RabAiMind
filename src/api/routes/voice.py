@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Voice API - TTS generation and translation using edge-tts + Volcano AI
 
@@ -6,15 +5,15 @@ Author: Claude
 Date: 2026-04-04
 """
 
+import asyncio
+import logging
 import os
 import uuid
-import asyncio
+
 import edge_tts
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
-import logging
 
 from ...config import settings
 from ...services.volc_api import VolcEngineAPI
@@ -53,9 +52,9 @@ TRANSLATION_LANGS = {
 class TTSRequest(BaseModel):
     text: str = Field(..., description="Text to synthesize", max_length=5000)
     voice: str = Field(default="zh-CN-Xiaoxiao", description="Voice profile ID")
-    rate: Optional[str] = Field(default="+0%", description="Speech rate adjustment")
-    volume: Optional[str] = Field(default="+0%", description="Volume adjustment")
-    pitch: Optional[str] = Field(default="+0Hz", description="Pitch adjustment")
+    rate: str | None = Field(default="+0%", description="Speech rate adjustment")
+    volume: str | None = Field(default="+0%", description="Volume adjustment")
+    pitch: str | None = Field(default="+0Hz", description="Pitch adjustment")
 
 
 class TranslateRequest(BaseModel):
@@ -65,9 +64,9 @@ class TranslateRequest(BaseModel):
 
 
 class BatchTTSRequest(BaseModel):
-    slides: List[dict] = Field(..., description="List of slides with text")
+    slides: list[dict] = Field(..., description="List of slides with text")
     voice: str = Field(default="zh-CN-Xiaoxiao")
-    rate: Optional[str] = Field(default="+0%")
+    rate: str | None = Field(default="+0%")
 
 
 def _estimate_duration(text: str, rate: str = "+0%") -> float:

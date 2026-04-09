@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared base utilities for API routes.
 
@@ -6,13 +5,14 @@ This module contains common imports, middleware helpers, and utilities
 used across all route modules.
 """
 
-from fastapi import APIRouter, Request, HTTPException, status, UploadFile, File, Form, Query, Body
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from typing import Dict, Any, List, Optional, Callable
-from pydantic import BaseModel, Field
 import logging
-import time
 import re
+import time
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,11 @@ _server_start_time = time.time()
 
 # ==================== Rate Limit Middleware ====================
 
-def _check_rate_limit_middleware(request: Request) -> Optional[JSONResponse]:
+def _check_rate_limit_middleware(request: Request) -> JSONResponse | None:
     """Check rate limit, return error response if exceeded, else None."""
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
         get_rate_limiter,
+        get_user_id_from_request,
         rate_limit_exceeded_response,
     )
     user_id = get_user_id_from_request(request)
@@ -66,7 +66,7 @@ def validate_output_path(file_path: str, output_dir: str) -> str:
 
 # ==================== Task Validation Helpers ====================
 
-def validate_task_completed(task_id: str) -> Dict[str, Any]:
+def validate_task_completed(task_id: str) -> dict[str, Any]:
     """Validate task exists and is completed, return task data."""
     from ...services.task_manager import get_task_manager
     task_manager = get_task_manager()
@@ -86,29 +86,15 @@ def validate_task_completed(task_id: str) -> Dict[str, Any]:
 
 # ==================== Router Factory ====================
 
-def create_router(prefix: str, tags: List[str]) -> APIRouter:
+def create_router(prefix: str, tags: list[str]) -> APIRouter:
     """Create a new APIRouter with standard prefix and tags."""
     return APIRouter(prefix=prefix, tags=tags)
 
 
 # ==================== Common Model Exports ====================
 
-from ...models import (
-    GenerateRequest,
-    GenerateResponse,
-    TaskStatusResponse,
-    TaskStatus,
-    TaskResult,
-    TaskError,
-    HealthResponse,
-    APIInfo,
-    SceneType,
-    StyleType,
-    LayoutType
-)
 
 # Re-export settings for backward compatibility with export_routes.py
-from ...config import settings
 
 
 # ==================== Standard Error Response ====================
@@ -116,13 +102,13 @@ from ...config import settings
 class APIErrorResponse(BaseModel):
     """Standard error response format for all API endpoints."""
     error: str = Field(..., description="机器可读的错误代码")
-    detail: Optional[str] = Field(None, description="人类可读的错误描述")
-    field: Optional[str] = Field(None, description="如果是字段验证错误，标识具体字段")
+    detail: str | None = Field(None, description="人类可读的错误描述")
+    field: str | None = Field(None, description="如果是字段验证错误，标识具体字段")
 
 
-def api_error(error: str, detail: Optional[str] = None, field: Optional[str] = None) -> Dict[str, Any]:
+def api_error(error: str, detail: str | None = None, field: str | None = None) -> dict[str, Any]:
     """Create a standardized error response dict."""
-    result: Dict[str, Any] = {"error": error}
+    result: dict[str, Any] = {"error": error}
     if detail is not None:
         result["detail"] = detail
     if field is not None:
@@ -130,7 +116,7 @@ def api_error(error: str, detail: Optional[str] = None, field: Optional[str] = N
     return result
 
 
-def raise_api_error(error: str, detail: Optional[str] = None, field: Optional[str] = None, status_code: int = 400):
+def raise_api_error(error: str, detail: str | None = None, field: str | None = None, status_code: int = 400):
     """Raise an HTTPException with standardized error format."""
     raise HTTPException(
         status_code=status_code,
@@ -143,7 +129,7 @@ def raise_not_found(resource: str, identifier: str):
     raise_api_error(f"{resource.upper()}_NOT_FOUND", f"{resource} {identifier} 不存在", status_code=404)
 
 
-def raise_bad_request(error: str, detail: Optional[str] = None, field: Optional[str] = None):
+def raise_bad_request(error: str, detail: str | None = None, field: str | None = None):
     """Raise a 400 Bad Request error with standard format."""
     raise_api_error(error, detail, field, status_code=400)
 
@@ -160,7 +146,6 @@ def raise_internal_error(operation: str):
 
 def validate_task_id(task_id: str) -> None:
     """Validate task_id format to prevent injection attacks."""
-    import re
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise_bad_request("INVALID_TASK_ID", f"任务ID格式无效: {task_id}", "task_id")
 
@@ -174,14 +159,14 @@ def validate_pagination(limit: int, default: int = 20, max_limit: int = 100) -> 
 
 # ==================== Safe JSON Response ====================
 
-def json_response(data: Dict[str, Any], status_code: int = 200) -> JSONResponse:
+def json_response(data: dict[str, Any], status_code: int = 200) -> JSONResponse:
     """Create a JSONResponse with consistent structure."""
     return JSONResponse(content=data, status_code=status_code)
 
 
-def success_response(data: Any = None, **kwargs) -> Dict[str, Any]:
+def success_response(data: Any = None, **kwargs) -> dict[str, Any]:
     """Create a standardized success response."""
-    result: Dict[str, Any] = {"success": True}
+    result: dict[str, Any] = {"success": True}
     if data is not None:
         result["data"] = data
     result.update(kwargs)

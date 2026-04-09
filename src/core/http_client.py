@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared HTTP Client with Connection Pooling
 
@@ -24,11 +23,12 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import httpx
-import logging
 import ipaddress
-from typing import Optional, Dict, Any
+import logging
+from typing import Any
 from urllib.parse import urlparse
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +163,12 @@ class HttpClient:
 
     def __init__(
         self,
-        limits: Optional[httpx.Limits] = None,
-        default_timeout: Optional[httpx.Timeout] = None,
+        limits: httpx.Limits | None = None,
+        default_timeout: httpx.Timeout | None = None,
     ):
         self._limits = limits or DEFAULT_LIMITS
         self._default_timeout = default_timeout or DEFAULT_TIMEOUT
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._started = False
 
     @property
@@ -251,7 +251,7 @@ class HttpClient:
         """
         return self.client.stream(method, url, **kwargs)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get connection pool statistics."""
         if self._client is None:
             return {"status": "not_started"}
@@ -272,7 +272,7 @@ http_client = HttpClient()
 
 # ==================== Utility Functions ====================
 
-async def get_image_from_url(url: str, timeout: Optional[float] = None) -> bytes:
+async def get_image_from_url(url: str, timeout: float | None = None) -> bytes:
     """
     Download image data from URL using the shared connection pool.
 
@@ -289,7 +289,7 @@ async def get_image_from_url(url: str, timeout: Optional[float] = None) -> bytes
     if not is_safe_url(url):
         raise ValueError(f"URL failed SSRF validation: {url}")
 
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     if timeout:
         kwargs["timeout"] = httpx.Timeout(timeout)
 
@@ -298,7 +298,7 @@ async def get_image_from_url(url: str, timeout: Optional[float] = None) -> bytes
     return response.content
 
 
-async def fetch_json(url: str, timeout: Optional[float] = None) -> Dict[str, Any]:
+async def fetch_json(url: str, timeout: float | None = None) -> dict[str, Any]:
     """
     Fetch JSON data from URL using the shared connection pool.
 
@@ -315,7 +315,7 @@ async def fetch_json(url: str, timeout: Optional[float] = None) -> Dict[str, Any
     if not is_safe_url(url):
         raise ValueError(f"URL failed SSRF validation: {url}")
 
-    kwargs: Dict[str, Any] = {"headers": {"Accept": "application/json"}}
+    kwargs: dict[str, Any] = {"headers": {"Accept": "application/json"}}
     if timeout:
         kwargs["timeout"] = httpx.Timeout(timeout)
 

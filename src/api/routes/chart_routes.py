@@ -1,18 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Chart-related API routes.
 
 Handles chart upload, generation, preview, smart-fill, and suggestions.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import JSONResponse
-from typing import Optional
-import logging
 import json
+import logging
+
+from fastapi import File, Form, HTTPException, UploadFile
 
 from ._base_routes import (
-    _check_rate_limit_middleware,
     create_router,
 )
 
@@ -22,7 +19,6 @@ router = create_router(prefix="/api/v1/ppt", tags=["ppt-chart"])
 
 # Chart service import
 from ...services.chart_generator import ChartGenerator
-
 
 # ==================== Chart Upload & Generation ====================
 
@@ -175,7 +171,7 @@ async def smart_fill_chart_data(
 @router.get("/chart/templates")
 async def get_chart_templates():
     """R62: 获取可用图表模板列表"""
-    from ...services.chart_generator import CHART_TEMPLATES, CHART_STYLE_PRESETS
+    from ...services.chart_generator import CHART_STYLE_PRESETS, CHART_TEMPLATES
     return {
         "success": True,
         "templates": CHART_STYLE_PRESETS,
@@ -219,7 +215,7 @@ async def get_chart_drilldown(
     label_col: str = Form(...),
     value_col: str = Form(...),
     label_value: str = Form(...),
-    group_by: Optional[str] = Form(None),
+    group_by: str | None = Form(None),
 ):
     """
     R89: 获取图表数据点的下钻详情

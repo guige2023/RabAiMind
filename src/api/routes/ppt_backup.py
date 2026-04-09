@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT Backup & Notes Routes - 备份管理和幻灯片备注路由
 
@@ -6,12 +5,13 @@ PPT Backup & Notes Routes - 备份管理和幻灯片备注路由
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query, Body, UploadFile, File
-from fastapi.responses import FileResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
 import logging
 from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +26,15 @@ router = APIRouter()
 class SlideNotesUpdate(BaseModel):
     """更新幻灯片备注请求"""
     slide_index: int
-    notes: Optional[str] = None
-    rich_notes: Optional[str] = None
-    speaker_notes: Optional[str] = None
+    notes: str | None = None
+    rich_notes: str | None = None
+    speaker_notes: str | None = None
 
 
 class SlideAnnotationsUpdate(BaseModel):
     """更新幻灯片标注请求"""
     slide_index: int
-    annotations: List[Dict[str, Any]] = []
+    annotations: list[dict[str, Any]] = []
 
 
 class StickyNoteItem(BaseModel):
@@ -46,7 +46,7 @@ class StickyNoteItem(BaseModel):
     color: str = "#FFE066"
     position_x: float = 0
     position_y: float = 0
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class StickyNoteCreate(BaseModel):
@@ -66,7 +66,7 @@ class NotesTemplateItem(BaseModel):
     description: str
     template_type: str
     content: str
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class NotesTemplateCreate(BaseModel):
@@ -80,16 +80,15 @@ class NotesTemplateCreate(BaseModel):
 @router.patch("/slides/{task_id}/notes")
 async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
     """R152: 更新幻灯片备注（支持富文本和演讲者私有备注）"""
-    from ...services.task_manager import get_task_manager
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         if update.slide_index < 0 or update.slide_index >= len(slides):
             raise HTTPException(status_code=404, detail="Slide not found")
-        
+
         slide = slides[update.slide_index]
         if update.notes is not None:
             slide["notes"] = update.notes
@@ -97,7 +96,7 @@ async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
             slide["rich_notes"] = update.rich_notes
         if update.speaker_notes is not None:
             slide["speaker_notes"] = update.speaker_notes
-        
+
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
@@ -107,19 +106,18 @@ async def update_slide_notes(task_id: str, update: SlideNotesUpdate):
 @router.patch("/slides/{task_id}/sticky-notes")
 async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
     """R152: 更新幻灯片便签数据"""
-    from ...services.task_manager import get_task_manager
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         if update.slide_index < 0 or update.slide_index >= len(slides):
             raise HTTPException(status_code=404, detail="Slide not found")
-        
+
         if update.sticky_notes is not None:
             slides[update.slide_index]["sticky_notes"] = update.sticky_notes
-        
+
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": update.slide_index}
     except Exception as e:
@@ -127,18 +125,17 @@ async def update_slide_sticky_notes(task_id: str, update: SlideNotesUpdate):
 
 
 @router.post("/annotations/{task_id}/{slide_index}")
-async def save_slide_annotations(task_id: str, slide_index: int, annotations: List[Dict[str, Any]]):
+async def save_slide_annotations(task_id: str, slide_index: int, annotations: list[dict[str, Any]]):
     """R152: 保存幻灯片标注（演示模式涂鸦）"""
-    from ...services.task_manager import get_task_manager
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         if slide_index < 0 or slide_index >= len(slides):
             raise HTTPException(status_code=404, detail="Slide not found")
-        
+
         slides[slide_index]["annotations"] = annotations
         tm.save_outline(task_id, outline)
         return {"success": True, "slide_index": slide_index, "count": len(annotations)}
@@ -149,19 +146,18 @@ async def save_slide_annotations(task_id: str, slide_index: int, annotations: Li
 @router.get("/sticky-notes/{task_id}")
 async def get_sticky_notes(task_id: str):
     """R152: 获取任务的所有便签"""
-    from ...services.task_manager import get_task_manager
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         all_sticky = []
         for idx, slide in enumerate(slides):
             sticky = slide.get("sticky_notes", [])
             for s in sticky:
                 all_sticky.append({**s, "slide_index": idx})
-        
+
         return {"success": True, "sticky_notes": all_sticky}
     except Exception as e:
         raise HTTPException(status_code=500, detail={"error": "ENDPOINT_ERROR", "detail": str(e)})
@@ -170,17 +166,16 @@ async def get_sticky_notes(task_id: str):
 @router.post("/sticky-notes/{task_id}")
 async def add_sticky_note(task_id: str, note: StickyNoteCreate):
     """R152: 添加便签"""
-    from ...services.task_manager import get_task_manager
     import uuid
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         if note.slide_index < 0 or note.slide_index >= len(slides):
             raise HTTPException(status_code=404, detail="Slide not found")
-        
+
         new_note = {
             "id": str(uuid.uuid4())[:8],
             "slide_index": note.slide_index,
@@ -191,11 +186,11 @@ async def add_sticky_note(task_id: str, note: StickyNoteCreate):
             "position_y": note.position_y,
             "created_at": datetime.now().isoformat(),
         }
-        
+
         if "sticky_notes" not in slides[note.slide_index]:
             slides[note.slide_index]["sticky_notes"] = []
         slides[note.slide_index]["sticky_notes"].append(new_note)
-        
+
         tm.save_outline(task_id, outline)
         return {"success": True, "note": new_note}
     except Exception as e:
@@ -205,23 +200,22 @@ async def add_sticky_note(task_id: str, note: StickyNoteCreate):
 @router.delete("/sticky-notes/{task_id}/{note_id}")
 async def delete_sticky_note(task_id: str, note_id: str):
     """R152: 删除便签"""
-    from ...services.task_manager import get_task_manager
     tm = get_task_manager()
-    
+
     try:
         outline = tm.get_outline(task_id)
         slides = outline.get("slides", [])
-        
+
         found = False
         for slide in slides:
             sticky = slide.get("sticky_notes", [])
             slide["sticky_notes"] = [s for s in sticky if s.get("id") != note_id]
             if len(slide["sticky_notes"]) < len(sticky):
                 found = True
-        
+
         if not found:
             raise HTTPException(status_code=404, detail="Note not found")
-        
+
         tm.save_outline(task_id, outline)
         return {"success": True}
     except HTTPException:
@@ -278,7 +272,7 @@ NOTES_TEMPLATES_STORE = [
 
 
 @router.get("/notes-templates")
-async def get_notes_templates(template_type: Optional[str] = None):
+async def get_notes_templates(template_type: str | None = None):
     """R152: 获取备注模板列表"""
     if template_type:
         filtered = [t for t in NOTES_TEMPLATES_STORE if t["template_type"] == template_type]
@@ -340,13 +334,12 @@ async def create_backup(
     - 备份当前任务的完整数据（配置+结果+PPTX）
     """
     from ...services.backup_service import get_backup_service
-    from ...services.task_manager import get_task_manager
-    
+
     tm = get_task_manager()
     task_data = tm.get_task(task_id)
     if not task_data:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    
+
     bs = get_backup_service()
     result = bs.create_backup(
         task_id=task_id,
@@ -386,7 +379,7 @@ async def restore_from_backup(
     task_id: str,
     backup_id: str,
     restore_type: str = Body("full"),
-    selected_slide_nums: List[int] = Body(None),
+    selected_slide_nums: list[int] = Body(None),
 ):
     """
     R125: 从备份恢复
@@ -395,10 +388,9 @@ async def restore_from_backup(
     - restore_type=config: 只恢复配置（场景/风格/模板等）
     """
     from ...services.backup_service import get_backup_service
-    from ...services.task_manager import get_task_manager
-    
+
     bs = get_backup_service()
-    
+
     if restore_type == "full":
         result = bs.restore_backup(backup_id, task_id, "full")
         if result.get("data"):
@@ -408,12 +400,12 @@ async def restore_from_backup(
                 tm.tasks[task_id].update(task_data)
                 tm.tasks[task_id]["updated_at"] = get_timestamp()
         return result
-    
+
     elif restore_type == "slides":
         if not selected_slide_nums:
             raise HTTPException(status_code=400, detail="selected_slide_nums required for slides restore")
         return bs.restore_backup(backup_id, task_id, "slides", selected_slide_nums)
-    
+
     elif restore_type == "config":
         result = bs.restore_backup(backup_id, task_id, "config")
         if result.get("config"):
@@ -428,7 +420,7 @@ async def restore_from_backup(
                     tm.tasks[task_id]["layout_mode"] = cfg.get("layout_mode", tm.tasks[task_id].get("layout_mode"))
                 tm.tasks[task_id]["updated_at"] = get_timestamp()
         return result
-    
+
     else:
         raise HTTPException(status_code=400, detail=f"Invalid restore_type: {restore_type}")
 
@@ -461,17 +453,18 @@ async def download_backup(task_id: str, backup_id: str):
 @router.post("/backups/import")
 async def import_backup(file: UploadFile = File(...)):
     """R125: 导入备份文件（.rabak）"""
-    import tempfile
     import os
+    import tempfile
+
     from ...services.backup_service import get_backup_service
-    
+
     bs = get_backup_service()
-    
+
     with tempfile.NamedTemporaryFile(suffix=".rabak", delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name
-    
+
     try:
         result = bs.import_backup_file(tmp_path)
         return result

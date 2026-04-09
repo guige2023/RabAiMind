@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 团队工作空间 API 路由
 
@@ -10,16 +9,12 @@ R79: Multi-brand & Workspace Management
 - 用量配额
 """
 
-import json
-import uuid
-import time
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ...services.workspace_service import get_workspace_service, Workspace, WorkspaceMember, BrandProfile, QuotaInfo
+from ...services.workspace_service import get_workspace_service
 
 router = APIRouter(prefix="/api/v1/workspace", tags=["workspace"])
 
@@ -27,7 +22,7 @@ router = APIRouter(prefix="/api/v1/workspace", tags=["workspace"])
 # ===== 品牌 Profile 模型 =====
 
 class BrandProfileSaveRequest(BaseModel):
-    profile_id: Optional[str] = None
+    profile_id: str | None = None
     user_id: str = "default"
     profile_name: str = ""
     profile_type: str = "personal"  # personal | company
@@ -35,7 +30,7 @@ class BrandProfileSaveRequest(BaseModel):
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: Optional[List[str]] = None
+    fonts: list[str] | None = None
     logo_url: str = ""
     slogan: str = ""
     logo_data: str = ""
@@ -48,13 +43,13 @@ class BrandProfileSaveRequest(BaseModel):
 
 class BrandKitExportResponse(BaseModel):
     success: bool
-    brand_kit: Dict[str, Any] = {}
+    brand_kit: dict[str, Any] = {}
     message: str = ""
 
 
 class BrandKitImportRequest(BaseModel):
-    brand_kit: Dict[str, Any]
-    target_workspace_id: Optional[str] = None
+    brand_kit: dict[str, Any]
+    target_workspace_id: str | None = None
 
 
 # ===== 配额模型 =====
@@ -62,8 +57,8 @@ class BrandKitImportRequest(BaseModel):
 class QuotaInfoResponse(BaseModel):
     success: bool
     workspace_id: str
-    quotas: Dict[str, Any] = {}
-    usage: Dict[str, Any] = {}
+    quotas: dict[str, Any] = {}
+    usage: dict[str, Any] = {}
     reset_at: str = ""
 
 
@@ -81,9 +76,9 @@ class WorkspaceCreateRequest(BaseModel):
 
 
 class WorkspaceUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    is_public: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
 
 
 class MemberInviteRequest(BaseModel):

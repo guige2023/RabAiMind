@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 元素处理器 - 处理幻灯片元素
 
@@ -12,9 +11,9 @@
 日期: 2026-03-20
 """
 
-import threading
-from typing import Dict, Any, List, Optional, Tuple
 import re
+import threading
+from typing import Any
 
 
 class ElementHandler:
@@ -52,7 +51,7 @@ class ElementHandler:
         bold: bool = False,
         align: str = 'left',
         valign: str = 'top'
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建文本元素"""
         return {
             'type': 'text',
@@ -81,7 +80,7 @@ class ElementHandler:
         stroke_width: float = 0,
         corner_radius: float = 0,
         opacity: float = 1.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建形状元素"""
         return {
             'type': 'shape',
@@ -106,7 +105,7 @@ class ElementHandler:
         height: float,
         fit: str = 'cover',  # cover, contain, fill
         opacity: float = 1.0
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建图片元素"""
         return {
             'type': 'image',
@@ -122,14 +121,14 @@ class ElementHandler:
     def create_chart_element(
         self,
         chart_type: str,  # pie, bar, line
-        data: List[Dict[str, Any]],
+        data: list[dict[str, Any]],
         x: float,
         y: float,
         width: float,
         height: float,
         title: str = '',
-        colors: List[str] = None
-    ) -> Dict[str, Any]:
+        colors: list[str] = None
+    ) -> dict[str, Any]:
         """创建图表元素"""
         if colors is None:
             colors = ['#165DFF', '#34C759', '#FF9500', '#FF3B30', '#AF52DE']
@@ -154,7 +153,7 @@ class ElementHandler:
         height: float,
         color: str = '#000000',
         opacity: float = 0.3
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建遮罩元素"""
         return {
             'type': 'overlay',
@@ -175,7 +174,7 @@ class ElementHandler:
         color: str = '#FFFFFF',
         width: float = 1,
         dash_array: str = None
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """创建线条元素"""
         return {
             'type': 'line',
@@ -188,7 +187,7 @@ class ElementHandler:
             'dash_array': dash_array
         }
 
-    def wrap_text(self, text: str, max_width: int = 40) -> List[str]:
+    def wrap_text(self, text: str, max_width: int = 40) -> list[str]:
         """自动换行文本"""
         if not text:
             return []
@@ -229,7 +228,7 @@ class ElementHandler:
         text: str,
         font_size: int,
         font_family: str = '思源黑体'
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """估算文本尺寸（宽，高）"""
         lines = self.wrap_text(text)
         if not lines:
@@ -245,7 +244,7 @@ class ElementHandler:
 
         return (int(width), int(height))
 
-    def parse_svg_text_positions(self, svg_content: str) -> List[Dict[str, Any]]:
+    def parse_svg_text_positions(self, svg_content: str) -> list[dict[str, Any]]:
         """从SVG中解析文本位置"""
         texts = []
 
@@ -268,7 +267,7 @@ class ElementHandler:
 
         return texts
 
-    def extract_text_from_svg(self, svg_content: str) -> List[str]:
+    def extract_text_from_svg(self, svg_content: str) -> list[str]:
         """从SVG中提取所有文本"""
         texts = []
 
@@ -284,9 +283,9 @@ class ElementHandler:
     def create_card_layout(
         self,
         title: str,
-        content: List[str],
-        theme_config: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        content: list[str],
+        theme_config: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """创建卡片布局元素"""
         elements = []
         palette = theme_config.get('palette', {})
@@ -341,10 +340,10 @@ class ElementHandler:
     def create_two_column_layout(
         self,
         title: str,
-        left_content: List[str],
-        right_content: List[str],
-        theme_config: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        left_content: list[str],
+        right_content: list[str],
+        theme_config: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """创建双栏布局元素"""
         elements = []
         palette = theme_config.get('palette', {})
@@ -408,7 +407,7 @@ class ElementHandler:
 
 
 # 全局实例
-_element_handler: Optional[ElementHandler] = None
+_element_handler: ElementHandler | None = None
 _manager_lock = threading.Lock()
 
 

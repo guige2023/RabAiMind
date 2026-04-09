@@ -3,11 +3,10 @@
 跟踪用户搜索、模板使用、推荐效果
 """
 import json
-import time
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from collections import Counter
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 ANALYTICS_DIR = Path("data")
 SEARCHES_FILE = ANALYTICS_DIR / "search_analytics.json"
@@ -20,7 +19,7 @@ def _load_json(path: Path) -> dict:
         try:
             with open(path, encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
     return {
         "searches": [],  # list of {"query": str, "timestamp": str, "results_count": int}
@@ -74,7 +73,7 @@ class SearchAnalytics:
             self.data["template_clicks"].get(template_id, 0) + 1
         self._persist()
 
-    def get_trending_queries(self, limit: int = 10, days: int = 7) -> List[Dict[str, Any]]:
+    def get_trending_queries(self, limit: int = 10, days: int = 7) -> list[dict[str, Any]]:
         """获取热门搜索词"""
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
         # 统计最近 days 天的搜索
@@ -85,7 +84,7 @@ class SearchAnalytics:
             for q, c in counts.most_common(limit)
         ]
 
-    def get_trending_templates(self, limit: int = 6, days: int = 7) -> List[Dict[str, Any]]:
+    def get_trending_templates(self, limit: int = 6, days: int = 7) -> list[dict[str, Any]]:
         """获取热门模板（按点击量）"""
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
         recent = [t for t in self.data["clicked_templates"] if t["timestamp"] >= cutoff]
@@ -98,10 +97,10 @@ class SearchAnalytics:
             for tid, cnt in counts.most_common(limit)
         ]
 
-    def get_template_similarity(self, template_id: str, limit: int = 5) -> List[str]:
+    def get_template_similarity(self, template_id: str, limit: int = 5) -> list[str]:
         """基于共现计算相似模板ID"""
         # 查找使用过该模板的用户同时还使用了哪些模板
-        user_templates: Dict[str, set] = {}
+        user_templates: dict[str, set] = {}
         for entry in self.data["clicked_templates"]:
             uid = entry["timestamp"].split("T")[0]  # 简化：按天分组
             if entry["template_id"] == template_id:
@@ -163,18 +162,18 @@ class TemplateUsage:
                 self.data["style_usage"][style].get(template_id, 0) + 1
         self._persist()
 
-    def get_most_used(self, limit: int = 6) -> List[Dict[str, Any]]:
+    def get_most_used(self, limit: int = 6) -> list[dict[str, Any]]:
         counts = self.data.get("usage_count", {})
         return [
             {"template_id": tid, "usage_count": cnt}
             for tid, cnt in sorted(counts.items(), key=lambda x: -x[1])[:limit]
         ]
 
-    def get_for_scene(self, scene: str, limit: int = 4) -> List[str]:
+    def get_for_scene(self, scene: str, limit: int = 4) -> list[str]:
         scene_data = self.data.get("scene_usage", {}).get(scene, {})
         return [tid for tid, _ in sorted(scene_data.items(), key=lambda x: -x[1])[:limit]]
 
-    def get_for_style(self, style: str, limit: int = 4) -> List[str]:
+    def get_for_style(self, style: str, limit: int = 4) -> list[str]:
         style_data = self.data.get("style_usage", {}).get(style, {})
         return [tid for tid, _ in sorted(style_data.items(), key=lambda x: -x[1])[:limit]]
 
@@ -212,7 +211,7 @@ class UserHistory:
                 self.data[user_id]["viewed"] = self.data[user_id]["viewed"][:100]
         self._persist()
 
-    def get_recommendations(self, user_id: str, limit: int = 6) -> List[str]:
+    def get_recommendations(self, user_id: str, limit: int = 6) -> list[str]:
         """基于用户历史的推荐"""
         if user_id == "anonymous" or user_id not in self.data:
             return []
@@ -223,7 +222,7 @@ class UserHistory:
             return []
         # 简单策略：推荐同场景/同风格的其他热门模板
         analytics = SearchAnalytics()
-        similar_ids: List[str] = []
+        similar_ids: list[str] = []
         for tid in used[:5]:
             similar_ids.extend(analytics.get_template_similarity(tid, limit=5))
         # 去重，保持顺序
@@ -237,7 +236,7 @@ class UserHistory:
                     break
         return result[:limit]
 
-    def get_viewed_recently(self, user_id: str, limit: int = 10) -> List[str]:
+    def get_viewed_recently(self, user_id: str, limit: int = 10) -> list[str]:
         if user_id == "anonymous" or user_id not in self.data:
             return []
         return self.data[user_id].get("viewed", [])[:limit]
@@ -278,7 +277,7 @@ class UserHistory:
         user_id: str,
         content_type: str = "",
         limit: int = 3,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """获取用户对特定内容类型的布局偏好"""
         if user_id == "anonymous" or user_id not in self.data:
             return []
@@ -296,7 +295,7 @@ class UserHistory:
             type_prefs = [p for p in applied if p.get("content_type") == content_type]
             if type_prefs:
                 # 统计最常用的布局
-                layout_counts: Dict[str, int] = {}
+                layout_counts: dict[str, int] = {}
                 for p in type_prefs:
                     lt = p.get("layout_type", "")
                     layout_counts[lt] = layout_counts.get(lt, 0) + 1
@@ -307,7 +306,7 @@ class UserHistory:
                 ]
 
         # 通用统计
-        layout_counts: Dict[str, int] = {}
+        layout_counts: dict[str, int] = {}
         for p in applied:
             lt = p.get("layout_type", "")
             layout_counts[lt] = layout_counts.get(lt, 0) + 1

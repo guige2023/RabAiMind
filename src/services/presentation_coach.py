@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 AI Presentation Coach Service
 AI演讲教练服务 - 分析幻灯片、提供练习、建议节奏、演讲技巧、预测观众问题
 """
+import json
 import logging
-from typing import Dict, Any, List, Optional
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
-import json
-import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +27,9 @@ class CoachFeedback:
     """教练反馈"""
     slide_num: int
     overall_score: int  # 1-10
-    strengths: List[str] = field(default_factory=list)
-    weaknesses: List[str] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
+    strengths: list[str] = field(default_factory=list)
+    weaknesses: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
     structure_score: int = 0
     content_score: int = 0
     design_score: int = 0
@@ -42,10 +41,10 @@ class TimingAdvice:
     """时间节奏建议"""
     total_slides: int
     suggested_total_minutes: float
-    per_slide_seconds: List[Dict[str, Any]]
+    per_slide_seconds: list[dict[str, Any]]
     pace_feedback: str
-    recommended_pause_points: List[int]
-    tips: List[str] = field(default_factory=list)
+    recommended_pause_points: list[int]
+    tips: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -53,7 +52,7 @@ class DeliveryTip:
     """演讲技巧建议"""
     slide_num: int
     key_message: str
-    emphasis_points: List[str]
+    emphasis_points: list[str]
     voice_tips: str
     body_language: str
     transition_phrase: str  # 到下一页的过渡语
@@ -71,18 +70,18 @@ class AudienceQuestion:
 
 class PresentationCoachService:
     """AI演讲教练服务"""
-    
+
     def __init__(self, volc_api=None):
         self.volc_api = volc_api
-        self._slides_cache: Dict[str, List[SlideContent]] = {}
-    
+        self._slides_cache: dict[str, list[SlideContent]] = {}
+
     def _get_api(self):
         from .volc_api import get_volc_api
         return self.volc_api or get_volc_api()
-    
+
     # ==================== 1. Presentation Coach - 分析幻灯片 ====================
-    
-    def analyze_slides(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+
+    def analyze_slides(self, task_id: str, slides: list[dict]) -> dict[str, Any]:
         """
         分析所有幻灯片，给出整体反馈和改进建议
         
@@ -94,7 +93,7 @@ class PresentationCoachService:
             包含分析结果的字典
         """
         api = self._get_api()
-        
+
         # 提取文本内容
         slide_texts = []
         for i, s in enumerate(slides):
@@ -103,13 +102,13 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content}")
-        
+
         all_text = "\n\n".join(slide_texts)
-        
+
         # 限制分析文本长度
         if len(all_text) > 3000:
             all_text = all_text[:3000] + "\n\n[内容已截断...]"
-        
+
         prompt = f"""你是一个专业的PPT演讲教练。请分析以下演示文稿的内容，并给出评分和建议。
 
 {all_text}
@@ -165,10 +164,10 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"分析幻灯片失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== 2. Practice Mode - Q&A 练习 ====================
-    
-    def generate_practice_qa(self, task_id: str, slides: List[Dict], difficulty: str = "mixed") -> Dict[str, Any]:
+
+    def generate_practice_qa(self, task_id: str, slides: list[dict], difficulty: str = "mixed") -> dict[str, Any]:
         """
         生成练习问答，模拟观众可能的提问
         
@@ -181,7 +180,7 @@ class PresentationCoachService:
             问答列表
         """
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -189,19 +188,19 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content}")
-        
+
         all_text = "\n\n".join(slide_texts)
-        
+
         if len(all_text) > 3000:
             all_text = all_text[:3000] + "\n\n[内容已截断...]"
-        
+
         difficulty_instruction = {
             "easy": "问题应该简单，主要测试观众是否理解基本概念",
             "moderate": "问题应该有一定深度，需要观众思考后才能回答",
             "hard": "问题应该深入或具有挑战性，测试演讲者对主题的掌握深度",
             "mixed": "混合简单、中等、困难三类问题"
         }.get(difficulty, "混合简单、中等、困难三类问题")
-        
+
         prompt = f"""你是一个演讲培训师。基于以下演示文稿的内容，生成8-12个观众可能提出的练习问答。
 
 {difficulty_instruction}
@@ -251,10 +250,10 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"生成Q&A失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== 3. Timing Advisor - 时间节奏 ====================
-    
-    def get_timing_advice(self, task_id: str, slides: List[Dict], total_minutes: float = 15.0) -> Dict[str, Any]:
+
+    def get_timing_advice(self, task_id: str, slides: list[dict], total_minutes: float = 15.0) -> dict[str, Any]:
         """
         根据内容长度建议每页的演讲时间
         
@@ -267,14 +266,14 @@ class PresentationCoachService:
             每页时间分配和建议
         """
         slide_count = len(slides)
-        
+
         if slide_count == 0:
             return {"success": False, "error": "没有幻灯片内容"}
-        
+
         # 分析每页内容复杂度
         per_slide_data = []
         total_content_score = 0
-        
+
         for i, s in enumerate(slides):
             title = s.get("title", "")
             content = s.get("content", "")
@@ -284,15 +283,15 @@ class PresentationCoachService:
             else:
                 bullet_count = len(content.split("\n")) if content else 0
                 content_text = content
-            
+
             # 简单估算内容复杂度
             word_count = len(content_text)
             has_numbers = bool(re.search(r'\d+', content_text))
             has_chart = "chart" in str(s.get("layout", "")).lower()
-            
+
             content_score = min(10, word_count // 50 + bullet_count + (2 if has_numbers else 0) + (3 if has_chart else 0))
             total_content_score += content_score
-            
+
             per_slide_data.append({
                 "slide_num": i + 1,
                 "title": title[:30] + "..." if len(title) > 30 else title,
@@ -301,31 +300,31 @@ class PresentationCoachService:
                 "has_data": has_numbers,
                 "complexity_score": content_score
             })
-        
+
         # 计算时间分配
         available_seconds = total_minutes * 60
         avg_seconds_per_score = available_seconds / total_content_score if total_content_score > 0 else 30
-        
+
         timing_results = []
         for slide in per_slide_data:
             suggested_seconds = max(15, min(180, int(avg_seconds_per_score * slide["complexity_score"])))
-            
+
             # 根据页码调整（封面/结尾可以稍长）
             if slide["slide_num"] == 1:
                 suggested_seconds = max(suggested_seconds, 30)
             if slide["slide_num"] == slide_count:
                 suggested_seconds = max(suggested_seconds, 20)
-            
+
             timing_results.append({
                 "slide_num": slide["slide_num"],
                 "title": slide["title"],
                 "suggested_seconds": suggested_seconds,
                 "tip": self._get_slide_timing_tip(slide, suggested_seconds)
             })
-        
+
         # 推荐暂停点
         pause_points = self._find_pause_points(slide_count, per_slide_data)
-        
+
         # 整体节奏反馈
         if slide_count > 0:
             avg_per_slide = available_seconds / slide_count
@@ -337,15 +336,15 @@ class PresentationCoachService:
                 pace_feedback = f"节奏良好，每页平均 {int(avg_per_slide)} 秒"
         else:
             pace_feedback = "无法评估节奏"
-        
+
         tips = [
             f"总时间 {total_minutes} 分钟，{slide_count} 页幻灯片",
-            f"建议开场介绍 1-2 分钟",
-            f"建议结尾总结 1-2 分钟",
+            "建议开场介绍 1-2 分钟",
+            "建议结尾总结 1-2 分钟",
             "每页之间可以自然停顿 2-3 秒",
             "遇到数据页可以放慢语速"
         ]
-        
+
         return {
             "success": True,
             "task_id": task_id,
@@ -361,8 +360,8 @@ class PresentationCoachService:
                 "conclusion": min(2.0, total_minutes * 0.1)
             }
         }
-    
-    def _get_slide_timing_tip(self, slide: Dict, seconds: int) -> str:
+
+    def _get_slide_timing_tip(self, slide: dict, seconds: int) -> str:
         """根据幻灯片特点给出时间建议"""
         if seconds < 30:
             return "快速浏览即可"
@@ -372,30 +371,30 @@ class PresentationCoachService:
             return "详细讲解"
         else:
             return "深入讨论的时间"
-    
-    def _find_pause_points(self, slide_count: int, per_slide_data: List[Dict]) -> List[int]:
+
+    def _find_pause_points(self, slide_count: int, per_slide_data: list[dict]) -> list[int]:
         """找到适合暂停的点"""
         pause_points = []
-        
+
         # 找出内容复杂度明显变化的点
         for i in range(1, len(per_slide_data)):
             prev_score = per_slide_data[i-1]["complexity_score"]
             curr_score = per_slide_data[i]["complexity_score"]
-            
+
             # 复杂度大幅增加或减少的点适合暂停
             if abs(curr_score - prev_score) >= 4:
                 pause_points.append(i + 1)  # 1-based
-        
+
         # 每隔3-4页建议一个暂停
         for i in range(3, slide_count, 4):
             if i + 1 not in pause_points:
                 pause_points.append(i + 1)
-        
+
         return sorted(set(pause_points))[:5]  # 最多5个暂停点
-    
+
     # ==================== 4. Delivery Tips - 演讲技巧 ====================
-    
-    def get_delivery_tips(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+
+    def get_delivery_tips(self, task_id: str, slides: list[dict]) -> dict[str, Any]:
         """
         分析内容，给出每页的演讲技巧建议
         
@@ -407,7 +406,7 @@ class PresentationCoachService:
             每页的演讲技巧
         """
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -415,12 +414,12 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content}")
-        
+
         all_text = "\n\n".join(slide_texts)
-        
+
         if len(all_text) > 2500:
             all_text = all_text[:2500] + "\n\n[内容已截断...]"
-        
+
         prompt = f"""你是一个专业的演讲教练。请为以下演示文稿的每一页提供演讲技巧建议。
 
 演示文稿内容：
@@ -471,10 +470,10 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"生成演讲技巧失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== 5. Audience Prediction - 观众预测 ====================
-    
-    def predict_audience_questions(self, task_id: str, slides: List[Dict], audience_profile: str = "") -> Dict[str, Any]:
+
+    def predict_audience_questions(self, task_id: str, slides: list[dict], audience_profile: str = "") -> dict[str, Any]:
         """
         预测观众可能提出的问题
         
@@ -487,7 +486,7 @@ class PresentationCoachService:
             预测的问题列表
         """
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -495,14 +494,14 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content}")
-        
+
         all_text = "\n\n".join(slide_texts)
-        
+
         if len(all_text) > 3000:
             all_text = all_text[:3000] + "\n\n[内容已截断...]"
-        
+
         audience_context = f"目标观众：{audience_profile}" if audience_profile else "目标观众：一般商务人士"
-        
+
         prompt = f"""你是一个经验丰富的演讲者，擅长预测观众会问的问题。
 
 {audience_context}
@@ -558,24 +557,24 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"预测观众问题失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== 辅助方法 ====================
-    
-    def _extract_json(self, text: str) -> Optional[Dict]:
+
+    def _extract_json(self, text: str) -> dict | None:
         """从文本中提取JSON"""
         try:
             # 尝试直接解析
             return json.loads(text.strip())
         except json.JSONDecodeError:
             pass
-        
+
         # 尝试提取代码块
         patterns = [
             r'```json\s*([\s\S]*?)\s*```',
             r'```\s*([\s\S]*?)\s*```',
             r'\{[\s\S]*\}$',  # 最后一个 {...}
         ]
-        
+
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
@@ -583,28 +582,28 @@ class PresentationCoachService:
                     return json.loads(match.group(1).strip())
                 except json.JSONDecodeError:
                     continue
-        
+
         return None
-    
+
     # ==================== 快捷方法 ====================
-    
-    def quick_score(self, slides: List[Dict]) -> int:
+
+    def quick_score(self, slides: list[dict]) -> int:
         """
         快速评分（不需要AI）
         基于简单规则快速给出1-10分
         """
         if not slides:
             return 5
-        
+
         score = 7  # 基础分
-        
+
         for s in slides:
             content = s.get("content", "")
             if isinstance(content, list):
                 bullet_count = len(content)
             else:
                 bullet_count = len(content.split("\n")) if content else 0
-            
+
             # 每页bullet点数量适中（3-6个）加分
             if 3 <= bullet_count <= 6:
                 score += 0.3
@@ -612,19 +611,19 @@ class PresentationCoachService:
                 score -= 0.5
             elif bullet_count == 0:
                 score -= 0.3
-            
+
             # 有标题加分
             if s.get("title"):
                 score += 0.2
-        
+
         return max(1, min(10, int(score)))
 
 
 # 全局实例
     # ==================== R127: Delivery Coach - Speaking Pace Analysis ====================
-    
-    def analyze_speaking_pace(self, task_id: str, slides: List[Dict], total_minutes: float = 15.0, 
-                               actual_words: Optional[int] = None) -> Dict[str, Any]:
+
+    def analyze_speaking_pace(self, task_id: str, slides: list[dict], total_minutes: float = 15.0,
+                               actual_words: int | None = None) -> dict[str, Any]:
         api = self._get_api()
         if actual_words is None:
             total_words = 0
@@ -639,9 +638,9 @@ class PresentationCoachService:
                     total_words += len(title)
         else:
             total_words = actual_words
-        
+
         wpm = int(total_words / total_minutes) if total_minutes > 0 else 0
-        
+
         if wpm < 80:
             pace_category = "太慢"
             pace_icon = "🐢"
@@ -662,10 +661,10 @@ class PresentationCoachService:
             pace_category = "太快"
             pace_icon = "⚠️"
             pace_feedback = "语速过快，观众容易疲劳。建议大幅放慢。"
-        
+
         slide_count = len(slides)
         suggested_pauses = max(1, slide_count // 4)
-        
+
         slide_texts = []
         for i, s in enumerate(slides[:5]):
             title = s.get("title", "")
@@ -673,11 +672,11 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content[:200]}")
-        
+
         all_text = "\n\n".join(slide_texts)
         if len(all_text) > 1500:
             all_text = all_text[:1500]
-        
+
         detailed_tips = []
         try:
             prompt = f"""你是一个专业演讲教练。请分析以下内容的语速建议。
@@ -703,7 +702,7 @@ class PresentationCoachService:
                     detailed_tips = data.get("tips", [])
         except Exception as e:
             logger.warning(f"AI detailed tips failed: {e}")
-        
+
         return {
             "success": True,
             "task_id": task_id,
@@ -715,7 +714,7 @@ class PresentationCoachService:
             "pace_feedback": pace_feedback,
             "suggested_pauses": suggested_pauses,
             "tips": detailed_tips or [
-                f"建议语速保持在 120-150 WPM",
+                "建议语速保持在 120-150 WPM",
                 "重点数据处放慢语速",
                 "每页之间停顿2-3秒"
             ],
@@ -729,12 +728,12 @@ class PresentationCoachService:
                 for i, s in enumerate(slides)
             ]
         }
-    
+
     # ==================== R127: Content Score - Clarity, Conciseness, Impact ====================
-    
-    def analyze_content_dimensions(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+
+    def analyze_content_dimensions(self, task_id: str, slides: list[dict]) -> dict[str, Any]:
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -742,11 +741,11 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content}")
-        
+
         all_text = "\n\n".join(slide_texts)
         if len(all_text) > 3000:
             all_text = all_text[:3000] + "\n\n[内容已截断]"
-        
+
         prompt = f"""你是一个专业的PPT内容评审专家。请从以下三个维度评估内容质量：
 
 1. 清晰度（Clarity）：内容是否易于理解？逻辑是否清晰？
@@ -788,12 +787,12 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"内容维度分析失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== R127: Visual Design Feedback ====================
-    
-    def analyze_visual_design(self, task_id: str, slides: List[Dict]) -> Dict[str, Any]:
+
+    def analyze_visual_design(self, task_id: str, slides: list[dict]) -> dict[str, Any]:
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -802,11 +801,11 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】布局:{layout} 标题:{title} 内容:{content[:300]}")
-        
+
         all_text = "\n\n".join(slide_texts)
         if len(all_text) > 3000:
             all_text = all_text[:3000]
-        
+
         prompt = f"""你是一个专业的PPT视觉设计师。请评价以下幻灯片的视觉设计质量。
 
 幻灯片信息：
@@ -854,13 +853,13 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"视觉设计分析失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== R127: Audience Engagement Prediction ====================
-    
-    def predict_audience_engagement(self, task_id: str, slides: List[Dict], 
-                                   audience_profile: str = "") -> Dict[str, Any]:
+
+    def predict_audience_engagement(self, task_id: str, slides: list[dict],
+                                   audience_profile: str = "") -> dict[str, Any]:
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -868,13 +867,13 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content[:300]}")
-        
+
         all_text = "\n\n".join(slide_texts)
         if len(all_text) > 3000:
             all_text = all_text[:3000]
-        
+
         audience_context = f"目标观众：{audience_profile}" if audience_profile else "目标观众：一般商务人士"
-        
+
         prompt = f"""你是一个专业的演讲心理学专家。请预测观众在演讲过程中每个阶段的参与度和情感反应。
 
 {audience_context}
@@ -919,27 +918,27 @@ class PresentationCoachService:
         except Exception as e:
             logger.error(f"观众参与度预测失败: {e}")
             return {"success": False, "error": str(e)}
-    
+
     # ==================== R127: Personalized Coaching Based on Past Presentations ====================
-    
-    def get_personalized_coaching(self, task_id: str, slides: List[Dict], 
-                                   user_id: str = "default") -> Dict[str, Any]:
+
+    def get_personalized_coaching(self, task_id: str, slides: list[dict],
+                                   user_id: str = "default") -> dict[str, Any]:
         from pathlib import Path
-        
+
         history_file = Path.home() / ".rabai" / "coach_history.json"
         history_data = {}
-        
+
         if history_file.exists():
             try:
-                with open(history_file, "r", encoding="utf-8") as f:
+                with open(history_file, encoding="utf-8") as f:
                     history_data = json.load(f)
             except Exception:
                 history_data = {}
-        
+
         user_history = history_data.get(user_id, {}).get("sessions", [])
-        
+
         api = self._get_api()
-        
+
         slide_texts = []
         for i, s in enumerate(slides):
             title = s.get("title", "")
@@ -947,24 +946,24 @@ class PresentationCoachService:
             if isinstance(content, list):
                 content = "\n".join(content)
             slide_texts.append(f"【第{i+1}页】{title}\n{content[:300]}")
-        
+
         all_text = "\n\n".join(slide_texts)
         if len(all_text) > 2500:
             all_text = all_text[:2500]
-        
+
         common_past_issues = []
         improvement_trends = []
-        
+
         if user_history:
             all_issues = []
             for session in user_history[-5:]:
                 issues = session.get("issues", [])
                 all_issues.extend(issues)
-            
+
             from collections import Counter
             issue_counts = Counter(all_issues)
             common_past_issues = [issue for issue, count in issue_counts.most_common(5)]
-            
+
             if len(user_history) >= 2:
                 old_score = user_history[-2].get("score", 7)
                 new_score = user_history[-1].get("score", 7)
@@ -974,13 +973,13 @@ class PresentationCoachService:
                     improvement_trends.append("近期评分有所下降，建议加强练习")
                 else:
                     improvement_trends.append("评分保持稳定，建议寻求突破")
-        
+
         history_context = f"历史演讲次数：{len(user_history)}"
         if common_past_issues:
             history_context += f"\n常见问题：{', '.join(common_past_issues[:3])}"
         if improvement_trends:
             history_context += f"\n趋势：{improvement_trends[0]}"
-        
+
         prompt = f"""你是一个个性化演讲教练。你需要根据用户的历史表现和当前内容，提供定制化的改进建议。
 
 用户历史信息：
@@ -1016,7 +1015,7 @@ class PresentationCoachService:
                 data = self._extract_json(response.get("content", ""))
                 if data:
                     personalized_result = data
-            
+
             result = {
                 "success": True,
                 "task_id": task_id,
@@ -1028,10 +1027,10 @@ class PresentationCoachService:
                 **personalized_result,
                 "analyzed_at": datetime.now().isoformat()
             }
-            
+
             self._save_coaching_session(user_id, task_id, slides, result, history_file)
             return result
-            
+
         except Exception as e:
             logger.error(f"个性化教练失败: {e}")
             return {"success": False, "error": str(e)}
@@ -1041,9 +1040,9 @@ class PresentationCoachService:
     def analyze_live_delivery(
         self,
         task_id: str,
-        slides: List[Dict],
+        slides: list[dict],
         transcript: str = "",
-        filler_words: List[Dict[str, Any]] = [],
+        filler_words: list[dict[str, Any]] = [],
         current_wpm: float = 0.0,
         total_words: int = 0,
         duration_seconds: float = 0.0,
@@ -1053,7 +1052,7 @@ class PresentationCoachService:
         pace_score: float = 0.0,
         confidence_score: float = 0.0,
         session_id: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         R138: AI Presentation Coach 3.0 - 实时演讲分析
         分析实时演讲数据，提供即时反馈和改进建议
@@ -1067,7 +1066,7 @@ class PresentationCoachService:
         eye_contact_score = min(10, eye_contact_ratio * 10)
         filler_control_score = max(0, 10 - filler_word_ratio * 50) if filler_word_ratio > 0 else 10
         pace_stability_score = max(0, min(10, pace_score))
-        
+
         overall_confidence = (
             eye_contact_score * 0.30 +
             filler_control_score * 0.25 +
@@ -1185,21 +1184,21 @@ class PresentationCoachService:
             "analyzed_at": datetime.now().isoformat(),
         }
 
-    def _save_coaching_session(self, user_id: str, task_id: str, slides: List[Dict],
-                                result: Dict[str, Any], history_file: Path) -> None:
+    def _save_coaching_session(self, user_id: str, task_id: str, slides: list[dict],
+                                result: dict[str, Any], history_file: Path) -> None:
         try:
             history_file.parent.mkdir(parents=True, exist_ok=True)
             history_data = {}
             if history_file.exists():
                 try:
-                    with open(history_file, "r", encoding="utf-8") as f:
+                    with open(history_file, encoding="utf-8") as f:
                         history_data = json.load(f)
                 except Exception:
                     history_data = {}
-            
+
             if user_id not in history_data:
                 history_data[user_id] = {"sessions": []}
-            
+
             session = {
                 "task_id": task_id,
                 "timestamp": datetime.now().isoformat(),
@@ -1208,16 +1207,16 @@ class PresentationCoachService:
                 "issues": result.get("common_past_issues", [])[:3],
                 "focus": result.get("coaching_focus", "")
             }
-            
+
             history_data[user_id]["sessions"].append(session)
             history_data[user_id]["sessions"] = history_data[user_id]["sessions"][-20:]
-            
+
             with open(history_file, "w", encoding="utf-8") as f:
                 json.dump(history_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"保存教练历史失败: {e}")
 
-_coach_service: Optional[PresentationCoachService] = None
+_coach_service: PresentationCoachService | None = None
 
 
 def get_presentation_coach_service() -> PresentationCoachService:

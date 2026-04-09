@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Task Queue Module - Task progress and queue management
 
@@ -9,20 +8,17 @@ Author: Claude
 Date: 2026-04-07
 """
 
-import time
+import asyncio
 import logging
 import threading
-import asyncio
-from typing import Dict, Any, Optional
+from typing import Any
 
-from ..utils import get_timestamp
 from ..constants import (
-    THREAD_JOIN_TIMEOUT,
     CANCEL_TASK_TIMEOUT,
-    BACKGROUND_IMAGE_TIMEOUT,
 )
-from .history_sync_service import get_history_sync_service
+from ..utils import get_timestamp
 from .advanced_analytics_service import get_advanced_analytics_service
+from .history_sync_service import get_history_sync_service
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +40,9 @@ class TaskQueue:
             task_store: Reference to TaskStore for accessing tasks.
         """
         self._task_store = task_store
-        self._async_tasks: Dict[str, Any] = {}
+        self._async_tasks: dict[str, Any] = {}
         self._async_tasks_lock = threading.Lock()
-        self._cancel_events: Dict[str, threading.Event] = {}
+        self._cancel_events: dict[str, threading.Event] = {}
         self._cancel_events_lock = threading.Lock()
         self._sync_service = get_history_sync_service()
 
@@ -92,8 +88,8 @@ class TaskQueue:
         compression_ratio: float = 0.0,
         quality: str = "standard",
         output_format: str = "pptx",
-        slides_summary: Optional[list] = None,
-        svg_paths: Optional[list] = None
+        slides_summary: list | None = None,
+        svg_paths: list | None = None
     ) -> None:
         """Mark a task as completed.
 
@@ -228,7 +224,7 @@ class TaskQueue:
 
         return True
 
-    def get_cancel_event(self, task_id: str) -> Optional[threading.Event]:
+    def get_cancel_event(self, task_id: str) -> threading.Event | None:
         """Get or create a cancel event for a task.
 
         Args:
@@ -272,7 +268,7 @@ class TaskQueue:
             if task_id in self._async_tasks:
                 del self._async_tasks[task_id]
 
-    def get_async_task(self, task_id: str) -> Optional[Any]:
+    def get_async_task(self, task_id: str) -> Any | None:
         """Get an async task reference.
 
         Args:

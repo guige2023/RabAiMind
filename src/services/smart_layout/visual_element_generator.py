@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 视觉元素生成器
 
@@ -8,14 +7,12 @@
 日期: 2026-03-18
 """
 
-import threading
-from typing import Dict, Any, List, Optional
-import math
 import textwrap
+import threading
+from typing import Any
 
-from .svg_element_library import SVGElementLibrary
 from .layout_calculator import LayoutCalculator
-from .color_scheme import ColorPalette
+from .svg_element_library import SVGElementLibrary
 
 
 class VisualElementGenerator:
@@ -33,8 +30,8 @@ class VisualElementGenerator:
         self,
         title: str,
         subtitle: str = "",
-        colors: Dict[str, str] = None,
-        decorates: List[str] = None
+        colors: dict[str, str] = None,
+        decorates: list[str] = None
     ) -> str:
         """生成封面幻灯片"""
         colors = colors or {
@@ -104,8 +101,8 @@ class VisualElementGenerator:
     def generate_content_slide(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str],
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str],
         layout: str = "card"
     ) -> str:
         """生成内容幻灯片"""
@@ -127,8 +124,8 @@ class VisualElementGenerator:
     def _generate_card_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成卡片布局"""
         # 计算卡片布局
@@ -190,7 +187,7 @@ class VisualElementGenerator:
         title: str,
         content: str,
         icon: str,
-        colors: Dict[str, str]
+        colors: dict[str, str]
     ) -> str:
         """生成单个卡片"""
         # 获取图标
@@ -235,8 +232,8 @@ class VisualElementGenerator:
     def _generate_two_column_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成双栏布局"""
         two_col = self.layout_calculator.calculate_two_column_layout(0.5)
@@ -296,8 +293,8 @@ class VisualElementGenerator:
         y: int,
         width: int,
         height: int,
-        items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成列表项"""
         items_svg = ""
@@ -328,8 +325,8 @@ class VisualElementGenerator:
     def _generate_timeline_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成时间线布局"""
         event_count = len(content_items)
@@ -411,8 +408,8 @@ class VisualElementGenerator:
     def _generate_radial_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成中心辐射布局"""
         branch_count = len(content_items)
@@ -481,8 +478,8 @@ class VisualElementGenerator:
     def _generate_left_image_right_text_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """左图右文布局：左侧放图片占位，右侧放文字内容"""
         # 左侧图片区域 (0 ~ 800)
@@ -545,8 +542,8 @@ class VisualElementGenerator:
     def _generate_left_text_right_image_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """左文右图布局：左侧放文字内容，右侧放图片占位"""
         # 左侧文字区域 (50 ~ 850)
@@ -609,8 +606,8 @@ class VisualElementGenerator:
     def _generate_simple_layout(
         self,
         title: str,
-        content_items: List[Dict[str, Any]],
-        colors: Dict[str, str]
+        content_items: list[dict[str, Any]],
+        colors: dict[str, str]
     ) -> str:
         """生成简单布局"""
         return self._generate_card_layout(title, content_items, colors)
@@ -629,8 +626,8 @@ class VisualElementGenerator:
     def generate_quote_slide(
         self,
         quote: str,
-        bullets: List[str],
-        colors: Dict[str, str]
+        bullets: list[str],
+        colors: dict[str, str]
     ) -> str:
         """生成金句幻灯片"""
         quote_layout = self.layout_calculator.calculate_quote_layout()
@@ -682,7 +679,7 @@ class VisualElementGenerator:
 
 
 # 单例实例
-_visual_element_generator_instance: Optional[VisualElementGenerator] = None
+_visual_element_generator_instance: VisualElementGenerator | None = None
 _manager_lock = threading.Lock()
 
 

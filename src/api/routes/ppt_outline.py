@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT Outline Routes - 大纲相关路由
 
@@ -6,12 +5,12 @@ PPT Outline Routes - 大纲相关路由
 日期: 2026-03-17
 """
 
-from fastapi import APIRouter, HTTPException, Request, Query, Body, status
-from fastapi.responses import JSONResponse
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, field_validator
 import logging
 import re
+from typing import Any
+
+from fastapi import APIRouter, Body, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -30,20 +29,20 @@ router = APIRouter()
 class OutlineSlide(BaseModel):
     """大纲中单个幻灯片的结构"""
     title: str = Field(..., min_length=1, max_length=200, description="幻灯片标题")
-    content: Optional[Any] = Field(default=None, description="幻灯片内容（可以是字符串或列表）")
-    layout: Optional[str] = Field(default=None, description="布局类型: title/center/left_text_right_image/card等")
-    slide_type: Optional[str] = Field(default=None, description="幻灯片类型: title/toc/content/quote/data等")
-    scene: Optional[str] = Field(default=None, description="场景类型")
-    style: Optional[str] = Field(default=None, description="风格类型")
+    content: Any | None = Field(default=None, description="幻灯片内容（可以是字符串或列表）")
+    layout: str | None = Field(default=None, description="布局类型: title/center/left_text_right_image/card等")
+    slide_type: str | None = Field(default=None, description="幻灯片类型: title/toc/content/quote/data等")
+    scene: str | None = Field(default=None, description="场景类型")
+    style: str | None = Field(default=None, description="风格类型")
 
 
 class OutlineSaveRequest(BaseModel):
     """保存大纲的请求模型（用于表单提交场景）"""
-    outline: Dict[str, Any] = Field(..., description="大纲数据")
+    outline: dict[str, Any] = Field(..., description="大纲数据")
 
     @field_validator('outline')
     @classmethod
-    def validate_outline_structure(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_outline_structure(cls, v: dict[str, Any]) -> dict[str, Any]:
         """验证大纲结构的基本完整性"""
         if not isinstance(v, dict):
             raise ValueError("outline 必须是对象")
@@ -63,7 +62,7 @@ class OutlineSaveResponse(BaseModel):
 class OutlineGetResponse(BaseModel):
     """获取大纲响应"""
     success: bool = True
-    outline: Optional[Dict[str, Any]] = None
+    outline: dict[str, Any] | None = None
 
 
 class CommitOutlineResponse(BaseModel):
@@ -88,7 +87,6 @@ async def save_outline(task_id: str = Query(..., description="任务ID"), outlin
     Returns:
         success: 是否保存成功
     """
-    import re
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -147,7 +145,6 @@ async def get_outline(task_id: str):
         success: 是否成功
         outline: 大纲数据对象，不存在时为 null
     """
-    import re
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -175,7 +172,6 @@ async def export_outline_json(task_id: str):
         outline: 大纲数据
         metadata: 任务元数据（场景、风格、版本列表、导出时间）
     """
-    import re
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -214,7 +210,6 @@ async def import_outline_json():
         template: 大纲模板（包含 slides 数组和 scene/style 字段）
         instructions: 使用说明
     """
-    from ...services.utils import get_timestamp
 
     template = {
         "version": "1.0",
@@ -234,7 +229,7 @@ async def import_outline_json():
 
 
 @router.post("/outline/save/{task_id}")
-async def save_outline_json(task_id: str, request: Dict[str, Any]):
+async def save_outline_json(task_id: str, request: dict[str, Any]):
     """
     保存导入的大纲 JSON 到指定任务
 
@@ -248,7 +243,6 @@ async def save_outline_json(task_id: str, request: Dict[str, Any]):
         success: 是否成功
         message: 操作结果描述
     """
-    import re
     if not re.match(r'^[a-zA-Z0-9_-]+$', task_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -276,7 +270,7 @@ class PlanRequest(BaseModel):
 class PlanResponse(BaseModel):
     """PPT规划响应"""
     success: bool
-    slides: List[Dict[str, Any]]
+    slides: list[dict[str, Any]]
     message: str = ""
 
 
@@ -284,11 +278,10 @@ class PlanResponse(BaseModel):
 async def plan_ppt(http_request: Request, request: PlanRequest):
     """生成PPT大纲"""
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
         get_rate_limiter,
-        rate_limit_exceeded_response,
+        get_user_id_from_request,
     )
-    
+
     # 速率限制检查
     user_id = get_user_id_from_request(http_request)
     rate_limiter = get_rate_limiter()
@@ -300,10 +293,12 @@ async def plan_ppt(http_request: Request, request: PlanRequest):
         )
 
     try:
-        from src.services.ppt_planner import plan_ppt as plan_service, sanitize_prompt
-        import threading
         import asyncio
-        
+        import threading
+
+        from src.services.ppt_planner import plan_ppt as plan_service
+        from src.services.ppt_planner import sanitize_prompt
+
         safe_request = sanitize_prompt(request.user_request)
 
         # P2 修复: 使用 threading.Thread 替代 asyncio.to_thread

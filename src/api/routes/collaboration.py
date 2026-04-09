@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 实时协作 WebSocket 路由 (R71)
 
@@ -11,20 +10,17 @@
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import asdict
-from typing import Dict, Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Body
-from starlette.websockets import WebSocketState
+from fastapi import APIRouter, Body, Query, WebSocket, WebSocketDisconnect
 
 from ...services.collaboration_service import (
-    get_collaboration_service,
     CursorPosition,
     Operation,
     OperationType,
+    get_collaboration_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,10 +58,10 @@ async def collaboration_websocket(
     - user_joined/left: 用户加入/离开
     """
     service = get_collaboration_service()
-    
+
     # 注册连接
     presence = service.register_connection(task_id, user_id, user_name, user_avatar, role, websocket)
-    
+
     # 发送当前状态给新连接
     await websocket.send_json({
         "type": "init",
@@ -76,7 +72,7 @@ async def collaboration_websocket(
         "comments": service.get_comments(task_id),
         "server_version": service.operation_versions.get(task_id, 0),
     })
-    
+
     # 广播用户加入
     await service._broadcast_to_task(task_id, {
         "type": "user_joined",
@@ -86,17 +82,17 @@ async def collaboration_websocket(
         "role": role,
         "color": presence.color,
     }, exclude_user=user_id)
-    
+
     try:
         while True:
             data = await websocket.receive_json()
             msg_type = data.get("type")
-            
+
             if msg_type == "ping":
                 # 更新心跳
                 service.update_heartbeat(task_id, user_id)
                 await websocket.send_json({"type": "pong", "timestamp": time.time()})
-            
+
             elif msg_type == "cursor_move":
                 # 高频: 只更新光标位置
                 cursor = CursorPosition(
@@ -116,7 +112,7 @@ async def collaboration_websocket(
                 )
                 # 使用小延迟批量处理，避免过于频繁
                 await service.update_cursor(task_id, user_id, cursor)
-            
+
             elif msg_type == "presence_update":
                 await service.update_presence(
                     task_id,
@@ -124,7 +120,7 @@ async def collaboration_websocket(
                     slide_num=data.get("slide_num"),
                     viewport=data.get("viewport"),
                 )
-            
+
             elif msg_type == "operation":
                 # 协作操作 (OT)
                 op = Operation(
@@ -144,14 +140,14 @@ async def collaboration_websocket(
                     "operation_id": op.id,
                     **result,
                 })
-            
+
             elif msg_type == "follow":
                 followed_id = data.get("followed_user_id")
                 if followed_id:
                     await service.follow_user(task_id, user_id, followed_id)
                 else:
                     await service.unfollow_user(task_id, user_id)
-            
+
             elif msg_type == "get_follow_viewport":
                 # 主动请求被跟随者的视口
                 viewport = service.get_viewport_to_follow(task_id, user_id)
@@ -159,7 +155,7 @@ async def collaboration_websocket(
                     "type": "follow_viewport",
                     "viewport": viewport,
                 })
-            
+
             elif msg_type == "comment_add":
                 comment = await service.add_comment(
                     task_id=task_id,
@@ -195,7 +191,7 @@ async def collaboration_websocket(
                     "success": True,
                     "comment": comment.__dict__,
                 })
-            
+
             elif msg_type == "comment_reply":
                 reply = await service.reply_comment(
                     task_id=task_id,
@@ -231,14 +227,14 @@ async def collaboration_websocket(
                     "success": reply is not None,
                     "reply": reply,
                 })
-            
+
             elif msg_type == "comment_resolve":
                 await service.resolve_comment(
                     task_id=task_id,
                     comment_id=data.get("comment_id"),
                     resolved=data.get("resolved", True),
                 )
-            
+
             elif msg_type == "get_operations_since":
                 # 同步: 获取自某版本以来的所有操作
                 since_ver = data.get("since_version", 0)
@@ -248,7 +244,7 @@ async def collaboration_websocket(
                     "operations": ops,
                     "server_version": service.operation_versions.get(task_id, 0),
                 })
-            
+
     except WebSocketDisconnect:
         pass
     except Exception as e:
@@ -273,7 +269,7 @@ async def get_comments(task_id: str, slide_num: int = None):
 @router.post("/comments/{task_id}")
 async def add_comment(
     task_id: str,
-    request: Dict = Body(...),
+    request: dict = Body(...),
 ):
     """添加评论 (REST 备选)"""
     service = get_collaboration_service()
@@ -316,7 +312,7 @@ async def get_suggest_edits(task_id: str, slide_num: int = None):
 
 
 @router.post("/suggest-edits/{task_id}")
-async def add_suggest_edit(task_id: str, request: Dict = Body(...)):
+async def add_suggest_edit(task_id: str, request: dict = Body(...)):
     """添加编辑建议"""
     service = get_collaboration_service()
     edit = await service.add_suggest_edit(
@@ -337,7 +333,7 @@ async def add_suggest_edit(task_id: str, request: Dict = Body(...)):
 async def resolve_suggest_edit(
     task_id: str,
     edit_id: str,
-    request: Dict = Body(...),
+    request: dict = Body(...),
 ):
     """接受/拒绝编辑建议"""
     service = get_collaboration_service()
@@ -368,7 +364,7 @@ async def get_activity_feed(
 
 
 @router.post("/activity-feed/{task_id}")
-async def log_activity(task_id: str, request: Dict = Body(...)):
+async def log_activity(task_id: str, request: dict = Body(...)):
     """记录活动动态"""
     service = get_collaboration_service()
     entry = await service.log_activity(
@@ -403,9 +399,9 @@ async def mark_all_activities_read(task_id: str):
 # ─── Email Share ─────────────────────────────────────────────────────────────
 
 @router.post("/share/email")
-async def share_via_email(request: Dict = Body(...)):
+async def share_via_email(request: dict = Body(...)):
     """通过邮件分享PPT"""
-    from ...services.email_service import send_ppt_share_email, is_email_configured
+    from ...services.email_service import is_email_configured, send_ppt_share_email
 
     to_email = request.get("to_email", "")
     from_name = request.get("from_name", "RabAiMind 用户")

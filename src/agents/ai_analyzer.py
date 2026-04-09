@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Phase 2.1 AI Analysis Layer - AIAnalyzer Agent
 文档分析、竞品分析、受众画像、PPT大纲生成
@@ -7,13 +6,12 @@ Phase 2.1 AI Analysis Layer - AIAnalyzer Agent
 日期: 2026-04-07
 """
 
+import json
 import logging
 import os
-import json
 import re
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +24,9 @@ class Slide:
     slide_number: int
     title: str
     content: str
-    bullet_points: List[str] = field(default_factory=list)
+    bullet_points: list[str] = field(default_factory=list)
     layout_type: str = "content_card"
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
@@ -36,9 +34,9 @@ class KeyInfo:
     """文档关键信息"""
     title: str
     summary: str
-    key_points: List[str]
-    keywords: List[str]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    key_points: list[str]
+    keywords: list[str]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -47,20 +45,20 @@ class AudiencePersona:
     name: str
     age_range: str
     occupation: str
-    pain_points: List[str]
-    interests: List[str]
+    pain_points: list[str]
+    interests: list[str]
     preferred_content_style: str
-    demographics: Dict[str, Any] = field(default_factory=dict)
+    demographics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class CompetitorAnalysis:
     """竞品分析结果"""
     competitor_name: str
-    strengths: List[str]
-    weaknesses: List[str]
+    strengths: list[str]
+    weaknesses: list[str]
     market_position: str
-    comparison_data: Dict[str, Any] = field(default_factory=dict)
+    comparison_data: dict[str, Any] = field(default_factory=dict)
 
 
 # ==================== Document Parsers ====================
@@ -94,7 +92,7 @@ def extract_text_from_file(file_path: str) -> str:
 
 def _extract_txt(file_path: str) -> str:
     """提取纯文本文件"""
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         return f.read()
 
 
@@ -272,7 +270,7 @@ class AIAnalyzer:
             self._volc_api = get_volc_api()
         return self._volc_api
 
-    def analyze_document(self, file_path: str) -> Dict[str, Any]:
+    def analyze_document(self, file_path: str) -> dict[str, Any]:
         """
         分析文档并提取关键信息
 
@@ -338,7 +336,7 @@ class AIAnalyzer:
                 "error": f"文档分析失败: {str(e)}"
             }
 
-    def generate_outline(self, key_info: Dict[str, Any], scene: str = "business") -> List[Slide]:
+    def generate_outline(self, key_info: dict[str, Any], scene: str = "business") -> list[Slide]:
         """
         根据文档关键信息生成PPT大纲
 
@@ -392,7 +390,7 @@ class AIAnalyzer:
             logger.error(f"大纲生成失败: {e}")
             return self._generate_default_outline(key_info)
 
-    def competitor_analysis(self, url: str, competitor_name: Optional[str] = None) -> Dict[str, Any]:
+    def competitor_analysis(self, url: str, competitor_name: str | None = None) -> dict[str, Any]:
         """
         分析竞品URL并生成对比数据
 
@@ -450,7 +448,7 @@ class AIAnalyzer:
                 "error": f"竞品分析失败: {str(e)}"
             }
 
-    def audience_profiling(self, description: str) -> Dict[str, Any]:
+    def audience_profiling(self, description: str) -> dict[str, Any]:
         """
         根据用户描述生成受众画像
 
@@ -500,7 +498,7 @@ class AIAnalyzer:
 
     # ==================== Helper Methods ====================
 
-    def _parse_json(self, text: str) -> Optional[Dict[str, Any]]:
+    def _parse_json(self, text: str) -> dict[str, Any] | None:
         """安全解析JSON"""
         text = text.strip()
 
@@ -573,7 +571,7 @@ class AIAnalyzer:
             logger.warning(f"获取URL内容失败: {e}")
             return f"无法获取URL内容: {str(e)}"
 
-    def _generate_default_outline(self, key_info: Dict[str, Any]) -> List[Slide]:
+    def _generate_default_outline(self, key_info: dict[str, Any]) -> list[Slide]:
         """生成默认大纲（当AI生成失败时）"""
         title = key_info.get("title", "PPT主题")
         key_points = key_info.get("key_points", [])
@@ -619,7 +617,7 @@ class AIAnalyzer:
 
 # ==================== Global Instance ====================
 
-_ai_analyzer_instance: Optional[AIAnalyzer] = None
+_ai_analyzer_instance: AIAnalyzer | None = None
 
 
 def get_ai_analyzer() -> AIAnalyzer:

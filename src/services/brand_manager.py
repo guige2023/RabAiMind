@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 品牌中心 — 管理用户企业品牌配置
 
@@ -11,13 +10,10 @@
 - 从 LOGO 自动提取配色
 """
 
-import os
-import json
-import uuid
 import base64
+import json
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict, field
 
 BRAND_DIR = Path(__file__).parent.parent / "data" / "brands"
 BRAND_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,7 +31,7 @@ class BrandKit:
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: List[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
+    fonts: list[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
     logo_data: str = ""
     logo_position: str = "bottom-right"
     created_at: str = ""
@@ -62,7 +58,7 @@ class BrandProfile:
     primary_color: str = "#165DFF"
     secondary_color: str = "#0E42D2"
     accent_color: str = "#FF9500"
-    fonts: List[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
+    fonts: list[str] = field(default_factory=lambda: ["思源黑体", "Arial"])
     logo_url: str = ""
     slogan: str = ""
     # R46: 扩展字段
@@ -74,7 +70,7 @@ class BrandProfile:
     auto_color_detection: bool = False  # 从 LOGO 自动提取配色
     # R104: 品牌套件 & 自定义域名
     custom_domain: str = ""        # 自定义域名，如 "ppt.mydomain.com"
-    brand_kits: List[BrandKit] = field(default_factory=list)  # 保存的品牌套件列表
+    brand_kits: list[BrandKit] = field(default_factory=list)  # 保存的品牌套件列表
     email_template_enabled: bool = True  # 分享邮件是否使用品牌模板
     email_tagline: str = ""       # 邮件签名语
 
@@ -118,7 +114,7 @@ class BrandManager:
     def _get_brand_file(self, user_id: str) -> Path:
         return self.brands_dir / f"{user_id}.json"
 
-    def get_brand(self, user_id: str) -> Optional[BrandProfile]:
+    def get_brand(self, user_id: str) -> BrandProfile | None:
         """获取用户品牌配置"""
         path = self._get_brand_file(user_id)
         if not path.exists():
@@ -140,7 +136,7 @@ class BrandManager:
             return True
         return False
 
-    def apply_brand_to_theme(self, user_id: str, base_theme: Dict) -> Dict:
+    def apply_brand_to_theme(self, user_id: str, base_theme: dict) -> dict:
         """将品牌配置应用到主题"""
         brand = self.get_brand(user_id)
         if not brand:
@@ -189,14 +185,14 @@ class BrandManager:
         self.save_brand(brand)
         return True
 
-    def get_brand_kits(self, user_id: str) -> List[BrandKit]:
+    def get_brand_kits(self, user_id: str) -> list[BrandKit]:
         """获取品牌套件列表"""
         brand = self.get_brand(user_id)
         if not brand:
             return []
         return brand.brand_kits
 
-    def apply_brand_kit(self, user_id: str, kit_id: str) -> Optional[BrandKit]:
+    def apply_brand_kit(self, user_id: str, kit_id: str) -> BrandKit | None:
         """应用品牌套件到主品牌配置"""
         brand = self.get_brand(user_id)
         if not brand:
@@ -224,7 +220,7 @@ class BrandManager:
             match = re.search(r'data:image/[^;]+;base64,(.+)', logo_data)
             if match:
                 logo_data = match.group(1)
-        
+
         try:
             binary = base64.b64decode(logo_data + "==")
             with open(logo_file, "wb") as f:
@@ -234,7 +230,7 @@ class BrandManager:
             # 可能是 URL，下载保存
             return ""
 
-    def get_logo_path(self, user_id: str) -> Optional[str]:
+    def get_logo_path(self, user_id: str) -> str | None:
         """获取用户 LOGO 路径"""
         logo_file = LOGO_DIR / f"{user_id}_logo.png"
         if logo_file.exists():

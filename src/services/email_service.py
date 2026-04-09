@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 Email Service for PPT Sharing
 Simple SMTP-based email sending for collaboration features
 """
+import logging
 import os
 import smtplib
-import logging
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ def send_email(
     to_email: str,
     subject: str,
     html_body: str,
-    text_body: Optional[str] = None,
+    text_body: str | None = None,
 ) -> bool:
     """
     Send an email via SMTP.
@@ -65,7 +63,7 @@ def send_ppt_share_email(
     from_name: str,
     ppt_title: str,
     share_url: str,
-    message: Optional[str] = None,
+    message: str | None = None,
     primary_color: str = "#165DFF",
     secondary_color: str = "#0E42D2",
     logo_data: str = "",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Organization-level Security Module
 
@@ -11,16 +10,14 @@ Author: Claude (R140)
 Date: 2026-04-04
 """
 
-import os
 import json
-import uuid
-import hashlib
-import threading
 import logging
+import os
+import threading
+import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Set
-from dataclasses import dataclass, field
-from ipaddress import ip_network, ip_address, IPv4Address, IPv6Address
+from ipaddress import ip_address, ip_network
+from typing import Any
 
 logger = logging.getLogger("org_security")
 
@@ -40,7 +37,7 @@ class OrgIPAllowlistManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._cache: Dict[str, Dict] = {}
+        self._cache: dict[str, dict] = {}
         self._ensure_storage()
 
     def _ensure_storage(self):
@@ -48,14 +45,14 @@ class OrgIPAllowlistManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Dict]:
+    def _load(self) -> dict[str, dict]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -64,7 +61,7 @@ class OrgIPAllowlistManager:
     def _is_cidr(self, ip_str: str) -> bool:
         return "/" in ip_str
 
-    def _parse_ip(self, ip_str: str) -> Optional[Any]:
+    def _parse_ip(self, ip_str: str) -> Any | None:
         """Parse IP string or CIDR. Returns None if invalid."""
         try:
             if self._is_cidr(ip_str):
@@ -113,7 +110,7 @@ class OrgIPAllowlistManager:
                     return False
             return True
 
-    def set_allowed_ips(self, org_id: str, allowed_ips: List[str], updated_by: str = "") -> Dict[str, Any]:
+    def set_allowed_ips(self, org_id: str, allowed_ips: list[str], updated_by: str = "") -> dict[str, Any]:
         """Set the IP allowlist for an organization."""
         # Validate IPs
         invalid = []
@@ -137,7 +134,7 @@ class OrgIPAllowlistManager:
 
         return {"success": True, "org_id": org_id, "allowed_ips": allowed_ips}
 
-    def set_denied_ips(self, org_id: str, denied_ips: List[str], updated_by: str = "") -> Dict[str, Any]:
+    def set_denied_ips(self, org_id: str, denied_ips: list[str], updated_by: str = "") -> dict[str, Any]:
         """Set the IP denylist (blacklist) for an organization."""
         # Validate IPs
         invalid = []
@@ -161,7 +158,7 @@ class OrgIPAllowlistManager:
 
         return {"success": True, "org_id": org_id, "denied_ips": denied_ips}
 
-    def clear_restrictions(self, org_id: str) -> Dict[str, Any]:
+    def clear_restrictions(self, org_id: str) -> dict[str, Any]:
         """Remove all IP restrictions for an organization."""
         with self._lock:
             data = self._load()
@@ -173,7 +170,7 @@ class OrgIPAllowlistManager:
                 self._save(data)
         return {"success": True, "org_id": org_id, "message": "IP restrictions cleared"}
 
-    def get_ip_config(self, org_id: str) -> Dict[str, Any]:
+    def get_ip_config(self, org_id: str) -> dict[str, Any]:
         """Get IP allowlist configuration for an organization."""
         data = self._load()
         org = data.get(org_id, {})
@@ -188,7 +185,7 @@ class OrgIPAllowlistManager:
             "created_at": org.get("created_at"),
         }
 
-    def get_all_org_configs(self) -> List[Dict[str, Any]]:
+    def get_all_org_configs(self) -> list[dict[str, Any]]:
         """Get IP config for all organizations (admin only)."""
         data = self._load()
         return [
@@ -218,21 +215,21 @@ class CustomRoleManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Dict]:
+    def _load(self) -> dict[str, dict]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         os.replace(tmp, self.STORAGE_FILE)
 
     # Predefined valid permissions
-    VALID_PERMISSIONS: Set[str] = {
+    VALID_PERMISSIONS: set[str] = {
         # PPT operations
         "ppt:generate", "ppt:edit", "ppt:delete", "ppt:export",
         "ppt:plan", "ppt:preview", "ppt:versions", "ppt:rollback",
@@ -260,7 +257,7 @@ class CustomRoleManager:
         "data:export", "data:delete",
     }
 
-    def validate_permissions(self, permissions: List[str]) -> tuple[bool, List[str]]:
+    def validate_permissions(self, permissions: list[str]) -> tuple[bool, list[str]]:
         """Validate a list of permissions. Returns (valid, invalid_list)."""
         invalid = [p for p in permissions if p not in self.VALID_PERMISSIONS]
         return (len(invalid) == 0, invalid)
@@ -269,9 +266,9 @@ class CustomRoleManager:
         self,
         name: str,
         description: str,
-        permissions: List[str],
+        permissions: list[str],
         created_by: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a new custom role."""
         valid, invalid = self.validate_permissions(permissions)
         if not valid:
@@ -304,11 +301,11 @@ class CustomRoleManager:
     def update_role(
         self,
         role_id: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        permissions: Optional[List[str]] = None,
-        is_active: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        name: str | None = None,
+        description: str | None = None,
+        permissions: list[str] | None = None,
+        is_active: bool | None = None,
+    ) -> dict[str, Any]:
         """Update an existing custom role."""
         if not role_id.startswith("custom_"):
             raise ValueError("Can only update custom roles")
@@ -342,7 +339,7 @@ class CustomRoleManager:
 
         return data[role_id]
 
-    def delete_role(self, role_id: str) -> Dict[str, Any]:
+    def delete_role(self, role_id: str) -> dict[str, Any]:
         """Soft-delete a custom role (marks as inactive)."""
         if not role_id.startswith("custom_"):
             raise ValueError("Can only delete custom roles")
@@ -358,7 +355,7 @@ class CustomRoleManager:
 
         return {"success": True, "role_id": role_id, "message": "Role deactivated"}
 
-    def get_role(self, role_id: str) -> Dict[str, Any]:
+    def get_role(self, role_id: str) -> dict[str, Any]:
         """Get a specific role."""
         data = self._load()
         role = data.get(role_id)
@@ -366,7 +363,7 @@ class CustomRoleManager:
             raise ValueError(f"Role '{role_id}' not found")
         return role
 
-    def list_roles(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    def list_roles(self, include_inactive: bool = False) -> list[dict[str, Any]]:
         """List all custom roles."""
         data = self._load()
         roles = list(data.values())
@@ -374,7 +371,7 @@ class CustomRoleManager:
             roles = [r for r in roles if r.get("is_active", True)]
         return sorted(roles, key=lambda r: r.get("created_at", ""))
 
-    def assign_role_to_user(self, user_id: str, role_id: str) -> Dict[str, Any]:
+    def assign_role_to_user(self, user_id: str, role_id: str) -> dict[str, Any]:
         """Assign a custom role to a user."""
         from .security import _user_store
         # In a real app, this would be in a user-role mapping table
@@ -386,7 +383,7 @@ class CustomRoleManager:
         roles_file = "./data/user_custom_roles.json"
         os.makedirs(os.path.dirname(roles_file), exist_ok=True)
         try:
-            with open(roles_file, "r", encoding="utf-8") as f:
+            with open(roles_file, encoding="utf-8") as f:
                 user_roles = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             user_roles = {}
@@ -401,11 +398,11 @@ class CustomRoleManager:
 
         return {"success": True, "user_id": user_id, "role_id": role_id}
 
-    def get_user_roles(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_user_roles(self, user_id: str) -> list[dict[str, Any]]:
         """Get all custom roles assigned to a user."""
         roles_file = "./data/user_custom_roles.json"
         try:
-            with open(roles_file, "r", encoding="utf-8") as f:
+            with open(roles_file, encoding="utf-8") as f:
                 user_roles = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             user_roles = {}
@@ -436,14 +433,14 @@ class SOC2ComplianceManager:
         if not os.path.exists(self.STORAGE_FILE):
             self._save({})
 
-    def _load(self) -> Dict[str, Any]:
+    def _load(self) -> dict[str, Any]:
         try:
-            with open(self.STORAGE_FILE, "r", encoding="utf-8") as f:
+            with open(self.STORAGE_FILE, encoding="utf-8") as f:
                 return json.load(f)
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    def _save(self, data: Dict):
+    def _save(self, data: dict):
         tmp = self.STORAGE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -457,7 +454,7 @@ class SOC2ComplianceManager:
         src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(src_dir, "..", "output")
 
-    def get_data_inventory(self, user_id: str = "") -> Dict[str, Any]:
+    def get_data_inventory(self, user_id: str = "") -> dict[str, Any]:
         """
         Generate a data inventory report (SOC2 CC6.1 - Logical and Physical Access Controls).
         Lists all data stores, their types, and retention status.
@@ -529,12 +526,12 @@ class SOC2ComplianceManager:
             return "user_data"
         return "other"
 
-    def get_access_controls_report(self) -> Dict[str, Any]:
+    def get_access_controls_report(self) -> dict[str, Any]:
         """
         Generate access controls report (SOC2 CC6.2 - Role-based access).
         Shows who has what roles and permissions.
         """
-        from .security import _user_store, ROLE_PERMISSIONS, Role
+        from .security import ROLE_PERMISSIONS, Role, _user_store
 
         users = []
         for username, u in _user_store.items():
@@ -563,7 +560,7 @@ class SOC2ComplianceManager:
             "total_roles": len(roles),
         }
 
-    def get_encryption_report(self) -> Dict[str, Any]:
+    def get_encryption_report(self) -> dict[str, Any]:
         """
         Generate encryption status report (SOC2 CC6.7 - Encryption).
         """
@@ -592,7 +589,7 @@ class SOC2ComplianceManager:
             },
         }
 
-    def get_audit_trail_report(self, days: int = 90) -> Dict[str, Any]:
+    def get_audit_trail_report(self, days: int = 90) -> dict[str, Any]:
         """
         Generate audit trail report (SOC2 CC7.2 - Monitoring).
         """
@@ -605,7 +602,7 @@ class SOC2ComplianceManager:
         window_logs = [l for l in all_logs if l.get("timestamp", "") >= cutoff_str]
 
         # Count by action type
-        action_counts: Dict[str, int] = {}
+        action_counts: dict[str, int] = {}
         error_count = 0
         for log in window_logs:
             action = log.get("action", "unknown")
@@ -625,13 +622,13 @@ class SOC2ComplianceManager:
             "top_actions": sorted(action_counts.items(), key=lambda x: x[1], reverse=True)[:20],
         }
 
-    def generate_compliance_attestation(self) -> Dict[str, Any]:
+    def generate_compliance_attestation(self) -> dict[str, Any]:
         """
         Generate a SOC2 compliance attestation document.
         This is a summary document for auditors.
         """
         now = datetime.utcnow()
-        
+
         return {
             "attestation_id": f"soc2_attestation_{now.strftime('%Y%m%d_%H%M%S')}",
             "generated_at": now.isoformat() + "Z",
@@ -685,9 +682,9 @@ class SOC2ComplianceManager:
 
 # ==================== Globals ====================
 
-_org_ip_allowlist: Optional[OrgIPAllowlistManager] = None
-_custom_role_manager: Optional[CustomRoleManager] = None
-_soc2_compliance: Optional[SOC2ComplianceManager] = None
+_org_ip_allowlist: OrgIPAllowlistManager | None = None
+_custom_role_manager: CustomRoleManager | None = None
+_soc2_compliance: SOC2ComplianceManager | None = None
 
 
 def get_org_ip_allowlist_manager() -> OrgIPAllowlistManager:

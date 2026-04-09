@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Dashboard API Route
 
@@ -9,20 +8,21 @@ Author: Claude
 Date: 2026-04-04
 """
 
-from fastapi import APIRouter, Request
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import Any
 
-from ...services.task_manager import get_task_manager
+from fastapi import APIRouter, Request
+
+from ...api.middleware.rate_limit import get_user_id_from_request
 from ...services.analytics_service import get_analytics_service
 from ...services.collaboration_service import get_collaboration_service
-from ...api.middleware.rate_limit import get_user_id_from_request
+from ...services.task_manager import get_task_manager
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 
 
-def _parse_ts(ts_str: str) -> Optional[datetime]:
+def _parse_ts(ts_str: str) -> datetime | None:
     """Parse ISO timestamp string."""
     if not ts_str:
         return None
@@ -38,7 +38,7 @@ def _format_ts(ts: datetime) -> str:
 
 
 @router.get("")
-async def get_dashboard(request: Request) -> Dict[str, Any]:
+async def get_dashboard(request: Request) -> dict[str, Any]:
     """
     Get full dashboard data for the home screen.
 
@@ -100,8 +100,8 @@ async def get_dashboard(request: Request) -> Dict[str, Any]:
     # ── 2. Weekly Stats (last 7 days) ──────────────────────────────────────
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     weekly_stats = []
-    scene_counts: Dict[str, int] = defaultdict(int)
-    style_counts: Dict[str, int] = defaultdict(int)
+    scene_counts: dict[str, int] = defaultdict(int)
+    style_counts: dict[str, int] = defaultdict(int)
 
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)

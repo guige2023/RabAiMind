@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Presentation Analytics Service - 演示分析服务
 Tracks who viewed presentations, time per slide, heatmaps, scroll depth
@@ -6,11 +5,11 @@ Tracks who viewed presentations, time per slide, heatmaps, scroll depth
 
 import json
 import os
-import uuid
 import threading
-from datetime import datetime
-from typing import Dict, List, Optional, Any
+import uuid
 from collections import defaultdict
+from datetime import datetime
+from typing import Optional
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'presentation_analytics')
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -37,7 +36,7 @@ class PresentationAnalyticsService:
             return
         self._initialized = True
         self._lock = LOCK
-        self._sessions: Dict[str, dict] = {}  # session_id -> session data
+        self._sessions: dict[str, dict] = {}  # session_id -> session data
         self._load_all()
 
     def _data_file(self, task_id: str) -> str:
@@ -49,7 +48,7 @@ class PresentationAnalyticsService:
             for fname in os.listdir(DATA_DIR):
                 if fname.endswith('.json'):
                     fpath = os.path.join(DATA_DIR, fname)
-                    with open(fpath, 'r', encoding='utf-8') as f:
+                    with open(fpath, encoding='utf-8') as f:
                         data = json.load(f)
                         task_id = fname.replace('.json', '')
                         # Load sessions into memory
@@ -72,7 +71,7 @@ class PresentationAnalyticsService:
         fpath = self._data_file(task_id)
         if os.path.exists(fpath):
             try:
-                with open(fpath, 'r', encoding='utf-8') as f:
+                with open(fpath, encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -128,7 +127,7 @@ class PresentationAnalyticsService:
         return session_id
 
     def track_slide_view(self, session_id: str, slide_index: int, duration_seconds: float = 0,
-                          enter_time: Optional[str] = None) -> dict:
+                          enter_time: str | None = None) -> dict:
         """
         Record time spent on a specific slide.
         Called periodically via heartbeat or when user navigates to next slide.
@@ -167,7 +166,7 @@ class PresentationAnalyticsService:
 
         return {"success": True, "session_id": session_id, "slide_index": slide_index}
 
-    def track_heatmap(self, session_id: str, slide_index: int, heatmap_points: List[dict]) -> dict:
+    def track_heatmap(self, session_id: str, slide_index: int, heatmap_points: list[dict]) -> dict:
         """
         Record heatmap attention data for a slide.
         heatmap_points: [{"x": 0.0-1.0, "y": 0.0-1.0, "weight": float}, ...]
@@ -226,8 +225,8 @@ class PresentationAnalyticsService:
             unique_viewers = list(unique_viewers)
 
         # Per-slide time analysis
-        slide_time_map: Dict[int, List[float]] = defaultdict(list)
-        heatmap_aggregated: Dict[int, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        slide_time_map: dict[int, list[float]] = defaultdict(list)
+        heatmap_aggregated: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         scroll_depths = []
 
         for session in sessions:
@@ -291,7 +290,7 @@ class PresentationAnalyticsService:
         scroll_reached_end = sum(1 for d in scroll_depths if d >= 90)
 
         # Aggregate heatmap for overview (average across slides)
-        overview_heatmap: Dict[str, float] = defaultdict(float)
+        overview_heatmap: dict[str, float] = defaultdict(float)
         for slide_heatmap in heatmap_aggregated.values():
             for cell, weight in slide_heatmap.items():
                 overview_heatmap[cell] += weight
@@ -334,10 +333,10 @@ class PresentationAnalyticsService:
         self,
         total_views: int,
         unique_viewers: int,
-        scroll_depths: List[float],
+        scroll_depths: list[float],
         scroll_reached_end: int,
-        overview_heatmap: Dict[str, float],
-        slide_stats: List[dict],
+        overview_heatmap: dict[str, float],
+        slide_stats: list[dict],
     ) -> dict:
         """
         Calculate a composite presentation effectiveness score (0-100).
@@ -432,14 +431,15 @@ class PresentationAnalyticsService:
 
         # Try reportlab first, fallback to weasyprint/html2pdf
         try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import mm
-            from reportlab.lib import colors
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT
-            from reportlab.pdfgen import canvas
             from io import BytesIO
+
+            from reportlab.lib import colors
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+            from reportlab.lib.units import mm
+            from reportlab.pdfgen import canvas
+            from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
@@ -451,7 +451,7 @@ class PresentationAnalyticsService:
 
             story = []
 
-            story.append(Paragraph(f"📊 RabAiMind 演示分析报告", title_style))
+            story.append(Paragraph("📊 RabAiMind 演示分析报告", title_style))
             story.append(Paragraph(f"任务ID: {task_id}", normal_style))
             story.append(Paragraph(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
             story.append(Spacer(1, 15*mm))
@@ -598,6 +598,7 @@ class PresentationAnalyticsService:
             # Fallback: use HTML to PDF via subprocess (wkhtmltopdf)
             try:
                 import subprocess
+
                 # Write HTML to temp file
                 import tempfile
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
@@ -764,8 +765,8 @@ class PresentationAnalyticsService:
         clicks = data.get("cta_clicks", [])
 
         # Group by CTA label
-        by_label: Dict[str, int] = defaultdict(int)
-        by_viewer: Dict[str, int] = defaultdict(int)
+        by_label: dict[str, int] = defaultdict(int)
+        by_viewer: dict[str, int] = defaultdict(int)
         recent_clicks = []
 
         for click in clicks:
@@ -873,9 +874,9 @@ class PresentationAnalyticsService:
         data = self._get_data(task_id)
         sessions = data.get("sessions", [])
 
-        browsers: Dict[str, int] = defaultdict(int)
-        devices: Dict[str, int] = defaultdict(int)
-        by_viewer: Dict[str, dict] = {}
+        browsers: dict[str, int] = defaultdict(int)
+        devices: dict[str, int] = defaultdict(int)
+        by_viewer: dict[str, dict] = {}
 
         for session in sessions:
             vid = session.get("viewer_id", "unknown")
@@ -906,9 +907,9 @@ class PresentationAnalyticsService:
         data = self._get_data(task_id)
         sessions = data.get("sessions", [])
 
-        countries: Dict[str, int] = defaultdict(int)
-        cities: Dict[str, int] = defaultdict(int)
-        country_cities: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        countries: dict[str, int] = defaultdict(int)
+        cities: dict[str, int] = defaultdict(int)
+        country_cities: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         for session in sessions:
             country = session.get("country", "") or "Unknown"
@@ -940,7 +941,7 @@ class PresentationAnalyticsService:
         data = self._get_data(task_id)
         sessions = data.get("sessions", [])
 
-        slide_times: Dict[int, List[float]] = defaultdict(list)
+        slide_times: dict[int, list[float]] = defaultdict(list)
         for session in sessions:
             for sv in session.get("slide_views", []):
                 if sv.get("duration_seconds", 0) > 0:
@@ -979,7 +980,7 @@ class PresentationAnalyticsService:
     # ==================== A/B Testing ====================
 
     def save_ab_version(self, task_id: str, slide_index: int, version_key: str,
-                        content_md5: str, metadata: Optional[dict] = None) -> dict:
+                        content_md5: str, metadata: dict | None = None) -> dict:
         with self._lock:
             data = self._get_data(task_id)
             if "ab_versions" not in data:
@@ -1011,7 +1012,7 @@ class PresentationAnalyticsService:
     def get_ab_test_results(self, task_id: str, slide_index: int) -> dict:
         data = self._get_data(task_id)
         sessions = data.get("sessions", [])
-        version_stats: Dict[str, dict] = {
+        version_stats: dict[str, dict] = {
             "A": {"times": [], "heatmap_weights": [], "scroll_depths": []},
             "B": {"times": [], "heatmap_weights": [], "scroll_depths": []},
         }
@@ -1081,7 +1082,7 @@ class PresentationAnalyticsService:
         if total_slides == 0:
             return {"success": True, "task_id": task_id, "total_slides": 0, "flow": []}
 
-        slide_engagement: Dict[int, dict] = {}
+        slide_engagement: dict[int, dict] = {}
         for slide_idx in range(total_slides):
             slide_engagement[slide_idx] = {"view_count": 0, "avg_time_seconds": 0, "times": [], "dropped_after": 0}
 
@@ -1102,7 +1103,7 @@ class PresentationAnalyticsService:
             (sum(slide_engagement[j]["times"]) / len(slide_engagement[j]["times"]) if slide_engagement[j]["times"] else 0)
             for j in range(total_slides)
         ) or 1
-        max_view_count = max((slide_engagement[j]["view_count"] for j in range(total_slides))) or 1
+        max_view_count = max(slide_engagement[j]["view_count"] for j in range(total_slides)) or 1
 
         flow = []
         for slide_idx in range(total_slides):
@@ -1315,7 +1316,7 @@ class PresentationAnalyticsService:
     def get_slide_heatmaps(self, task_id: str) -> dict:
         data = self._get_data(task_id)
         sessions = data.get("sessions", [])
-        slide_heatmaps: Dict[int, dict] = defaultdict(lambda: defaultdict(float))
+        slide_heatmaps: dict[int, dict] = defaultdict(lambda: defaultdict(float))
 
         for session in sessions:
             for slide_idx, points in session.get("heatmap_data", {}).items():

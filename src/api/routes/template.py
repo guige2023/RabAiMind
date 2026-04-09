@@ -1,16 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 模板API路由
 """
 import time
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
-from pathlib import Path
 from dataclasses import asdict
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-from ...services.template_manager import get_template_manager, Template
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel
+
+from ...services.template_manager import get_template_manager
 
 TMPLATES_DIR = Path("static/templates")
 TMPLATES_DIR.mkdir(parents=True, exist_ok=True)
@@ -26,19 +26,19 @@ class TemplateResponse(BaseModel):
     category: str
     style: str
     thumbnail: str
-    colors: List[str]
-    fonts: List[str]
+    colors: list[str]
+    fonts: list[str]
 
 
-@router.get("/list", response_model=List[TemplateResponse])
+@router.get("/list", response_model=list[TemplateResponse])
 async def list_templates(
-    category: Optional[str] = None,
-    style: Optional[str] = None
+    category: str | None = None,
+    style: str | None = None
 ):
     """获取模板列表"""
     manager = get_template_manager()
     templates = manager.list_templates(category=category, style=style)
-    
+
     return [
         TemplateResponse(
             id=t.id,
@@ -68,11 +68,11 @@ async def get_styles():
     return {"styles": manager.get_styles()}
 
 
-@router.get("/search", response_model=List[TemplateResponse])
+@router.get("/search", response_model=list[TemplateResponse])
 async def search_templates(
     q: str = "",
-    category: Optional[str] = None,
-    style: Optional[str] = None,
+    category: str | None = None,
+    style: str | None = None,
     limit: int = 20
 ):
     """
@@ -154,8 +154,8 @@ async def get_trending_templates(limit: int = 6, days: int = 7):
 @router.get("/recommend")
 async def get_recommended_templates(
     user_id: str = "anonymous",
-    scene: Optional[str] = None,
-    style: Optional[str] = None,
+    scene: str | None = None,
+    style: str | None = None,
     limit: int = 6,
 ):
     """为你推荐（基于场景推荐）"""
@@ -326,13 +326,12 @@ class BatchRenameItem(BaseModel):
 
 
 class BatchRenameRequest(BaseModel):
-    renames: List[BatchRenameItem]
+    renames: list[BatchRenameItem]
 
 
 @router.post("/batch/rename")
 async def batch_rename_templates(request: BatchRenameRequest):
     """批量重命名模板"""
-    from pydantic import BaseModel, Field
     manager = get_template_manager()
     renamed = []
     errors = []
@@ -366,17 +365,17 @@ async def get_trending_templates(limit: int = 6, days: int = 7):
         limit: 返回数量，默认6
         days: 统计最近天数，默认7
     """
-    from ...services.search_analytics import get_analytics, get_template_usage, get_template_manager
-    
+    from ...services.search_analytics import get_analytics, get_template_manager, get_template_usage
+
     manager = get_template_manager()
-    
+
     # 优先用真实使用数据，否则用点击数据
     usage = get_template_usage()
     usage_trending = usage.get_most_used(limit=limit)
-    
+
     analytics = get_analytics()
     click_trending = analytics.get_trending_templates(limit=limit, days=days)
-    
+
     # 合并两个数据源
     template_scores: dict = {}
     for entry in usage_trending:
@@ -384,10 +383,10 @@ async def get_trending_templates(limit: int = 6, days: int = 7):
     for entry in click_trending:
         tid = entry["template_id"]
         template_scores[tid] = template_scores.get(tid, 0) + entry["click_count"]
-    
+
     # 按分数排序
     sorted_ids = sorted(template_scores.keys(), key=lambda x: -template_scores[x])[:limit]
-    
+
     result = []
     for tid in sorted_ids:
         t = manager.get_template(tid)
@@ -403,7 +402,7 @@ async def get_trending_templates(limit: int = 6, days: int = 7):
                 "fonts": t.fonts,
                 "score": template_scores[tid],
             })
-    
+
     return {"success": True, "templates": result, "period_days": days}
 
 
@@ -415,18 +414,18 @@ async def get_similar_templates(template_id: str, limit: int = 5):
     基于共现分析：使用过本模板的用户同时也使用了哪些模板
     """
     from ...services.search_analytics import get_analytics, get_template_manager
-    
+
     manager = get_template_manager()
     analytics = get_analytics()
-    
+
     similar_ids = analytics.get_template_similarity(template_id, limit=limit)
-    
+
     # 如果共现数据不够，用分类/风格相似来补充
     base = manager.get_template(template_id)
     if not base and similar_ids:
         # 找不到原模板，直接返回
         return {"success": True, "templates": [], "template_id": template_id}
-    
+
     result = []
     for sid in similar_ids:
         t = manager.get_template(sid)
@@ -441,7 +440,7 @@ async def get_similar_templates(template_id: str, limit: int = 5):
                 "colors": t.colors,
                 "fonts": t.fonts,
             })
-    
+
     # 如果共现数据不足，补充同分类同风格的模板
     if len(result) < limit and base:
         all_templates = manager.list_templates()
@@ -461,28 +460,28 @@ async def get_similar_templates(template_id: str, limit: int = 5):
                 })
                 if len(result) >= limit:
                     break
-    
+
     return {"success": True, "templates": result[:limit], "template_id": template_id}
 
 
 @router.get("/recommend")
 async def get_recommended_templates(
     user_id: str = "anonymous",
-    scene: Optional[str] = None,
-    style: Optional[str] = None,
+    scene: str | None = None,
+    style: str | None = None,
     limit: int = 6,
 ):
     """
     为你推荐（基于用户历史和使用场景）
     """
-    from ...services.search_analytics import get_user_history, get_template_usage, get_template_manager
-    
+    from ...services.search_analytics import get_template_manager, get_template_usage, get_user_history
+
     manager = get_template_manager()
-    
+
     # 1. 先尝试基于用户历史的协同过滤推荐
     history = get_user_history()
     recommended_ids = history.get_recommendations(user_id, limit=limit)
-    
+
     # 2. 如果历史数据不够，用场景+风格推荐
     if len(recommended_ids) < limit:
         usage = get_template_usage()
@@ -500,7 +499,7 @@ async def get_recommended_templates(
                 seen.add(rid)
                 unique.append(rid)
         recommended_ids = unique
-    
+
     # 3. 兜底：用默认热门模板
     if len(recommended_ids) < limit:
         all_templates = manager.list_templates()
@@ -510,7 +509,7 @@ async def get_recommended_templates(
                 recommended_ids.append(did)
                 if len(recommended_ids) >= limit:
                     break
-    
+
     result = []
     for rid in recommended_ids[:limit]:
         t = manager.get_template(rid)
@@ -525,15 +524,15 @@ async def get_recommended_templates(
                 "colors": t.colors,
                 "fonts": t.fonts,
             })
-    
+
     return {"success": True, "templates": result, "user_id": user_id}
 
 
 @router.get("/match")
 async def match_templates(
     q: str = "",
-    scene: Optional[str] = None,
-    style: Optional[str] = None,
+    scene: str | None = None,
+    style: str | None = None,
     limit: int = 6,
 ):
     """
@@ -542,9 +541,9 @@ async def match_templates(
     分析用户输入的关键词，匹配最佳模板
     """
     from ...services.search_analytics import get_analytics, get_template_manager
-    
+
     manager = get_template_manager()
-    
+
     # 关键词 → 模板分类/风格 映射
     scene_keywords = {
         "business": ["商业", "公司", "企业", "商务", "方案", "计划", "报告", "提案", "合作", "融资", "项目汇报", "年度总结", "工作"],
@@ -555,7 +554,7 @@ async def match_templates(
         "finance": ["金融", "银行", "投资", "理财", "基金", "财务", "审计", "财报", "路演"],
         "medical": ["医疗", "医药", "医院", "健康"],
     }
-    
+
     style_keywords = {
         "professional": ["专业", "商务", "正式", "报告", "稳重", "可靠"],
         "minimal": ["简约", "简单", "干净", "清爽", "极简", "清新"],
@@ -565,27 +564,27 @@ async def match_templates(
         "tech": ["科技", "未来", "智能", "数字", "赛博"],
         "elegant": ["优雅", "精致", "古典", "传统", "中国风", "水墨"],
     }
-    
+
     q_lower = q.lower()
     matched_scenes: list = []
     matched_styles: list = []
-    
+
     for sc, kws in scene_keywords.items():
         for kw in kws:
             if kw in q_lower:
                 matched_scenes.append(sc)
                 break
-    
+
     for st, kws in style_keywords.items():
         for kw in kws:
             if kw in q_lower:
                 matched_styles.append(st)
                 break
-    
+
     # 优先级：显式指定 > 内容分析 > 默认
     target_scene = scene or (matched_scenes[0] if matched_scenes else None)
     target_style = style or (matched_styles[0] if matched_styles else None)
-    
+
     # 搜索匹配的模板
     all_templates = manager.list_templates()
     scored = []
@@ -601,7 +600,7 @@ async def match_templates(
         if any(kw in t.description.lower() for kw in q_lower.split() if len(kw) > 2):
             score += 0.5
         scored.append((score, t))
-    
+
     scored.sort(key=lambda x: -x[0])
     result = []
     for score, t in scored[:limit]:
@@ -619,7 +618,7 @@ async def match_templates(
                 "matched_scenes": matched_scenes,
                 "matched_styles": matched_styles,
             })
-    
+
     # 如果没有高匹配，返回默认推荐
     if not result:
         defaults = ["default", "modern", "business", "creative", "tech"]
@@ -637,12 +636,12 @@ async def match_templates(
                     "fonts": t.fonts,
                     "match_score": 0,
                 })
-    
+
     # 记录搜索分析
     if q:
         analytics = get_analytics()
         analytics.track_search(q, results_count=len(result))
-    
+
     return {
         "success": True,
         "templates": result,
@@ -655,7 +654,7 @@ async def match_templates(
 @router.post("/track")
 async def track_template_event(
     event_type: str,  # search, click, use
-    template_id: Optional[str] = None,
+    template_id: str | None = None,
     user_id: str = "anonymous",
     query: str = "",
     scene: str = "",
@@ -664,9 +663,9 @@ async def track_template_event(
 ):
     """跟踪模板相关事件"""
     from ...services.search_analytics import get_analytics, get_template_usage, get_user_history
-    
+
     analytics = get_analytics()
-    
+
     if event_type == "search" and query:
         analytics.track_search(query)
     elif event_type == "click" and template_id:
@@ -675,11 +674,11 @@ async def track_template_event(
         analytics.track_template_click(template_id, query=query)
         usage = get_template_usage()
         usage.track_usage(template_id, user_id=user_id, scene=scene, style=style, request_text=request_text)
-    
+
     if user_id != "anonymous" and template_id:
         history = get_user_history()
         history.add_interaction(user_id, template_id, interaction_type=event_type)
-    
+
     return {"success": True, "event_type": event_type}
 
 
@@ -883,8 +882,9 @@ async def get_template_of_the_day():
     获取今日推荐的模板
     每天根据日期自动选择，保持一天内一致
     """
-    from ...services.marketplace_service import get_marketplace_service, get_template_manager
     import hashlib
+
+    from ...services.marketplace_service import get_marketplace_service, get_template_manager
 
     manager = get_template_manager()
     ms = get_marketplace_service()
@@ -951,13 +951,13 @@ async def get_daily_history(limit: int = 7):
 
 class AdvancedSearchRequest(BaseModel):
     query: str = ""
-    category: Optional[str] = None
-    style: Optional[str] = None
-    author: Optional[str] = None
-    tags: Optional[List[str]] = None
-    date_from: Optional[str] = None
-    date_to: Optional[str] = None
-    template_type: Optional[str] = None
+    category: str | None = None
+    style: str | None = None
+    author: str | None = None
+    tags: list[str] | None = None
+    date_from: str | None = None
+    date_to: str | None = None
+    template_type: str | None = None
     sort_by: str = "relevance"
     page: int = 1
     limit: int = 20
@@ -966,19 +966,19 @@ class AdvancedSearchRequest(BaseModel):
 
 class AdvancedSearchResponseModel(BaseModel):
     success: bool
-    results: List[TemplateResponse]
+    results: list[TemplateResponse]
     total: int
     page: int
     total_pages: int
     query: str
-    applied_filters: Dict[str, Any]
-    highlighted_fields: Dict[str, Any]
+    applied_filters: dict[str, Any]
+    highlighted_fields: dict[str, Any]
 
 
 @router.post("/advanced-search", response_model=AdvancedSearchResponseModel)
 async def advanced_search_templates(request: AdvancedSearchRequest):
-    from ...services.template_manager import get_template_manager
     from ...services.search_analytics import get_analytics
+    from ...services.template_manager import get_template_manager
 
     manager = get_template_manager()
     analytics = get_analytics()
@@ -1072,10 +1072,10 @@ async def advanced_search_templates(request: AdvancedSearchRequest):
     end = start + request.limit
     page_templates = filtered[start:end]
 
-    highlighted: Dict[str, Dict[str, Any]] = {}
+    highlighted: dict[str, dict[str, Any]] = {}
     for t in page_templates:
         q = (request.query or "").lower().strip()
-        highlights: Dict[str, Any] = {}
+        highlights: dict[str, Any] = {}
         if q and q in t.name.lower():
             highlights["name"] = t.name
         if q and q in t.description.lower():
@@ -1113,8 +1113,8 @@ async def advanced_search_templates(request: AdvancedSearchRequest):
 class SemanticSearchRequest(BaseModel):
     query: str
     limit: int = 10
-    category: Optional[str] = None
-    style: Optional[str] = None
+    category: str | None = None
+    style: str | None = None
 
 
 @router.post("/semantic-search")
@@ -1175,9 +1175,10 @@ async def semantic_search_templates(request: SemanticSearchRequest):
 
 @router.get("/search-analytics/dashboard")
 async def get_search_analytics_dashboard(days: int = 30):
+    from collections import Counter
+
     from ...services.search_analytics import get_analytics
     from ...services.template_manager import get_template_manager
-    from collections import Counter
 
     analytics = get_analytics()
     manager = get_template_manager()
@@ -1190,7 +1191,7 @@ async def get_search_analytics_dashboard(days: int = 30):
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
         all_searches = [s for s in all_searches if s["timestamp"] >= cutoff]
 
-    volume_by_day: Dict[str, int] = {}
+    volume_by_day: dict[str, int] = {}
     for s in all_searches:
         day = s["timestamp"].split("T")[0]
         volume_by_day[day] = volume_by_day.get(day, 0) + 1
@@ -1223,7 +1224,7 @@ async def get_search_analytics_dashboard(days: int = 30):
                 "click_count": entry["click_count"],
             })
 
-    popular_filters: List[Dict[str, Any]] = []
+    popular_filters: list[dict[str, Any]] = []
     for s in all_searches:
         q = s.get("query", "")
         if not q or len(q) <= 1:
@@ -1258,18 +1259,18 @@ async def get_search_analytics_dashboard(days: int = 30):
 # ─── R128: Template Subcategories ────────────────────────────────────────────
 
 @router.get("/subcategories")
-async def get_subcategories(category: Optional[str] = None):
+async def get_subcategories(category: str | None = None):
     """
     获取模板子分类
     R128: 支持按分类获取子分类
     """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
-    
+
     if category:
         subcats = manager.get_subcategories(category)
         return {"success": True, "category": category, "subcategories": subcats.get(category, [])}
-    
+
     return {"success": True, "subcategories": manager.get_subcategories()}
 
 
@@ -1286,14 +1287,14 @@ async def track_template_download(
     """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
-    
+
     count = manager.increment_download_count(template_id)
-    
+
     # 记录下载分析事件
     from ...services.search_analytics import get_analytics
     analytics = get_analytics()
     analytics.track_template_click(template_id, query="download")
-    
+
     return {"success": True, "template_id": template_id, "download_count": count}
 
 
@@ -1350,7 +1351,7 @@ async def get_ratings_breakdown(template_id: str):
     """
     from ...services.marketplace_service import get_marketplace_service
     ms = get_marketplace_service()
-    
+
     breakdown = ms.get_ratings_breakdown(template_id)
     return {"success": True, "template_id": template_id, "ratings_breakdown": breakdown}
 
@@ -1363,7 +1364,7 @@ async def submit_ratings_breakdown(template_id: str, request: RatingsBreakdownRe
     """
     from ...services.marketplace_service import get_marketplace_service
     ms = get_marketplace_service()
-    
+
     breakdown = ms.submit_ratings_breakdown(
         template_id=template_id,
         user_id=request.user_id,
@@ -1373,7 +1374,7 @@ async def submit_ratings_breakdown(template_id: str, request: RatingsBreakdownRe
         features=request.features,
         content=request.content
     )
-    
+
     return {"success": True, "ratings_breakdown": breakdown}
 
 
@@ -1388,14 +1389,14 @@ async def get_template_preview_slides(template_id: str):
     """
     from ...services.template_manager import get_template_manager
     manager = get_template_manager()
-    
+
     template = manager.get_template(template_id)
     if not template:
         raise HTTPException(status_code=404, detail={"error": "TEMPLATE_NOT_FOUND", "detail": f"模板 {template_id} 不存在"})
-    
+
     # 生成预览幻灯片列表
     preview_slides = _generate_preview_slides(template)
-    
+
     return {
         "success": True,
         "template_id": template_id,
@@ -1407,10 +1408,10 @@ async def get_template_preview_slides(template_id: str):
     }
 
 
-def _generate_preview_slides(template) -> List[dict]:
+def _generate_preview_slides(template) -> list[dict]:
     """为模板生成预览幻灯片结构"""
     slides = []
-    
+
     # 封面页
     slides.append({
         "index": 0,
@@ -1420,7 +1421,7 @@ def _generate_preview_slides(template) -> List[dict]:
         "layout": "title_slide",
         "colors": template.colors,
     })
-    
+
     # 目录页
     slides.append({
         "index": 1,
@@ -1430,7 +1431,7 @@ def _generate_preview_slides(template) -> List[dict]:
         "layout": "toc_slide",
         "colors": template.colors,
     })
-    
+
     # 内容页示例
     content_sections = [
         ("背景介绍", "核心要点与行业分析"),
@@ -1438,14 +1439,14 @@ def _generate_preview_slides(template) -> List[dict]:
         ("数据分析", "数据支撑与图表展示"),
         ("总结展望", "结论与未来方向"),
     ]
-    
+
     for i, (title, subtitle) in enumerate(content_sections):
         slide_type = "content"
         if i % 2 == 1:
             slide_type = "two_column"
         elif i == 2:
             slide_type = "data_visualization"
-        
+
         slides.append({
             "index": i + 2,
             "type": slide_type,
@@ -1455,7 +1456,7 @@ def _generate_preview_slides(template) -> List[dict]:
             "colors": template.colors,
             "content_preview": f"这是第{i+1}页内容预览区域，可拖拽调整文字和图片位置。",
         })
-    
+
     # 结尾页
     slides.append({
         "index": len(slides),
@@ -1465,5 +1466,5 @@ def _generate_preview_slides(template) -> List[dict]:
         "layout": "ending_slide",
         "colors": template.colors,
     })
-    
+
     return slides

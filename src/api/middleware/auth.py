@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authentication Middleware — JWT + API Key + Secure Share Token
 
@@ -10,19 +9,21 @@ Author: Claude (R42)
 Date: 2026-04-04
 """
 
-import time
 import logging
-from typing import Optional, Callable
-from functools import lru_cache
+import time
+from collections.abc import Callable
 
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from ...core.auth import auth_manager, AuthError
+from ...core.auth import auth_manager
 from ...core.security import (
-    Role, User, RBAC,
-    get_api_key_manager, get_audit_logger, get_secure_share_manager,
+    Role,
+    User,
+    get_api_key_manager,
+    get_audit_logger,
+    get_secure_share_manager,
 )
 
 logger = logging.getLogger("auth_middleware")
@@ -58,7 +59,7 @@ class AuthState:
         self.share_role = share_role
 
 
-def _extract_user_from_jwt(request: Request) -> Optional[User]:
+def _extract_user_from_jwt(request: Request) -> User | None:
     """Extract user from JWT Bearer token."""
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -78,7 +79,7 @@ def _extract_user_from_jwt(request: Request) -> Optional[User]:
         return None
 
 
-def _extract_user_from_api_key(request: Request) -> Optional[tuple[User, str]]:
+def _extract_user_from_api_key(request: Request) -> tuple[User, str] | None:
     """Extract user from X-API-Key header. Returns (User, key_id)."""
     raw_key = request.headers.get("X-API-Key", "")
     if not raw_key:
@@ -100,7 +101,7 @@ def _extract_user_from_api_key(request: Request) -> Optional[tuple[User, str]]:
         return None
 
 
-def _extract_user_from_share(request: Request) -> Optional[tuple[User, str, str]]:
+def _extract_user_from_share(request: Request) -> tuple[User, str, str] | None:
     """
     Extract user from secure share token (X-Share-ID + X-Share-Token + X-Share-Password).
     Returns (User, share_id, share_role).
@@ -178,7 +179,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         start_time = time.time()
-        user: Optional[User] = None
+        user: User | None = None
         auth_method = "none"
         api_key_id = ""
         share_id = ""

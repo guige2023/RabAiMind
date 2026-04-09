@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 API Developer Platform Router
 
@@ -13,18 +12,17 @@ Author: Claude
 Date: 2026-04-04
 """
 
-import asyncio
-import time
 import hashlib
 import json
 import threading
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/dev", tags=["developer"])
 
@@ -36,7 +34,7 @@ class CodeExampleResponse(BaseModel):
     endpoint: str
     method: str
     description: str
-    examples: Dict[str, str]  # language -> code
+    examples: dict[str, str]  # language -> code
 
 
 # Available API endpoints for code examples
@@ -93,7 +91,7 @@ _API_ENDPOINTS = {
 }
 
 
-def _generate_python_example(endpoint_info: Dict, body: Optional[Dict] = None) -> str:
+def _generate_python_example(endpoint_info: dict, body: dict | None = None) -> str:
     """Generate Python requests example"""
     path = endpoint_info["path"]
     method = endpoint_info["method"]
@@ -130,7 +128,7 @@ print(response.json())
     return code
 
 
-def _generate_javascript_example(endpoint_info: Dict) -> str:
+def _generate_javascript_example(endpoint_info: dict) -> str:
     """Generate JavaScript/fetch example"""
     path = endpoint_info["path"]
     method = endpoint_info["method"]
@@ -166,7 +164,7 @@ console.log(data);
     return code
 
 
-def _generate_curl_example(endpoint_info: Dict) -> str:
+def _generate_curl_example(endpoint_info: dict) -> str:
     """Generate cURL example"""
     path = endpoint_info["path"]
     method = endpoint_info["method"]
@@ -257,7 +255,7 @@ class RateLimitDashboard:
     """In-memory rate limit dashboard with history"""
 
     def __init__(self, max_history: int = 100):
-        self._snapshots: List[RateLimitSnapshot] = []
+        self._snapshots: list[RateLimitSnapshot] = []
         self._lock = threading.Lock()
         self._max_history = max_history
 
@@ -267,7 +265,7 @@ class RateLimitDashboard:
             if len(self._snapshots) > self._max_history:
                 self._snapshots = self._snapshots[-self._max_history:]
 
-    def get_history(self, user_id: Optional[str] = None, minutes: int = 60) -> List[Dict]:
+    def get_history(self, user_id: str | None = None, minutes: int = 60) -> list[dict]:
         """Get rate limit history, optionally filtered by user and time"""
         cutoff = time.time() - (minutes * 60)
         with self._lock:
@@ -291,7 +289,7 @@ class RateLimitDashboard:
             for s in snaps
         ]
 
-    def get_current_usage(self, user_id: str) -> Dict[str, Any]:
+    def get_current_usage(self, user_id: str) -> dict[str, Any]:
         """Get current usage summary for a user"""
         with self._lock:
             user_snaps = [s for s in self._snapshots if s.user_id == user_id]
@@ -364,9 +362,9 @@ async def get_rate_limit_dashboard(request: Request):
     - Overall server statistics
     """
     from ...api.middleware.rate_limit import (
-        get_user_id_from_request,
-        get_rate_limiter,
         get_quota_status,
+        get_rate_limiter,
+        get_user_id_from_request,
     )
 
     user_id = get_user_id_from_request(request)
@@ -411,7 +409,7 @@ async def get_rate_limit_dashboard(request: Request):
 async def get_rate_limit_history(
     request: Request,
     minutes: int = Query(default=60, ge=1, le=1440, description="History window in minutes"),
-    user_id: Optional[str] = Query(default=None, description="Filter by user ID"),
+    user_id: str | None = Query(default=None, description="Filter by user ID"),
 ):
     """
     Get rate limit history with optional filters.
@@ -446,9 +444,9 @@ class HealthCheckResult(BaseModel):
     """Result of a single health check"""
     component: str
     status: str  # "ok", "degraded", "down"
-    latency_ms: Optional[float] = None
-    message: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    latency_ms: float | None = None
+    message: str | None = None
+    details: dict[str, Any] | None = None
 
 
 @router.get("/health")
@@ -463,7 +461,7 @@ async def get_api_health():
     - Rate limiter
     - Webhook service
     """
-    results: List[HealthCheckResult] = []
+    results: list[HealthCheckResult] = []
     overall_status = "ok"
 
     # 1. API Server
@@ -517,7 +515,7 @@ async def get_api_health():
             results.append(HealthCheckResult(
                 component="storage",
                 status="ok",
-                message=f"Data directory accessible",
+                message="Data directory accessible",
                 details={"size_bytes": size, "path": data_path},
             ))
         else:
@@ -561,7 +559,7 @@ async def get_api_health():
         results.append(HealthCheckResult(
             component="webhook_service",
             status="ok",
-            message=f"Webhook service is active",
+            message="Webhook service is active",
             details={
                 "registered_webhooks": webhook_count,
                 "pending_deliveries": len(ws._delivery_queue),
@@ -630,7 +628,6 @@ async def readiness_probe():
     """
     # Check critical dependencies
     try:
-        from ...config import settings
         # API is ready if it can load config
         return {"status": "ready", "server_time": datetime.utcnow().isoformat() + "Z"}
     except Exception as e:
@@ -650,19 +647,19 @@ class WebhookEventLogEntry:
     webhook_id: str
     event: str
     task_id: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     delivery_status: str  # "pending", "success", "failed", "retrying"
-    response_status: Optional[int]
-    response_body: Optional[str]
+    response_status: int | None
+    response_body: str | None
     attempts: int
-    delivered_at: Optional[float]
+    delivered_at: float | None
 
 
 class WebhookEventLogger:
     """In-memory webhook event log"""
 
     def __init__(self, max_entries: int = 500):
-        self._entries: List[WebhookEventLogEntry] = []
+        self._entries: list[WebhookEventLogEntry] = []
         self._lock = threading.Lock()
         self._max_entries = max_entries
 
@@ -671,7 +668,7 @@ class WebhookEventLogger:
         webhook_id: str,
         event: str,
         task_id: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
     ) -> str:
         """Log a webhook event dispatch"""
         entry_id = hashlib.md5(
@@ -701,8 +698,8 @@ class WebhookEventLogger:
         self,
         entry_id: str,
         status: str,
-        response_status: Optional[int] = None,
-        response_body: Optional[str] = None,
+        response_status: int | None = None,
+        response_body: str | None = None,
     ):
         """Log delivery result"""
         with self._lock:
@@ -718,12 +715,12 @@ class WebhookEventLogger:
 
     def get_logs(
         self,
-        webhook_id: Optional[str] = None,
-        event: Optional[str] = None,
-        status: Optional[str] = None,
+        webhook_id: str | None = None,
+        event: str | None = None,
+        status: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get webhook event logs with optional filters"""
         with self._lock:
             filtered = self._entries
@@ -762,7 +759,7 @@ class WebhookEventLogger:
             "has_more": offset + limit < total,
         }
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get webhook event statistics"""
         with self._lock:
             total = len(self._entries)
@@ -771,7 +768,7 @@ class WebhookEventLogger:
             pending = sum(1 for e in self._entries if e.delivery_status in ("pending", "retrying"))
 
             # Per-event breakdown
-            event_stats: Dict[str, Dict[str, int]] = {}
+            event_stats: dict[str, dict[str, int]] = {}
             for e in self._entries:
                 if e.event not in event_stats:
                     event_stats[e.event] = {"success": 0, "failed": 0, "pending": 0}
@@ -787,7 +784,7 @@ class WebhookEventLogger:
         }
 
 
-_webhook_logger: Optional[WebhookEventLogger] = None
+_webhook_logger: WebhookEventLogger | None = None
 
 
 def get_webhook_event_logger() -> WebhookEventLogger:
@@ -800,7 +797,7 @@ def get_webhook_event_logger() -> WebhookEventLogger:
 # Hook into webhook service to log events
 def _patch_webhook_service_logging():
     """Patch webhook service to log all events"""
-    from ...services.webhook_service import get_webhook_service, WebhookService
+    from ...services.webhook_service import WebhookService
 
     _original_deliver = WebhookService._deliver
 
@@ -845,9 +842,9 @@ except Exception:
 
 @router.get("/webhooks/logs")
 async def get_webhook_event_logs(
-    webhook_id: Optional[str] = Query(default=None, description="Filter by webhook ID"),
-    event: Optional[str] = Query(default=None, description="Filter by event type"),
-    status: Optional[str] = Query(default=None, description="Filter by delivery status"),
+    webhook_id: str | None = Query(default=None, description="Filter by webhook ID"),
+    event: str | None = Query(default=None, description="Filter by event type"),
+    status: str | None = Query(default=None, description="Filter by delivery status"),
     limit: int = Query(default=50, ge=1, le=200, description="Number of entries to return"),
     offset: int = Query(default=0, ge=0, description="Offset for pagination"),
 ):

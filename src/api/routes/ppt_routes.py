@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PPT Routes - 主路由聚合器
 
@@ -15,12 +14,13 @@ PPT Routes - 主路由聚合器
 
 from fastapi import APIRouter
 
-# 导入子路由
-from .ppt_generation import router as generation_router
-from .ppt_outline import router as outline_router
-from .ppt_history import router as history_router
 from .ppt_advanced import router as advanced_router
 from .ppt_backup import router as backup_router
+
+# 导入子路由
+from .ppt_generation import router as generation_router
+from .ppt_history import router as history_router
+from .ppt_outline import router as outline_router
 
 # 创建主路由
 router = APIRouter(prefix="/api/v1/ppt", tags=["ppt"])

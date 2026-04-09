@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Webhook Service — 事件推送服务
 
@@ -9,15 +8,16 @@ Webhook Service — 事件推送服务
 日期: 2026-04-04
 """
 
-import aiohttp
 import asyncio
 import hashlib
 import hmac
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
 from enum import Enum
+from typing import Any
+
+import aiohttp
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ class WebhookEvent(str, Enum):
 class WebhookRegistration(BaseModel):
     """Webhook 注册信息"""
     url: str
-    events: List[WebhookEvent]
-    secret: Optional[str] = None
+    events: list[WebhookEvent]
+    secret: str | None = None
     active: bool = True
     created_at: float = 0.0
 
@@ -45,23 +45,23 @@ class WebhookDelivery(BaseModel):
     """Webhook 投递记录"""
     id: str
     event: WebhookEvent
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     attempt: int = 1
     max_attempts: int = 3
     next_retry: float = 0.0
-    response_status: Optional[int] = None
-    response_body: Optional[str] = None
-    delivered_at: Optional[float] = None
+    response_status: int | None = None
+    response_body: str | None = None
+    delivered_at: float | None = None
 
 
 class WebhookService:
     """Webhook 管理与投递服务"""
 
     def __init__(self):
-        self._registrations: Dict[str, WebhookRegistration] = {}
-        self._delivery_queue: List[WebhookDelivery] = []
+        self._registrations: dict[str, WebhookRegistration] = {}
+        self._delivery_queue: list[WebhookDelivery] = []
         self._lock: asyncio.Lock = asyncio.Lock()
-        self._dispatched_events: Dict[str, int] = {}  # event_key → count
+        self._dispatched_events: dict[str, int] = {}  # event_key → count
 
     # ── 管理 API ───────────────────────────────────────────────
 
@@ -69,8 +69,8 @@ class WebhookService:
         self,
         webhook_id: str,
         url: str,
-        events: List[WebhookEvent],
-        secret: Optional[str] = None,
+        events: list[WebhookEvent],
+        secret: str | None = None,
         active: bool = True,
     ) -> str:
         """注册一个 Webhook"""
@@ -96,7 +96,7 @@ class WebhookService:
             return True
         return False
 
-    def list_webhooks(self) -> List[Dict[str, Any]]:
+    def list_webhooks(self) -> list[dict[str, Any]]:
         """列出所有注册的 Webhook"""
         return [
             {
@@ -130,7 +130,7 @@ class WebhookService:
     # ── 投递 ──────────────────────────────────────────────────
 
     async def dispatch(
-        self, event: WebhookEvent, task_id: str, data: Dict[str, Any]
+        self, event: WebhookEvent, task_id: str, data: dict[str, Any]
     ):
         """分发事件到所有匹配的已注册 Webhook"""
         async with self._lock:
@@ -334,7 +334,7 @@ class WebhookService:
 
 
 # 全局单例
-_webhook_service: Optional[WebhookService] = None
+_webhook_service: WebhookService | None = None
 
 
 def get_webhook_service() -> WebhookService:

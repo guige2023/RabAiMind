@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Lark (Feishu) Document Import Service
 Supports: Import content from Lark/Feishu documents via Open API
@@ -7,7 +6,7 @@ Supports: Import content from Lark/Feishu documents via Open API
 import logging
 import os
 import re
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 import httpx
 
@@ -19,7 +18,7 @@ class LarkImportService:
 
     LARK_API_BASE = "https://open.feishu.cn/open-apis"
 
-    async def fetch_document_content(self, doc_id: str, access_token: str) -> Dict[str, Any]:
+    async def fetch_document_content(self, doc_id: str, access_token: str) -> dict[str, Any]:
         """
         Fetch Lark document content via API.
 
@@ -61,7 +60,7 @@ class LarkImportService:
                     headers=headers,
                     params={"page_size": 500}
                 )
-                
+
                 if blocks_resp.status_code != 200:
                     logger.warning(f"Failed to fetch blocks: status={blocks_resp.status_code}")
                     # Return partial result with document info but empty blocks
@@ -72,7 +71,7 @@ class LarkImportService:
                         "block_count": 0,
                         "blocks_error": f"获取文档块失败: HTTP {blocks_resp.status_code}"
                     }
-                
+
                 blocks_data = blocks_resp.json()
                 blocks = blocks_data.get("data", {}).get("items", [])
 
@@ -90,7 +89,7 @@ class LarkImportService:
             logger.exception("Lark document fetch error")
             return {"success": False, "error": "获取飞书文档内容失败"}
 
-    def convert_blocks_to_outline(self, blocks: List[Dict], title: str = "飞书文档") -> Dict[str, Any]:
+    def convert_blocks_to_outline(self, blocks: list[dict], title: str = "飞书文档") -> dict[str, Any]:
         """
         Convert Lark document blocks to PPT outline format.
 
@@ -108,11 +107,11 @@ class LarkImportService:
         content_blocks = []
         table_rows = []
 
-        def extract_text_from_text_runs(text_runs: List[Dict]) -> str:
+        def extract_text_from_text_runs(text_runs: list[dict]) -> str:
             """Extract plain text from text runs"""
             return "".join(run.get("text", "") for run in text_runs)
 
-        def process_block(block: Dict, depth: int = 0) -> Optional[Dict]:
+        def process_block(block: dict, depth: int = 0) -> dict | None:
             """Recursively process a block and its children"""
             block_type = block.get("block_type", 0)
             block_id = block.get("block_id", "")
@@ -277,8 +276,8 @@ class LarkImportService:
     async def import_from_lark(
         self,
         doc_url: str,
-        access_token: Optional[str] = None
-    ) -> Dict[str, Any]:
+        access_token: str | None = None
+    ) -> dict[str, Any]:
         """
         Import content from Lark document URL.
 
@@ -289,7 +288,6 @@ class LarkImportService:
         Returns:
             PPT outline and metadata
         """
-        import re
 
         # Extract document ID from URL
         doc_id = None

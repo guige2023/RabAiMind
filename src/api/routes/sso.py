@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SSO/SAML Authentication Routes
 
@@ -21,22 +20,21 @@ Author: Claude
 Date: 2026-04-04
 """
 
+import logging
 import os
 import secrets
-import hashlib
 import urllib.parse
-import logging
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Query, Response, Depends
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from ...core.auth import auth_manager, get_auth_manager
-from ...core.security import get_audit_logger, Role, User
 from ...api.middleware.auth import get_current_user
+from ...core.auth import auth_manager
+from ...core.security import Role, User, get_audit_logger
 
 logger = logging.getLogger("sso")
 
@@ -106,16 +104,16 @@ def get_sso_config() -> SSOConfig:
 # ==================== In-Memory State ====================
 
 # Temporary state for SSO flow (state parameter for CSRF protection)
-_sso_states: Dict[str, Dict] = {}
+_sso_states: dict[str, dict] = {}
 
 # Persistent SSO-linked user mappings (sso_provider:sso_id -> user_id)
-_sso_user_map: Dict[str, Dict] = {}  # key: "provider:subject", value: {user_id, username, email, linked_at}
+_sso_user_map: dict[str, dict] = {}  # key: "provider:subject", value: {user_id, username, email, linked_at}
 _SSO_MAP_FILE = "./data/sso_users.json"
 
 
-def _load_sso_map() -> Dict[str, Dict]:
+def _load_sso_map() -> dict[str, dict]:
     try:
-        with open(_SSO_MAP_FILE, "r", encoding="utf-8") as f:
+        with open(_SSO_MAP_FILE, encoding="utf-8") as f:
             return json_load(f)
     except Exception:
         return {}
@@ -250,10 +248,10 @@ def _build_oidc_authorization_url(config: SSOConfig, state: str) -> str:
     return f"{auth_endpoint}?{urllib.parse.urlencode(params)}"
 
 
-def _exchange_code_for_token(code: str, config: SSOConfig) -> Dict[str, Any]:
+def _exchange_code_for_token(code: str, config: SSOConfig) -> dict[str, Any]:
     """Exchange authorization code for tokens (OIDC)."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     token_url = os.getenv("SSO_TOKEN_ENDPOINT")
     if not token_url:
@@ -280,7 +278,7 @@ def _exchange_code_for_token(code: str, config: SSOConfig) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Token exchange failed: {e}")
 
 
-async def _parse_saml_response(request: Request, config: SSOConfig) -> Dict[str, Any]:
+async def _parse_saml_response(request: Request, config: SSOConfig) -> dict[str, Any]:
     """Parse SAML 2.0 POST response and extract user info."""
     import base64
 
@@ -319,10 +317,10 @@ async def _parse_saml_response(request: Request, config: SSOConfig) -> Dict[str,
         raise HTTPException(status_code=400, detail=f"Failed to parse SAML response: {e}")
 
 
-def _fetch_oidc_userinfo(token: str) -> Dict[str, Any]:
+def _fetch_oidc_userinfo(token: str) -> dict[str, Any]:
     """Fetch user info from OIDC userinfo endpoint."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     userinfo_url = os.getenv("SSO_USERINFO_ENDPOINT")
     if not userinfo_url:
@@ -339,7 +337,7 @@ def _fetch_oidc_userinfo(token: str) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Userinfo fetch failed: {e}")
 
 
-def _find_or_create_sso_user(provider: str, subject: str, email: str, name: str = "") -> Dict[str, Any]:
+def _find_or_create_sso_user(provider: str, subject: str, email: str, name: str = "") -> dict[str, Any]:
     """Find existing user linked to SSO, or return info for new user."""
     global _sso_user_map
     _sso_user_map = _load_sso_user_map()
@@ -366,7 +364,7 @@ def _find_or_create_sso_user(provider: str, subject: str, email: str, name: str 
 
 # ==================== Routes ====================
 
-@router.get("/providers", response_model=List[SSOProviderInfo])
+@router.get("/providers", response_model=list[SSOProviderInfo])
 async def list_sso_providers():
     """
     List available SSO providers.

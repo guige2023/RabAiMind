@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 品牌资产服务 - 多品牌资产管理
 
@@ -8,17 +7,15 @@
 日期: 2026-04-09
 """
 
-import json
-import uuid
-import time
 import base64
+import json
 import logging
+import uuid
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict, field
+from typing import Any
 
-from ..config import settings
-from ..utils import ensure_dir, get_timestamp
+from ..utils import get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ class BrandAsset:
     brand_id: str = ""
     user_id: str = ""
     name: str = ""
-    logo_url: Optional[str] = None  # 上传后OSS URL或本地路径
+    logo_url: str | None = None  # 上传后OSS URL或本地路径
     primary_color: str = "#165DFF"       # #165DFF 格式
     secondary_color: str = "#0E42D2"
     font_family: str = "思源黑体"         # "思源黑体" 等
@@ -88,7 +85,7 @@ class BrandService:
         """获取品牌数据文件路径"""
         return self.assets_dir / f"{brand_id}.json"
 
-    def _ensure_user_index(self, user_id: str) -> List[str]:
+    def _ensure_user_index(self, user_id: str) -> list[str]:
         """确保用户索引存在"""
         if user_id not in self._brands_index:
             self._brands_index[user_id] = []
@@ -103,7 +100,7 @@ class BrandService:
         primary_color: str = "#165DFF",
         secondary_color: str = "#0E42D2",
         font_family: str = "思源黑体",
-        logo_url: Optional[str] = None
+        logo_url: str | None = None
     ) -> BrandAsset:
         """创建品牌资产"""
         brand_id = f"brand_{uuid.uuid4().hex[:12]}"
@@ -133,7 +130,7 @@ class BrandService:
         logger.info(f"Created brand: {brand_id} for user: {user_id}")
         return brand
 
-    def get_brand(self, brand_id: str) -> Optional[BrandAsset]:
+    def get_brand(self, brand_id: str) -> BrandAsset | None:
         """获取单个品牌"""
         brand_file = self._get_brand_file(brand_id)
         if not brand_file.exists():
@@ -145,7 +142,7 @@ class BrandService:
             logger.error(f"Failed to load brand {brand_id}: {e}")
             return None
 
-    def get_user_brands(self, user_id: str) -> List[BrandAsset]:
+    def get_user_brands(self, user_id: str) -> list[BrandAsset]:
         """获取用户所有品牌"""
         brand_ids = self._brands_index.get(user_id, [])
         brands = []
@@ -158,12 +155,12 @@ class BrandService:
     def update_brand(
         self,
         brand_id: str,
-        name: Optional[str] = None,
-        primary_color: Optional[str] = None,
-        secondary_color: Optional[str] = None,
-        font_family: Optional[str] = None,
-        logo_url: Optional[str] = None
-    ) -> Optional[BrandAsset]:
+        name: str | None = None,
+        primary_color: str | None = None,
+        secondary_color: str | None = None,
+        font_family: str | None = None,
+        logo_url: str | None = None
+    ) -> BrandAsset | None:
         """更新品牌资产"""
         brand = self.get_brand(brand_id)
         if not brand:
@@ -217,7 +214,7 @@ class BrandService:
 
     # ========== Logo 上传 ==========
 
-    def save_logo(self, brand_id: str, logo_data: str) -> Optional[str]:
+    def save_logo(self, brand_id: str, logo_data: str) -> str | None:
         """保存 Logo，返回存储路径或URL
 
         Args:
@@ -243,8 +240,9 @@ class BrandService:
         # 确定文件扩展名
         ext = "png"
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
             img = Image.open(io.BytesIO(binary))
             if img.format:
                 ext = img.format.lower()
@@ -276,7 +274,7 @@ class BrandService:
 
     # ========== 品牌应用 ==========
 
-    def apply_brand_to_ppt(self, brand_id: str, task_id: str) -> Optional[Dict[str, Any]]:
+    def apply_brand_to_ppt(self, brand_id: str, task_id: str) -> dict[str, Any] | None:
         """将品牌应用到 PPT 任务
 
         1. 获取任务信息
@@ -326,7 +324,7 @@ class BrandService:
 
         return brand_theme
 
-    def get_brand_preview(self, brand_id: str) -> Optional[Dict[str, Any]]:
+    def get_brand_preview(self, brand_id: str) -> dict[str, Any] | None:
         """获取品牌预览数据"""
         brand = self.get_brand(brand_id)
         if not brand:

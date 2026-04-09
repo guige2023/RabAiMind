@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Webhook API 路由
 
@@ -11,17 +10,15 @@ Webhook API 路由
 
 import asyncio
 import hashlib
-import hmac
 import json
 import secrets
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from ...services.webhook_service import get_webhook_service, WebhookEvent
-from ...config import settings
+from ...services.webhook_service import WebhookEvent, get_webhook_service
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
@@ -31,12 +28,12 @@ router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 class WebhookRegisterRequest(BaseModel):
     """注册 Webhook 请求"""
     url: str = Field(..., description="Webhook 回调地址 (HTTPS)", examples=["https://your-server.com/webhook"])
-    events: List[str] = Field(
+    events: list[str] = Field(
         ...,
         description="订阅的事件列表",
         examples=[["generation.completed", "generation.failed"]],
     )
-    secret: Optional[str] = Field(
+    secret: str | None = Field(
         None,
         description="签名密钥 (可选，不填则自动生成)，用于 X-RabAiMind-Signature HMAC-SHA256 验签",
     )
@@ -48,34 +45,34 @@ class WebhookRegisterResponse(BaseModel):
     webhook_id: str
     secret: str  # 返回密钥（仅创建时返回，之后不再暴露）
     url: str
-    events: List[str]
+    events: list[str]
     created_at: float
 
 
 class WebhookUpdateRequest(BaseModel):
     """更新 Webhook 请求"""
-    url: Optional[str] = None
-    events: Optional[List[str]] = None
-    active: Optional[bool] = None
+    url: str | None = None
+    events: list[str] | None = None
+    active: bool | None = None
 
 
 class WebhookDeliveryTestRequest(BaseModel):
     """测试投递请求"""
     event: str = Field(..., description="测试事件类型")
-    data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="测试数据")
+    data: dict[str, Any] | None = Field(default_factory=dict, description="测试数据")
 
 
 class WebhookDeliveryTestResponse(BaseModel):
     """测试投递响应"""
     delivery_id: str
     status: int
-    body: Optional[str]
+    body: str | None
     signature: str  # 实际签名的 HMAC
 
 
 # ── Helpers ─────────────────────────────────────────────────
 
-def _parse_events(events: List[str]) -> List[WebhookEvent]:
+def _parse_events(events: list[str]) -> list[WebhookEvent]:
     valid = set(WebhookEvent)
     parsed = []
     for e in events:
@@ -231,7 +228,6 @@ async def test_webhook(webhook_id: str, body: WebhookDeliveryTestRequest):
 
     # 查找 webhook 获取 secret
     reg = None
-    import asyncio
     async with asyncio.Lock():
         for wid, r in ws._registrations.items():
             if wid == webhook_id:
@@ -318,7 +314,6 @@ async def zapier_receive(api_key: str, request: Request):
 # FastAPI 自动根据 response_model 生成 OpenAPI schema
 # 额外通过 router_openapi_overrides 提供更详细的字段描述
 
-from fastapi.openapi.utils import get_openapi
 
 
 def webhook_openapi():

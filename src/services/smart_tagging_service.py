@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 """
 智能标签服务 - R81
 使用 AI 分析 PPT 内容，自动生成标签
 """
 
-import re
 import logging
-from typing import List, Set
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +95,8 @@ class SmartTaggingService:
         scene: str = None,
         style: str = None,
         title: str = None,
-        existing_tags: List[str] = None,
-    ) -> List[str]:
+        existing_tags: list[str] = None,
+    ) -> list[str]:
         """
         分析内容生成智能标签
 
@@ -112,7 +110,7 @@ class SmartTaggingService:
         Returns:
             自动生成的标签列表（不重复）
         """
-        found_tags: Set[str] = set()
+        found_tags: set[str] = set()
         text = user_request
         if title:
             text += " " + title
@@ -152,7 +150,7 @@ class SmartTaggingService:
         result = list(found_tags)[:8]
         return result
 
-    def _extract_key_phrases(self, text: str) -> List[str]:
+    def _extract_key_phrases(self, text: str) -> list[str]:
         """提取关键词短语"""
         # 提取被引号、引号包围的内容
         quoted = re.findall(r'["\"\'](.+?)["\"\']', text)
