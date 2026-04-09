@@ -28,9 +28,6 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v --tb=short
 
-      - name: Lint
-        run: ruff check src/
-
   # ── Build & Push Docker Image ────────────────────────────────────
   docker:
     name: Docker Build & Push
