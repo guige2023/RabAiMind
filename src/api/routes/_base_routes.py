@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from src.config import settings  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 # Service startup time for uptime calculation
