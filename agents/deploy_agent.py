@@ -50,25 +50,13 @@ class DeployAgent:
             config: {name, image, port, env}
         Returns:
             部署结果
+        Raises:
+            NotImplementedError: DeployAgent 尚未实现真实的 Docker 容器部署
         """
-        name = config.get("name", "rabai")
-        image = config.get("image")
-        port = config.get("port", 8001)
-
-        logger.info(f"DeployAgent: 部署服务 {name}")
-
-        # TODO: 接入 docker SDK 实现真正的容器部署
-        record = {
-            "name": name,
-            "image": image,
-            "port": port,
-            "status": "deployed",
-            "msg": "部署命令已记录（Docker SDK 待集成）"
-        }
-        self.deploy_history.append(record)
-        self.containers[name] = record
-
-        return {"status": "ok", "service": name, "port": port}
+        raise NotImplementedError(
+            "DeployAgent.deploy() 尚未实现。"
+            "如需使用，请先实现 Docker 容器部署逻辑，或使用其他部署工具。"
+        )
 
     def rollback(self, service: str) -> dict:
         """回滚服务"""

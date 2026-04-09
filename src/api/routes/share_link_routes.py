@@ -14,12 +14,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from ....services.share_link_service import (
+from ...services.share_link_service import (
     get_share_link_service, 
     SharePermission,
 )
-from ....core.security import User
-from ....api.middleware.auth import get_current_user, get_current_user_optional
+from ...core.security import User
+from ...api.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/share-link", tags=["share-link"])
 

@@ -42,15 +42,17 @@ class VolcEngineAPI:
     """火山引擎API客户端"""
     
     def __init__(self, api_key: Optional[str] = None, endpoint: Optional[str] = None):
-        self.api_key = api_key or os.getenv("VOLCANO_API_KEY", os.getenv("VOLCENGINE_API_KEY", ""))
-        self.endpoint = endpoint or os.getenv("VOLCENGINE_ENDPOINT", "https://ark.cn-beijing.volces.com")
-        self.project_id = os.getenv("VOLCENGINE_PROJECT_ID", "")
-        self.timeout = (5, 120)
+        # 从 Settings 读取配置（唯一配置来源）
+        from ..config import settings
+        self.api_key = api_key or os.getenv("VOLCANO_API_KEY", settings.VOLCANO_API_KEY)
+        self.endpoint = endpoint or os.getenv("VOLCENGINE_ENDPOINT", settings.VOLCANO_ENDPOINT)
+        self.project_id = os.getenv("VOLCENGINE_PROJECT_ID", settings.VOLCANO_PROJECT_ID)
+        self.timeout = (5, settings.VOLCANO_TIMEOUT)
 
-        # 从环境变量读取模型配置（支持用户自定义）
-        self.text_model = os.getenv("VOLCANO_TEXT_MODEL", "ep-20260403105058-4qp6b")
-        self.image_model = os.getenv("VOLCANO_IMAGE_MODEL", "ep-20260329152935-8r87z")
-        self.vision_model = os.getenv("VOLCANN_VISION_MODEL", self.text_model)  # 视觉模型默认为文本模型
+        # 模型配置统一从 Settings 读取（支持环境变量覆盖）
+        self.text_model = os.getenv("VOLCANO_TEXT_MODEL", settings.VOLCANO_TEXT_MODEL)
+        self.image_model = os.getenv("VOLCANO_IMAGE_MODEL", settings.VOLCANO_IMAGE_MODEL)
+        self.vision_model = os.getenv("VOLCANN_VISION_MODEL", self.text_model)
         
     def _get_headers(self) -> Dict[str, str]:
         """获取请求头"""
