@@ -891,6 +891,60 @@ async def import_google_docs(
     return result
 
 
+# ==================== Lark (Feishu) Import ====================
+
+class ImportLarkRequest(BaseModel):
+    doc_url: str = Field(..., description="飞书文档分享链接或 doc ID")
+    access_token: Optional[str] = Field(None, description="飞书 access token (可选)")
+
+@router.post("/import/lark")
+async def import_lark(
+    request: Request,
+    body: ImportLarkRequest,
+):
+    """导入飞书文档内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not body.doc_url.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请提供飞书文档链接")
+
+    from ...services.lark_import_service import get_lark_import_service
+    result = await get_lark_import_service().import_from_lark(
+        body.doc_url,
+        body.access_token
+    )
+    return result
+
+
+# ==================== Markdown Import ====================
+
+class ImportMarkdownRequest(BaseModel):
+    content: str = Field(..., description="Markdown 格式的文本内容")
+    title: Optional[str] = Field(None, description="文档标题（可选，默认从内容提取）")
+
+@router.post("/import/markdown")
+async def import_markdown(
+    request: Request,
+    body: ImportMarkdownRequest,
+):
+    """导入 Markdown 内容并转换为 PPT 大纲"""
+    rate_error = _check_rate_limit_middleware(request)
+    if rate_error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="请求过于频繁")
+
+    if not body.content.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Markdown 内容不能为空")
+
+    from ...services.markdown_import_service import get_markdown_import_service
+    result = await get_markdown_import_service().import_markdown(
+        body.content,
+        body.title
+    )
+    return result
+
+
 # ==================== Images Import ====================
 
 class ImportImagesRequest(BaseModel):

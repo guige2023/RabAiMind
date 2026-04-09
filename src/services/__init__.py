@@ -11,6 +11,7 @@ from .ppt_generator import PPTGenerator, get_ppt_generator
 from .volc_api import VolcEngineAPI, get_volc_api
 from .ai_analyzer import AIAnalyzer, get_ai_analyzer
 from .content_generator import ContentGenerator, get_content_generator
+from .brand_service import BrandService, get_brand_service
 
 __all__ = [
     "TaskManager",
@@ -22,5 +23,7 @@ __all__ = [
     "AIAnalyzer",
     "get_ai_analyzer",
     "ContentGenerator",
-    "get_content_generator"
+    "get_content_generator",
+    "BrandService",
+    "get_brand_service"
 ]

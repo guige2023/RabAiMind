@@ -993,3 +993,34 @@ export interface SlideAnnotation {
   content?: string
   style?: Record<string, unknown>
 }
+
+// ==================== 品牌资产 ====================
+
+export interface Brand {
+  brand_id: string
+  user_id: string
+  name: string
+  logo_url: string | null
+  primary_color: string
+  secondary_color: string
+  font_family: string
+  created_at: string
+  updated_at: string
+}
+
+export interface BrandPreview {
+  brand_id: string
+  name: string
+  logo_url: string | null
+  colors: {
+    primary: string
+    secondary: string
+  }
+  font_family: string
+  preview_style: {
+    background: string
+    primary_color: string
+    secondary_color: string
+    font_family: string
+  }
+}

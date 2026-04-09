@@ -185,8 +185,8 @@ class CollaborationService:
     
     def _init(self):
         """初始化"""
-        # WebSocket 连接管理: task_id -> {user_id -> websocket}
-        self.connections: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        # WebSocket 连接管理: task_id -> {user_id -> {websocket, last_heartbeat}}
+        self.connections: Dict[str, Dict[str, Dict[str, Any]]] = defaultdict(dict)
         
         # Presence: task_id -> {user_id -> PresenceInfo}
         self.presence: Dict[str, Dict[str, PresenceInfo]] = defaultdict(dict)
@@ -216,8 +216,9 @@ class CollaborationService:
         # 广播队列
         self._broadcast_queues: Dict[str, Dict[str, asyncio.Queue]] = defaultdict(dict)
         
-        # Ping 清理任务
+        # 心跳清理任务
         self._cleanup_task: Optional[asyncio.Task] = None
+        self._shutdown = False
         logger.info("CollaborationService initialized")
     
     # ─── Connection Management ───────────────────────────────────────────────
@@ -235,26 +236,93 @@ class CollaborationService:
             last_ping=time.time(),
         )
         
-        self.connections[task_id][user_id] = websocket
+        # 存储连接时记录时间戳
+        self.connections[task_id][user_id] = {
+            "websocket": websocket,
+            "last_heartbeat": time.time(),
+            "user_name": user_name,
+        }
         self.presence[task_id][user_id] = presence
+        
+        # 启动心跳清理任务（如果尚未启动）
+        self._start_cleanup_task()
         
         logger.info(f"User {user_id} connected to task {task_id} (role={role})")
         return presence
     
     def unregister_connection(self, task_id: str, user_id: str):
         """注销连接"""
-        if user_id in self.connections.get(task_id, {}):
+        if task_id in self.connections and user_id in self.connections[task_id]:
             del self.connections[task_id][user_id]
-        if user_id in self.presence.get(task_id, {}):
+        if task_id in self.presence and user_id in self.presence[task_id]:
             del self.presence[task_id][user_id]
-        if user_id in self.cursors.get(task_id, {}):
+        if task_id in self.cursors and user_id in self.cursors[task_id]:
             del self.cursors[task_id][user_id]
         
         # 清除跟随关系
-        if user_id in self.following.get(task_id, {}):
-            del self.following[task_id][user_id]
+        if task_id in self.following:
+            if user_id in self.following[task_id]:
+                del self.following[task_id][user_id]
+            # 清除被他人跟随的情况
+            for follower_id, followed_id in list(self.following[task_id].items()):
+                if followed_id == user_id:
+                    del self.following[task_id][follower_id]
         
         logger.info(f"User {user_id} disconnected from task {task_id}")
+    
+    def update_heartbeat(self, task_id: str, user_id: str):
+        """更新心跳时间戳"""
+        if task_id in self.connections and user_id in self.connections[task_id]:
+            self.connections[task_id][user_id]["last_heartbeat"] = time.time()
+    
+    def _start_cleanup_task(self):
+        """启动心跳清理任务"""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+    
+    async def _cleanup_loop(self):
+        """定期清理超时连接"""
+        while not self._shutdown:
+            try:
+                await asyncio.sleep(10)  # 每10秒检查一次
+                await self._cleanup_dead_connections()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Cleanup loop error: {e}")
+    
+    async def _cleanup_dead_connections(self):
+        """清理超时无心跳的连接"""
+        timeout = 30  # 30秒无心跳视为断开
+        now = time.time()
+        dead_tasks = []
+        
+        async with self._lock:
+            for task_id, connections in list(self.connections.items()):
+                dead_users = []
+                for user_id, conn_info in connections.items():
+                    last_hb = conn_info.get("last_heartbeat", 0)
+                    if now - last_hb > timeout:
+                        dead_users.append(user_id)
+                
+                for user_id in dead_users:
+                    logger.warning(f"Cleaning up dead connection: {user_id} in task {task_id} (timeout)")
+                    self.unregister_connection(task_id, user_id)
+                    dead_tasks.append((task_id, user_id))
+        
+        # 广播用户离开
+        for task_id, user_id in dead_tasks:
+            await self._broadcast_to_task(task_id, {
+                "type": "user_left",
+                "user_id": user_id,
+                "reason": "timeout",
+            })
+    
+    def shutdown(self):
+        """关闭服务，清理所有资源"""
+        self._shutdown = True
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
     
     # ─── Presence ─────────────────────────────────────────────────────────────
     
@@ -521,11 +589,13 @@ class CollaborationService:
         connections = self.connections.get(task_id, {})
         dead_connections = []
         
-        for uid, ws in connections.items():
+        for uid, conn_info in connections.items():
             if exclude_user and uid == exclude_user:
                 continue
             try:
-                await ws.send_json(message)
+                ws = conn_info.get("websocket")
+                if ws:
+                    await ws.send_json(message)
             except Exception as e:
                 logger.warning(f"Failed to send to {uid}: {e}")
                 dead_connections.append(uid)

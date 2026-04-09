@@ -93,6 +93,8 @@ async def collaboration_websocket(
             msg_type = data.get("type")
             
             if msg_type == "ping":
+                # 更新心跳
+                service.update_heartbeat(task_id, user_id)
                 await websocket.send_json({"type": "pong", "timestamp": time.time()})
             
             elif msg_type == "cursor_move":

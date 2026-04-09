@@ -739,11 +739,11 @@ class ImportService:
                             title = "".join(t.get("plain_text", "") for t in title_texts)
                             break
 
-                # Get page blocks (content)
-                blocks_resp = await client.post(
+                # Get page blocks (content) - use GET not POST
+                blocks_resp = await client.get(
                     f"https://api.notion.com/v1/blocks/{page_id}/children",
                     headers=headers,
-                    json={"page_size": 100}
+                    params={"page_size": 100}
                 )
                 blocks_data = blocks_resp.json() if blocks_resp.status_code == 200 else {}
                 blocks = blocks_data.get("results", [])

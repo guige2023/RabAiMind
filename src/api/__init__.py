@@ -12,6 +12,7 @@ from .routes.template import router as template_router
 from .routes.favorites import router as favorites_router
 from .routes.images import router as images_router
 from .routes.brand import router as brand_router
+from .routes.brand_routes import router as brand_routes_router
 from .routes.status import router as status_router
 from .routes.ai import router as ai_router
 from .routes.user import router as user_router
@@ -52,6 +53,7 @@ api_router.include_router(share_link_router)
 api_router.include_router(favorites_router)
 api_router.include_router(images_router)
 api_router.include_router(brand_router)
+api_router.include_router(brand_routes_router)
 api_router.include_router(status_router)
 api_router.include_router(ai_router)
 api_router.include_router(ai_analysis_router)
