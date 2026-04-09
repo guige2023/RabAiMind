@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """
 Notification Service — 智能通知服务
 
@@ -1237,6 +1239,12 @@ def _build_comment_email_html(
     # Truncate long content
     display_content = content[:300] + ("..." if len(content) > 300 else "")
 
+    reply_section = ""
+    if is_reply and reply_preview:
+        reply_section = f"""<div style="background: #fff8f0; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; color: #666;">
+          <strong>💬 回复内容:</strong> {reply_preview[:100]}...
+        </div>"""
+
     html_body = f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -1251,7 +1259,7 @@ def _build_comment_email_html(
           </p>
           <p style="margin: 0; font-size: 15px; color: #1a1a1a; line-height: 1.6;">{display_content}</p>
         </div>
-        {f'<div style="background: #fff8f0; padding: 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; color: #666;">\n          <strong>💬 回复内容:</strong> {reply_preview[:100]}...\n        </div>' if is_reply and reply_preview else ''}
+        {reply_section}
         <div style="text-align: center; margin: 24px 0;">
           <a href="{thread_url}"
              style="display: inline-block; background: linear-gradient(135deg, {primary_color}, #0E42D2); color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: 600; box-shadow: 0 4px 12px rgba(22,93,255,0.3);">

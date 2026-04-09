@@ -43,7 +43,15 @@ class VolcEngineAPI:
     
     def __init__(self, api_key: Optional[str] = None, endpoint: Optional[str] = None):
         # 从 Settings 读取配置（唯一配置来源）
-        from ..config import settings
+        # 支持两种导入方式：正常包导入 和 importlib 直载（agents 层用）
+        try:
+            from ..config import settings
+        except ImportError:
+            import sys
+            _volc_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if _volc_path not in sys.path:
+                sys.path.insert(0, _volc_path)
+            from src.config import settings
         self.api_key = api_key or os.getenv("VOLCANO_API_KEY", settings.VOLCANO_API_KEY)
         self.endpoint = endpoint or os.getenv("VOLCENGINE_ENDPOINT", settings.VOLCANO_ENDPOINT)
         self.project_id = os.getenv("VOLCENGINE_PROJECT_ID", settings.VOLCANO_PROJECT_ID)
