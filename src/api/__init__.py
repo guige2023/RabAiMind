@@ -40,6 +40,7 @@ from .routes.template_routes import router as template_routes_router
 from .routes.export_routes import router as export_router
 from .routes.share_link_routes import router as share_link_router
 from .routes.api_key_routes import router as api_key_router
+from .routes.publish import router as publish_router
 
 # 创建主路由
 api_router = APIRouter()
@@ -78,3 +79,4 @@ api_router.include_router(dashboard_router)
 api_router.include_router(sharing_router)
 api_router.include_router(share_enhancements_router)
 api_router.include_router(api_key_router)
+api_router.include_router(publish_router)
