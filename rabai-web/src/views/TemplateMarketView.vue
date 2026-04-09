@@ -846,7 +846,7 @@
         </div>
 
         <!-- R128: Template Collections Section -->
-        <section v-if="!isLoading && collections.length > 0" class="collections-section">
+        <section v-if="collections.length > 0" class="collections-section">
           <div class="section-header">
             <h2 class="section-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">

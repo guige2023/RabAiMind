@@ -62,8 +62,8 @@ class AuthManager:
             self._load_config()
 
     def _load_config(self):
-        # P0 Fix: 强制启用认证，不再允许通过环境变量关闭
-        auth_enabled = True  # 始终启用认证
+        # 开发模式：允许通过环境变量关闭认证
+        auth_enabled = os.getenv("RABAIMIND_AUTH_ENABLED", "true").lower() != "false"
         jwt_secret = os.getenv("JWT_SECRET", "")
         api_key = os.getenv("API_KEY", "")
 

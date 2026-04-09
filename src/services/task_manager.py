@@ -630,6 +630,33 @@ class TaskManager:
             checkpoints = task.get("checkpoints", [])
             return checkpoints[-limit:] if limit > 0 else checkpoints
 
+    def auto_save(self, task_id: str, state: dict) -> dict:
+        """Save autosave state for a task."""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+            task["auto_save"] = {
+                "state": state,
+                "saved_at": get_timestamp(),
+            }
+            return {"success": True, "saved_at": task["auto_save"]["saved_at"]}
+
+    def get_auto_save(self, task_id: str) -> dict:
+        """Get autosave state for a task."""
+        with self._task_lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+            auto_save = task.get("auto_save")
+            if not auto_save:
+                return {"success": False, "message": "No autosave found"}
+            return {
+                "success": True,
+                "state": auto_save.get("state"),
+                "saved_at": auto_save.get("saved_at"),
+            }
+
     def restore_checkpoint(self, task_id: str, checkpoint_id: str) -> dict:
         """Restore from a checkpoint."""
         with self._task_lock:

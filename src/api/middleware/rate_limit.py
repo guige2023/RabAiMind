@@ -468,7 +468,6 @@ def build_rate_limit_headers(rate_info: RateLimitInfo, quota_info: QuotaInfo) ->
         "X-Quota-Remaining": str(quota_info.remaining()),
         "X-Quota-Reset": quota_info.reset_at(),
         "X-Quota-Tier": quota_info.tier,
-        "X-Quota-Tier-Name": quota_info.tier_name,
     }
 
 
