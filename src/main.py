@@ -254,40 +254,48 @@ async def ws_remote_control(websocket: WebSocket):
 
     # 主持人独占房间（如果房间已有主持人，新连接变为观众）
     if is_host and room.host_ws and room.host_ws != websocket:
-        # 原主持人被替换
         try:
             await room.host_ws.close()
         except Exception:
             pass
 
-    # 添加到房间
+    # 添加到房间（accept失败时需清理）
+    added = False
     if is_host:
         room.add_host(websocket)
+        added = True
     else:
-        if not room.add_participant(websocket):
-            await websocket.close(code=4001, reason="Room full")
-            return
+        added = room.add_participant(websocket)
 
-    await websocket.accept()
+    if not added:
+        await websocket.close(code=4001, reason="Room full")
+        # 房间未被接受，清理已添加的连接
+        room.remove(websocket)
+        return
 
-    # 发送 ack
-    ack_msg = json.dumps({
-        "type": "ack",
-        "room": room_code,
-        "participantCount": room.participant_count,
-        "isHost": is_host
-    })
-    await websocket.send_text(ack_msg)
-
-    # 通知主持人有新人加入
-    if room.host_ws and room.host_ws != websocket:
-        await room.host_ws.send_text(json.dumps({
-            "type": "participant_count",
-            "count": room.participant_count
-        }))
-
-    # 主消息循环
     try:
+        await websocket.accept()
+
+        # 发送 ack
+        ack_msg = json.dumps({
+            "type": "ack",
+            "room": room_code,
+            "participantCount": room.participant_count,
+            "isHost": is_host
+        })
+        await websocket.send_text(ack_msg)
+
+        # 通知主持人有新人加入
+        if room.host_ws and room.host_ws != websocket:
+            try:
+                await room.host_ws.send_text(json.dumps({
+                    "type": "participant_count",
+                    "count": room.participant_count
+                }))
+            except Exception:
+                pass
+
+        # 主消息循环
         while True:
             data = await websocket.receive_text()
             try:
@@ -301,7 +309,6 @@ async def ws_remote_control(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
             elif msg_type == "command":
-                # 主持人发送命令 → 转发给所有观众
                 if websocket == room.host_ws:
                     cmd = msg.get("command", "")
                     payload = msg.get("payload", {})
@@ -309,22 +316,19 @@ async def ws_remote_control(websocket: WebSocket):
                     room.broadcast_to_participants(forward)
 
             elif msg_type == "leave":
-                # 主动离开
                 break
 
     except Exception:
         pass
 
     finally:
-        # 清理连接
+        # 清理连接（finally确保即使异常也能清理）
         was_host = websocket == room.host_ws
         room.remove(websocket)
 
         if was_host:
-            # 主持人离开 → 关闭房间
             await RemoteControlManager.remove_room(room_code)
         else:
-            # 观众离开 → 通知主持人
             if room.host_ws:
                 try:
                     await room.host_ws.send_text(json.dumps({
@@ -334,7 +338,6 @@ async def ws_remote_control(websocket: WebSocket):
                 except Exception:
                     pass
 
-            # 如果房间空了，清理
             if not room.host_ws and room.participant_count == 0:
                 await RemoteControlManager.remove_room(room_code)
 

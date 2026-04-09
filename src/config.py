@@ -99,8 +99,9 @@ class Settings(BaseSettings):
     VOLCANO_SECRET: str = ""
     VOLCANO_ENDPOINT: str = "https://ark.cn-beijing.volces.com/api/v3"
     VOLCANO_PROJECT_ID: str = ""
-    VOLCANO_TEXT_MODEL: str = "ep-20260303221115-dk4rt"
-    VOLCANO_IMAGE_MODEL: str = "ep-20260314123401-jwqhn"
+    # ⚠️ 模型ID需要从环境变量配置，禁止硬编码生产endpoint
+    VOLCANO_TEXT_MODEL: str = ""  # 环境变量 VOLCANO_TEXT_MODEL
+    VOLCANO_IMAGE_MODEL: str = ""  # 环境变量 VOLCANO_IMAGE_MODEL
     VOLCANO_TIMEOUT: int = 120
 
     # ========== Redis 配置 ==========
