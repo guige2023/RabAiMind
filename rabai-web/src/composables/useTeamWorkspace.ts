@@ -210,7 +210,7 @@ export function useTeamWorkspace(pptId?: string) {
     message?: string
   ): Promise<{ success: boolean; mailtoUrl?: string }> => {
     try {
-      const res = await api.shareViaEmail({
+      const res = await (api as any).shareViaEmail({
         to_email: toEmail,
         from_name: currentUser.name,
         ppt_title: pptTitle || '我的演示文稿',

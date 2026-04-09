@@ -383,6 +383,7 @@ export interface ActivityEntry {
   activity_type: string
   user_id: string
   user_name: string
+  user_avatar?: string
   target: string
   details: string
   slide_num?: number
@@ -393,6 +394,9 @@ export interface ActivityEntry {
 /** 建议编辑 */
 export interface SuggestEdit {
   id: string
+  author_avatar?: string
+  resolved_by?: string
+  resolved_at?: string
   slide_num: number
   author_id: string
   author_name: string
@@ -808,7 +812,53 @@ export interface APIClient {
     getWatermark: (taskId: string) => Promise<AxiosResponse<{ enabled: boolean; text: string; opacity: number; angle: number; font_size: number; color: string }>>
     getAccessLog: (taskId: string, limit?: number, offset?: number) => Promise<AxiosResponse<{ success: boolean; logs: Array<{ user_id: string; action: string; timestamp: string; ip?: string }> }>>
     deleteSecurity: (taskId: string) => Promise<AxiosResponse<{ success: boolean }>>
-  }
+    getCustomRoles: (include_inactive?: boolean) => Promise<AxiosResponse<{ success: boolean; roles: unknown[] }>>
+    getUserCustomRoles: (user_id: string) => Promise<AxiosResponse<{ success: boolean; roles: unknown[] }>>
+    getAvailablePermissions: () => Promise<AxiosResponse<{ success: boolean; permissions: unknown[] }>>
+    getSOC2Attestation: () => Promise<AxiosResponse<{ success: boolean }>>
+    getSOC2DataInventory: (user_id?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getSOC2AccessControls: () => Promise<AxiosResponse<{ success: boolean }>>
+    getSOC2Encryption: () => Promise<AxiosResponse<{ success: boolean }>>
+    getSOC2AuditTrail: (days?: number) => Promise<AxiosResponse<{ success: boolean }>>
+    createCustomRole: (name: string, description: string, permissions: string[]) => Promise<AxiosResponse<{ success: boolean; role_id: string }>>
+    updateCustomRole: (role_id: string, updates: { name?: string; description?: string; permissions?: string[]; is_active?: boolean }) => Promise<AxiosResponse<{ success: boolean }>>
+    deleteCustomRole: (role_id: string) => Promise<AxiosResponse<{ success: boolean }>>,
+    assignCustomRole: (user_id: string, role_id: string) => Promise<AxiosResponse<{ success: boolean }>>,
+    sso: {
+      getProviders: () => Promise<AxiosResponse<{ success: boolean; providers: unknown[] }>>
+      initiateLogin: (provider?: string) => Promise<AxiosResponse<{ success: boolean }>>
+      getSSOCallbackResult: (temp_token: string) => Promise<AxiosResponse<{ success: boolean }>>
+      completeSSORegistration: (username: string, temp_token: string) => Promise<AxiosResponse<{ success: boolean }>>
+      getMySSOStatus: () => Promise<AxiosResponse<{ success: boolean; linked: boolean; provider?: string }>>
+      linkSSOProvider: (provider?: string) => Promise<AxiosResponse<{ success: boolean }>>
+      unlinkSSOProvider: (provider: string) => Promise<AxiosResponse<{ success: boolean }>>
+      getSSOConfig: (provider?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    }
+    reminders: {
+      list: () => Promise<AxiosResponse<{ success: boolean; reminders: unknown[] }>>
+      create: (params: { task_id?: string; title: string; review_date: string; remind_before_hours?: number; notes?: string }) => Promise<AxiosResponse<{ success: boolean; reminder: unknown }>>
+      update: (reminder_id: string, params: Record<string, any>) => Promise<AxiosResponse<{ success: boolean }>>
+      delete: (reminder_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+    },
+    schedule: {
+      create: (params: { name: string; action: any; schedule_type: any; run_at?: string; day_of_week?: string; day_of_month?: number; hour?: number; minute?: number; generation?: Record<string, any>; export_config?: Record<string, any>; webhook_config?: Record<string, any>; email_config?: Record<string, any>; user_id?: string }) => Promise<AxiosResponse<{ success: boolean; schedule_id: string }>>
+      list: (user_id?: string) => Promise<AxiosResponse<{ success: boolean; schedules: unknown[] }>>
+      get: (schedule_id: string) => Promise<AxiosResponse<{ success: boolean; schedule: unknown }>>
+      update: (schedule_id: string, params: Record<string, any>) => Promise<AxiosResponse<{ success: boolean }>>
+      delete: (schedule_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+      trigger: (schedule_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+      pause: (schedule_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+      resume: (schedule_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+      status: () => Promise<AxiosResponse<{ success: boolean }>>
+      createRecurring: (params: { name: string; generation: Record<string, any>; recurrence: any; day_of_week?: string; day_of_month?: number; hour?: number; minute?: number; user_id?: string; auto_email?: Record<string, any> }) => Promise<AxiosResponse<{ success: boolean; recurring_id: string }>>
+      listRecurring: (user_id?: string) => Promise<AxiosResponse<{ success: boolean; recurring: unknown[] }>>
+      createEmail: (params: any) => Promise<AxiosResponse<{ success: boolean; email_id: string }>>
+      listEmails: (schedule_id?: string) => Promise<AxiosResponse<{ success: boolean; emails: unknown[] }>>
+      deleteEmail: (email_id: string) => Promise<AxiosResponse<{ success: boolean }>>
+      testEmail: (params: { to_email: string; subject: string; body_html?: string }) => Promise<AxiosResponse<{ success: boolean }>>
+      batchExport: (schedules: Array<{ name: string; schedule_type: string; hour?: number; minute?: number; day_of_week?: string; day_of_month?: number; export_config: Record<string, any> }>) => Promise<AxiosResponse<{ success: boolean; export_ids: string[] }>>
+    }
+  },
   ppt: {
     createTask: (data: GeneratePPTRequest) => Promise<AxiosResponse<GeneratePPTResponse>>
     getTask: (taskId: string) => Promise<AxiosResponse<TaskStatusResponse>>
@@ -847,9 +897,11 @@ export interface APIClient {
     deleteStickyNote: (taskId: string, noteId: string) => Promise<AxiosResponse<{ success: boolean }>>
     getNotesTemplates: (templateType?: string) => Promise<AxiosResponse<{ success: boolean; templates: unknown[] }>>
     createNotesTemplate: (tpl: { name: string; description?: string; template_type?: string; content: string }) => Promise<AxiosResponse<{ success: boolean; template: unknown }>>
-    suggestLayouts: (params: { title?: string; content?: string }) => Promise<AxiosResponse<{ success: boolean; suggestions: unknown[] }>>
-    saveLayoutPreference: (params: { user_id?: string; template_id?: string; layout_type?: string; content_type?: string; scene?: string; style?: string; action?: string }) => Promise<AxiosResponse<{ success: boolean; action: string }>>
-    previewChart: (taskId: string, file: File) => Promise<AxiosResponse<{ success: boolean; columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: TablePreview } }>>
+    suggestLayouts: (params: { title?: string; content?: string }) => Promise<AxiosResponse<{ success: boolean; suggestions: unknown[]; content_type?: string; content_type_display?: string; density?: number; element_count?: number; has_timeline?: boolean; has_comparison?: boolean; keywords?: string[]; primary_layout?: string }>>,
+    getAllLayouts: () => Promise<AxiosResponse<{ success: boolean; layouts: Array<{ type: string; name: string; description: string; typical_use: string[]; elements: string[] }> }>>,
+    previewChart: (taskId: string, file: File) => Promise<AxiosResponse<{ success: boolean; columns: { all_columns: string[]; label_columns: string[]; numeric_columns: string[]; preview: TablePreview } }>>,
+    updateMasterSlide: (id: string, master: any) => Promise<AxiosResponse<{ success: boolean; master_slide: unknown }>>,
+    saveCustomTheme: (theme: any) => Promise<AxiosResponse<{ success: boolean; theme: unknown }>>,
     listVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; versions: Version[] }>>
     getVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; version: Version }>>
     rollbackVersion: (taskId: string, versionId: string) => Promise<AxiosResponse<{ success: boolean; message: string }>>
@@ -870,6 +922,30 @@ export interface APIClient {
     deleteCustomTheme: (id: string) => Promise<AxiosResponse<{ success: boolean }>>
     getCustomThemes: () => Promise<AxiosResponse<{ success: boolean; themes: CustomTheme[] }>>
     suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; theme: { primary: string; secondary: string; accent: string; style: string; name: string }; alternatives?: Array<{ primary: string; secondary: string; accent: string; name: string; style: string }> }>>
+    branchVersion: (taskId: string, versionId: string, name?: string) => Promise<AxiosResponse<{ success: boolean; version_id: string; branch_id: string }>>
+    mergeVersions: (taskId: string, sourceVersionId: string, targetVersionId?: string, strategy?: string, slideResolutions?: Record<number, string>) => Promise<AxiosResponse<{ success: boolean; version_id?: string; merged_from: string; merged_to: string; strategy: string; has_conflicts?: boolean; conflicts?: MergeConflict[]; conflict_count?: number; requires_resolution?: boolean; message?: string; merged_slide_count?: number }>>,
+    addVersionTag: (taskId: string, versionId: string, tag: string) => Promise<AxiosResponse<{ success: boolean; version_id: string; tag: string; tags: string[] }>>,
+    removeVersionTag: (taskId: string, versionId: string, tag: string) => Promise<AxiosResponse<{ success: boolean; version_id: string; removed_tag: string; tags: string[] }>>,
+    getAllVersionTags: (taskId: string) => Promise<AxiosResponse<{ success: boolean; tags: Record<string, Array<{ version_id: string; version_name: string }>> }>>,
+    getAutoVersionStatus: (taskId: string) => Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_significant_change_at?: string; last_auto_version_at?: string; auto_version_threshold: number }>>,
+    recordSignificantChange: (taskId: string) => Promise<AxiosResponse<{ success: boolean; significant_change_count: number; last_recorded_at?: string; auto_version: unknown }>>,
+    detectSignificantChange: (taskId: string, oldState: any, newState: any) => Promise<AxiosResponse<{ significant: boolean; reasons: string[]; change_details: any }>>,
+    checkAutoVersion: (taskId: string) => Promise<AxiosResponse<{ success: boolean; auto_created?: boolean; version_id?: string; version_name?: string; significant_change_count?: number; remaining?: number }>>,
+    createABTest: (taskId: string, slideIndex: number, variantCount?: number) => Promise<AxiosResponse<{ success: boolean; test_id: string; variants: unknown[] }>>,
+    listABTests: (taskId: string) => Promise<AxiosResponse<{ success: boolean; tests: unknown[] }>>,
+    getABTest: (taskId: string, testId: string) => Promise<AxiosResponse<{ success: boolean; test: unknown }>>,
+    trackABView: (taskId: string, testId: string, variantId: string, timeSpentMs?: number) => Promise<AxiosResponse<{ success: boolean }>>,
+    trackABClick: (taskId: string, testId: string, variantId: string, elementId?: string) => Promise<AxiosResponse<{ success: boolean }>>,
+    selectABWinner: (taskId: string, testId: string, variantId: string) => Promise<AxiosResponse<{ success: boolean; winner: string }>>,
+    deleteABTest: (taskId: string, testId: string) => Promise<AxiosResponse<{ success: boolean }>>,
+    getSlideHistory: (taskId: string, slideIndex: number) => Promise<AxiosResponse<{ success: boolean; history: unknown[] }>>,
+    suggestImprovements: (taskId: string) => Promise<AxiosResponse<{ success: boolean; suggestions: unknown[]; total_slides: number; suggestion_count: number }>>,
+    autoSave: (taskId: string, state: any) => Promise<AxiosResponse<{ success: boolean; saved_at: string }>>,
+    getAutoSave: (taskId: string) => Promise<AxiosResponse<{ success: boolean; state?: any; saved_at?: string; message?: string }>>,
+    localize: (taskId: string, params: { target_locale: string; source_locale?: string; translate_content?: boolean; apply_rtl?: boolean }) => Promise<AxiosResponse<{ success: boolean }>>,
+    detectContentLanguage: (taskId: string) => Promise<AxiosResponse<{ success: boolean; detected_locale: string; confidence: number; text_sample: string }>>,
+    languageVersions: (taskId: string) => Promise<AxiosResponse<{ success: boolean; root_task_id: string; versions: Array<{ task_id: string; locale: string; locale_name: string; is_original: boolean; is_rtl: boolean; created_at: string }> }>>,
+    getBackupDetail: (taskId: string, backupId: string) => Promise<AxiosResponse<{ success: boolean; backup: unknown }>>,
   }
   // R160: Sharing / Access Requests
   sharing: {
@@ -890,9 +966,11 @@ export interface APIClient {
     recordQRScan: (shortCode: string, deviceInfo?: string, location?: string) => Promise<AxiosResponse<{ success: boolean }>>
     recordNFCTap: (shortCode: string, deviceInfo?: string, location?: string) => Promise<AxiosResponse<{ success: boolean }>>
     listBeacons: (shortCode: string) => Promise<AxiosResponse<{ success: boolean; beacons: Beacon[] }>>
-    createBeacon: (shortCode: string, params: Omit<Beacon, 'id' | 'created_at'>) => Promise<AxiosResponse<{ success: boolean; beacon: Beacon }>>
+    createBeacon: (params: { ppt_id: string; name: string; uuid?: string; major?: number; minor?: number; tx_power?: number; url?: string }) => Promise<AxiosResponse<{ success: boolean; beacon: Beacon }>>
     updateBeacon: (beaconId: string, params: Partial<Beacon>) => Promise<AxiosResponse<{ success: boolean; beacon: Beacon }>>
     deleteBeacon: (beaconId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    recordBeaconTrigger: (beaconId: string, shortCode?: string, deviceInfo?: string) => Promise<AxiosResponse<{ success: boolean }>>,
+    getBeacon: (beaconId: string) => Promise<AxiosResponse<{ success: boolean; beacon: Beacon }>>,
   }
   collaboration: {
     listCollaborators: (taskId: string) => Promise<AxiosResponse<{ success: boolean; collaborators: Collaborator[] }>>
@@ -926,6 +1004,29 @@ export interface APIClient {
     trackEvent: (params: { event_type: string; template_id?: string; user_id?: string; query?: string; scene?: string; style?: string; request_text?: string }) => Promise<AxiosResponse<{ success: boolean }>>
     recordTemplateClick: (templateId: string) => Promise<AxiosResponse<{ success: boolean }>>
     getTrendingQueries: (limit?: number, days?: number) => Promise<AxiosResponse<{ success: boolean; queries: Array<{ query: string; count: number }>; period_days: number }>>
+    publishTemplate: (templateId: string, visibility?: string) => Promise<AxiosResponse<{ success: boolean; template_id: string; visibility: string }>>
+    advancedSearch: (params: { query?: string; category?: string; style?: string; author?: string; tags?: string[]; date_from?: string; date_to?: string; template_type?: 'all' | 'ugc' | 'system'; sort_by?: 'relevance' | 'newest' | 'popularity' | 'name'; page?: number }) => Promise<AxiosResponse<{ success: boolean; results: unknown[]; total: number; page: number }>>
+    semanticSearch: (params: { query: string; limit?: number; category?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; query: string; total: number; results: unknown[]; search_type: string }>>
+    getSearchAnalyticsDashboard: (days?: number) => Promise<AxiosResponse<{ success: boolean; period_days: number; queries: unknown[]; top_templates: unknown[]; search_stats: unknown }>>
+    getTags: () => Promise<AxiosResponse<{ success: boolean; tags: Array<{ name: string; icon: string; color: string; count: number }> }>>
+    getReviews: (templateId: string) => Promise<AxiosResponse<{ success: boolean; reviews: unknown[]; count: number; average_rating: number }>>
+    addReview: (templateId: string, data: { user_id?: string; user_name?: string; rating: number; content: string }) => Promise<AxiosResponse<{ success: boolean; review: unknown; count: number; average_rating: number }>>
+    deleteReview: (templateId: string, reviewId: string, userId?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getFeatured: (limit?: number) => Promise<AxiosResponse<{ success: boolean; templates: unknown[] }>>
+    addFeatured: (templateId: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getTemplateOfTheDay: () => Promise<AxiosResponse<{ success: boolean; template: unknown; date: string; reason: string }>>
+    getDailyHistory: (limit?: number) => Promise<AxiosResponse<{ success: boolean; history: unknown[] }>>
+    subscribe: (category: string, userId?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    unsubscribe: (category: string, userId?: string) => Promise<AxiosResponse<{ success: boolean }>>
+    getSubscriptions: (userId?: string) => Promise<AxiosResponse<{ success: boolean; categories: string[] }>>
+    getBundles: () => Promise<AxiosResponse<{ success: boolean; bundles: unknown[] }>>
+    getBundle: (bundleId: string) => Promise<AxiosResponse<{ success: boolean; bundle: unknown }>>
+    purchaseBundle: (bundleId: string, userId?: string) => Promise<AxiosResponse<{ success: boolean; purchase: unknown; bundle: unknown }>>
+    suggestLayouts: (params: { title?: string; content?: string }) => Promise<AxiosResponse<{ success: boolean; content_type: string; content_type_display: string; density: number; element_count: number; has_timeline: boolean; has_comparison: boolean; keywords: string[]; primary_layout: string; suggestions: unknown[] }>>
+    getAllLayouts: () => Promise<AxiosResponse<{ success: boolean; layouts: Array<{ type: string; name: string; description: string; typical_use: string[]; elements: string[] }> }>>
+    suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }) => Promise<AxiosResponse<{ success: boolean; theme: { primary: string; secondary: string; accent: string; style: string; name: string }; content_analysis: { type: string; keywords: string[]; density: number }; reasons: string[] }>>
+    getLayoutPreferences: (params: { user_id?: string; content_type?: string; limit?: number }) => Promise<AxiosResponse<{ success: boolean; preferences: unknown[]; user_id: string }>>
+    saveLayoutPreference: (params: { user_id?: string; template_id?: string; layout_type?: string; content_type?: string; scene?: string; style?: string; action?: string }) => Promise<AxiosResponse<{ success: boolean; action: string }>>
   }
   // R58: Voice / TTS
   voice: {

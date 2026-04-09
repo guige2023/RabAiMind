@@ -184,13 +184,13 @@ async function uploadLogo(file: File) {
   }
 
   try {
-    const formData = new FormData()
-    formData.append('file', file)
+    const payload = new FormData()
+    payload.append('file', file)
 
     // 如果是编辑模式，先上传到已有品牌
     const brandId = props.brand?.brand_id
     if (brandId) {
-      const response = await apiClient.post(`/brand/${brandId}/logo`, formData, {
+      const response = await apiClient.post(`/brand/${brandId}/logo`, payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       if (response.data.success) {

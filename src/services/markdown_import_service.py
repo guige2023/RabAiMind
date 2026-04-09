@@ -88,7 +88,7 @@ class MarkdownImportService:
                     "type": "quote",
                     "text": " ".join(quote_lines)
                 })
-                continue
+                continue  # Explicit: continue to next line
 
             # Horizontal rule
             if re.match(r"^[-*_]{3,}$", line.strip()):

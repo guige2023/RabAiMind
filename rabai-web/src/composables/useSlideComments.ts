@@ -145,7 +145,7 @@ export function useSlideComments(
       slideNum,
       authorId: currentUser.id,
       authorName: currentUser.name,
-      authorAvatar: currentUser.avatar,
+      authorAvatar: currentUser.avatar || '',
       content: content.trim(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -172,7 +172,7 @@ export function useSlideComments(
       id: `rpl_${Date.now()}`,
       authorId: currentUser.id,
       authorName: currentUser.name,
-      authorAvatar: currentUser.avatar,
+      authorAvatar: currentUser.avatar || '',
       content: content.trim(),
       createdAt: new Date().toISOString()
     }
@@ -280,15 +280,15 @@ export function useSlideComments(
             slideNum: e.slide_num,
             authorId: e.author_id,
             authorName: e.author_name,
-            authorAvatar: e.author_avatar,
+            authorAvatar: e.author_avatar || '',
             type: e.edit_type,
             originalContent: e.original_content,
             suggestedContent: e.suggested_content,
             reason: e.reason,
             status: e.status,
             createdAt: e.created_at,
-            resolvedBy: e.resolved_by,
-            resolvedAt: e.resolved_at,
+            resolvedBy: e.resolved_by ?? null,
+            resolvedAt: e.resolved_at ?? null,
           }
           // Add to list if not already there
           if (!suggestEdits.value.find(x => x.id === edit.id)) {

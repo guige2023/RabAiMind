@@ -318,7 +318,7 @@ export function useVoiceCommands() {
 
     try {
       // Call backend TTS API
-      const response = await api.post('/voice/tts', {
+      const response = await api.voice.generateTTS({
         text,
         voice,
         rate: settings.value.ttsRate,

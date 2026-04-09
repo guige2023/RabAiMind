@@ -763,8 +763,8 @@ async function loadSlidesFromPPT() {
   if (!props.taskId) return
   try {
     const res = await api.ppt.getOutline(props.taskId)
-    if (res.data?.outline?.slides) {
-      slidesData.value = res.data.outline.slides.map((s: any) => ({
+    if (res.data?.slides) {
+      slidesData.value = res.data.slides.map((s: any) => ({
         title: s.title || '',
         content: s.content || '',
         bullet_points: s.bullet_points || []

@@ -61,7 +61,19 @@ class LarkImportService:
                     headers=headers,
                     params={"page_size": 500}
                 )
-                blocks_data = blocks_resp.json() if blocks_resp.status_code == 200 else {}
+                
+                if blocks_resp.status_code != 200:
+                    logger.warning(f"Failed to fetch blocks: status={blocks_resp.status_code}")
+                    # Return partial result with document info but empty blocks
+                    return {
+                        "success": True,
+                        "title": title,
+                        "blocks": [],
+                        "block_count": 0,
+                        "blocks_error": f"获取文档块失败: HTTP {blocks_resp.status_code}"
+                    }
+                
+                blocks_data = blocks_resp.json()
                 blocks = blocks_data.get("data", {}).get("items", [])
 
                 return {

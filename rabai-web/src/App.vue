@@ -94,7 +94,7 @@
           <Feedback />
           <button
             class="help-btn hide-mobile"
-            @click="openHelp"
+            @click="openHelp()"
             :aria-label="t('a11y.help')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">

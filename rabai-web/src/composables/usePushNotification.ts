@@ -14,7 +14,7 @@ export function usePushNotification() {
       swRegistration.value = registration
 
       // Listen for messages from service worker
-      registration.addEventListener('message', (event) => {
+      registration.addEventListener('message', (event: any) => {
         const { type, data } = event.data || {}
         if (type === 'SYNC_SUCCESS') {
           console.log('[PushNotification] Sync success for:', data?.url)

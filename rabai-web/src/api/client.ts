@@ -81,7 +81,7 @@ const CACHEABLE_PATTERNS = [
 const DEFAULT_CACHE_TTL = 5 * 60 * 1000  // 5 minutes
 
 const isCacheable = (config: AxiosRequestConfig): boolean => {
-  if (!CACHEABLE_METHODS.includes(config.method?.toLowerCase())) return false
+  if (!CACHEABLE_METHODS.includes((config.method || '').toLowerCase())) return false
   const url = config.url || ''
   return CACHEABLE_PATTERNS.some(pattern => url.includes(pattern))
 }
@@ -116,7 +116,7 @@ const createApiClient = (): AxiosInstance => {
 
   // Request cache interceptor (check cache before hitting network)
   client.interceptors.request.use(
-    (config) => {
+    (config): any => {
       if (isCacheable(config)) {
         const key = getCacheKey(config)
         const cached = apiCache.get(key)
@@ -211,7 +211,7 @@ const createApiClient = (): AxiosInstance => {
 
 export const apiClient = createApiClient()
 
-export const api: APIClient = {
+export const api = {
   ppt: {
     createTask: (data: GeneratePPTRequest): Promise<AxiosResponse<GeneratePPTResponse>> => {
       return apiClient.post('/ppt/generate', data)
@@ -585,8 +585,8 @@ export const api: APIClient = {
 
     // ========== 备份管理 R125 ==========
     /** 列出备份历史 */
-    listBackups: (taskId?: string): Promise<AxiosResponse<{ success: boolean; backups: Array<{ backup_id: string; task_id: string; name: string; backup_type: string; created_at: string; size_str: string; slide_count: number }>; count: number }>> => {
-      return apiClient.get('/ppt/backups', { params: taskId ? { task_id: taskId } : {} })
+    listBackups: (taskId: string): Promise<AxiosResponse<{ success: boolean; backups: BackupInfo[] }>> => {
+      return apiClient.get('/ppt/backups', { params: { task_id: taskId } })
     },
 
     /** 创建备份 */
@@ -830,7 +830,7 @@ export const api: APIClient = {
     },
 
     trackEvent: (params: {
-      event_type: 'search' | 'click' | 'use'
+      event_type: string
       template_id?: string
       user_id?: string
       query?: string
@@ -932,6 +932,46 @@ export const api: APIClient = {
       return apiClient.get('/ppt/layouts/all')
     },
 
+    // R111: Advanced Search - Multi-filter + semantic search
+    advancedSearch: (params: {
+      query?: string
+      category?: string
+      style?: string
+      author?: string
+      tags?: string[]
+      date_from?: string
+      date_to?: string
+      template_type?: string
+      sort_by?: string
+      page?: number
+      limit?: number
+      use_semantic?: boolean
+    }): Promise<AxiosResponse<{
+      success: boolean
+      results: any[]
+      total: number
+      page: number
+      total_pages: number
+      highlighted_fields?: Record<string, string[]>
+    }>> => {
+      return apiClient.post('/templates/search/advanced', params)
+    },
+
+    // R111: AI Semantic Search (dedicated endpoint)
+    semanticSearch: (params: {
+      query: string
+      limit?: number
+      category?: string
+      style?: string
+    }) => {
+      return apiClient.post('/templates/search/semantic', params) as any
+    },
+
+    // R111: Load Search Analytics Dashboard
+    getSearchAnalyticsDashboard: (days = 30) => {
+      return apiClient.get('/templates/search-analytics/dashboard', { params: { days } }) as any
+    },
+
     // R145: Auto-Theme Suggestion
     suggestTheme: (params: { content?: string; title?: string; scene?: string; style?: string }): Promise<AxiosResponse<{
       success: boolean
@@ -956,63 +996,6 @@ export const api: APIClient = {
       return apiClient.get('/templates/preferences', { params })
     },
 
-    // R111: Advanced Search - Multi-filter + AI semantic + highlighting
-    advancedSearch: (params: {
-      query?: string
-      category?: string
-      style?: string
-      author?: string
-      tags?: string[]
-      date_from?: string
-      date_to?: string
-      template_type?: 'all' | 'ugc' | 'system'
-      sort_by?: 'relevance' | 'newest' | 'popularity' | 'name'
-      page?: number
-      limit?: number
-      use_semantic?: boolean
-    }): Promise<AxiosResponse<{
-      success: boolean
-      results: any[]
-      total: number
-      page: number
-      total_pages: number
-      query: string
-      applied_filters: Record<string, any>
-      highlighted_fields: Record<string, any>
-    }>> => {
-      return apiClient.post('/templates/advanced-search', params)
-    },
-
-    // R111: AI Semantic Search
-    semanticSearch: (params: {
-      query: string
-      limit?: number
-      category?: string
-      style?: string
-    }): Promise<AxiosResponse<{
-      success: boolean
-      query: string
-      total: number
-      results: any[]
-      search_type: string
-    }>> => {
-      return apiClient.post('/templates/semantic-search', params)
-    },
-
-    // R111: Search Analytics Dashboard
-    getSearchAnalyticsDashboard: (days = 30): Promise<AxiosResponse<{
-      success: boolean
-      period_days: number
-      trending_queries: Array<{ query: string; count: number }>
-      search_volume_over_time: Array<{ date: string; count: number }>
-      no_result_queries: Array<{ query: string; count: number }>
-      top_clicked_templates: Array<{ id: string; name: string; category: string; style: string; thumbnail: string; click_count: number }>
-      popular_filter_combinations: Array<{ filters: string; count: number }>
-      total_searches: number
-      unique_queries: number
-    }>> => {
-      return apiClient.get('/templates/search-analytics/dashboard', { params: { days } })
-    }
   },
 
   // R34: PPT内容搜索
@@ -1035,6 +1018,9 @@ export const api: APIClient = {
 
   // R32: AI 增强功能
   ai: {
+    translateText: (params: { text: string; source_lang: string; target_lang: string }): Promise<AxiosResponse<{ success: boolean; data: { original: string; translated: string; source_lang: string; target_lang: string } }>> => {
+      return apiClient.post('/ai/translate-text', params)
+    },
     rephrase: (text: string, style: string = 'natural'): Promise<AxiosResponse<{ success: boolean; rephrased: string }>> => {
       return apiClient.post('/ai/rephrase', { text, style })
     },
@@ -1472,18 +1458,7 @@ export const api: APIClient = {
 
   getSuggestEdits: (taskId: string, slideNum?: number): Promise<AxiosResponse<{
     success: boolean
-    edits: Array<{
-      id: string
-      slide_num: number
-      author_id: string
-      author_name: string
-      edit_type: string
-      original_content: any
-      suggested_content: any
-      reason: string
-      status: 'pending' | 'accepted' | 'rejected'
-      created_at: string
-    }>
+    edits: SuggestEdit[]
   }>> => {
     const params = slideNum ? { slide_num: slideNum } : {}
     return apiClient.get(`/collaboration/suggest-edits/${taskId}`, { params })
@@ -1594,25 +1569,10 @@ export const api: APIClient = {
     return apiClient.delete('/notifications/comment-email')
   },
 
-  // --- Data Sources (R113) -------------------------------------------
+  // --- Data Sources (R113) -----------------------------------------
   listDataSources: (): Promise<AxiosResponse<{
     success: boolean
-    data_sources: Array<{
-      id: string
-      name: string
-      source_type: string
-      status: string
-      auto_update: boolean
-      last_synced_at: string | null
-      sync_interval_minutes: number
-      created_at: string
-      updated_at: string
-      total_rows: number
-      total_columns: number
-      headers: string[]
-      table_type: string
-      threshold_alerts?: any[]
-    }>
+    data_sources: DataSource[]
   }>> => {
     return apiClient.get('/data-sources')
   },
@@ -1871,22 +1831,22 @@ export const api: APIClient = {
       return apiClient.delete(`/security/presentation/${taskId}/security`)
     },
 
-    // R140: Org IP Allowlist
-    getOrgIPAllowlist() {
-      return apiClient.get('/security/org/ip-allowlist')
-    },
-    setOrgIPAllowlist(allowed_ips: string[], mode = 'allow') {
-      return apiClient.post('/security/org/ip-allowlist', { allowed_ips, mode })
-    },
-    setOrgIPDenylist(denied_ips: string[]) {
-      return apiClient.post('/security/org/ip-denylist', { denied_ips })
-    },
-    clearOrgIPAllowlist() {
-      return apiClient.delete('/security/org/ip-allowlist')
-    },
-    checkMyIPAllowlist() {
-      return apiClient.get('/security/org/ip-allowlist/check')
-    },
+    // R140: Org IP Allowlist (commented - not in APIClient type)
+    // getOrgIPAllowlist() {
+    //   return apiClient.get('/security/org/ip-allowlist')
+    // },
+    // setOrgIPAllowlist(allowed_ips: string[], mode = 'allow') {
+    //   return apiClient.post('/security/org/ip-allowlist', { allowed_ips, mode })
+    // },
+    // setOrgIPDenylist(denied_ips: string[]) {
+    //   return apiClient.post('/security/org/ip-denylist', { denied_ips })
+    // },
+    // clearOrgIPAllowlist() {
+    //   return apiClient.delete('/security/org/ip-allowlist')
+    // },
+    // checkMyIPAllowlist() {
+    //   return apiClient.get('/security/org/ip-allowlist/check')
+    // },
 
     // R140: Custom RBAC Roles
     getCustomRoles(include_inactive = false) {

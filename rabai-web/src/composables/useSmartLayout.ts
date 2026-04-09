@@ -442,6 +442,7 @@ export function useSmartLayout() {
         const sidebarW = Math.round(availableW * 0.3)
         const mainEls = elements.filter((_, i) => i > 0).slice(1)
         const sidebarEls = elements.filter((_, i) => i === 0).slice(0, 1)
+        const gap = 20
 
         if (elements[0]) {
           elements[0].x = padding
@@ -462,6 +463,7 @@ export function useSmartLayout() {
         const sidebarW = Math.round(availableW * 0.3)
         const mainEls = elements.filter((_, i) => i > 0).slice(1)
         const sidebarEls = elements.filter((_, i) => i === 0).slice(0, 1)
+        const gap = 20
 
         if (elements[0]) {
           elements[0].x = Math.round(w - sidebarW - padding)

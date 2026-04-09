@@ -201,7 +201,7 @@ export function useRemoteControl(options: RemoteControlOptions = {}): RemoteCont
       // Override onopen to resolve
       const originalOnOpen = ws.onopen
       ws.onopen = (ev: Event) => {
-        originalOnOpen?.call(ws, ev)
+        originalOnOpen?.call(ws as WebSocket, ev)
         clearTimeout(ackTimeout)
         resolve()
       }

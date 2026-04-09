@@ -329,7 +329,7 @@ const columnInfo = ref<{
   label_columns: string[]
   numeric_columns: string[]
   row_count: number
-  preview: any[]
+  preview: unknown[][]
 } | null>(null)
 
 const allColumns = computed(() => columnInfo.value?.all_columns || [])

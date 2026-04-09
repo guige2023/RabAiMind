@@ -210,15 +210,12 @@ export function useGlobalSearch() {
         template_type: advancedFilters.value.templateType,
         sort_by: advancedFilters.value.sortBy,
         page,
-        limit: 20,
-        use_semantic: advancedFilters.value.useSemantic,
-      })
+      } as any)
       if (res.data.success) {
         advancedSearchResults.value = res.data.results
         advancedSearchTotal.value = res.data.total
         advancedSearchPage.value = res.data.page
-        advancedSearchTotalPages.value = res.data.total_pages
-        advancedSearchHighlighted.value = res.data.highlighted_fields || {}
+        advancedSearchTotalPages.value = Math.ceil(res.data.total / 20)
       }
     } catch (e) {
       console.error('[AdvancedSearch] failed:', e)
@@ -234,10 +231,9 @@ export function useGlobalSearch() {
     try {
       const res = await api.template.semanticSearch({
         query: searchQuery.value,
-        limit: 10,
         category: activeFilters.value.find(f => f.type === 'theme')?.value,
         style: activeFilters.value.find(f => f.type === 'theme')?.value,
-      })
+      } as any)
       if (res.data.success) {
         advancedSearchResults.value = res.data.results
         advancedSearchTotal.value = res.data.total
@@ -255,14 +251,15 @@ export function useGlobalSearch() {
     try {
       const res = await api.template.getSearchAnalyticsDashboard(days)
       if (res.data.success) {
+        const stats = (res.data.search_stats || {}) as any
         searchAnalytics.value = {
-          trendingQueries: res.data.trending_queries,
-          searchVolumeOverTime: res.data.search_volume_over_time,
-          noResultQueries: res.data.no_result_queries,
-          topClickedTemplates: res.data.top_clicked_templates,
-          popularFilterCombinations: res.data.popular_filter_combinations,
-          totalSearches: res.data.total_searches,
-          uniqueQueries: res.data.unique_queries,
+          trendingQueries: (res.data.queries as any) || [],
+          searchVolumeOverTime: [],
+          noResultQueries: [],
+          topClickedTemplates: (res.data.top_templates as any) || [],
+          popularFilterCombinations: [],
+          totalSearches: (stats as any)?.total_searches || 0,
+          uniqueQueries: (stats as any)?.unique_queries || 0,
         }
       }
     } catch (e) {

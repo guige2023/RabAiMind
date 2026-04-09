@@ -13,6 +13,7 @@ export type EasingType =
   | 'smooth'
   | 'snappy'
   | 'gentle'
+  | 'overshoot'
   | 'spring'
   // Bezier presets
   | 'bezier-smooth'

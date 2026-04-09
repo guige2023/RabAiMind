@@ -235,7 +235,7 @@ export function useNotifications() {
       const res = await apiClient.delete(`/notifications/reminders/${reminderId}`)
       if (res.data.success) {
         reminders.value = reminders.value.filter(r => r.id !== reminderId)
-        showSuccess('🗑️ 提醒已删除', '', 'info')
+        showSuccess('🗑️ 提醒已删除', '')
       }
     } catch (e: any) {
       showSuccess('❌ 删除失败', e.message)
@@ -408,7 +408,7 @@ export function useNotifications() {
     try {
       await apiClient.delete('/notifications/digest/unsubscribe')
       digestSub.value = null
-      showSuccess('📧 周报已取消订阅', '', 'info')
+      showSuccess('📧 周报已取消订阅', '')
     } catch (e: any) {
       showSuccess('❌ 取消失败', e.message)
     }
