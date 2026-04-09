@@ -95,6 +95,10 @@ def _build_examples() -> Dict[str, List[Dict[str, str]]]:
         ("列出 Webhooks", "GET", "/api/v1/webhooks", {}, None),
         ("删除 Webhook", "DELETE", "/api/v1/webhooks/{webhook_id}", {}, None),
         ("发送测试事件", "POST", "/api/v1/webhooks/{webhook_id}/test", h, '{"event":"generation.completed"}'),
+        ("创建 API Key", "POST", "/api/v1/developer/api-keys", h, '{"name":"My Integration Key","role":"user"}'),
+        ("列出 API Keys", "GET", "/api/v1/developer/api-keys", {}, None),
+        ("查看 Key 用量", "GET", "/api/v1/developer/api-keys/{key_id}/usage", {}, None),
+        ("撤销 API Key", "DELETE", "/api/v1/developer/api-keys/{key_id}", {}, None),
     ]
 
     result: Dict[str, List[Dict[str, str]]] = {}
@@ -151,6 +155,7 @@ async def get_developer_info():
                 "rate_limits": "GET /api/v1/developer/rate-limits",
                 "health": "GET /api/v1/developer/health",
                 "webhook_logs": "GET /api/v1/developer/webhook-logs",
+                "api_keys": "POST/GET/DELETE /api/v1/developer/api-keys",
             },
             "core": {
                 "generate": "POST /api/v1/ppt/generate",
@@ -171,6 +176,7 @@ async def get_developer_info():
             "Rate limit dashboard with tier breakdown",
             "API health monitor with component status",
             "Webhook event log viewer with delivery history",
+            "API key management (create, list, revoke, usage stats)",
         ],
         "sdk": {
             "python": "pip install requests",
